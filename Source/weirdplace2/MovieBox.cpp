@@ -15,7 +15,6 @@ AMovieBox::AMovieBox()
 void AMovieBox::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 // Called every frame
