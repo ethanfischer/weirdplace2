@@ -5,20 +5,26 @@
 
 void UMyBlueprintFunctionLibrary::SpawnMultiple(const UObject*         WorldContextObject, const AActor* SpawnerObject, TSubclassOf<AActor> ActorClass,
                                                 const TArray<FVector>& ShelfLocations,
-                                                const TArray<FVector>& BookcaseLocations, const int AmountPerShelf, const int Spacing, const FVector& SpawnDirection)
+                                                const TArray<FVector>& BookcaseLocations, const int AmountPerShelf, const int Spacing, const FVector& SpawnDirection,
+                                                const UDataTable*      DataTable)
 {
 	const auto SpawnerLocation = SpawnerObject->GetActorLocation();
 	const auto SpawnerRotation = SpawnerObject->GetActorRotation();
+	const auto VideoNames = DataTable->GetRowNames();
+	auto       VideoNameIndex = 0;
 
-	for (auto shelfIndex = 0; shelfIndex < ShelfLocations.Num(); shelfIndex++)
+	for (auto ShelfIndex = 0; ShelfIndex < ShelfLocations.Num(); ShelfIndex++)
 	{
-		for (auto bookcaseIndex = 0; bookcaseIndex < BookcaseLocations.Num(); bookcaseIndex++)
+		for (auto BookcaseIndex = 0; BookcaseIndex < BookcaseLocations.Num(); BookcaseIndex++)
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
-				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[bookcaseIndex] + ShelfLocations[shelfIndex]));
-				auto AdjustedRotation = GetSpawnedActorRotation(SpawnerRotation, bookcaseIndex);
-				WorldContextObject->GetWorld()->SpawnActor<AActor>(ActorClass, AdjustedLocation, AdjustedRotation);
+				auto       AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
+				auto       AdjustedRotation = GetSpawnedActorRotation(SpawnerRotation, BookcaseIndex);
+				const auto SpawnParameters = new FActorSpawnParameters();
+				SpawnParameters->Name = VideoNames[VideoNameIndex];
+				WorldContextObject->GetWorld()->SpawnActor<AActor>(ActorClass, AdjustedLocation, AdjustedRotation, *SpawnParameters);
+				VideoNameIndex++;
 			}
 		}
 	}
