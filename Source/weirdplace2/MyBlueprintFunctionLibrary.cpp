@@ -28,8 +28,8 @@ FRotator UMyBlueprintFunctionLibrary::GetSpawnedActorRotation(const FRotator& Ro
 {
 	if (bookcaseIndex % 2 == 0)
 	{
-		return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll + 180);
+		return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
 	}
 
-	return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
+	return FRotator(Rotator.Pitch, Rotator.Yaw + 180, Rotator.Roll);
 }
