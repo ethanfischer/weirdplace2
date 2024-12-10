@@ -9,18 +9,27 @@ void UMyBlueprintFunctionLibrary::SpawnMultiple(const UObject*         WorldCont
 {
 	const auto SpawnerLocation = SpawnerObject->GetActorLocation();
 	const auto SpawnerRotation = SpawnerObject->GetActorRotation();
-	
-	for (auto bookcaseIndex = 0; bookcaseIndex < BookcaseLocations.Num(); bookcaseIndex++)
+
+	for (auto shelfIndex = 0; shelfIndex < ShelfLocations.Num(); shelfIndex++)
 	{
-		for (auto shelfIndex = 0; shelfIndex < ShelfLocations.Num(); shelfIndex++)
+		for (auto bookcaseIndex = 0; bookcaseIndex < BookcaseLocations.Num(); bookcaseIndex++)
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
-				const auto SpawnedActor = WorldContextObject->GetWorld()->SpawnActor<AActor>(ActorClass, SpawnerLocation, SpawnerRotation);
-
 				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[bookcaseIndex] + ShelfLocations[shelfIndex]));
-				SpawnedActor->SetActorLocation(AdjustedLocation);
+				auto AdjustedRotation = GetSpawnedActorRotation(SpawnerRotation, bookcaseIndex);
+				WorldContextObject->GetWorld()->SpawnActor<AActor>(ActorClass, AdjustedLocation, AdjustedRotation);
 			}
 		}
 	}
+}
+
+FRotator UMyBlueprintFunctionLibrary::GetSpawnedActorRotation(const FRotator& Rotator, const int bookcaseIndex)
+{
+	if (bookcaseIndex % 2 == 0)
+	{
+		return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll + 180);
+	}
+
+	return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
 }

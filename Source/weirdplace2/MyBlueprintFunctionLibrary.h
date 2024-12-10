@@ -14,6 +14,7 @@ class WEIRDPLACE2_API UMyBlueprintFunctionLibrary : public UBlueprintFunctionLib
 {
 	GENERATED_BODY()
 
+	static FRotator GetSpawnedActorRotation(const FRotator& Rotator, int BookcaseIndex);
 	UFUNCTION(BlueprintCallable, Category="Actor", meta=(WorldContext="WorldContextObject", DeterminesOutputType="ActorClass"))
 	static void SpawnMultiple(const UObject* WorldContextObject, const AActor* SpawnerObject, TSubclassOf<AActor> ActorClass, const TArray<FVector>& ShelfLocations, const TArray<FVector>&
 	                          BookcaseLocations, const int AmountPerShelf, const int Spacing, const FVector& SpawnDirection);
