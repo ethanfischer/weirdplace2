@@ -40,8 +40,6 @@ private:
 
 	void SpawnMovieBoxes();
 
-	static FRotator GetSpawnedActorRotation(const FRotator& Rotator, const int bookcaseIndex);
-
 public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

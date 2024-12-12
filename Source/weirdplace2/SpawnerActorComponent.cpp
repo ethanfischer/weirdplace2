@@ -9,12 +9,8 @@ USpawnerActorComponent::USpawnerActorComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
 }
 
-
-// Called when the game starts
 void USpawnerActorComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -34,19 +30,16 @@ void USpawnerActorComponent::BeginPlay()
 	SpawnMovieBoxes();
 }
 
-
-// Called every frame
 void USpawnerActorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
-	// ...
 }
 
 void USpawnerActorComponent::SpawnMovieBoxes()
 {
 	const auto SpawnerLocation = Owner->GetActorLocation();
 	const auto SpawnerRotation = Owner->GetActorRotation();
+	const auto SpawnerRotationFlipped = FRotator(SpawnerRotation.Pitch, SpawnerRotation.Yaw + 180, SpawnerRotation.Roll);
 	const auto VideoNames = DataTable->GetRowNames();
 	auto       VideoNameIndex = 0;
 
@@ -56,23 +49,13 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
-				auto       AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
-				auto       AdjustedRotation = GetSpawnedActorRotation(SpawnerRotation, BookcaseIndex);
-				const auto SpawnParameters = new FActorSpawnParameters();
-				SpawnParameters->Name = VideoNames[VideoNameIndex];
-				World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, *SpawnParameters);
+				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
+				auto AdjustedRotation = BookcaseIndex % 2 == 0 ? SpawnerRotation : SpawnerRotationFlipped;
+				FActorSpawnParameters SpawnParameters;
+				SpawnParameters.Name = VideoNames[VideoNameIndex];
+				World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
 				VideoNameIndex++;
 			}
 		}
 	}
-}
-
-FRotator USpawnerActorComponent::GetSpawnedActorRotation(const FRotator& Rotator, const int bookcaseIndex)
-{
-	if (bookcaseIndex % 2 == 0)
-	{
-		return FRotator(Rotator.Pitch, Rotator.Yaw, Rotator.Roll);
-	}
-
-	return FRotator(Rotator.Pitch, Rotator.Yaw + 180, Rotator.Roll);
 }
