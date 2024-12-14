@@ -42,6 +42,7 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	const auto SpawnerRotationFlipped = FRotator(SpawnerRotation.Pitch, SpawnerRotation.Yaw + 180, SpawnerRotation.Roll);
 	const auto VideoNames = DataTable->GetRowNames();
 	auto       VideoNameIndex = 0;
+	int ChosenOnes[3] = {1, 43, 89};
 
 	for (auto ShelfIndex = 0; ShelfIndex < ShelfLocations.Num(); ShelfIndex++)
 	{
@@ -49,7 +50,17 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
+				auto ChosenOneAdjustment = 0;
+				for (auto j = 0; j < 3; j++)
+				{
+					if (ChosenOnes[j] == VideoNameIndex)
+					{
+						ChosenOneAdjustment = 10;
+						break;
+					}
+				}
 				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
+				AdjustedLocation.Y += ChosenOneAdjustment;
 				auto AdjustedRotation = BookcaseIndex % 2 == 0 ? SpawnerRotation : SpawnerRotationFlipped;
 				FActorSpawnParameters SpawnParameters;
 				SpawnParameters.Name = VideoNames[VideoNameIndex];
