@@ -20,6 +20,10 @@ protected:
 	virtual void BeginPlay() override;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Timed Visibility Settings")
 	float        ToggleFrequencyInSeconds;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Timed Visibility Settings")
+	FVector2D  ToggleFrequencyInSecondsRandomRange;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Timed Visibility Settings")
 	bool         CanToggleWhileInView;
 	

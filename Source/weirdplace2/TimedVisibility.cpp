@@ -23,15 +23,20 @@ void UTimedVisibility::BeginPlay()
 	Owner = GetOwner();
 	World = GetWorld();
 	PlayerController = UGameplayStatics::GetPlayerController(World, 0);
+
+	if (ToggleFrequencyInSecondsRandomRange != FVector2D(0, 0)) //default value
+	{
+		ToggleFrequencyInSeconds = FMath::FRandRange(ToggleFrequencyInSecondsRandomRange.X, ToggleFrequencyInSecondsRandomRange.Y);
+	}
 }
 
 bool UTimedVisibility::IsInView()
 {
-	if(CanToggleWhileInView)
+	if (CanToggleWhileInView)
 	{
 		return false;
 	}
-	
+
 	FVector  PlayerViewLocation;
 	FRotator PlayerViewRotation;
 
@@ -64,7 +69,7 @@ void UTimedVisibility::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		ShouldToggleVisibility = true;
 		Timer = 0;
 	}
-	
+
 	if (ShouldToggleVisibility && !IsInView())
 	{
 		IsVisible = !IsVisible;
