@@ -33,7 +33,7 @@ void UTimedTeleport::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 	if (Timer > TimeToTeleport)
 	{
 		Timer = 0;
-		GetOwner()->SetActorLocation(TeleportLocation);
+		GetOwner()->SetActorTransform(FTransform(TeleportRotation, TeleportLocation));
 	}
 }
 
