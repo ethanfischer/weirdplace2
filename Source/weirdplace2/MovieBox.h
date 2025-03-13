@@ -3,11 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Interactable.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"
 
 UCLASS()
-class WEIRDPLACE2_API AMovieBox : public AActor
+class WEIRDPLACE2_API AMovieBox : public AActor, public IInteractable
 {
 	GENERATED_BODY()
 	
