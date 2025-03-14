@@ -53,35 +53,17 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	Actor->SetActorLocation(NewLocation);
 	Actor->SetActorRotation(NewRotation);
 	Actor->SetActorHiddenInGame(false);
-
 	
-   // Store reference to inspected actor TODO: why?
+	// Store reference to inspected actor
     InspectedActor = Actor;
 
     // Freeze player camera movement
     PlayerController->SetIgnoreLookInput(true);
     PlayerController->SetIgnoreMoveInput(true);
 
-    // Enable mouse cursor
-    PlayerController->bShowMouseCursor = true;
-    PlayerController->bEnableClickEvents = true;
-    PlayerController->bEnableMouseOverEvents = true;
-
     // Bind rotation input
     PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
     PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
-    PlayerController->InputComponent->BindAxis("Look Up / Down Gamepad", this, &AMovieBox::RotateInspectedActor);
-    PlayerController->InputComponent->BindAxis("Look Up / Down Mouse", this, &AMovieBox::RotateInspectedActor);
-
-	if (GEngine)
-	{
-		GEngine->AddOnScreenDebugMessage(
-		                                 -1,
-		                                 5.f,
-		                                 FColor::Green,
-		                                 FString::Printf(TEXT("%s is now in front of the player for inspection"), *Actor->GetName())
-		                                );
-	}
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
@@ -89,7 +71,14 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
     if (!InspectedActor)
         return;
 
-    FRotator NewRotation = InspectedActor->GetActorRotation();
-    NewRotation.Yaw += AxisValue * 2.0f; // Adjust sensitivity
-    InspectedActor->SetActorRotation(NewRotation);
+    // Get the local up vector of the actor
+    FVector LocalUpVector = InspectedActor->GetActorUpVector();
+
+    // Create a rotation around the local up axis
+    FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(AxisValue * 2.0f)); // Adjust sensitivity
+
+    // Apply the rotation in local space
+    InspectedActor->AddActorWorldRotation(DeltaRotation);
 }
+
+
