@@ -24,6 +24,9 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void InteractWithObject(AActor* Actor, float inspectionDistance);
 	void         RotateInspectedActor(float AxisValue);
+	void         StopInspection();
+
 private:
-	AActor*          InspectedActor;
+	AActor* InspectedActor;
+	FTransform     OriginalActorTransform;
 };
