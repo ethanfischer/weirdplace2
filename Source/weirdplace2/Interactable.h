@@ -17,5 +17,5 @@ class WEIRDPLACE2_API IInteractable
 public:
     /** Function can be called in Blueprint but must be implemented in C++ */
     UFUNCTION(BlueprintCallable, Category="Interaction")
-    virtual void InteractWithObject(AActor* Actor) = 0;
+    virtual void InteractWithObject(AActor* Actor, float inspectionDistance) = 0;
 };

@@ -22,5 +22,5 @@ protected:
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-	virtual void InteractWithObject(AActor* Actor) override;
+	virtual void InteractWithObject(AActor* Actor, float inspectionDistance);
 };
