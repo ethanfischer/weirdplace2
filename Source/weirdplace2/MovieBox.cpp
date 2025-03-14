@@ -26,44 +26,57 @@ void AMovieBox::Tick(float DeltaTime)
 
 void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 {
-	if (!Actor)
-		return;
+    if (!Actor)
+        return;
 
-	// Get the player's controller and pawn
-	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-	if (!PlayerController)
-		return;
+    // Get the player's controller
+    APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+    if (!PlayerController)
+        return;
 
-	APawn* PlayerPawn = PlayerController->GetPawn();
-	if (!PlayerPawn)
-		return;
+    APawn* PlayerPawn = PlayerController->GetPawn();
+    if (!PlayerPawn)
+        return;
 
-	// Get the camera component (assuming it's a first-person character with a camera)
-	FVector  CameraLocation;
-	FRotator CameraRotation;
-	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
+    // Get the camera component (assuming it's a first-person character with a camera)
+    FVector CameraLocation;
+    FRotator CameraRotation;
+    PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
-	// Offset distance in front of the camera
-	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * inspectionDistance);
+    // Store the actor’s original transform before moving it
+    OriginalActorTransform = Actor->GetActorTransform();
 
-	// Calculate rotation so the actor's X-axis (forward vector) faces the camera
-	FRotator NewRotation = (CameraLocation - NewLocation).Rotation();
+    // Offset distance in front of the camera
+    FVector NewLocation = CameraLocation + (CameraRotation.Vector() * inspectionDistance);
 
-	// Set the actor's new position and rotation
-	Actor->SetActorLocation(NewLocation);
-	Actor->SetActorRotation(NewRotation);
-	Actor->SetActorHiddenInGame(false);
-	
-	// Store reference to inspected actor
+    // Calculate rotation so the actor's X-axis (forward vector) faces the camera
+    FRotator NewRotation = (CameraLocation - NewLocation).Rotation();
+
+    // Set the actor's new position and rotation
+    Actor->SetActorLocation(NewLocation);
+    Actor->SetActorRotation(NewRotation);
+    Actor->SetActorHiddenInGame(false);
+
+    // Store reference to inspected actor
     InspectedActor = Actor;
 
-    // Freeze player camera movement
+    // Freeze player camera and movement
     PlayerController->SetIgnoreLookInput(true);
     PlayerController->SetIgnoreMoveInput(true);
+
+    // Ensure input component exists
+    if (!PlayerController->InputComponent)
+    {
+        PlayerController->InputComponent = NewObject<UInputComponent>(PlayerController);
+        PlayerController->InputComponent->RegisterComponent();
+    }
 
     // Bind rotation input
     PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
     PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
+
+    // Bind Q key to exit inspection
+    PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
@@ -82,3 +95,25 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 }
 
 
+void AMovieBox::StopInspection()
+{
+    if (!InspectedActor)
+        return;
+
+    APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+    if (!PlayerController)
+        return;
+
+    // Restore the object's original position and rotation
+    InspectedActor->SetActorTransform(OriginalActorTransform);
+    
+    // Restore player movement and camera control
+    PlayerController->SetIgnoreLookInput(false);
+    PlayerController->SetIgnoreMoveInput(false);
+
+    // Unbind input actions
+    PlayerController->InputComponent->AxisBindings.Empty(); //TODO: really?
+
+    // Clear inspected actor reference
+    InspectedActor = nullptr;
+}
