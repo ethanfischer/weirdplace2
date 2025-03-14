@@ -2,9 +2,3 @@
 
 
 #include "Interactable.h"
-
-
-// Add default functionality here for any IUInteractable functions that are not pure virtual.
-void IInteractable::InteractWithObject(UObject* Object)
-{
-}
