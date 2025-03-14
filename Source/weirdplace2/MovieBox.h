@@ -23,4 +23,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	virtual void InteractWithObject(AActor* Actor, float inspectionDistance);
+	void         RotateInspectedActor(float AxisValue);
+private:
+	AActor*          InspectedActor;
 };
