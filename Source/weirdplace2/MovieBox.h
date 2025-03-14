@@ -8,11 +8,10 @@
 #include "MovieBox.generated.h"
 
 UCLASS()
-class WEIRDPLACE2_API AMovieBox : public AActor, public IInteractable
-{
+class WEIRDPLACE2_API AMovieBox : public AActor, public IInteractable {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	// Sets default values for this actor's properties
 	AMovieBox();
 
@@ -20,8 +19,8 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-
+	virtual void InteractWithObject(AActor* Actor) override;
 };

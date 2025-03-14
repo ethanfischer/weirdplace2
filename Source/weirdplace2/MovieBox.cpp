@@ -6,7 +6,7 @@
 // Sets default values
 AMovieBox::AMovieBox()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
 }
@@ -24,3 +24,16 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
+void AMovieBox::InteractWithObject(AActor* Actor)
+{
+	Actor->SetActorHiddenInGame(true);
+	 if (GEngine)
+        {
+            GEngine->AddOnScreenDebugMessage(
+                -1,                    // Unique key (-1 means auto-remove)
+                5.f,                   // Duration (seconds)
+                FColor::Green,         // Text color
+                FString::Printf(TEXT("%s has been hidden"), *Actor->GetName()) // Message
+            );
+        }
+}
