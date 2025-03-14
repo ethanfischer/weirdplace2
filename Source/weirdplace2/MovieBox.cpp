@@ -24,16 +24,43 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
-void AMovieBox::InteractWithObject(AActor* Actor)
+void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 {
-	Actor->SetActorHiddenInGame(true);
-	 if (GEngine)
-        {
-            GEngine->AddOnScreenDebugMessage(
-                -1,                    // Unique key (-1 means auto-remove)
-                5.f,                   // Duration (seconds)
-                FColor::Green,         // Text color
-                FString::Printf(TEXT("%s has been hidden"), *Actor->GetName()) // Message
-            );
-        }
+	if (!Actor)
+		return;
+
+	// Get the player's controller and pawn
+	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	if (!PlayerController)
+		return;
+
+	APawn* PlayerPawn = PlayerController->GetPawn();
+	if (!PlayerPawn)
+		return;
+
+	// Get the camera component (assuming it's a first-person character with a camera)
+	FVector  CameraLocation;
+	FRotator CameraRotation;
+	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+	// Offset distance in front of the camera
+	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * inspectionDistance);
+
+	// Calculate rotation so the actor's X-axis (forward vector) faces the camera
+	FRotator NewRotation = (CameraLocation - NewLocation).Rotation();
+
+	// Set the actor's new position and rotation
+	Actor->SetActorLocation(NewLocation);
+	Actor->SetActorRotation(NewRotation);
+	Actor->SetActorHiddenInGame(false);
+
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+		                                 -1,
+		                                 5.f,
+		                                 FColor::Green,
+		                                 FString::Printf(TEXT("%s is now in front of the player for inspection"), *Actor->GetName())
+		                                );
+	}
 }
