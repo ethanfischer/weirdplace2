@@ -54,6 +54,25 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	Actor->SetActorRotation(NewRotation);
 	Actor->SetActorHiddenInGame(false);
 
+	
+   // Store reference to inspected actor TODO: why?
+    InspectedActor = Actor;
+
+    // Freeze player camera movement
+    PlayerController->SetIgnoreLookInput(true);
+    PlayerController->SetIgnoreMoveInput(true);
+
+    // Enable mouse cursor
+    PlayerController->bShowMouseCursor = true;
+    PlayerController->bEnableClickEvents = true;
+    PlayerController->bEnableMouseOverEvents = true;
+
+    // Bind rotation input
+    PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
+    PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
+    PlayerController->InputComponent->BindAxis("Look Up / Down Gamepad", this, &AMovieBox::RotateInspectedActor);
+    PlayerController->InputComponent->BindAxis("Look Up / Down Mouse", this, &AMovieBox::RotateInspectedActor);
+
 	if (GEngine)
 	{
 		GEngine->AddOnScreenDebugMessage(
@@ -63,4 +82,14 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 		                                 FString::Printf(TEXT("%s is now in front of the player for inspection"), *Actor->GetName())
 		                                );
 	}
+}
+
+void AMovieBox::RotateInspectedActor(float AxisValue)
+{
+    if (!InspectedActor)
+        return;
+
+    FRotator NewRotation = InspectedActor->GetActorRotation();
+    NewRotation.Yaw += AxisValue * 2.0f; // Adjust sensitivity
+    InspectedActor->SetActorRotation(NewRotation);
 }
