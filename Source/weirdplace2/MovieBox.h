@@ -29,4 +29,5 @@ public:
 private:
 	AActor* InspectedActor;
 	FTransform     OriginalActorTransform;
+	FRotator CameraRotation;
 };
