@@ -88,7 +88,7 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
     FVector LocalUpVector = InspectedActor->GetActorUpVector();
 
     // Create a rotation around the local up axis
-    FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(AxisValue * 2.0f)); // Adjust sensitivity
+    FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f)); // Adjust sensitivity
 
     // Apply the rotation in local space
     InspectedActor->AddActorWorldRotation(DeltaRotation);
