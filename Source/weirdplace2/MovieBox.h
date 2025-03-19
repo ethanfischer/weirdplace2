@@ -24,6 +24,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	virtual void InteractWithObject(AActor* Actor, float inspectionDistance);
+	void CollectInspectedSubitem();
 	void         RotateInspectedActor(float AxisValue);
 	void         StopInspection();
 
@@ -31,7 +32,11 @@ private:
 	AActor*    InspectedActor;
 	FTransform OriginalActorTransform;
 	FRotator   CameraRotation;
+	APlayerController* PlayerController;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh", meta=(AllowPrivateAccess="true"))
+	UStaticMeshComponent* EnvelopeMesh;
 };
