@@ -15,6 +15,20 @@ AMovieBox::AMovieBox()
 void AMovieBox::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Find the specific UWidgetComponent by name
+	InteractionWidget = Cast<UWidgetComponent>(GetDefaultSubobjectByName(TEXT("InteractionText")));
+
+	if (!InteractionWidget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Interaction Widget found successfully!"));
+
+	// Hide it initially
+	InteractionWidget->SetVisibility(false);
 }
 
 // Called every frame
@@ -39,7 +53,7 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 		return;
 
 	// Get the camera component (assuming it's a first-person character with a camera)
-	FVector  CameraLocation;
+	FVector CameraLocation;
 	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
 	// Store the actor’s original transform before moving it
@@ -84,7 +98,7 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	if (!InspectedActor)
 		return;
 
-	
+
 	double DotProduct = FVector::DotProduct(CameraRotation.Vector(), InspectedActor->GetActorForwardVector());
 	//Use dot product to determine if movie box and player camera are facing the same world direction
 	if (DotProduct > 0.9f)
@@ -93,13 +107,13 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 		//prints to screen from cpp like bp
 		if (GEngine)
 		{
-			GEngine->AddOnScreenDebugMessage(
-			                                 -1, // Unique key (-1 means auto-remove)
-			                                 5.f, // Duration (seconds)
-			                                 FColor::Green, // Text color
-			                                 FString::Printf(TEXT("Looking at back of movie box")) // Message
-			                                );
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, FString::Printf(TEXT("Looking at back of movie box")));
 		}
+		InteractionWidget->SetVisibility(true);
+	}
+	else
+	{
+		InteractionWidget->SetVisibility(false);
 	}
 
 	// Get the local up vector of the actor
