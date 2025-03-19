@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Interactable.h"
+#include "MyCharacter.h"
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"
@@ -33,6 +34,7 @@ private:
 	FTransform OriginalActorTransform;
 	FRotator   CameraRotation;
 	APlayerController* PlayerController;
+	AMyCharacter* MyCharacter;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
