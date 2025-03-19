@@ -2,6 +2,7 @@
 
 
 #include "MovieBox.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -17,16 +18,23 @@ void AMovieBox::BeginPlay()
 	Super::BeginPlay();
 
 	InteractionWidget = Cast<UWidgetComponent>(GetDefaultSubobjectByName(TEXT("InteractionText")));
-	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Envelope")));
-
 	if (!InteractionWidget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
 		return;
 	}
+	
+	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Envelope")));
 	if (!EnvelopeMesh)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Envelope Mesh component not found!"));
+		return;
+	}
+	
+	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	if (!MyCharacter)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MyCharacter not found!"));
 		return;
 	}
 
@@ -82,6 +90,8 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	PlayerController->SetIgnoreLookInput(true);
 	PlayerController->SetIgnoreMoveInput(true);
 
+	MyCharacter->SetCanInteract(false);
+
 	// Ensure input component exists
 	if (!PlayerController->InputComponent)
 	{
@@ -108,8 +118,6 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 {
 	if (!InspectedActor)
 		return;
-
-
 	double DotProduct = FVector::DotProduct(CameraRotation.Vector(), InspectedActor->GetActorForwardVector());
 	//Use dot product to determine if movie box and player camera are facing the same world direction
 	if (DotProduct > 0.9f)
@@ -118,7 +126,6 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 		//prints to screen from cpp like bp
 		InteractionWidget->SetVisibility(true);
 
-		PlayerController->InputComponent->RemoveActionBinding("Interact", IE_Pressed);
 		PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
 	}
 	else
@@ -159,4 +166,6 @@ void AMovieBox::StopInspection()
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
+
+	MyCharacter->SetCanInteract(true);
 }
