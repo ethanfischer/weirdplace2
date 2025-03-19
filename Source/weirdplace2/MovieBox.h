@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Interactable.h"
+#include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"
 
@@ -27,7 +28,10 @@ public:
 	void         StopInspection();
 
 private:
-	AActor* InspectedActor;
-	FTransform     OriginalActorTransform;
-	FRotator CameraRotation;
+	AActor*    InspectedActor;
+	FTransform OriginalActorTransform;
+	FRotator   CameraRotation;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
+	UWidgetComponent* InteractionWidget;
 };
