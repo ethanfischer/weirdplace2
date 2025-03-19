@@ -16,12 +16,17 @@ void AMovieBox::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Find the specific UWidgetComponent by name
 	InteractionWidget = Cast<UWidgetComponent>(GetDefaultSubobjectByName(TEXT("InteractionText")));
+	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Envelope")));
 
 	if (!InteractionWidget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
+		return;
+	}
+	if (!EnvelopeMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Envelope Mesh component not found!"));
 		return;
 	}
 
@@ -44,7 +49,7 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 		return;
 
 	// Get the player's controller
-	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
 		return;
 
@@ -93,6 +98,12 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
 }
 
+void AMovieBox::CollectInspectedSubitem()
+{
+	EnvelopeMesh->SetHiddenInGame(true);
+	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
+}
+
 void AMovieBox::RotateInspectedActor(float AxisValue)
 {
 	if (!InspectedActor)
@@ -105,15 +116,15 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	{
 		//If back of movie box is facing player, try showing collectable UI text on screen
 		//prints to screen from cpp like bp
-		if (GEngine)
-		{
-			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Green, FString::Printf(TEXT("Looking at back of movie box")));
-		}
 		InteractionWidget->SetVisibility(true);
+
+		PlayerController->InputComponent->RemoveActionBinding("Interact", IE_Pressed);
+		PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
 	}
 	else
 	{
 		InteractionWidget->SetVisibility(false);
+		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
 	}
 
 	// Get the local up vector of the actor
@@ -132,7 +143,7 @@ void AMovieBox::StopInspection()
 	if (!InspectedActor)
 		return;
 
-	APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
 		return;
 
