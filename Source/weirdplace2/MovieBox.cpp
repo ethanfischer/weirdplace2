@@ -23,22 +23,20 @@ void AMovieBox::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
 		return;
 	}
-	
+
 	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Envelope")));
 	if (!EnvelopeMesh)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Envelope Mesh component not found!"));
 		return;
 	}
-	
+
 	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (!MyCharacter)
 	{
 		UE_LOG(LogTemp, Error, TEXT("MyCharacter not found!"));
 		return;
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("Interaction Widget found successfully!"));
 
 	// Hide it initially
 	InteractionWidget->SetVisibility(false);
@@ -111,6 +109,7 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 void AMovieBox::CollectInspectedSubitem()
 {
 	EnvelopeMesh->SetHiddenInGame(true);
+	InteractionWidget->SetVisibility(false);
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
 }
 
