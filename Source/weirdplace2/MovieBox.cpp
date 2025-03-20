@@ -101,7 +101,6 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
 
-
 	// Bind Q key to exit inspection
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
 }
@@ -110,6 +109,7 @@ void AMovieBox::CollectInspectedSubitem()
 {
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
+	DidCollectSubitem = true;
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
 }
 
@@ -121,9 +121,11 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	//Use dot product to determine if movie box and player camera are facing the same world direction
 	if (DotProduct > 0.9f)
 	{
-		//If back of movie box is facing player, try showing collectable UI text on screen
-		//prints to screen from cpp like bp
-		InteractionWidget->SetVisibility(true);
+		if (!DidCollectSubitem)
+		{
+			//If back of movie box is facing player, try showing collectable UI text on screen
+			InteractionWidget->SetVisibility(true);
+		}
 
 		PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
 	}
