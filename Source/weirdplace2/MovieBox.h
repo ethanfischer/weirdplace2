@@ -35,6 +35,7 @@ private:
 	FRotator   CameraRotation;
 	APlayerController* PlayerController;
 	AMyCharacter* MyCharacter;
+	bool DidCollectSubitem = false;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
