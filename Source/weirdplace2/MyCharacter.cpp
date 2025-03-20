@@ -37,3 +37,8 @@ void AMyCharacter::SetCanInteract(bool value)
 	CanInteract = value;
 }
 
+void AMyCharacter::AddItemToInventory_Implementation(EInventoryItem Item)
+{
+    // Default behavior (optional)
+    UE_LOG(LogTemp, Warning, TEXT("C++ AddItemToInventory called with item: %d"), (int32)Item);
+}

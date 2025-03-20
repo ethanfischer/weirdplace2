@@ -2,6 +2,8 @@
 
 
 #include "MovieBox.h"
+
+#include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values
@@ -111,6 +113,7 @@ void AMovieBox::CollectInspectedSubitem()
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
+    MyCharacter->AddItemToInventory(EInventoryItem::InventoryItem1);
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
