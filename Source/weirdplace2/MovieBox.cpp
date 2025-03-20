@@ -109,6 +109,8 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 
 void AMovieBox::CollectInspectedSubitem()
 {
+	if (DidCollectSubitem) return;
+	
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
