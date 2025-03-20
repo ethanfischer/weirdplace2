@@ -7,8 +7,7 @@
 #include "MyCharacter.generated.h"
 
 UCLASS()
-class WEIRDPLACE2_API AMyCharacter : public ACharacter
-{
+class WEIRDPLACE2_API AMyCharacter : public ACharacter {
 	GENERATED_BODY()
 
 public:
@@ -19,7 +18,7 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-public:	
+public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
@@ -27,7 +26,11 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetCanInteract(bool value);
-	
+
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
+	void         AddItemToInventory(EInventoryItem Item);
+	virtual void AddItemToInventory_Implementation(EInventoryItem Item);
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
