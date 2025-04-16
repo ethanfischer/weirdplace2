@@ -9,6 +9,13 @@ UInventoryComponent::UInventoryComponent() {
 // Called when the game starts
 void UInventoryComponent::BeginPlay() {
     Super::BeginPlay();
+    //Get TextBlock component
+    OptionsText = Cast<UTextBlock>(GetDefaultSubobjectByName(TEXT("TextBlock")));
+    if (!OptionsText)
+    {
+        UE_LOG(LogTemp, Error, TEXT("TextBlock component not found!"));
+        return;
+    }
 }
 
 // Adds an item to the inventory
