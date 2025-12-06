@@ -74,7 +74,7 @@ void UTimedVisibility::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	{
 		IsVisible = !IsVisible;
 		Owner->SetActorHiddenInGame(IsVisible); // Hides the actor
-		Owner->SetActorEnableCollision(IsVisible); // Disables collision
+		Owner->SetActorEnableCollision(!IsVisible); // Disables collision
 		Owner->SetActorTickEnabled(IsVisible); // Stops ticking to improve performance
 		ShouldToggleVisibility = false;
 	}
