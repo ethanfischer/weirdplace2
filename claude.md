@@ -1,1 +1,2 @@
 - I'm using Unreal Engine 5.4 and Blender
+- When adding materials, add them to Content > Created Materials folder
