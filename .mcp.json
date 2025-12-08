@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "unreal": {
+      "type": "stdio",
+      "command": "cmd.exe",
+      "args": ["/c", "C:\\Users\\ethan\\Repos\\weirdplace2\\Plugins\\UnrealMCP\\MCP\\run_unreal_mcp.bat"]
+    }
+  }
+}
