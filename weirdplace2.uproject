@@ -1,3 +1,63 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:287bb5b14e8d6d524ac4c4f944ea42cb09797feeb70bd2867cfe4c5d9d072e94
-size 950
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.4",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "weirdplace2",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
+			"Name": "Soundscape",
+			"Enabled": true
+		},
+		{
+			"Name": "RigLogic",
+			"Enabled": true
+		},
+		{
+			"Name": "LiveLink",
+			"Enabled": true
+		},
+		{
+			"Name": "LiveLinkControlRig",
+			"Enabled": true
+		},
+		{
+			"Name": "AppleARKitFaceSupport",
+			"Enabled": true,
+			"SupportedTargetPlatforms": [
+				"IOS",
+				"Win64",
+				"Mac",
+				"Linux",
+				"Android"
+			]
+		},
+		{
+			"Name": "HairStrands",
+			"Enabled": true
+		},
+		{
+			"Name": "Text3D",
+			"Enabled": true
+		}
+	],
+	"TargetPlatforms": [
+		"Windows"
+	]
+}

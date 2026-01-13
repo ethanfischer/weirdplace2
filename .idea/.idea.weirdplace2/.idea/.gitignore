@@ -1,3 +1,10 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:a1b27d978f66fea99c16b4f5a39c34d7f669197ef8431d362f7cf075ef1b8661
-size 215
+﻿# Default ignored files
+/shelf/
+/workspace.xml
+# Rider ignored files
+/contentModel.xml
+/modules.xml
+/projectSettingsUpdater.xml
+/.idea.weirdplace2.iml
+# Editor-based HTTP Client requests
+/httpRequests/
