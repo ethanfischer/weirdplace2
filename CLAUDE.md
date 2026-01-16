@@ -1,5 +1,19 @@
 # Project Notes
 
+## C++ Compilation
+
+**Live Coding (Ctrl+Alt+F11 in UE Editor)** - use for:
+- `.cpp` implementation changes (function body edits)
+
+**Full Restart Required** - close UE, rebuild from Rider:
+- Adding/removing `UPROPERTY` or `UFUNCTION`
+- Changing function signatures in headers
+- Adding new classes or files
+- Changing class inheritance
+- Modifying `.Build.cs`
+
+Always tell Ethan which type of rebuild is needed after making changes.
+
 ## macOS / Xcode Compatibility
 
 This project uses Unreal Engine 5.4. On macOS 26 with Xcode 26.x, edit the Apple SDK config to allow the newer Xcode version:

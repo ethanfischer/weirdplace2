@@ -14,7 +14,8 @@ public class weirdplace2 : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
-			"UMG"
+			"UMG",
+			"EnhancedInput"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { });
