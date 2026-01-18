@@ -25,6 +25,16 @@ git config core.untrackedcache true
 
 This brings `git status` from ~65 seconds down to ~70ms by using a background daemon to track changes instead of scanning all files.
 
+**Important:** Run git commands from Windows (not WSL) to use the daemon. From WSL you can use:
+```bash
+git.exe status   # Calls Windows git, uses daemon, fast
+git status       # Calls WSL git, no daemon, slow
+```
+
+**WSL + Windows Git Conflict:** Both share the same `.git` directory. Running WSL git can invalidate the Windows git cache, causing a slow re-index. To avoid this, use Windows git exclusively when possible.
+
+**Lazygit:** Install Windows lazygit (`winget install lazygit`) and run from a Windows Terminal/PowerShell tab. Windows console apps don't work properly when invoked from WSL due to TTY issues.
+
 ## macOS / Xcode Compatibility
 
 This project uses Unreal Engine 5.4. On macOS 26 with Xcode 26.x, edit the Apple SDK config to allow the newer Xcode version:
