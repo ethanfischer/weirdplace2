@@ -14,6 +14,17 @@
 
 Always tell Ethan which type of rebuild is needed after making changes.
 
+## Windows Git Performance
+
+Live Coding uses `git status` for adaptive unity builds. Without fsmonitor, this takes 60+ seconds on large repos. Enable these settings for Windows git:
+
+```cmd
+git config core.fsmonitor true
+git config core.untrackedcache true
+```
+
+This brings `git status` from ~65 seconds down to ~70ms by using a background daemon to track changes instead of scanning all files.
+
 ## macOS / Xcode Compatibility
 
 This project uses Unreal Engine 5.4. On macOS 26 with Xcode 26.x, edit the Apple SDK config to allow the newer Xcode version:
