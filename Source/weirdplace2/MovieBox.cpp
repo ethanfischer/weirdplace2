@@ -26,7 +26,7 @@ void AMovieBox::BeginPlay()
 		return;
 	}
 
-	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Envelope")));
+	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Cube")));
 	if (!EnvelopeMesh)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Envelope Mesh component not found!"));
@@ -37,13 +37,19 @@ void AMovieBox::BeginPlay()
 	if (!CoverMaterial)
 	{
 		FString ActorName = GetName();
-		FString MaterialPath = FString::Printf(TEXT("/Game/VHSCovers/Materials/MI_VHSCover_%s"), *ActorName);
-		CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
-
-		if (!CoverMaterial)
+		// Strip the _N index suffix added by spawner (e.g., "12-MONKEYS_5" -> "12-MONKEYS")
+		int32 LastUnderscore;
+		if (ActorName.FindLastChar('_', LastUnderscore))
 		{
-			UE_LOG(LogTemp, Warning, TEXT("MovieBox %s: Could not load material at %s"), *ActorName, *MaterialPath);
+			FString Suffix = ActorName.Mid(LastUnderscore + 1);
+			if (Suffix.IsNumeric())
+			{
+				ActorName = ActorName.Left(LastUnderscore);
+			}
 		}
+
+		FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ActorName);
+		CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
 	}
 
 	if (CoverMaterial)

@@ -18,7 +18,7 @@ import unreal
 def create_vhs_material_instances():
     # Configuration
     textures_path = '/Game/VHSCovers'
-    materials_output_path = '/Game/VHSCovers/Materials'
+    materials_output_path = '/Game/CreatedMaterials/VHSCoverMaterials'
     master_material_path = '/Game/CreatedMaterials/M_VHSCover'
     texture_param_name = 'CoverTexture'
 
@@ -114,6 +114,43 @@ def create_vhs_material_instances():
 
     unreal.log(f"Done! Created {created_count} material instances, skipped {skipped_count} existing")
 
+def generate_csv():
+    """Generate CSV file from texture names for DataTable import"""
+    import os
+
+    textures_path = '/Game/VHSCovers'
+    csv_output = 'C:/Users/ethan/Repos/weirdplace2/Content/CSVs/vhs_covers.csv'
+
+    asset_paths = unreal.EditorAssetLibrary.list_assets(textures_path, recursive=False)
+
+    lines = ['ID,Name']
+    for asset_path in asset_paths:
+        if '/Materials/' in asset_path:
+            continue
+
+        package_path = asset_path.split('.')[0] if '.' in asset_path else asset_path
+        asset_data = unreal.EditorAssetLibrary.find_asset_data(package_path)
+        if not asset_data:
+            continue
+
+        asset_class_path = asset_data.asset_class_path
+        asset_class = str(asset_class_path.asset_name) if asset_class_path else ''
+        if 'Texture2D' not in asset_class:
+            continue
+
+        texture = unreal.load_asset(package_path)
+        name = texture.get_name()
+        # Convert dashes to spaces for display name
+        display_name = name.replace('-', ' ').title()
+        lines.append(f'{name},{display_name}')
+
+    with open(csv_output, 'w', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+    unreal.log(f"Generated CSV with {len(lines)-1} entries at {csv_output}")
+
+
 # Run the script
 if __name__ == '__main__':
     create_vhs_material_instances()
+    generate_csv()
