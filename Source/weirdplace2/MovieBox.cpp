@@ -33,7 +33,19 @@ void AMovieBox::BeginPlay()
 		return;
 	}
 
-	// Apply cover material if set
+	// Auto-load cover material based on actor name if not already set
+	if (!CoverMaterial)
+	{
+		FString ActorName = GetName();
+		FString MaterialPath = FString::Printf(TEXT("/Game/VHSCovers/Materials/MI_VHSCover_%s"), *ActorName);
+		CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+
+		if (!CoverMaterial)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("MovieBox %s: Could not load material at %s"), *ActorName, *MaterialPath);
+		}
+	}
+
 	if (CoverMaterial)
 	{
 		EnvelopeMesh->SetMaterial(0, CoverMaterial);
