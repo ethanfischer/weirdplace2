@@ -29,6 +29,9 @@ public:
 	void         RotateInspectedActor(float AxisValue);
 	void         StopInspection();
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movie")
+	UMaterialInterface* CoverMaterial;
+
 private:
 	AActor*    InspectedActor;
 	FTransform OriginalActorTransform;

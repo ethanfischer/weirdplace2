@@ -33,6 +33,12 @@ void AMovieBox::BeginPlay()
 		return;
 	}
 
+	// Apply cover material if set
+	if (CoverMaterial)
+	{
+		EnvelopeMesh->SetMaterial(0, CoverMaterial);
+	}
+
 	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (!MyCharacter)
 	{
