@@ -39,10 +39,13 @@ private:
 	APlayerController* PlayerController;
 	AMyCharacter* MyCharacter;
 	bool DidCollectSubitem = false;
+	FName InteractActionName = FName("Interact");
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh", meta=(AllowPrivateAccess="true"))
 	UStaticMeshComponent* EnvelopeMesh;
+
+	void RemoveInteractBinding();
 };

@@ -5,6 +5,7 @@
 
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/InputComponent.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -129,6 +130,8 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 
 	// Bind Q key to exit inspection
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
+	// Allow interact key (E) to also exit while inspecting
+	PlayerController->InputComponent->BindAction(InteractActionName, IE_Pressed, this, &AMovieBox::StopInspection);
 }
 
 void AMovieBox::CollectInspectedSubitem()
@@ -140,6 +143,9 @@ void AMovieBox::CollectInspectedSubitem()
 	DidCollectSubitem = true;
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
     MyCharacter->AddItemToInventory(EInventoryItem::InventoryItem1);
+
+	// Close inspection after collecting
+	StopInspection();
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
@@ -193,9 +199,20 @@ void AMovieBox::StopInspection()
 
 	// Unbind input actions
 	PlayerController->InputComponent->AxisBindings.Empty(); //TODO: really?
+	RemoveInteractBinding();
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
 
 	MyCharacter->SetCanInteract(true);
+}
+
+void AMovieBox::RemoveInteractBinding()
+{
+	if (!PlayerController || !PlayerController->InputComponent)
+	{
+		return;
+	}
+
+	PlayerController->InputComponent->RemoveActionBinding(InteractActionName, IE_Pressed);
 }
