@@ -20,4 +20,8 @@ protected:
 private:
 	UPROPERTY(VisibleAnywhere, Category="Mesh")
 	UStaticMeshComponent* Mesh;
+
+	// Scale to approximate a VHS box aspect
+	UPROPERTY(EditAnywhere, Category="Display")
+	FVector BoxScale = FVector(0.1f, 0.75f, 1.0f);
 };

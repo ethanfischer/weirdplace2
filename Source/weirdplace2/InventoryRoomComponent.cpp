@@ -202,7 +202,25 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 				for (int32 CoverIdx = 0; CoverIdx < Covers.Num(); ++CoverIdx)
 				{
 					FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
-					FRotator SpawnRotation = BaseRotation;
+
+					// Face the player (or room target) so displays are oriented toward the viewer
+					FVector LookAtTarget = BaseLocation;
+					if (ACharacter* CharacterOwner = Cast<ACharacter>(GetOwner()))
+					{
+						LookAtTarget = CharacterOwner->GetActorLocation();
+						if (AController* Controller = CharacterOwner->GetController())
+						{
+							FVector CameraLoc;
+							FRotator CameraRot;
+							Controller->GetPlayerViewPoint(CameraLoc, CameraRot);
+							LookAtTarget = CameraLoc;
+						}
+					}
+
+					FVector ToTarget = LookAtTarget - SpawnLocation;
+					FRotator SpawnRotation = ToTarget.IsNearlyZero() ? BaseRotation : ToTarget.Rotation();
+					SpawnRotation.Pitch = 0.0f;
+					SpawnRotation.Roll = 0.0f;
 
 					FActorSpawnParameters SpawnParams;
 					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
@@ -252,7 +270,26 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 		}
 
 		FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
-		FRotator SpawnRotation = BaseRotation + DisplayInfo->DisplayRotation;
+
+		// Face the player (or room target) so displays are oriented toward the viewer
+		FVector LookAtTarget = BaseLocation;
+		if (ACharacter* CharacterOwner = Cast<ACharacter>(GetOwner()))
+		{
+			LookAtTarget = CharacterOwner->GetActorLocation();
+			if (AController* Controller = CharacterOwner->GetController())
+			{
+				FVector CameraLoc;
+				FRotator CameraRot;
+				Controller->GetPlayerViewPoint(CameraLoc, CameraRot);
+				LookAtTarget = CameraLoc;
+			}
+		}
+
+		FVector ToTarget = LookAtTarget - SpawnLocation;
+		FRotator SpawnRotation = ToTarget.IsNearlyZero() ? BaseRotation : ToTarget.Rotation();
+		SpawnRotation.Pitch = 0.0f;
+		SpawnRotation.Roll = 0.0f;
+		SpawnRotation.Yaw += DisplayInfo->DisplayRotation.Yaw;
 
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;

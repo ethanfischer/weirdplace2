@@ -14,6 +14,7 @@ AMovieBoxDisplayActor::AMovieBoxDisplayActor()
 	Mesh->SetGenerateOverlapEvents(false);
 	Mesh->SetCanEverAffectNavigation(false);
 	Mesh->SetMobility(EComponentMobility::Movable);
+	Mesh->SetRelativeScale3D(BoxScale);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
 	if (CubeMesh.Succeeded())
