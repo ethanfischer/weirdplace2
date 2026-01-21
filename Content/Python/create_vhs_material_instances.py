@@ -15,6 +15,14 @@ Prerequisites:
 
 import unreal
 
+# Reuse texture optimization from the companion script
+try:
+    from optimize_vhs_textures import apply_settings as apply_texture_settings, MAX_TEXTURE_SIZE, ENABLE_VIRTUAL_TEXTURE_STREAMING
+except ImportError:
+    apply_texture_settings = None
+    MAX_TEXTURE_SIZE = None
+    ENABLE_VIRTUAL_TEXTURE_STREAMING = None
+
 def create_vhs_material_instances():
     # Configuration
     textures_path = '/Game/VHSCovers'
@@ -74,6 +82,14 @@ def create_vhs_material_instances():
         texture = unreal.load_asset(asset_path)
         if not texture:
             continue
+
+        # Apply memory-friendly texture settings if helper is available
+        if apply_texture_settings:
+            if apply_texture_settings(texture):
+                unreal.EditorAssetLibrary.save_asset(texture.get_path_name(), only_if_is_dirty=True)
+                unreal.log(
+                    f"    Optimized {texture.get_name()} (MaxTextureSize {MAX_TEXTURE_SIZE}, VT streaming {ENABLE_VIRTUAL_TEXTURE_STREAMING})"
+                )
 
         texture_name = texture.get_name()
         mi_name = f'MI_VHSCover_{texture_name}'
