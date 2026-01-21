@@ -15,7 +15,7 @@ import unreal
 
 
 # Tunables
-MAX_TEXTURE_SIZE = 1024
+MAX_TEXTURE_SIZE = 512
 ENABLE_VIRTUAL_TEXTURE_STREAMING = False  # Disabled to avoid VT warnings on non–power-of-two sources
 TEXTURES_PATH = "/Game/VHSCovers"
 
