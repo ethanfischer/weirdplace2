@@ -4,6 +4,7 @@
 #include "Components/ActorComponent.h"
 #include "Inventory.h"
 #include "InventoryItemMapping.h"
+#include "MovieBoxDisplayActor.h"
 #include "InventoryRoomComponent.generated.h"
 
 class UInventoryComponent;
@@ -48,6 +49,10 @@ protected:
 	// Mapping of inventory items to display actors
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Items")
 	TArray<FInventoryItemDisplayInfo> ItemDisplayMappings;
+
+	// Display actor class for showing collected movie boxes
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Items")
+	TSubclassOf<AActor> MovieBoxDisplayActorClass = AMovieBoxDisplayActor::StaticClass();
 
 	// Grid layout settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")

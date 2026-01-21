@@ -57,6 +57,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	TArray<EInventoryItem> GetInventoryItems() const;
 
+	// Stores collected movie cover ids (e.g., 12-MONKEYS)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddMovieCover(const FName& CoverName);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	const TArray<FName>& GetMovieCovers() const { return MovieCovers; }
+
 	// Returns count of items in inventory
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetInventoryCount() const;
@@ -64,4 +71,7 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
 	TArray<EInventoryItem> Inventory;
+
+	UPROPERTY(VisibleAnywhere, Category = "Inventory")
+	TArray<FName> MovieCovers;
 };

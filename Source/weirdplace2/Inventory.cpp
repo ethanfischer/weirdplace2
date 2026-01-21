@@ -33,18 +33,27 @@ bool UInventoryComponent::HasItem(EInventoryItem Item) const {
 }
 
 void UInventoryComponent::DisplayInventory() const {
-    FString InventoryString;
-    for (EInventoryItem Item : Inventory) {
-        InventoryString += FString::Printf(TEXT("%d "), static_cast<int32>(Item));
-    }
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Current Inventory: %s"), *InventoryString));
-    UE_LOG(LogTemp, Log, TEXT("Current Inventory: %s"), *InventoryString);
+	FString InventoryString;
+	for (EInventoryItem Item : Inventory) {
+		InventoryString += FString::Printf(TEXT("%d "), static_cast<int32>(Item));
+	}
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Current Inventory: %s"), *InventoryString));
+	UE_LOG(LogTemp, Log, TEXT("Current Inventory: %s"), *InventoryString);
 }
 
 TArray<EInventoryItem> UInventoryComponent::GetInventoryItems() const {
-    return Inventory;
+	return Inventory;
+}
+
+void UInventoryComponent::AddMovieCover(const FName& CoverName)
+{
+	if (!CoverName.IsNone())
+	{
+		MovieCovers.Add(CoverName);
+		OnInventoryChanged.Broadcast(Inventory);
+	}
 }
 
 int32 UInventoryComponent::GetInventoryCount() const {
-    return Inventory.Num();
+	return Inventory.Num();
 }

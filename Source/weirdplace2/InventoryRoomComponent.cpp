@@ -5,6 +5,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/TargetPoint.h"
+#include "MovieBoxDisplayActor.h"
+#include "Materials/MaterialInterface.h"
 
 UInventoryRoomComponent::UInventoryRoomComponent()
 {
@@ -184,9 +186,63 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 	FVector BaseLocation = InventoryRoomTarget ? InventoryRoomTarget->GetActorLocation() : InventoryRoomLocation;
 	FRotator BaseRotation = InventoryRoomTarget ? InventoryRoomTarget->GetActorRotation() : InventoryRoomRotation;
 
+	int32 SpawnIndex = 0;
+	bool bSpawnedMovieCovers = false;
+
 	for (int32 i = 0; i < Items.Num(); i++)
 	{
 		EInventoryItem Item = Items[i];
+
+		// Special handling for movie boxes: spawn one per collected cover
+		if (!bSpawnedMovieCovers && Item == EInventoryItem::InventoryItem1 && InventoryComponent)
+		{
+			const TArray<FName>& Covers = InventoryComponent->GetMovieCovers();
+			if (Covers.Num() > 0 && *MovieBoxDisplayActorClass)
+			{
+				for (int32 CoverIdx = 0; CoverIdx < Covers.Num(); ++CoverIdx)
+				{
+					FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
+					FRotator SpawnRotation = BaseRotation;
+
+					FActorSpawnParameters SpawnParams;
+					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+					AActor* SpawnedActor = World->SpawnActor<AActor>(MovieBoxDisplayActorClass, SpawnLocation, SpawnRotation, SpawnParams);
+					if (SpawnedActor)
+					{
+						SpawnedActor->SetActorEnableCollision(false);
+						#if WITH_EDITOR
+						SpawnedActor->SetFolderPath(InventoryFolderPath);
+						#endif
+
+						// Apply cover material
+						FString CoverString = Covers[CoverIdx].ToString();
+						FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *CoverString);
+						UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+
+						if (AMovieBoxDisplayActor* DisplayActor = Cast<AMovieBoxDisplayActor>(SpawnedActor))
+						{
+							DisplayActor->SetCoverMaterial(CoverMaterial);
+						}
+					else if (CoverMaterial)
+					{
+						if (UStaticMeshComponent* MeshComp = SpawnedActor->FindComponentByClass<UStaticMeshComponent>())
+						{
+							MeshComp->SetMaterial(0, CoverMaterial);
+						}
+					}
+
+						SpawnedDisplayActors.Add(SpawnedActor);
+						UE_LOG(LogTemp, Log, TEXT("Spawned movie cover %s at %s"), *CoverString, *SpawnLocation.ToString());
+					}
+				}
+
+				bSpawnedMovieCovers = true;
+				continue;
+			}
+		}
+
+		// Fallback to existing mapping
 		const FInventoryItemDisplayInfo* DisplayInfo = GetDisplayInfo(Item);
 
 		if (!DisplayInfo || !DisplayInfo->DisplayActorClass)
@@ -195,7 +251,7 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 			continue;
 		}
 
-		FVector SpawnLocation = CalculateItemPosition(i);
+		FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
 		FRotator SpawnRotation = BaseRotation + DisplayInfo->DisplayRotation;
 
 		FActorSpawnParameters SpawnParams;

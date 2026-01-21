@@ -144,6 +144,23 @@ void AMovieBox::CollectInspectedSubitem()
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
     MyCharacter->AddItemToInventory(EInventoryItem::InventoryItem1);
 
+	// Track which cover was collected
+	if (UInventoryComponent* PlayerInventory = MyCharacter->GetInventoryComponent())
+	{
+		FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
+		int32 LastUnderscore;
+		if (CoverName.FindLastChar('_', LastUnderscore))
+		{
+			const FString Suffix = CoverName.Mid(LastUnderscore + 1);
+			if (Suffix.IsNumeric())
+			{
+				CoverName = CoverName.Left(LastUnderscore);
+			}
+		}
+
+		PlayerInventory->AddMovieCover(FName(*CoverName));
+	}
+
 	// Close inspection after collecting
 	StopInspection();
 }
