@@ -40,7 +40,19 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	const auto SpawnerLocation = Owner->GetActorLocation();
 	const auto SpawnerRotation = Owner->GetActorRotation();
 	const auto SpawnerRotationFlipped = FRotator(SpawnerRotation.Pitch, SpawnerRotation.Yaw + 180, SpawnerRotation.Roll);
+	if (!DataTable)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: No DataTable assigned!"));
+		return;
+	}
+
 	const auto VideoNames = DataTable->GetRowNames();
+	if (VideoNames.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: DataTable is empty!"));
+		return;
+	}
+
 	auto       VideoNameIndex = 0;
 	int ChosenOnes[3] = {1, 43, 89};
 
@@ -63,7 +75,8 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 				AdjustedLocation.Y += ChosenOneAdjustment;
 				auto AdjustedRotation = BookcaseIndex % 2 == 0 ? SpawnerRotation : SpawnerRotationFlipped;
 				FActorSpawnParameters SpawnParameters;
-				SpawnParameters.Name = VideoNames[VideoNameIndex];
+				FName BaseName = VideoNames[VideoNameIndex % VideoNames.Num()];
+				SpawnParameters.Name = FName(*FString::Printf(TEXT("%s_%d"), *BaseName.ToString(), VideoNameIndex));
 				World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
 				VideoNameIndex++;
 			}

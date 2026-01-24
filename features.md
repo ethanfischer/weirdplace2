@@ -1,0 +1,14 @@
+Feature: VHS Cover Pipeline and Texture Optimization
+- Purpose: randomize VHS box covers in-world while keeping memory use manageable.
+- Key files: Content/Python/create_vhs_material_instances.py; Content/Python/optimize_vhs_textures.py; Content/CSVs/vhs_covers.csv; Content/CreatedMaterials/VHSCoverMaterials/*; Source/weirdplace2/MovieBox.cpp; Source/weirdplace2/SpawnerActorComponent.cpp.
+- Behavior: Spawner names spawned boxes with a DataTable row name plus index (e.g., TITLE_5); MovieBox strips the numeric suffix and loads MI_VHSCover_<TITLE> from /Game/CreatedMaterials/VHSCoverMaterials; MI generator builds material instances for each Texture2D under /Game/VHSCovers; CSV lists covers for data table import.
+- Optimization: optimize_vhs_textures.py now caps MaxTextureSize at 512, enables streaming, leaves virtual texture streaming off by default, keeps sRGB and default compression, nudges mip gen off NoMipmaps when present. Run in UE Output Log: py "Content/Python/optimize_vhs_textures.py".
+- Usage notes: run optimizer after importing new cover textures and before regenerating MIs; MI generator imports the optimizer helper so new runs enforce the 512 cap. No C++ rebuild needed for script or content-only changes.
+
+Feature: MovieBox interaction/inspection
+- Purpose: let the player inspect/rotate a MovieBox, reveal the back, and collect a hidden item into inventory.
+- Key files: Source/weirdplace2/MovieBox.cpp (InteractWithObject, RotateInspectedActor, CollectInspectedSubitem, StopInspection); MovieBox.h; Interactable.h; input mappings in project settings/DefaultInput.ini.
+- Input flow: Interact action (E) calls InteractWithObject to start inspection; rotation uses axes "Turn Right / Left Mouse" and "Turn Right / Left Gamepad"; collect uses action "Collect Inspected Subitem" (bind to E or your chosen key); exit uses action "Exit Interaction" (Q by default).
+- Behavior: On interact, the box is moved in front of the camera, player look/move is disabled, rotation axes are bound. While rotating, when the box back faces the camera (dot > 0.9), the widget shows and the collect action is bound; turning away hides it and unbinds. Collect hides the mesh, marks collected, calls AddItemToInventory(EInventoryItem::InventoryItem1), logs the cover name, and auto-exits inspection. Interact (E) now also exits while inspecting (in addition to the Exit Interaction action). Exit restores the original transform, re-enables input, and clears bindings.
+- Inventory display: Collected movie covers are recorded per-cover and shown in the inventory room as MovieBoxDisplayActor instances with the matching `MI_VHSCover_<Cover>` material instead of envelopes (fallback to envelopes if no covers exist or class unset).
+- Notes: ensure input mappings exist for the three actions/axes; no BP override needed—BP_MovieBox just calls the C++ interface implementation. No rebuild needed unless you change headers or UPROPERTY/UFUNCTIONs.

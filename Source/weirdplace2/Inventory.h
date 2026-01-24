@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Components/TextBlock.h"
 #include "Inventory.generated.h"
 
 UENUM(BlueprintType)
@@ -20,18 +19,21 @@ enum class EInventoryItem : uint8 {
 	InventoryItem11 UMETA(DisplayName = "Item 11")
 };
 
+// Delegate for inventory change notifications - Blueprint-bindable
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryChanged, const TArray<EInventoryItem>&, CurrentInventory);
+
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UInventoryComponent : public UActorComponent {
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this component's properties
 	UInventoryComponent();
-	UPROPERTY(meta = (BindWidget))
-	UTextBlock* OptionsText;
+
+	// Delegate that fires when inventory contents change
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnInventoryChanged OnInventoryChanged;
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
 
 public:
@@ -44,13 +46,32 @@ public:
 	bool RemoveItem(EInventoryItem Item);
 
 	// Checks if an item is in the inventory
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	bool HasItem(EInventoryItem Item) const;
 
 	// Displays inventory (for debugging)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void DisplayInventory() const;
 
+	// Returns copy of current inventory items
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	TArray<EInventoryItem> GetInventoryItems() const;
+
+	// Stores collected movie cover ids (e.g., 12-MONKEYS)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddMovieCover(const FName& CoverName);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	const TArray<FName>& GetMovieCovers() const { return MovieCovers; }
+
+	// Returns count of items in inventory
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	int32 GetInventoryCount() const;
+
 private:
-	TArray<int32> Inventory; // Using TArray instead of List<int>
+	UPROPERTY(VisibleAnywhere, Category = "Inventory")
+	TArray<EInventoryItem> Inventory;
+
+	UPROPERTY(VisibleAnywhere, Category = "Inventory")
+	TArray<FName> MovieCovers;
 };
