@@ -60,6 +60,10 @@
 			"Name": "NodeToCode",
 			"Enabled": true,
 			"MarketplaceURL": "com.epicgames.launcher://ue/marketplace/product/865c44cc-4ff6-4fc1-9c19-6fbc6ac430eb"
+		},
+		{
+			"Name": "UnrealMCP",
+			"Enabled": false
 		}
 	],
 	"TargetPlatforms": [
