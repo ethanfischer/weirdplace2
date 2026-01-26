@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Inventory.h"
 #include "InventoryItemMapping.h"
 #include "MovieBoxDisplayActor.h"
@@ -27,6 +28,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	// --- Configuration Properties ---
 
@@ -75,6 +77,24 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")
 	float ItemDisplayDistance = 200.0f;
 
+	// --- Item Name Text Settings ---
+
+	// World size of the item name text
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Text")
+	float TextWorldSize = 12.0f;
+
+	// Vertical offset below the grid for the text
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Text")
+	float TextVerticalOffset = 60.0f;
+
+	// Color of the item name text
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Text")
+	FColor TextColor = FColor::White;
+
+	// Material for the text (use an unlit material to avoid shadows)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Text")
+	UMaterialInterface* TextMaterial;
+
 private:
 	// State tracking
 	bool bIsInInventoryRoom = false;
@@ -91,6 +111,17 @@ private:
 	UPROPERTY()
 	TArray<AActor*> SpawnedDisplayActors;
 
+	// Map from spawned actor to its cover name (for look-at detection)
+	UPROPERTY()
+	TMap<AActor*, FString> ActorCoverNames;
+
+	// Text component for displaying looked-at item name
+	UPROPERTY()
+	UTextRenderComponent* ItemNameText;
+
+	// Currently displayed item name (to detect changes)
+	FString CurrentLookedAtItem;
+
 	// --- Internal Methods ---
 	void TeleportToInventoryRoom();
 	void TeleportBack();
@@ -106,4 +137,7 @@ private:
 	// Handle inventory changes while in room (refresh display)
 	UFUNCTION()
 	void OnInventoryChanged(const TArray<EInventoryItem>& CurrentInventory);
+
+	// Update the looked-at item text based on raycast
+	void UpdateLookedAtItem();
 };

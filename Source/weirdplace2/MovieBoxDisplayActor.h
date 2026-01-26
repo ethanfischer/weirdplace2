@@ -14,6 +14,12 @@ public:
 
 	void SetCoverMaterial(UMaterialInterface* InMaterial);
 
+	// Name of the cover (for display when looked at)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Display")
+	FString CoverName;
+
+	void SetCoverName(const FString& Name) { CoverName = Name; }
+
 protected:
 	virtual void BeginPlay() override;
 

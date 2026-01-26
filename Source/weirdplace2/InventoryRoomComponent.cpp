@@ -11,10 +11,11 @@
 
 UInventoryRoomComponent::UInventoryRoomComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	GridSpacing = 30.0f;
 	GridVerticalSpacing = 30.0f;
 	WallOffset = 20.0f;
+	ItemNameText = nullptr;
 }
 
 void UInventoryRoomComponent::BeginPlay()
@@ -252,14 +253,18 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 						if (AMovieBoxDisplayActor* DisplayActor = Cast<AMovieBoxDisplayActor>(SpawnedActor))
 						{
 							DisplayActor->SetCoverMaterial(CoverMaterial);
+							DisplayActor->SetCoverName(CoverString);
 						}
-					else if (CoverMaterial)
-					{
-						if (UStaticMeshComponent* MeshComp = SpawnedActor->FindComponentByClass<UStaticMeshComponent>())
+						else if (CoverMaterial)
 						{
-							MeshComp->SetMaterial(0, CoverMaterial);
+							if (UStaticMeshComponent* MeshComp = SpawnedActor->FindComponentByClass<UStaticMeshComponent>())
+							{
+								MeshComp->SetMaterial(0, CoverMaterial);
+							}
 						}
-					}
+
+						// Store cover name in map for look-at detection (works even if not AMovieBoxDisplayActor)
+						ActorCoverNames.Add(SpawnedActor, CoverString);
 
 						SpawnedDisplayActors.Add(SpawnedActor);
 						UE_LOG(LogTemp, Log, TEXT("Spawned movie cover %s at %s"), *CoverString, *SpawnLocation.ToString());
@@ -334,6 +339,50 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 				static_cast<int32>(Item), *SpawnLocation.ToString());
 		}
 	}
+
+	// Create the item name text component below the grid center
+	if (SpawnIndex > 0)
+	{
+		// Calculate center position of the grid and offset downward
+		FVector TextPosition = CalculateItemPosition(0);
+		// Center horizontally based on total columns used
+		int32 NumCols = FMath::Min(SpawnIndex, GridColumns);
+		float HorizontalCenter = (NumCols - 1) * GridSpacing * 0.5f;
+
+		FVector RightDir = FRotationMatrix(BaseRotation).GetScaledAxis(EAxis::Y);
+
+		// Position at the first column's X/Z but centered horizontally
+		TextPosition = TextPosition + RightDir * HorizontalCenter;
+		TextPosition.Z -= TextVerticalOffset;
+
+		// Create text render component attached to owner
+		AActor* Owner = GetOwner();
+		if (Owner)
+		{
+			ItemNameText = NewObject<UTextRenderComponent>(Owner);
+			if (ItemNameText)
+			{
+				ItemNameText->RegisterComponent();
+				ItemNameText->SetWorldLocation(TextPosition);
+				// Rotate 180 degrees so text faces the player
+				ItemNameText->SetWorldRotation(FRotator(0.0f, BaseRotation.Yaw + 180.0f, 0.0f));
+				ItemNameText->SetText(FText::GetEmpty());
+				ItemNameText->SetWorldSize(TextWorldSize);
+				ItemNameText->SetTextRenderColor(TextColor);
+				ItemNameText->SetHorizontalAlignment(EHTA_Center);
+				ItemNameText->SetVerticalAlignment(EVRTA_TextCenter);
+
+				// Apply custom material if set (use an unlit material to avoid shadows)
+				if (TextMaterial)
+				{
+					ItemNameText->SetTextMaterial(TextMaterial);
+				}
+
+				CurrentLookedAtItem = TEXT("");
+				UE_LOG(LogTemp, Log, TEXT("Created ItemNameText at %s"), *TextPosition.ToString());
+			}
+		}
+	}
 }
 
 void UInventoryRoomComponent::DestroyInventoryDisplayActors()
@@ -346,6 +395,15 @@ void UInventoryRoomComponent::DestroyInventoryDisplayActors()
 		}
 	}
 	SpawnedDisplayActors.Empty();
+	ActorCoverNames.Empty();
+
+	// Clean up the text component
+	if (ItemNameText)
+	{
+		ItemNameText->DestroyComponent();
+		ItemNameText = nullptr;
+	}
+	CurrentLookedAtItem = TEXT("");
 }
 
 const FInventoryItemDisplayInfo* UInventoryRoomComponent::GetDisplayInfo(EInventoryItem Item) const
@@ -405,5 +463,74 @@ void UInventoryRoomComponent::OnInventoryChanged(const TArray<EInventoryItem>& C
 	{
 		DestroyInventoryDisplayActors();
 		SpawnInventoryDisplayActors();
+	}
+}
+
+void UInventoryRoomComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	// Only update when in inventory room
+	if (bIsInInventoryRoom)
+	{
+		UpdateLookedAtItem();
+	}
+}
+
+void UInventoryRoomComponent::UpdateLookedAtItem()
+{
+	if (!ItemNameText) return;
+
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	if (!Character) return;
+
+	AController* Controller = Character->GetController();
+	if (!Controller) return;
+
+	// Get camera view point
+	FVector CameraLocation;
+	FRotator CameraRotation;
+	Controller->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+	FVector LookDirection = CameraRotation.Vector();
+	FVector TraceEnd = CameraLocation + LookDirection * 500.0f;
+
+	FString NewLookedAtItem = TEXT("");
+	float BestDistance = FLT_MAX;
+
+	// Check each spawned display actor using the cover name map
+	for (const auto& Pair : ActorCoverNames)
+	{
+		AActor* Actor = Pair.Key;
+		const FString& CoverName = Pair.Value;
+
+		if (!Actor || CoverName.IsEmpty()) continue;
+
+		// Get actor bounds
+		FVector Origin, Extent;
+		Actor->GetActorBounds(false, Origin, Extent);
+
+		// Create a box for the bounds
+		FBox ActorBox(Origin - Extent, Origin + Extent);
+
+		// Check if look ray intersects the bounding box
+		FVector HitLocation, HitNormal;
+		float HitTime;
+		if (FMath::LineExtentBoxIntersection(ActorBox, CameraLocation, TraceEnd, FVector::ZeroVector, HitLocation, HitNormal, HitTime))
+		{
+			float Distance = FVector::Dist(CameraLocation, HitLocation);
+			if (Distance < BestDistance)
+			{
+				BestDistance = Distance;
+				NewLookedAtItem = CoverName;
+			}
+		}
+	}
+
+	// Only update text if it changed
+	if (NewLookedAtItem != CurrentLookedAtItem)
+	{
+		CurrentLookedAtItem = NewLookedAtItem;
+		ItemNameText->SetText(FText::FromString(CurrentLookedAtItem));
 	}
 }
