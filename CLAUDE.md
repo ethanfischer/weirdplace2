@@ -26,16 +26,18 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 
 **Always tell the user which type of rebuild is needed after making changes.**
 
-Build commands (replace `<UE>` with engine install path):
+**Always build after making C++ changes** to verify they compile before telling the user you're done.
+
+Build commands:
 ```cmd
 # Build editor target (typical for C++ changes)
-"<UE>/Engine/Build/BatchFiles/Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
+"C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
 
 # Regenerate project files (if modules/targets change)
-"<UE>/Engine/Binaries/Win64/UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
+"C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
 
 # Run automation tests
-"<UE>/Engine/Binaries/Win64/UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
+"C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
 ## Architecture
