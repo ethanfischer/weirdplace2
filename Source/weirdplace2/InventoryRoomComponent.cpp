@@ -7,10 +7,14 @@
 #include "Engine/TargetPoint.h"
 #include "MovieBoxDisplayActor.h"
 #include "Materials/MaterialInterface.h"
+#include "Components/WidgetComponent.h"
 
 UInventoryRoomComponent::UInventoryRoomComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	GridSpacing = 30.0f;
+	GridVerticalSpacing = 30.0f;
+	WallOffset = 20.0f;
 }
 
 void UInventoryRoomComponent::BeginPlay()
@@ -29,22 +33,21 @@ void UInventoryRoomComponent::BeginPlay()
 		}
 	}
 
+	// Load BP_MovieBox as default display class (matches world appearance)
+	if (!MovieBoxDisplayActorClass || MovieBoxDisplayActorClass == AMovieBoxDisplayActor::StaticClass())
+	{
+		UClass* MovieBoxClass = LoadClass<AActor>(nullptr, TEXT("/Game/Blueprints/BP_MovieBox.BP_MovieBox_C"));
+		if (MovieBoxClass)
+		{
+			MovieBoxDisplayActorClass = MovieBoxClass;
+			UE_LOG(LogTemp, Log, TEXT("Loaded BP_MovieBox as display class"));
+		}
+	}
+
 	// Load default item mappings at runtime (avoids editor startup issues)
 	UE_LOG(LogTemp, Log, TEXT("ItemDisplayMappings.Num() = %d"), ItemDisplayMappings.Num());
 	if (ItemDisplayMappings.Num() == 0)
 	{
-		// BP_Envelope for InventoryItem1 (collected from MovieBox)
-		UClass* EnvelopeClass = LoadClass<AActor>(nullptr, TEXT("/Game/Blueprints/BP_Envelope.BP_Envelope_C"));
-		UE_LOG(LogTemp, Log, TEXT("LoadClass BP_Envelope: %s"), EnvelopeClass ? TEXT("SUCCESS") : TEXT("FAILED"));
-		if (EnvelopeClass)
-		{
-			FInventoryItemDisplayInfo EnvelopeInfo;
-			EnvelopeInfo.ItemType = EInventoryItem::InventoryItem1;
-			EnvelopeInfo.DisplayActorClass = EnvelopeClass;
-			EnvelopeInfo.DisplayScale = FVector(1.0f);
-			ItemDisplayMappings.Add(EnvelopeInfo);
-		}
-
 		// BP_Key for InventoryItem2
 		UClass* KeyClass = LoadClass<AActor>(nullptr, TEXT("/Game/Blueprints/BP_Key.BP_Key_C"));
 		UE_LOG(LogTemp, Log, TEXT("LoadClass BP_Key: %s"), KeyClass ? TEXT("SUCCESS") : TEXT("FAILED"));
@@ -229,6 +232,14 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 					if (SpawnedActor)
 					{
 						SpawnedActor->SetActorEnableCollision(false);
+
+						// Disable interactivity for display actors
+						SpawnedActor->SetActorTickEnabled(false);
+						if (UWidgetComponent* Widget = SpawnedActor->FindComponentByClass<UWidgetComponent>())
+						{
+							Widget->SetVisibility(false);
+						}
+
 						#if WITH_EDITOR
 						SpawnedActor->SetFolderPath(InventoryFolderPath);
 						#endif
@@ -258,6 +269,12 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 				bSpawnedMovieCovers = true;
 				continue;
 			}
+		}
+
+		// Skip InventoryItem1 if we've already spawned movie covers for it
+		if (bSpawnedMovieCovers && Item == EInventoryItem::InventoryItem1)
+		{
+			continue;
 		}
 
 		// Fallback to existing mapping
@@ -345,25 +362,38 @@ const FInventoryItemDisplayInfo* UInventoryRoomComponent::GetDisplayInfo(EInvent
 
 FVector UInventoryRoomComponent::CalculateItemPosition(int32 Index) const
 {
-	// Use grid layout in front of player
 	int32 Row = Index / GridColumns;
 	int32 Col = Index % GridColumns;
-
-	// Center the grid horizontally
 	float CenterOffset = (GridColumns - 1) * GridSpacing * 0.5f;
 
-	// Get base location and rotation from target or fallback
+	// Get base location and rotation from InventoryRoomTarget
 	FVector BaseLocation = InventoryRoomTarget ? InventoryRoomTarget->GetActorLocation() : InventoryRoomLocation;
 	FRotator BaseRotation = InventoryRoomTarget ? InventoryRoomTarget->GetActorRotation() : InventoryRoomRotation;
 
-	// Get forward direction from room rotation
 	FVector ForwardDir = BaseRotation.Vector();
 	FVector RightDir = FRotationMatrix(BaseRotation).GetScaledAxis(EAxis::Y);
+	FVector UpDir = FVector::UpVector;
 
-	FVector Position = BaseLocation;
-	Position += ForwardDir * ItemDisplayDistance;                    // In front
-	Position += RightDir * ((Col * GridSpacing) - CenterOffset);     // Left/right
-	Position.Z += ItemDisplayHeight - (Row * GridSpacing);           // Stack rows vertically
+	// Raycast from TargetPoint forward to find wall
+	FVector TraceStart = BaseLocation;
+	FVector TraceEnd = BaseLocation + ForwardDir * 10000.0f;
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(GetOwner());
+
+	float WallDistance = ItemDisplayDistance; // Fallback
+
+	if (GetWorld()->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
+	{
+		WallDistance = HitResult.Distance - WallOffset;
+	}
+
+	// Calculate position: X from raycast, Y from TargetPoint, Z for grid layout
+	FVector Position;
+	Position.X = BaseLocation.X + ForwardDir.X * WallDistance;
+	Position.Y = BaseLocation.Y + RightDir.Y * ((Col * GridSpacing) - CenterOffset);
+	Position.Z = BaseLocation.Z + ItemDisplayHeight - (Row * GridVerticalSpacing);
 
 	return Position;
 }

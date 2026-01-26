@@ -59,7 +59,13 @@ protected:
 	int32 GridColumns = 4;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")
-	float GridSpacing = 100.0f;
+	float GridSpacing;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")
+	float GridVerticalSpacing;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")
+	float WallOffset;
 
 	// Height offset for displayed items (relative to room location)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Layout")
