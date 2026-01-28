@@ -141,6 +141,9 @@ private:
 	UPROPERTY()
 	UMaterialInterface* OriginalWallMaterial;
 
+	// Original scale of the wall (to restore when leaving)
+	FVector OriginalWallScale;
+
 	// --- Internal Methods ---
 	void TeleportToInventoryRoom();
 	void TeleportBack();

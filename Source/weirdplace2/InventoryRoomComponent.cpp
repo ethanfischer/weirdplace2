@@ -627,6 +627,11 @@ void UInventoryRoomComponent::CaptureAndApplyBackground()
 	CapturedTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
 	CapturedTexture->UpdateResource();
 
+	// Scale wall to match viewport aspect ratio (wall is rotated 90° so scale Z for width)
+	float ViewportAspect = (float)FinalWidth / (float)FinalHeight;
+	OriginalWallScale = BackgroundWallActor->GetActorScale3D();
+	BackgroundWallActor->SetActorScale3D(FVector(OriginalWallScale.X * ViewportAspect, OriginalWallScale.Y, OriginalWallScale.Z) * 2);
+
 	// Store original material and create dynamic material instance
 	UStaticMeshComponent* WallMesh = BackgroundWallActor->FindComponentByClass<UStaticMeshComponent>();
 	if (WallMesh)
@@ -655,11 +660,17 @@ void UInventoryRoomComponent::RestoreWallMaterial()
 {
 	if (!BackgroundWallActor) return;
 
+	// Restore original scale
+	if (!OriginalWallScale.IsZero())
+	{
+		BackgroundWallActor->SetActorScale3D(OriginalWallScale);
+	}
+
 	UStaticMeshComponent* WallMesh = BackgroundWallActor->FindComponentByClass<UStaticMeshComponent>();
 	if (WallMesh && OriginalWallMaterial)
 	{
 		WallMesh->SetMaterial(0, OriginalWallMaterial);
-		UE_LOG(LogTemp, Log, TEXT("Restored original wall material"));
+		UE_LOG(LogTemp, Log, TEXT("Restored original wall material and scale"));
 	}
 
 	// Clean up
