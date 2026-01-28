@@ -28,6 +28,8 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 
 **Always build after making C++ changes** to verify they compile before telling the user you're done.
 
+If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), ask the user to close the editor first and wait for confirmation before building.
+
 Build commands:
 ```cmd
 # Build editor target (typical for C++ changes)
