@@ -602,18 +602,74 @@ void UInventoryRoomComponent::CaptureAndApplyBackground()
 		return;
 	}
 
-	// Rotate pixels 90° clockwise to match wall UV orientation
+	// Apply Gaussian blur (two-pass separable blur for efficiency)
+	int32 BlurRadius = 15;
+	TArray<float> Kernel;
+	Kernel.SetNum(BlurRadius * 2 + 1);
+	float Sigma = BlurRadius / 2.0f;
+	float Sum = 0.0f;
+	for (int32 i = -BlurRadius; i <= BlurRadius; i++)
+	{
+		float Value = FMath::Exp(-(i * i) / (2 * Sigma * Sigma));
+		Kernel[i + BlurRadius] = Value;
+		Sum += Value;
+	}
+	for (int32 i = 0; i < Kernel.Num(); i++) Kernel[i] /= Sum;
+
+	// Horizontal pass
+	TArray<FColor> TempPixels;
+	TempPixels.SetNum(Pixels.Num());
+	for (int32 y = 0; y < Height; y++)
+	{
+		for (int32 x = 0; x < Width; x++)
+		{
+			float r = 0, g = 0, b = 0;
+			for (int32 k = -BlurRadius; k <= BlurRadius; k++)
+			{
+				int32 SampleX = FMath::Clamp(x + k, 0, Width - 1);
+				FColor& Sample = Pixels[y * Width + SampleX];
+				float Weight = Kernel[k + BlurRadius];
+				r += Sample.R * Weight;
+				g += Sample.G * Weight;
+				b += Sample.B * Weight;
+			}
+			TempPixels[y * Width + x] = FColor(r, g, b, 255);
+		}
+	}
+
+	// Vertical pass
+	TArray<FColor> BlurredPixels;
+	BlurredPixels.SetNum(Pixels.Num());
+	for (int32 y = 0; y < Height; y++)
+	{
+		for (int32 x = 0; x < Width; x++)
+		{
+			float r = 0, g = 0, b = 0;
+			for (int32 k = -BlurRadius; k <= BlurRadius; k++)
+			{
+				int32 SampleY = FMath::Clamp(y + k, 0, Height - 1);
+				FColor& Sample = TempPixels[SampleY * Width + x];
+				float Weight = Kernel[k + BlurRadius];
+				r += Sample.R * Weight;
+				g += Sample.G * Weight;
+				b += Sample.B * Weight;
+			}
+			BlurredPixels[y * Width + x] = FColor(r, g, b, 255);
+		}
+	}
+
+	// Rotate blurred pixels 90° clockwise to match wall UV orientation
 	int32 FinalWidth = Height;
 	int32 FinalHeight = Width;
 	TArray<FColor> RotatedPixels;
-	RotatedPixels.SetNum(Pixels.Num());
+	RotatedPixels.SetNum(BlurredPixels.Num());
 	for (int32 y = 0; y < Height; y++)
 	{
 		for (int32 x = 0; x < Width; x++)
 		{
 			int32 SrcIdx = y * Width + x;
 			int32 DstIdx = x * FinalWidth + (Height - 1 - y);
-			RotatedPixels[DstIdx] = Pixels[SrcIdx];
+			RotatedPixels[DstIdx] = BlurredPixels[SrcIdx];
 		}
 	}
 
