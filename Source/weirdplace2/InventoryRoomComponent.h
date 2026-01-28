@@ -9,6 +9,7 @@
 #include "InventoryRoomComponent.generated.h"
 
 class UInventoryComponent;
+class UMaterialInstanceDynamic;
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UInventoryRoomComponent : public UActorComponent
@@ -95,6 +96,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Text")
 	UMaterialInterface* TextMaterial;
 
+	// --- Background Wall Settings ---
+
+	// The wall mesh to apply the captured background to (set in editor)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Background")
+	AActor* BackgroundWallActor;
+
+	// Base material for the blurred background (must have a TextureParameter named "BackgroundTexture")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Room|Background")
+	UMaterialInterface* BackgroundBlurMaterial;
+
 private:
 	// State tracking
 	bool bIsInInventoryRoom = false;
@@ -122,6 +133,14 @@ private:
 	// Currently displayed item name (to detect changes)
 	FString CurrentLookedAtItem;
 
+	// Dynamic material instance applied to the wall
+	UPROPERTY()
+	UMaterialInstanceDynamic* BackgroundMaterialInstance;
+
+	// Original material on the wall (to restore when leaving)
+	UPROPERTY()
+	UMaterialInterface* OriginalWallMaterial;
+
 	// --- Internal Methods ---
 	void TeleportToInventoryRoom();
 	void TeleportBack();
@@ -140,4 +159,10 @@ private:
 
 	// Update the looked-at item text based on raycast
 	void UpdateLookedAtItem();
+
+	// Capture the player's current view and apply to background wall
+	void CaptureAndApplyBackground();
+
+	// Restore original wall material
+	void RestoreWallMaterial();
 };

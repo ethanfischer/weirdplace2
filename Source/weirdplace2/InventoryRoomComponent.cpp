@@ -7,7 +7,9 @@
 #include "Engine/TargetPoint.h"
 #include "MovieBoxDisplayActor.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Components/WidgetComponent.h"
+#include "Components/StaticMeshComponent.h"
 
 UInventoryRoomComponent::UInventoryRoomComponent()
 {
@@ -16,6 +18,8 @@ UInventoryRoomComponent::UInventoryRoomComponent()
 	GridVerticalSpacing = 30.0f;
 	WallOffset = 20.0f;
 	ItemNameText = nullptr;
+	BackgroundMaterialInstance = nullptr;
+	OriginalWallMaterial = nullptr;
 }
 
 void UInventoryRoomComponent::BeginPlay()
@@ -31,6 +35,28 @@ void UInventoryRoomComponent::BeginPlay()
 		{
 			InventoryRoomTarget = FoundActors[0];
 			UE_LOG(LogTemp, Log, TEXT("Found InventoryRoomTarget by tag: %s"), *InventoryRoomTarget->GetName());
+		}
+	}
+
+	// Auto-find BackgroundWallActor by tag if not set
+	if (!BackgroundWallActor)
+	{
+		TArray<AActor*> FoundActors;
+		UGameplayStatics::GetAllActorsWithTag(GetWorld(), FName("InventoryBackgroundWall"), FoundActors);
+		if (FoundActors.Num() > 0)
+		{
+			BackgroundWallActor = FoundActors[0];
+			UE_LOG(LogTemp, Log, TEXT("Found BackgroundWallActor by tag: %s"), *BackgroundWallActor->GetName());
+		}
+	}
+
+	// Auto-load blur material if not set
+	if (!BackgroundBlurMaterial)
+	{
+		BackgroundBlurMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_BlurredBackground"));
+		if (BackgroundBlurMaterial)
+		{
+			UE_LOG(LogTemp, Log, TEXT("Loaded M_BlurredBackground as background material"));
 		}
 	}
 
@@ -112,6 +138,9 @@ void UInventoryRoomComponent::TeleportToInventoryRoom()
 	StoredLocation = Owner->GetActorLocation();
 	StoredRotation = Owner->GetActorRotation();
 
+	// Capture the player's view BEFORE teleporting
+	CaptureAndApplyBackground();
+
 	// Get teleport destination from target point or fallback to hardcoded location
 	FVector TeleportLocation = InventoryRoomLocation;
 	FRotator TeleportRotation = InventoryRoomRotation;
@@ -150,6 +179,9 @@ void UInventoryRoomComponent::TeleportBack()
 
 	// Clean up spawned actors first
 	DestroyInventoryDisplayActors();
+
+	// Restore original wall material
+	RestoreWallMaterial();
 
 	// Teleport back to stored location
 	Owner->SetActorLocation(StoredLocation);
@@ -533,4 +565,103 @@ void UInventoryRoomComponent::UpdateLookedAtItem()
 		CurrentLookedAtItem = NewLookedAtItem;
 		ItemNameText->SetText(FText::FromString(CurrentLookedAtItem));
 	}
+}
+
+void UInventoryRoomComponent::CaptureAndApplyBackground()
+{
+	// Need wall actor and blur material to proceed
+	if (!BackgroundWallActor || !BackgroundBlurMaterial)
+	{
+		UE_LOG(LogTemp, Log, TEXT("CaptureAndApplyBackground: Missing BackgroundWallActor or BackgroundBlurMaterial"));
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World) return;
+
+	UGameViewportClient* ViewportClient = World->GetGameViewport();
+	if (!ViewportClient) return;
+
+	FViewport* Viewport = ViewportClient->Viewport;
+	if (!Viewport) return;
+
+	// Read pixels from the current frame (exactly what player sees)
+	TArray<FColor> Pixels;
+	if (!Viewport->ReadPixels(Pixels))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CaptureAndApplyBackground: Failed to read viewport pixels"));
+		return;
+	}
+
+	int32 Width = Viewport->GetSizeXY().X;
+	int32 Height = Viewport->GetSizeXY().Y;
+
+	if (Width == 0 || Height == 0 || Pixels.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CaptureAndApplyBackground: Invalid viewport size"));
+		return;
+	}
+
+	// Rotate pixels 90° clockwise to match wall UV orientation
+	int32 FinalWidth = Height;
+	int32 FinalHeight = Width;
+	TArray<FColor> RotatedPixels;
+	RotatedPixels.SetNum(Pixels.Num());
+	for (int32 y = 0; y < Height; y++)
+	{
+		for (int32 x = 0; x < Width; x++)
+		{
+			int32 SrcIdx = y * Width + x;
+			int32 DstIdx = x * FinalWidth + (Height - 1 - y);
+			RotatedPixels[DstIdx] = Pixels[SrcIdx];
+		}
+	}
+
+	// Create texture from rotated pixels
+	UTexture2D* CapturedTexture = UTexture2D::CreateTransient(FinalWidth, FinalHeight, PF_B8G8R8A8);
+	if (!CapturedTexture) return;
+
+	// Copy pixel data to texture
+	void* TextureData = CapturedTexture->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memcpy(TextureData, RotatedPixels.GetData(), RotatedPixels.Num() * sizeof(FColor));
+	CapturedTexture->GetPlatformData()->Mips[0].BulkData.Unlock();
+	CapturedTexture->UpdateResource();
+
+	// Store original material and create dynamic material instance
+	UStaticMeshComponent* WallMesh = BackgroundWallActor->FindComponentByClass<UStaticMeshComponent>();
+	if (WallMesh)
+	{
+		// Store original material (only first time)
+		if (!OriginalWallMaterial)
+		{
+			OriginalWallMaterial = WallMesh->GetMaterial(0);
+		}
+
+		// Create dynamic material instance
+		BackgroundMaterialInstance = UMaterialInstanceDynamic::Create(BackgroundBlurMaterial, this);
+		if (BackgroundMaterialInstance)
+		{
+			// Set the captured texture as parameter
+			BackgroundMaterialInstance->SetTextureParameterValue(FName("BackgroundTexture"), CapturedTexture);
+
+			// Apply to wall
+			WallMesh->SetMaterial(0, BackgroundMaterialInstance);
+			UE_LOG(LogTemp, Log, TEXT("Applied captured background to wall (%dx%d)"), FinalWidth, FinalHeight);
+		}
+	}
+}
+
+void UInventoryRoomComponent::RestoreWallMaterial()
+{
+	if (!BackgroundWallActor) return;
+
+	UStaticMeshComponent* WallMesh = BackgroundWallActor->FindComponentByClass<UStaticMeshComponent>();
+	if (WallMesh && OriginalWallMaterial)
+	{
+		WallMesh->SetMaterial(0, OriginalWallMaterial);
+		UE_LOG(LogTemp, Log, TEXT("Restored original wall material"));
+	}
+
+	// Clean up
+	BackgroundMaterialInstance = nullptr;
 }
