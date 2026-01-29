@@ -74,8 +74,7 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		break;
 
 	case EInventoryUIState::Open:
-		// Keep updating position while open (follows camera)
-		UpdateInventoryPosition();
+		// Nothing to do
 		break;
 
 	case EInventoryUIState::Closed:
