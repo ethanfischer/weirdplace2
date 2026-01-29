@@ -90,7 +90,6 @@ Run in UE Output Log: `py "Content/Python/optimize_vhs_textures.py"`
 - Use `CreateDefaultSubobject` for owned components in constructors
 - Null-check pointers before dereference; early-return on failure
 - Use `UE_LOG(LogTemp, ...)` for debugging
-- When hardcoding variable values, favor doing so in .cpp files instead of .h files so we can use LiveCoding to recompile 
 
 ## Windows Git Performance
 
