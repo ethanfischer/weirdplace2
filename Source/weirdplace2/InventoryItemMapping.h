@@ -1,11 +1,10 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Inventory.h"
 #include "InventoryItemMapping.generated.h"
 
 /**
- * Struct to map EInventoryItem enum values to actor classes for 3D display
+ * Struct to map item IDs (FName) to actor classes for 3D display
  * Configurable in Blueprint/Editor
  */
 USTRUCT(BlueprintType)
@@ -13,9 +12,9 @@ struct FInventoryItemDisplayInfo
 {
 	GENERATED_BODY()
 
-	// The inventory item type
+	// The inventory item ID (e.g., "ALIEN", "KEY_BASEMENT")
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Display")
-	EInventoryItem ItemType;
+	FName ItemID;
 
 	// The actor class to spawn for this item
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory Display")
@@ -30,7 +29,7 @@ struct FInventoryItemDisplayInfo
 	FRotator DisplayRotation = FRotator::ZeroRotator;
 
 	FInventoryItemDisplayInfo()
-		: ItemType(EInventoryItem::InventoryItem1)
+		: ItemID(NAME_None)
 		, DisplayActorClass(nullptr)
 	{}
 };

@@ -2,7 +2,7 @@
 
 #include "MyCharacter.h"
 #include "Inventory.h"
-#include "InventoryRoomComponent.h"
+#include "InventoryUIComponent.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -11,8 +11,8 @@ AMyCharacter::AMyCharacter()
 	// Create and attach the inventory component
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
-	// Create and attach the inventory room component
-	InventoryRoomComponent = CreateDefaultSubobject<UInventoryRoomComponent>(TEXT("InventoryRoomComponent"));
+	// Create and attach the inventory UI component
+	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
 }
 
 void AMyCharacter::BeginPlay()
@@ -29,15 +29,22 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+	UE_LOG(LogTemp, Warning, TEXT("AMyCharacter::SetupPlayerInputComponent called"));
+
 	// Bind to "ToggleInventory" action (defined in DefaultInput.ini with Tab + Gamepad_Special_Left)
-	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventoryRoom);
+	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventory);
 }
 
-void AMyCharacter::OnToggleInventoryRoom()
+void AMyCharacter::OnToggleInventory()
 {
-	if (InventoryRoomComponent)
+	UE_LOG(LogTemp, Warning, TEXT("AMyCharacter::OnToggleInventory called! InventoryUIComponent = %p"), InventoryUIComponent);
+	if (InventoryUIComponent)
 	{
-		InventoryRoomComponent->ToggleInventoryRoom();
+		InventoryUIComponent->ToggleInventoryUI();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent is null!"));
 	}
 }
 
@@ -46,15 +53,15 @@ void AMyCharacter::SetCanInteract(bool value)
 	CanInteract = value;
 }
 
-void AMyCharacter::AddItemToInventory_Implementation(EInventoryItem Item)
+void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 {
-	UE_LOG(LogTemp, Warning, TEXT("C++ AddItemToInventory_Implementation called (InventoryComponent ptr: %p)"), InventoryComponent);
+	UE_LOG(LogTemp, Log, TEXT("AddItemToInventory called with: %s"), *ItemID.ToString());
 	if (InventoryComponent)
 	{
-		InventoryComponent->AddItem(Item);
+		InventoryComponent->AddItem(ItemID);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("C++ AddItemToInventory: InventoryComponent is null!"));
+		UE_LOG(LogTemp, Error, TEXT("AddItemToInventory: InventoryComponent is null!"));
 	}
 }

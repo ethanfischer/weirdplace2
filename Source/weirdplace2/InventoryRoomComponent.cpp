@@ -75,13 +75,13 @@ void UInventoryRoomComponent::BeginPlay()
 	UE_LOG(LogTemp, Log, TEXT("ItemDisplayMappings.Num() = %d"), ItemDisplayMappings.Num());
 	if (ItemDisplayMappings.Num() == 0)
 	{
-		// BP_Key for InventoryItem2
+		// BP_Key for KEY_BASEMENT
 		UClass* KeyClass = LoadClass<AActor>(nullptr, TEXT("/Game/Blueprints/BP_Key.BP_Key_C"));
 		UE_LOG(LogTemp, Log, TEXT("LoadClass BP_Key: %s"), KeyClass ? TEXT("SUCCESS") : TEXT("FAILED"));
 		if (KeyClass)
 		{
 			FInventoryItemDisplayInfo KeyInfo;
-			KeyInfo.ItemType = EInventoryItem::InventoryItem2;
+			KeyInfo.ItemID = FName("KEY_BASEMENT");
 			KeyInfo.DisplayActorClass = KeyClass;
 			KeyInfo.DisplayScale = FVector(1.0f);
 			ItemDisplayMappings.Add(KeyInfo);
@@ -214,7 +214,7 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 	UWorld* World = GetWorld();
 	if (!World) return;
 
-	TArray<EInventoryItem> Items = InventoryComponent->GetInventoryItems();
+	TArray<FName> Items = InventoryComponent->GetItems();
 	UE_LOG(LogTemp, Log, TEXT("Inventory has %d items, ItemDisplayMappings has %d mappings (ptr: %p)"),
 		Items.Num(), ItemDisplayMappings.Num(), InventoryComponent);
 
@@ -223,106 +223,15 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 	FRotator BaseRotation = InventoryRoomTarget ? InventoryRoomTarget->GetActorRotation() : InventoryRoomRotation;
 
 	int32 SpawnIndex = 0;
-	bool bSpawnedMovieCovers = false;
 
 	for (int32 i = 0; i < Items.Num(); i++)
 	{
-		EInventoryItem Item = Items[i];
+		const FName& ItemID = Items[i];
 
-		// Special handling for movie boxes: spawn one per collected cover
-		if (!bSpawnedMovieCovers && Item == EInventoryItem::InventoryItem1 && InventoryComponent)
-		{
-			const TArray<FName>& Covers = InventoryComponent->GetMovieCovers();
-			if (Covers.Num() > 0 && *MovieBoxDisplayActorClass)
-			{
-				for (int32 CoverIdx = 0; CoverIdx < Covers.Num(); ++CoverIdx)
-				{
-					FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
+		// Check if there's a custom display mapping for this item
+		const FInventoryItemDisplayInfo* DisplayInfo = GetDisplayInfo(ItemID);
 
-					// Face the player (or room target) so displays are oriented toward the viewer
-					FVector LookAtTarget = BaseLocation;
-					if (ACharacter* CharacterOwner = Cast<ACharacter>(GetOwner()))
-					{
-						LookAtTarget = CharacterOwner->GetActorLocation();
-						if (AController* Controller = CharacterOwner->GetController())
-						{
-							FVector CameraLoc;
-							FRotator CameraRot;
-							Controller->GetPlayerViewPoint(CameraLoc, CameraRot);
-							LookAtTarget = CameraLoc;
-						}
-					}
-
-					FVector ToTarget = LookAtTarget - SpawnLocation;
-					FRotator SpawnRotation = ToTarget.IsNearlyZero() ? BaseRotation : ToTarget.Rotation();
-					SpawnRotation.Pitch = 0.0f;
-					SpawnRotation.Roll = 0.0f;
-
-					FActorSpawnParameters SpawnParams;
-					SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-
-					AActor* SpawnedActor = World->SpawnActor<AActor>(MovieBoxDisplayActorClass, SpawnLocation, SpawnRotation, SpawnParams);
-					if (SpawnedActor)
-					{
-						SpawnedActor->SetActorEnableCollision(false);
-
-						// Disable interactivity for display actors
-						SpawnedActor->SetActorTickEnabled(false);
-						if (UWidgetComponent* Widget = SpawnedActor->FindComponentByClass<UWidgetComponent>())
-						{
-							Widget->SetVisibility(false);
-						}
-
-						#if WITH_EDITOR
-						SpawnedActor->SetFolderPath(InventoryFolderPath);
-						#endif
-
-						// Apply cover material
-						FString CoverString = Covers[CoverIdx].ToString();
-						FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *CoverString);
-						UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
-
-						if (AMovieBoxDisplayActor* DisplayActor = Cast<AMovieBoxDisplayActor>(SpawnedActor))
-						{
-							DisplayActor->SetCoverMaterial(CoverMaterial);
-							DisplayActor->SetCoverName(CoverString);
-						}
-						else if (CoverMaterial)
-						{
-							if (UStaticMeshComponent* MeshComp = SpawnedActor->FindComponentByClass<UStaticMeshComponent>())
-							{
-								MeshComp->SetMaterial(0, CoverMaterial);
-							}
-						}
-
-						// Store cover name in map for look-at detection (works even if not AMovieBoxDisplayActor)
-						ActorCoverNames.Add(SpawnedActor, CoverString);
-
-						SpawnedDisplayActors.Add(SpawnedActor);
-						UE_LOG(LogTemp, Log, TEXT("Spawned movie cover %s at %s"), *CoverString, *SpawnLocation.ToString());
-					}
-				}
-
-				bSpawnedMovieCovers = true;
-				continue;
-			}
-		}
-
-		// Skip InventoryItem1 if we've already spawned movie covers for it
-		if (bSpawnedMovieCovers && Item == EInventoryItem::InventoryItem1)
-		{
-			continue;
-		}
-
-		// Fallback to existing mapping
-		const FInventoryItemDisplayInfo* DisplayInfo = GetDisplayInfo(Item);
-
-		if (!DisplayInfo || !DisplayInfo->DisplayActorClass)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("No display actor class mapped for inventory item %d"), static_cast<int32>(Item));
-			continue;
-		}
-
+		// Calculate spawn location
 		FVector SpawnLocation = CalculateItemPosition(SpawnIndex++);
 
 		// Face the player (or room target) so displays are oriented toward the viewer
@@ -343,21 +252,63 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 		FRotator SpawnRotation = ToTarget.IsNearlyZero() ? BaseRotation : ToTarget.Rotation();
 		SpawnRotation.Pitch = 0.0f;
 		SpawnRotation.Roll = 0.0f;
-		SpawnRotation.Yaw += DisplayInfo->DisplayRotation.Yaw;
 
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		AActor* SpawnedActor = World->SpawnActor<AActor>(DisplayInfo->DisplayActorClass, SpawnLocation, SpawnRotation, SpawnParams);
+		AActor* SpawnedActor = nullptr;
 
-		if (SpawnedActor)
+		if (DisplayInfo && DisplayInfo->DisplayActorClass)
 		{
-			// Apply custom scale if specified
-			if (DisplayInfo->DisplayScale != FVector(1.0f, 1.0f, 1.0f))
+			// Use custom display actor for this item
+			SpawnRotation.Yaw += DisplayInfo->DisplayRotation.Yaw;
+
+			SpawnedActor = World->SpawnActor<AActor>(DisplayInfo->DisplayActorClass, SpawnLocation, SpawnRotation, SpawnParams);
+
+			if (SpawnedActor && DisplayInfo->DisplayScale != FVector(1.0f, 1.0f, 1.0f))
 			{
 				SpawnedActor->SetActorScale3D(DisplayInfo->DisplayScale);
 			}
+		}
+		else if (MovieBoxDisplayActorClass)
+		{
+			// Default: use movie box display for VHS covers
+			SpawnedActor = World->SpawnActor<AActor>(MovieBoxDisplayActorClass, SpawnLocation, SpawnRotation, SpawnParams);
 
+			if (SpawnedActor)
+			{
+				// Disable interactivity for display actors
+				SpawnedActor->SetActorTickEnabled(false);
+				if (UWidgetComponent* Widget = SpawnedActor->FindComponentByClass<UWidgetComponent>())
+				{
+					Widget->SetVisibility(false);
+				}
+
+				// Apply cover material
+				FString ItemString = ItemID.ToString();
+				FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemString);
+				UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+
+				if (AMovieBoxDisplayActor* DisplayActor = Cast<AMovieBoxDisplayActor>(SpawnedActor))
+				{
+					DisplayActor->SetCoverMaterial(CoverMaterial);
+					DisplayActor->SetCoverName(ItemString);
+				}
+				else if (CoverMaterial)
+				{
+					if (UStaticMeshComponent* MeshComp = SpawnedActor->FindComponentByClass<UStaticMeshComponent>())
+					{
+						MeshComp->SetMaterial(0, CoverMaterial);
+					}
+				}
+
+				// Store cover name in map for look-at detection
+				ActorCoverNames.Add(SpawnedActor, ItemString);
+			}
+		}
+
+		if (SpawnedActor)
+		{
 			// Disable collision so player can walk through items
 			SpawnedActor->SetActorEnableCollision(false);
 
@@ -367,8 +318,8 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 			#endif
 
 			SpawnedDisplayActors.Add(SpawnedActor);
-			UE_LOG(LogTemp, Log, TEXT("Spawned display actor for item %d at %s"),
-				static_cast<int32>(Item), *SpawnLocation.ToString());
+			UE_LOG(LogTemp, Log, TEXT("Spawned display actor for item '%s' at %s"),
+				*ItemID.ToString(), *SpawnLocation.ToString());
 		}
 	}
 
@@ -438,11 +389,11 @@ void UInventoryRoomComponent::DestroyInventoryDisplayActors()
 	CurrentLookedAtItem = TEXT("");
 }
 
-const FInventoryItemDisplayInfo* UInventoryRoomComponent::GetDisplayInfo(EInventoryItem Item) const
+const FInventoryItemDisplayInfo* UInventoryRoomComponent::GetDisplayInfo(const FName& ItemID) const
 {
 	for (const FInventoryItemDisplayInfo& Info : ItemDisplayMappings)
 	{
-		if (Info.ItemType == Item)
+		if (Info.ItemID == ItemID)
 		{
 			return &Info;
 		}
@@ -488,7 +439,7 @@ FVector UInventoryRoomComponent::CalculateItemPosition(int32 Index) const
 	return Position;
 }
 
-void UInventoryRoomComponent::OnInventoryChanged(const TArray<EInventoryItem>& CurrentInventory)
+void UInventoryRoomComponent::OnInventoryChanged(const TArray<FName>& CurrentItems)
 {
 	// If we're in the inventory room, refresh the display
 	if (bIsInInventoryRoom)

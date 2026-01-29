@@ -3,7 +3,6 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Components/TextRenderComponent.h"
-#include "Inventory.h"
 #include "InventoryItemMapping.h"
 #include "MovieBoxDisplayActor.h"
 #include "InventoryRoomComponent.generated.h"
@@ -11,6 +10,10 @@
 class UInventoryComponent;
 class UMaterialInstanceDynamic;
 
+/**
+ * DEPRECATED: This component is being replaced by UInventoryUIComponent.
+ * Kept for backwards compatibility during transition.
+ */
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UInventoryRoomComponent : public UActorComponent
 {
@@ -150,15 +153,15 @@ private:
 	void SpawnInventoryDisplayActors();
 	void DestroyInventoryDisplayActors();
 
-	// Find display info for given inventory item
-	const FInventoryItemDisplayInfo* GetDisplayInfo(EInventoryItem Item) const;
+	// Find display info for given inventory item ID
+	const FInventoryItemDisplayInfo* GetDisplayInfo(const FName& ItemID) const;
 
 	// Calculate spawn position for item at given index
 	FVector CalculateItemPosition(int32 Index) const;
 
 	// Handle inventory changes while in room (refresh display)
 	UFUNCTION()
-	void OnInventoryChanged(const TArray<EInventoryItem>& CurrentInventory);
+	void OnInventoryChanged(const TArray<FName>& CurrentItems);
 
 	// Update the looked-at item text based on raycast
 	void UpdateLookedAtItem();

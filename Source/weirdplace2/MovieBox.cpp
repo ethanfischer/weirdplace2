@@ -94,7 +94,7 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	FVector CameraLocation;
 	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
-	// Store the actor’s original transform before moving it
+	// Store the actor's original transform before moving it
 	OriginalActorTransform = Actor->GetActorTransform();
 
 	// Offset distance in front of the camera
@@ -137,29 +137,26 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 void AMovieBox::CollectInspectedSubitem()
 {
 	if (DidCollectSubitem) return;
-	
+
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
-    MyCharacter->AddItemToInventory(EInventoryItem::InventoryItem1);
 
-	// Track which cover was collected
-	if (UInventoryComponent* PlayerInventory = MyCharacter->GetInventoryComponent())
+	// Get cover name from actor name (strip suffix)
+	FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
+	int32 LastUnderscore;
+	if (CoverName.FindLastChar('_', LastUnderscore))
 	{
-		FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
-		int32 LastUnderscore;
-		if (CoverName.FindLastChar('_', LastUnderscore))
+		const FString Suffix = CoverName.Mid(LastUnderscore + 1);
+		if (Suffix.IsNumeric())
 		{
-			const FString Suffix = CoverName.Mid(LastUnderscore + 1);
-			if (Suffix.IsNumeric())
-			{
-				CoverName = CoverName.Left(LastUnderscore);
-			}
+			CoverName = CoverName.Left(LastUnderscore);
 		}
-
-		PlayerInventory->AddMovieCover(FName(*CoverName));
 	}
+
+	// Add item to inventory using the unified FName-based system
+	MyCharacter->AddItemToInventory(FName(*CoverName));
 
 	// Close inspection after collecting
 	StopInspection();

@@ -1,26 +1,14 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Inventory.generated.h"
 
-UENUM(BlueprintType)
-enum class EInventoryItem : uint8 {
-	InventoryItem1 UMETA(DisplayName = "Item 1"),
-	InventoryItem2 UMETA(DisplayName = "Item 2"),
-	InventoryItem3 UMETA(DisplayName = "Item 3"),
-	InventoryItem4 UMETA(DisplayName = "Item 4"),
-	InventoryItem5 UMETA(DisplayName = "Item 5"),
-	InventoryItem6 UMETA(DisplayName = "Item 6"),
-	InventoryItem7 UMETA(DisplayName = "Item 7"),
-	InventoryItem8 UMETA(DisplayName = "Item 8"),
-	InventoryItem9 UMETA(DisplayName = "Item 9"),
-	InventoryItem10 UMETA(DisplayName = "Item 10"),
-	InventoryItem11 UMETA(DisplayName = "Item 11")
-};
-
 // Delegate for inventory change notifications - Blueprint-bindable
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryChanged, const TArray<EInventoryItem>&, CurrentInventory);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryChanged, const TArray<FName>&, CurrentItems);
+
+// Delegate for active item change notifications
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActiveItemChanged, const FName&, NewActiveItem);
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UInventoryComponent : public UActorComponent {
@@ -33,45 +21,56 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryChanged OnInventoryChanged;
 
+	// Delegate that fires when active item changes
+	UPROPERTY(BlueprintAssignable, Category = "Inventory")
+	FOnActiveItemChanged OnActiveItemChanged;
+
 protected:
 	virtual void BeginPlay() override;
 
 public:
-	// Adds an item to the inventory
+	// Adds an item to the inventory by ID (e.g., "ALIEN", "KEY_BASEMENT", "FLASHLIGHT")
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void AddItem(EInventoryItem Item);
+	void AddItem(const FName& ItemID);
 
 	// Removes an item from the inventory
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	bool RemoveItem(EInventoryItem Item);
+	bool RemoveItem(const FName& ItemID);
 
 	// Checks if an item is in the inventory
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	bool HasItem(EInventoryItem Item) const;
+	bool HasItem(const FName& ItemID) const;
+
+	// Returns copy of current inventory items
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	TArray<FName> GetItems() const;
+
+	// Returns count of items in inventory
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	int32 GetItemCount() const;
+
+	// Sets the currently active (selected) item
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SetActiveItem(const FName& ItemID);
+
+	// Gets the currently active (selected) item
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	FName GetActiveItem() const;
+
+	// Clears the active item selection
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ClearActiveItem();
 
 	// Displays inventory (for debugging)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void DisplayInventory() const;
 
-	// Returns copy of current inventory items
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	TArray<EInventoryItem> GetInventoryItems() const;
-
-	// Stores collected movie cover ids (e.g., 12-MONKEYS)
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void AddMovieCover(const FName& CoverName);
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	const TArray<FName>& GetMovieCovers() const { return MovieCovers; }
-
-	// Returns count of items in inventory
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	int32 GetInventoryCount() const;
-
 private:
+	// All inventory items by ID
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
-	TArray<EInventoryItem> Inventory;
+	TArray<FName> Items;
 
+	// Currently selected/active item
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
-	TArray<FName> MovieCovers;
+	FName ActiveItem;
 };
