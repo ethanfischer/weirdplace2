@@ -75,12 +75,3 @@ void UInventoryComponent::ClearActiveItem() {
         OnActiveItemChanged.Broadcast(ActiveItem);
     }
 }
-
-void UInventoryComponent::DisplayInventory() const {
-    FString InventoryString;
-    for (const FName& Item : Items) {
-        InventoryString += Item.ToString() + TEXT(" ");
-    }
-    GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Inventory: %s | Active: %s"), *InventoryString, *ActiveItem.ToString()));
-    UE_LOG(LogTemp, Log, TEXT("Inventory: %s | Active: %s"), *InventoryString, *ActiveItem.ToString());
-}

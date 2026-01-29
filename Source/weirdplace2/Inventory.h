@@ -61,10 +61,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ClearActiveItem();
 
-	// Displays inventory (for debugging)
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void DisplayInventory() const;
-
 private:
 	// All inventory items by ID
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
