@@ -8,7 +8,7 @@
 
 AInventoryUIActor::AInventoryUIActor()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	// Create root component
 	RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
@@ -63,6 +63,12 @@ void AInventoryUIActor::BeginPlay()
 	}
 }
 
+void AInventoryUIActor::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	UpdateHoverAnimation(DeltaTime);
+}
+
 void AInventoryUIActor::SetInventoryComponent(UInventoryComponent* InInventoryComponent)
 {
 	InventoryComponent = InInventoryComponent;
@@ -70,8 +76,14 @@ void AInventoryUIActor::SetInventoryComponent(UInventoryComponent* InInventoryCo
 
 void AInventoryUIActor::SetSelectedIndex(int32 Index)
 {
-	SelectedIndex = FMath::Clamp(Index, 0, GetTotalSlots() - 1);
-	UpdateSelectionHighlight();
+	int32 NewIndex = FMath::Clamp(Index, 0, GetTotalSlots() - 1);
+	if (NewIndex != SelectedIndex)
+	{
+		PreviousSelectedIndex = SelectedIndex;
+		SelectedIndex = NewIndex;
+		HoverAnimationProgress = 0.0f; // Reset animation when selection changes
+		UpdateSelectionHighlight();
+	}
 }
 
 void AInventoryUIActor::SetGridColumns(int32 Columns)
@@ -217,14 +229,18 @@ void AInventoryUIActor::CreateSlots()
 
 		if (BaseMat)
 		{
-			UMaterialInstanceDynamic* HighlightMat = UMaterialInstanceDynamic::Create(BaseMat, this);
-			if (HighlightMat)
+			SelectionMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
+			if (SelectionMaterial)
 			{
-				HighlightMat->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
-				SelectionHighlight->SetMaterial(0, HighlightMat);
+				SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
+				SelectionHighlight->SetMaterial(0, SelectionMaterial);
 			}
 		}
 	}
+
+	// Reset hover animation state
+	HoverAnimationProgress = 0.0f;
+	PulseTime = 0.0f;
 }
 
 void AInventoryUIActor::ClearSlots()
@@ -417,4 +433,87 @@ float AInventoryUIActor::GetGridWidth() const
 float AInventoryUIActor::GetGridHeight() const
 {
 	return GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+}
+
+void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
+{
+	// Animate hover scale
+	HoverAnimationProgress = FMath::FInterpTo(HoverAnimationProgress, 1.0f, DeltaTime, HoverAnimationSpeed);
+
+	// Update pulse time
+	PulseTime += DeltaTime * SelectionPulseSpeed;
+
+	// Calculate pulse value (oscillates between 0 and 1)
+	float PulseValue = (FMath::Sin(PulseTime * 2.0f * PI) + 1.0f) * 0.5f;
+
+	// Apply scale to selected slot/thumbnail
+	float CurrentScale = FMath::Lerp(1.0f, HoverScaleMultiplier, HoverAnimationProgress);
+
+	// Scale the selected slot
+	if (SlotMeshes.IsValidIndex(SelectedIndex))
+	{
+		UStaticMeshComponent* SelectedSlot = SlotMeshes[SelectedIndex];
+		if (SelectedSlot)
+		{
+			float Width = ThumbnailSize * 1.05f * CurrentScale;
+			float Height = ThumbnailSize * 1.4f * 1.05f * CurrentScale;
+			SelectedSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
+		}
+	}
+
+	// Scale the selected thumbnail if it exists
+	if (ThumbnailMeshes.IsValidIndex(SelectedIndex))
+	{
+		UStaticMeshComponent* SelectedThumbnail = ThumbnailMeshes[SelectedIndex];
+		if (SelectedThumbnail)
+		{
+			float Width = ThumbnailSize * CurrentScale;
+			float Height = ThumbnailSize * 1.4f * CurrentScale;
+			SelectedThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
+		}
+	}
+
+	// Reset scale on previously selected slot
+	if (PreviousSelectedIndex >= 0 && PreviousSelectedIndex != SelectedIndex)
+	{
+		if (SlotMeshes.IsValidIndex(PreviousSelectedIndex))
+		{
+			UStaticMeshComponent* PrevSlot = SlotMeshes[PreviousSelectedIndex];
+			if (PrevSlot)
+			{
+				float Width = ThumbnailSize * 1.05f;
+				float Height = ThumbnailSize * 1.4f * 1.05f;
+				PrevSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
+			}
+		}
+
+		if (ThumbnailMeshes.IsValidIndex(PreviousSelectedIndex))
+		{
+			UStaticMeshComponent* PrevThumbnail = ThumbnailMeshes[PreviousSelectedIndex];
+			if (PrevThumbnail)
+			{
+				float Width = ThumbnailSize;
+				float Height = ThumbnailSize * 1.4f;
+				PrevThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
+			}
+		}
+
+		PreviousSelectedIndex = -1; // Clear after resetting
+	}
+
+	// Pulse the selection highlight
+	if (SelectionHighlight && SelectionMaterial)
+	{
+		// Scale the highlight with hover + pulse
+		float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
+		float HighlightWidth = ThumbnailSize * HighlightScale;
+		float HighlightHeight = ThumbnailSize * 1.4f * HighlightScale;
+		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
+
+		// Pulse the color brightness
+		float ColorIntensity = 1.0f + PulseValue * SelectionPulseIntensity;
+		FLinearColor PulsedColor = SelectionColor * ColorIntensity;
+		PulsedColor.A = SelectionColor.A * CurrentOpacity;
+		SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), PulsedColor);
+	}
 }

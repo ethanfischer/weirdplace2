@@ -40,6 +40,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
 	// Root component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -85,14 +86,37 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
 
+	// Hover scale multiplier (how much larger the hovered slot becomes)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
+	float HoverScaleMultiplier = 1.15f;
+
+	// Hover animation speed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
+	float HoverAnimationSpeed = 8.0f;
+
+	// Selection highlight pulse speed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
+	float SelectionPulseSpeed = 3.0f;
+
+	// Selection highlight pulse intensity (0-1)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
+	float SelectionPulseIntensity = 0.3f;
+
 private:
 	UPROPERTY()
 	UInventoryComponent* InventoryComponent;
 
 	int32 SelectedIndex = 0;
+	int32 PreviousSelectedIndex = -1;
 	int32 GridColumns = 4;
 	int32 GridRows = 3;
 	float CurrentOpacity = 1.0f;
+
+	// Hover animation progress (0 = not hovered, 1 = fully hovered)
+	float HoverAnimationProgress = 0.0f;
+
+	// Time accumulator for pulse effect
+	float PulseTime = 0.0f;
 
 	// Empty slot meshes (always visible)
 	UPROPERTY()
@@ -114,6 +138,10 @@ private:
 	UPROPERTY()
 	UMaterialInstanceDynamic* BackgroundMaterial;
 
+	// Dynamic material for selection highlight (for pulsing)
+	UPROPERTY()
+	UMaterialInstanceDynamic* SelectionMaterial;
+
 	// Create the grid slots (empty slot visuals)
 	void CreateSlots();
 
@@ -128,6 +156,9 @@ private:
 
 	// Update selection highlight position
 	void UpdateSelectionHighlight();
+
+	// Update hover animation (scale, pulse)
+	void UpdateHoverAnimation(float DeltaTime);
 
 	// Update the background panel size
 	void UpdateBackgroundSize();

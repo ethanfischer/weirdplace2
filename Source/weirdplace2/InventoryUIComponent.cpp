@@ -68,6 +68,12 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			DestroyInventoryUIActor();
 			UnbindConfirmInput();
 			UnfreezePlayerMovement();
+
+			// Re-enable interactions with environment
+			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+			{
+				MyCharacter->SetCanInteract(true);
+			}
 		}
 		else
 		{
@@ -134,6 +140,12 @@ void UInventoryUIComponent::OpenInventoryUI()
 	FreezePlayerMovement();
 	BindConfirmInput();
 
+	// Disable interactions with environment
+	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+	{
+		MyCharacter->SetCanInteract(false);
+	}
+
 	// Update UI with current selection
 	if (InventoryUIActor)
 	{
@@ -173,15 +185,15 @@ void UInventoryUIComponent::ConfirmSelection()
 			FName SelectedItem = Items[SelectedIndex];
 			InventoryComponent->SetActiveItem(SelectedItem);
 			UE_LOG(LogTemp, Log, TEXT("Confirmed selection: %s"), *SelectedItem.ToString());
+			// TODO: Add visual/audio feedback for selection
 		}
 		else
 		{
-			UE_LOG(LogTemp, Log, TEXT("Selected empty slot %d"), SelectedIndex);
+			UE_LOG(LogTemp, Log, TEXT("Selected empty slot %d - no action"), SelectedIndex);
 		}
 	}
 
-	// Close inventory after selection
-	CloseInventoryUI();
+	// Don't close inventory - user must press Tab or Exit to close
 }
 
 void UInventoryUIComponent::SpawnInventoryUIActor()
@@ -247,7 +259,11 @@ void UInventoryUIComponent::BindConfirmInput()
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC || !PC->InputComponent) return;
 
+	// Bind confirm (E / A button) - selects item but doesn't close
 	PC->InputComponent->BindAction("InventoryConfirmSelection", IE_Pressed, this, &UInventoryUIComponent::ConfirmSelection);
+
+	// Bind close (Q / B button) - closes inventory
+	PC->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &UInventoryUIComponent::CloseInventoryUI);
 }
 
 void UInventoryUIComponent::UnbindConfirmInput()
@@ -256,6 +272,7 @@ void UInventoryUIComponent::UnbindConfirmInput()
 	if (!PC || !PC->InputComponent) return;
 
 	PC->InputComponent->RemoveActionBinding("InventoryConfirmSelection", IE_Pressed);
+	PC->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 }
 
 void UInventoryUIComponent::FreezePlayerMovement()
