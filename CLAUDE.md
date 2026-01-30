@@ -108,5 +108,12 @@ On macOS 26 with Xcode 26.x, edit `Engine/Config/Apple/Apple_SDK.json` and chang
 
 ## Feature Documentation
 
-- Before modifying an existing feature, read `features.md` first
-- After completing a feature, document it in `features.md` with: feature name, key files/classes, and high-level behavior
+**Always read `features.md` when:**
+- The user asks about how a feature works
+- Before modifying an existing feature
+- To understand the current implementation of a system
+
+**After completing a feature**, document it in `features.md` with:
+- Feature name
+- Key files/classes
+- High-level behavior and configuration options
