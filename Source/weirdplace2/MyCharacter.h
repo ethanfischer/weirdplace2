@@ -8,7 +8,6 @@
 
 class UInventoryComponent;
 class UInventoryUIComponent;
-class UCrosshairWidget;
 
 UCLASS()
 class WEIRDPLACE2_API AMyCharacter : public ACharacter {
@@ -46,21 +45,6 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryUIComponent* InventoryUIComponent;
-
-	// Crosshair widget class to spawn (set in Blueprint)
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<UCrosshairWidget> CrosshairWidgetClass;
-
-	// Active crosshair widget instance
-	UPROPERTY(BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
-	UCrosshairWidget* CrosshairWidget;
-
-	// Interaction raycast distance
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	float InteractionDistance = 300.0f;
-
-	// Tracks previous interactable state to avoid redundant calls
-	bool bWasLookingAtInteractable = false;
 
 	// Input callback for Tab key - toggle inventory UI
 	void OnToggleInventory();

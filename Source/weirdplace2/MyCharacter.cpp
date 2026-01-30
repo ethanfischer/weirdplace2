@@ -3,10 +3,6 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
-#include "CrosshairWidget.h"
-#include "Interactable.h"
-#include "Camera/CameraComponent.h"
-#include "Kismet/GameplayStatics.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -22,78 +18,11 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// Create and display crosshair widget
-	if (CrosshairWidgetClass)
-	{
-		APlayerController* PC = Cast<APlayerController>(GetController());
-		if (PC)
-		{
-			CrosshairWidget = CreateWidget<UCrosshairWidget>(PC, CrosshairWidgetClass);
-			if (CrosshairWidget)
-			{
-				CrosshairWidget->AddToViewport();
-				CrosshairWidget->ShowNormalCrosshair();
-			}
-		}
-	}
 }
 
 void AMyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	// Update crosshair based on what we're looking at
-	if (CrosshairWidget)
-	{
-		bool bLookingAtInteractable = false;
-
-		// Check if inventory is open - look for items in inventory
-		if (InventoryUIComponent && InventoryUIComponent->IsInventoryOpen())
-		{
-			bLookingAtInteractable = InventoryUIComponent->IsLookingAtItem();
-		}
-		else
-		{
-			// Inventory closed - raycast for world interactables
-			APlayerController* PC = Cast<APlayerController>(GetController());
-			if (PC)
-			{
-				FVector CameraLocation;
-				FRotator CameraRotation;
-				PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
-
-				FVector TraceEnd = CameraLocation + CameraRotation.Vector() * InteractionDistance;
-
-				FHitResult HitResult;
-				FCollisionQueryParams QueryParams;
-				QueryParams.AddIgnoredActor(this);
-
-				if (GetWorld()->LineTraceSingleByChannel(HitResult, CameraLocation, TraceEnd, ECC_Visibility, QueryParams))
-				{
-					AActor* HitActor = HitResult.GetActor();
-					if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-					{
-						bLookingAtInteractable = true;
-					}
-				}
-			}
-		}
-
-		// Only update crosshair if state changed
-		if (bLookingAtInteractable != bWasLookingAtInteractable)
-		{
-			if (bLookingAtInteractable)
-			{
-				CrosshairWidget->ShowInteractableCrosshair();
-			}
-			else
-			{
-				CrosshairWidget->ShowNormalCrosshair();
-			}
-			bWasLookingAtInteractable = bLookingAtInteractable;
-		}
-	}
 }
 
 void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
