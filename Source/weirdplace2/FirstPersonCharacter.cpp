@@ -1,0 +1,324 @@
+#include "FirstPersonCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "Components/WidgetComponent.h"
+#include "CrosshairWidget.h"
+#include "UI_Dialogue.h"
+#include "Interactable.h"
+#include "InventoryUI.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "DlgSystem/DlgDialogue.h"
+#include "DlgSystem/DlgContext.h"
+#include "DlgSystem/DlgManager.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "InputAction.h"
+#include "InputMappingContext.h"
+
+AFirstPersonCharacter::AFirstPersonCharacter()
+{
+	PrimaryActorTick.bCanEverTick = true;
+
+	// Create first person camera
+	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
+	FirstPersonCamera->SetupAttachment(RootComponent);
+	FirstPersonCamera->bUsePawnControlRotation = true;
+}
+
+void AFirstPersonCharacter::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Add Input Mapping Context
+	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
+	{
+		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			if (DefaultMappingContext)
+			{
+				Subsystem->AddMappingContext(DefaultMappingContext, 0);
+			}
+		}
+	}
+
+	// Close inventory UI on start
+	if (InventoryUIWidgetComponent)
+	{
+		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
+		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
+		{
+			IInventoryUI::Execute_CloseUI(UserWidget);
+		}
+	}
+
+	// Create crosshair widget
+	if (CrosshairWidgetClass)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			CrosshairWidget = CreateWidget<UCrosshairWidget>(PC, CrosshairWidgetClass);
+			if (CrosshairWidget)
+			{
+				CrosshairWidget->AddToViewport(0);
+				bCreatedCrosshair = true;
+			}
+		}
+	}
+}
+
+void AFirstPersonCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Update crosshair based on what we're looking at
+	if (bCreatedCrosshair && IsValid(CrosshairWidget))
+	{
+		AActor* HitActor = nullptr;
+		bool bDidHitInteractable = false;
+		RaycastInteractableCheck(HitActor, bDidHitInteractable);
+
+		if (bDidHitInteractable)
+		{
+			CrosshairWidget->ShowInteractableCrosshair();
+		}
+		else
+		{
+			CrosshairWidget->ShowNormalCrosshair();
+		}
+	}
+}
+
+void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		if (LookAction)
+		{
+			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleLookInput);
+		}
+		if (MoveAction)
+		{
+			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleMoveInput);
+		}
+		if (JumpAction)
+		{
+			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleJumpStarted);
+			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleJumpCompleted);
+		}
+		if (InteractAction)
+		{
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleInteractTriggered);
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleInteractCompleted);
+		}
+		if (InventoryAction)
+		{
+			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowInventory);
+			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowInventoryCompleted);
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleLookInput(const FInputActionValue& Value)
+{
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+	AddControllerYawInput(LookAxisVector.X);
+	AddControllerPitchInput(LookAxisVector.Y);
+}
+
+void AFirstPersonCharacter::HandleMoveInput(const FInputActionValue& Value)
+{
+	FVector2D MovementVector = Value.Get<FVector2D>();
+
+	FVector RightVector = GetActorRightVector();
+	AddMovementInput(RightVector, MovementVector.X, false);
+
+	FVector ForwardVector = GetActorForwardVector();
+	AddMovementInput(ForwardVector, MovementVector.Y, false);
+}
+
+void AFirstPersonCharacter::HandleJumpStarted()
+{
+	Jump();
+}
+
+void AFirstPersonCharacter::HandleJumpCompleted()
+{
+	StopJumping();
+}
+
+void AFirstPersonCharacter::HandleInteractTriggered()
+{
+	if (bInteractDoOnceCompleted)
+	{
+		return;
+	}
+	bInteractDoOnceCompleted = true;
+
+	// Check if we can interact (inherited from AMyCharacter)
+	// CanInteract is private in base class, so we check via the public setter pattern
+	// For now, assume we can interact - this logic may need adjustment
+
+	AActor* HitActor = nullptr;
+	bool bDidHitInteractable = false;
+	RaycastInteractableCheck(HitActor, bDidHitInteractable);
+
+	if (bDidHitInteractable && HitActor)
+	{
+		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+		{
+			IInteractable::Execute_Interact(HitActor);
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleInteractCompleted()
+{
+	// Reset DoOnce
+	bInteractDoOnceCompleted = false;
+}
+
+void AFirstPersonCharacter::HandleShowInventory()
+{
+	if (bInventoryDoOnceCompleted)
+	{
+		return;
+	}
+	bInventoryDoOnceCompleted = true;
+
+	if (InventoryUIWidgetComponent)
+	{
+		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
+		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
+		{
+			IInventoryUI::Execute_OpenUI(UserWidget);
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleShowInventoryCompleted()
+{
+	// Reset DoOnce
+	bInventoryDoOnceCompleted = false;
+}
+
+void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)
+{
+	OutHitActor = nullptr;
+	bDidHitInteractable = false;
+
+	if (!FirstPersonCamera)
+	{
+		return;
+	}
+
+	FVector Start = FirstPersonCamera->GetComponentLocation();
+	FVector ForwardVector = FirstPersonCamera->GetForwardVector();
+	FVector End = Start + (ForwardVector * InteractionDistance);
+
+	// Setup object types to trace
+	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldStatic));
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6)); // Custom channel
+
+	TArray<AActor*> ActorsToIgnore;
+	FHitResult HitResult;
+
+	bool bHit = UKismetSystemLibrary::LineTraceSingleForObjects(
+		this,
+		Start,
+		End,
+		ObjectTypes,
+		false, // bTraceComplex
+		ActorsToIgnore,
+		EDrawDebugTrace::None,
+		HitResult,
+		true // bIgnoreSelf
+	);
+
+	if (bHit && HitResult.bBlockingHit)
+	{
+		AActor* HitActor = HitResult.GetActor();
+		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+		{
+			OutHitActor = HitActor;
+			bDidHitInteractable = true;
+		}
+	}
+}
+
+void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject* NPC)
+{
+	if (!NPC || !Dialogue)
+	{
+		return;
+	}
+
+	// Get UI_Dialogue from NPC if it implements the interface
+	// This requires a UI_Dialogueable interface - for now we'll skip this part
+	// UI_Dialogue = IUI_Dialogueable::Execute_Get_UI_Dialogue(NPC);
+
+	if (IsInDialogue)
+	{
+		SelectDialogueOption(0);
+	}
+	else
+	{
+		TArray<UObject*> Participants;
+		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+		Participants.Add(NPC);
+		Participants.Add(PlayerPawn);
+
+		DialogueContext = UDlgManager::StartDialogue(Dialogue, Participants);
+
+		if (IsValid(DialogueContext))
+		{
+			if (UI_Dialogue)
+			{
+				UI_Dialogue->Open(DialogueContext);
+			}
+			IsInDialogue = true;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Start dialogue has invalid dialogue context!"));
+		}
+	}
+}
+
+void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
+{
+	if (!IsValid(DialogueContext))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Select dialogue option has invalid dialogue context!"));
+		return;
+	}
+
+	if (!DialogueContext->IsValidOptionIndex(OptionIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Select dialogue option invalid option index!"));
+		return;
+	}
+
+	bool bSuccess = DialogueContext->ChooseOption(OptionIndex);
+	if (bSuccess)
+	{
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Update(DialogueContext);
+		}
+	}
+	else
+	{
+		// Dialogue ended
+		DialogueContext = nullptr;
+		IsInDialogue = false;
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+	}
+}

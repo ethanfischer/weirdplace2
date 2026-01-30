@@ -48,7 +48,10 @@
       "WebFetch(domain:forums.unrealengine.com)",
       "mcp__plugin_context7_context7__resolve-library-id",
       "mcp__plugin_context7_context7__query-docs",
-      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=pythonscript -script=\"C:/Users/ethan/repos/weirdplace2/Content/Python/create_blur_background_material.py\")"
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=pythonscript -script=\"C:/Users/ethan/repos/weirdplace2/Content/Python/create_blur_background_material.py\")",
+      "Bash(ren \"C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\Source\\\\weirdplace2\\\\BP_FirstPersonCharacter.h\" \"FirstPersonCharacter.h\")",
+      "Bash(ren:*)",
+      "Bash(powershell -Command:*)"
     ],
     "deny": [],
     "ask": []

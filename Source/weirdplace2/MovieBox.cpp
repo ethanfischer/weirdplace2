@@ -2,7 +2,6 @@
 
 
 #include "MovieBox.h"
-
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
@@ -76,11 +75,8 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
-void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
+void AMovieBox::Interact_Implementation()
 {
-	if (!Actor)
-		return;
-
 	// Get the player's controller
 	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
@@ -95,21 +91,21 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
 	// Store the actor's original transform before moving it
-	OriginalActorTransform = Actor->GetActorTransform();
+	OriginalActorTransform = GetActorTransform();
 
 	// Offset distance in front of the camera
-	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * inspectionDistance);
+	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * InspectionDistance);
 
 	// Calculate rotation so the actor's X-axis (forward vector) faces the camera
 	FRotator NewRotation = (CameraLocation - NewLocation).Rotation();
 
 	// Set the actor's new position and rotation
-	Actor->SetActorLocation(NewLocation);
-	Actor->SetActorRotation(NewRotation);
-	Actor->SetActorHiddenInGame(false);
+	SetActorLocation(NewLocation);
+	SetActorRotation(NewRotation);
+	SetActorHiddenInGame(false);
 
-	// Store reference to inspected actor
-	InspectedActor = Actor;
+	// Store reference to inspected actor (this MovieBox)
+	InspectedActor = this;
 
 	// Freeze player camera and movement
 	PlayerController->SetIgnoreLookInput(true);

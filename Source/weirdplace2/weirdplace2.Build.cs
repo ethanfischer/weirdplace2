@@ -15,7 +15,8 @@ public class weirdplace2 : ModuleRules
 			"Engine",
 			"InputCore",
 			"UMG",
-			"EnhancedInput"
+			"EnhancedInput",
+			"DlgSystem"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

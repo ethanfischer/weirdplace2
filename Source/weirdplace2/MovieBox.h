@@ -24,13 +24,19 @@ protected:
 public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
-	virtual void InteractWithObject(AActor* Actor, float inspectionDistance);
+
+	// IBPI_Interactable implementation
+	virtual void Interact_Implementation() override;
+
 	void CollectInspectedSubitem();
-	void         RotateInspectedActor(float AxisValue);
-	void         StopInspection();
+	void RotateInspectedActor(float AxisValue);
+	void StopInspection();
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movie")
 	UMaterialInterface* CoverMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
+	float InspectionDistance = 50.0f;
 
 private:
 	AActor*    InspectedActor;
@@ -40,7 +46,7 @@ private:
 	AMyCharacter* MyCharacter;
 	bool DidCollectSubitem = false;
 	FName InteractActionName = FName("Interact");
-	
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
 

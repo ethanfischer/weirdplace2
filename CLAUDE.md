@@ -83,6 +83,8 @@ Run in UE Output Log: `py "Content/Python/optimize_vhs_textures.py"`
 
 ## Code Conventions
 
+- **Never name C++ classes with `BP_` or `BPI_` prefix** - those stand for Blueprint/BlueprintInterface
+- **Interface naming**: UINTERFACE is `UInteractable`, interface class is `IInteractable`, file is `Interactable.h`
 - Forward declarations in headers; heavy includes only in .cpp
 - `GENERATED_BODY()` first inside UCLASS/USTRUCT
 - Use `TArray`, `TMap`, `TSet` (not STL) for reflection/GC compatibility
