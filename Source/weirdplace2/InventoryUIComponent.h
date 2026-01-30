@@ -41,19 +41,7 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryOpen() const;
 
-	// Navigation input handlers
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void NavigateUp();
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void NavigateDown();
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void NavigateLeft();
-
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void NavigateRight();
-
+	// Confirm selection (E key / click)
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
 	void ConfirmSelection();
 
@@ -91,6 +79,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	int32 GridColumns = 4;
 
+	// Number of rows in the grid
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
+	int32 GridRows = 3;
+
 private:
 	// Current state
 	UPROPERTY()
@@ -101,6 +93,10 @@ private:
 
 	// Currently selected grid index
 	int32 SelectedIndex = 0;
+
+	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
+	FVector StoredUIPosition;
+	FRotator StoredUIRotation;
 
 	// Spawned inventory UI actor
 	UPROPERTY()
@@ -119,9 +115,19 @@ private:
 	// Update inventory actor position based on camera and animation
 	void UpdateInventoryPosition();
 
-	// Bind/unbind navigation input
-	void BindNavigationInput();
-	void UnbindNavigationInput();
+	// Bind/unbind confirm input
+	void BindConfirmInput();
+	void UnbindConfirmInput();
+
+	// Freeze/unfreeze player movement
+	void FreezePlayerMovement();
+	void UnfreezePlayerMovement();
+
+	// Update selection based on where player is looking (reticle)
+	void UpdateReticleSelection();
+
+	// Calculate which grid slot the reticle is pointing at
+	int32 CalculateSlotFromReticle() const;
 
 	// Handle inventory changes (refresh UI)
 	UFUNCTION()

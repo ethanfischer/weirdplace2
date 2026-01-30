@@ -3,6 +3,7 @@
 #include "Inventory.h"
 #include "MyCharacter.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -65,7 +66,8 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			AnimationProgress = 0.0f;
 			CurrentState = EInventoryUIState::Closed;
 			DestroyInventoryUIActor();
-			UnbindNavigationInput();
+			UnbindConfirmInput();
+			UnfreezePlayerMovement();
 		}
 		else
 		{
@@ -74,7 +76,8 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		break;
 
 	case EInventoryUIState::Open:
-		// Nothing to do
+		// Update selection based on where player is looking
+		UpdateReticleSelection();
 		break;
 
 	case EInventoryUIState::Closed:
@@ -102,18 +105,34 @@ void UInventoryUIComponent::OpenInventoryUI()
 		return;
 	}
 
+	// Store initial camera position/rotation for the UI
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PC)
+	{
+		FVector CameraLocation;
+		FRotator CameraRotation;
+		PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+		// Calculate and store the UI position
+		FVector ForwardDir = CameraRotation.Vector();
+		FVector UpDir = FRotationMatrix(CameraRotation).GetScaledAxis(EAxis::Z);
+
+		StoredUIPosition = CameraLocation + ForwardDir * InventoryDistance + UpDir * VerticalOffset;
+		StoredUIRotation = CameraRotation;
+	}
+
 	// Spawn the UI actor if needed
 	if (!InventoryUIActor)
 	{
 		SpawnInventoryUIActor();
 	}
 
-	// Reset selection to first item
+	// Reset selection to first slot
 	SelectedIndex = 0;
-	ClampSelectedIndex();
 
 	CurrentState = EInventoryUIState::Opening;
-	BindNavigationInput();
+	FreezePlayerMovement();
+	BindConfirmInput();
 
 	// Update UI with current selection
 	if (InventoryUIActor)
@@ -142,88 +161,6 @@ bool UInventoryUIComponent::IsInventoryOpen() const
 	return CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening;
 }
 
-void UInventoryUIComponent::NavigateUp()
-{
-	if (CurrentState != EInventoryUIState::Open) return;
-
-	int32 ItemCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	if (ItemCount == 0) return;
-
-	// Move up by one row
-	int32 NewIndex = SelectedIndex - GridColumns;
-	if (NewIndex >= 0)
-	{
-		SelectedIndex = NewIndex;
-		if (InventoryUIActor)
-		{
-			InventoryUIActor->SetSelectedIndex(SelectedIndex);
-		}
-	}
-}
-
-void UInventoryUIComponent::NavigateDown()
-{
-	if (CurrentState != EInventoryUIState::Open) return;
-
-	int32 ItemCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	if (ItemCount == 0) return;
-
-	// Move down by one row
-	int32 NewIndex = SelectedIndex + GridColumns;
-	if (NewIndex < ItemCount)
-	{
-		SelectedIndex = NewIndex;
-		if (InventoryUIActor)
-		{
-			InventoryUIActor->SetSelectedIndex(SelectedIndex);
-		}
-	}
-}
-
-void UInventoryUIComponent::NavigateLeft()
-{
-	if (CurrentState != EInventoryUIState::Open) return;
-
-	int32 ItemCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	if (ItemCount == 0) return;
-
-	// Move left, wrap within row
-	int32 CurrentRow = SelectedIndex / GridColumns;
-	int32 CurrentCol = SelectedIndex % GridColumns;
-
-	if (CurrentCol > 0)
-	{
-		SelectedIndex--;
-		if (InventoryUIActor)
-		{
-			InventoryUIActor->SetSelectedIndex(SelectedIndex);
-		}
-	}
-}
-
-void UInventoryUIComponent::NavigateRight()
-{
-	if (CurrentState != EInventoryUIState::Open) return;
-
-	int32 ItemCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	if (ItemCount == 0) return;
-
-	// Move right within row
-	int32 NewIndex = SelectedIndex + 1;
-	int32 CurrentRow = SelectedIndex / GridColumns;
-	int32 NewRow = NewIndex / GridColumns;
-
-	// Only move if staying in same row and within item count
-	if (NewRow == CurrentRow && NewIndex < ItemCount)
-	{
-		SelectedIndex = NewIndex;
-		if (InventoryUIActor)
-		{
-			InventoryUIActor->SetSelectedIndex(SelectedIndex);
-		}
-	}
-}
-
 void UInventoryUIComponent::ConfirmSelection()
 {
 	if (CurrentState != EInventoryUIState::Open) return;
@@ -236,6 +173,10 @@ void UInventoryUIComponent::ConfirmSelection()
 			FName SelectedItem = Items[SelectedIndex];
 			InventoryComponent->SetActiveItem(SelectedItem);
 			UE_LOG(LogTemp, Log, TEXT("Confirmed selection: %s"), *SelectedItem.ToString());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Log, TEXT("Selected empty slot %d"), SelectedIndex);
 		}
 	}
 
@@ -260,6 +201,7 @@ void UInventoryUIComponent::SpawnInventoryUIActor()
 	{
 		InventoryUIActor->SetInventoryComponent(InventoryComponent);
 		InventoryUIActor->SetGridColumns(GridColumns);
+		InventoryUIActor->SetGridRows(GridRows);
 		UE_LOG(LogTemp, Log, TEXT("Spawned InventoryUIActor"));
 	}
 }
@@ -278,10 +220,6 @@ void UInventoryUIComponent::UpdateInventoryPosition()
 {
 	if (!InventoryUIActor) return;
 
-	AActor* Owner = GetOwner();
-	if (!Owner) return;
-
-	// Get camera location and rotation
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC) return;
 
@@ -289,52 +227,158 @@ void UInventoryUIComponent::UpdateInventoryPosition()
 	FRotator CameraRotation;
 	PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
-	// Calculate base position in front of camera
-	FVector ForwardDir = CameraRotation.Vector();
-	FVector RightDir = FRotationMatrix(CameraRotation).GetScaledAxis(EAxis::Y);
-	FVector UpDir = FRotationMatrix(CameraRotation).GetScaledAxis(EAxis::Z);
-
-	// Apply eased animation
+	// During animation, interpolate from animated position to stored position
+	// The UI animates in from below, then stays fixed
 	float EasedProgress = FMath::InterpEaseInOut(0.0f, 1.0f, AnimationProgress, 2.0f);
 
-	// Calculate position with animation offset
-	float AnimOffset = AnimationDropDistance * (1.0f - EasedProgress);
-	FVector TargetPosition = CameraLocation
-		+ ForwardDir * InventoryDistance
-		+ UpDir * (VerticalOffset - AnimOffset);
+	// Calculate animated start position (below the target)
+	FVector UpDir = FRotationMatrix(StoredUIRotation).GetScaledAxis(EAxis::Z);
+	FVector AnimatedPosition = StoredUIPosition - UpDir * AnimationDropDistance * (1.0f - EasedProgress);
 
-	// Face away from camera (so we see the front of the UI)
-	FRotator TargetRotation = CameraRotation;
-
-	InventoryUIActor->SetActorLocation(TargetPosition);
-	InventoryUIActor->SetActorRotation(TargetRotation);
+	InventoryUIActor->SetActorLocation(AnimatedPosition);
+	InventoryUIActor->SetActorRotation(StoredUIRotation);
 
 	// Update opacity based on animation
 	InventoryUIActor->SetOpacity(EasedProgress);
 }
 
-void UInventoryUIComponent::BindNavigationInput()
+void UInventoryUIComponent::BindConfirmInput()
 {
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC || !PC->InputComponent) return;
 
-	PC->InputComponent->BindAction("InventoryNavigateUp", IE_Pressed, this, &UInventoryUIComponent::NavigateUp);
-	PC->InputComponent->BindAction("InventoryNavigateDown", IE_Pressed, this, &UInventoryUIComponent::NavigateDown);
-	PC->InputComponent->BindAction("InventoryNavigateLeft", IE_Pressed, this, &UInventoryUIComponent::NavigateLeft);
-	PC->InputComponent->BindAction("InventoryNavigateRight", IE_Pressed, this, &UInventoryUIComponent::NavigateRight);
 	PC->InputComponent->BindAction("InventoryConfirmSelection", IE_Pressed, this, &UInventoryUIComponent::ConfirmSelection);
 }
 
-void UInventoryUIComponent::UnbindNavigationInput()
+void UInventoryUIComponent::UnbindConfirmInput()
 {
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC || !PC->InputComponent) return;
 
-	PC->InputComponent->RemoveActionBinding("InventoryNavigateUp", IE_Pressed);
-	PC->InputComponent->RemoveActionBinding("InventoryNavigateDown", IE_Pressed);
-	PC->InputComponent->RemoveActionBinding("InventoryNavigateLeft", IE_Pressed);
-	PC->InputComponent->RemoveActionBinding("InventoryNavigateRight", IE_Pressed);
 	PC->InputComponent->RemoveActionBinding("InventoryConfirmSelection", IE_Pressed);
+}
+
+void UInventoryUIComponent::FreezePlayerMovement()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	ACharacter* Character = Cast<ACharacter>(Owner);
+	if (Character)
+	{
+		UCharacterMovementComponent* MovementComp = Character->GetCharacterMovement();
+		if (MovementComp)
+		{
+			MovementComp->DisableMovement();
+			UE_LOG(LogTemp, Log, TEXT("Froze player movement"));
+		}
+	}
+}
+
+void UInventoryUIComponent::UnfreezePlayerMovement()
+{
+	AActor* Owner = GetOwner();
+	if (!Owner) return;
+
+	ACharacter* Character = Cast<ACharacter>(Owner);
+	if (Character)
+	{
+		UCharacterMovementComponent* MovementComp = Character->GetCharacterMovement();
+		if (MovementComp)
+		{
+			MovementComp->SetMovementMode(MOVE_Walking);
+			UE_LOG(LogTemp, Log, TEXT("Unfroze player movement"));
+		}
+	}
+}
+
+void UInventoryUIComponent::UpdateReticleSelection()
+{
+	int32 NewIndex = CalculateSlotFromReticle();
+
+	if (NewIndex != SelectedIndex && NewIndex >= 0)
+	{
+		SelectedIndex = NewIndex;
+		if (InventoryUIActor)
+		{
+			InventoryUIActor->SetSelectedIndex(SelectedIndex);
+		}
+	}
+}
+
+int32 UInventoryUIComponent::CalculateSlotFromReticle() const
+{
+	if (!InventoryUIActor) return SelectedIndex;
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (!PC) return SelectedIndex;
+
+	FVector CameraLocation;
+	FRotator CameraRotation;
+	PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+	// Get the direction the player is looking
+	FVector LookDir = CameraRotation.Vector();
+
+	// Get UI actor's transform
+	FVector UILocation = InventoryUIActor->GetActorLocation();
+	FRotator UIRotation = InventoryUIActor->GetActorRotation();
+
+	// Calculate the plane of the UI (facing the original camera position)
+	FVector UIForward = UIRotation.Vector();
+	FVector UIRight = FRotationMatrix(UIRotation).GetScaledAxis(EAxis::Y);
+	FVector UIUp = FRotationMatrix(UIRotation).GetScaledAxis(EAxis::Z);
+
+	// Ray-plane intersection
+	// The UI plane has normal = UIForward, point = UILocation
+	float Denom = FVector::DotProduct(LookDir, UIForward);
+	if (FMath::Abs(Denom) < 0.0001f)
+	{
+		// Ray is parallel to plane
+		return SelectedIndex;
+	}
+
+	float T = FVector::DotProduct(UILocation - CameraLocation, UIForward) / Denom;
+	if (T < 0)
+	{
+		// Intersection is behind camera
+		return SelectedIndex;
+	}
+
+	// Point where look ray hits the UI plane
+	FVector HitPoint = CameraLocation + LookDir * T;
+
+	// Convert to local coordinates relative to UI center
+	FVector LocalHit = HitPoint - UILocation;
+	float LocalY = FVector::DotProduct(LocalHit, UIRight);  // Horizontal
+	float LocalZ = FVector::DotProduct(LocalHit, UIUp);     // Vertical
+
+	// Calculate grid dimensions (must match InventoryUIActor calculations)
+	float ThumbnailSize = 8.0f;  // Match default in InventoryUIActor
+	float ThumbnailSpacing = 2.0f;
+	float SlotWidth = ThumbnailSize + ThumbnailSpacing;
+	float SlotHeight = ThumbnailSize * 1.4f + ThumbnailSpacing;
+
+	float GridWidth = (GridColumns - 1) * SlotWidth;
+	float GridHeight = (GridRows - 1) * SlotHeight;
+
+	// Convert local position to grid coordinates
+	// Grid is centered, so offset by half
+	float GridY = LocalY + GridWidth * 0.5f;
+	float GridZ = -LocalZ + GridHeight * 0.5f;  // Flip Z because grid row 0 is at top
+
+	// Calculate column and row
+	int32 Col = FMath::FloorToInt(GridY / SlotWidth + 0.5f);
+	int32 Row = FMath::FloorToInt(GridZ / SlotHeight + 0.5f);
+
+	// Clamp to valid range
+	Col = FMath::Clamp(Col, 0, GridColumns - 1);
+	Row = FMath::Clamp(Row, 0, GridRows - 1);
+
+	int32 SlotIndex = Row * GridColumns + Col;
+	int32 TotalSlots = GridColumns * GridRows;
+
+	return FMath::Clamp(SlotIndex, 0, TotalSlots - 1);
 }
 
 void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems)
@@ -350,13 +394,14 @@ void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems
 
 void UInventoryUIComponent::ClampSelectedIndex()
 {
-	int32 ItemCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	if (ItemCount == 0)
+	// Clamp to total slots (not item count, since we now have fixed grid)
+	int32 TotalSlots = GridColumns * GridRows;
+	if (SelectedIndex >= TotalSlots)
+	{
+		SelectedIndex = TotalSlots - 1;
+	}
+	if (SelectedIndex < 0)
 	{
 		SelectedIndex = 0;
-	}
-	else if (SelectedIndex >= ItemCount)
-	{
-		SelectedIndex = ItemCount - 1;
 	}
 }
