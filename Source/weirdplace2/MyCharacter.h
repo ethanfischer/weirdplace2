@@ -24,6 +24,7 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetCanInteract(bool value);
+	bool GetCanInteract() const { return CanInteract; }
 
 	// Add item to inventory by ID
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")

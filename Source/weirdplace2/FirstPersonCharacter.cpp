@@ -22,6 +22,7 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	// Create first person camera
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(RootComponent);
+	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Eye height
 	FirstPersonCamera->bUsePawnControlRotation = true;
 }
 
@@ -157,9 +158,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	bInteractDoOnceCompleted = true;
 
-	// Check if we can interact (inherited from AMyCharacter)
-	// CanInteract is private in base class, so we check via the public setter pattern
-	// For now, assume we can interact - this logic may need adjustment
+	// Check if we can interact
+	if (!GetCanInteract())
+	{
+		return;
+	}
 
 	AActor* HitActor = nullptr;
 	bool bDidHitInteractable = false;
