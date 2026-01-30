@@ -173,6 +173,17 @@ bool UInventoryUIComponent::IsInventoryOpen() const
 	return CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening;
 }
 
+bool UInventoryUIComponent::IsLookingAtItem() const
+{
+	if (CurrentState != EInventoryUIState::Open || !InventoryComponent)
+	{
+		return false;
+	}
+
+	TArray<FName> Items = InventoryComponent->GetItems();
+	return Items.IsValidIndex(SelectedIndex);
+}
+
 void UInventoryUIComponent::ConfirmSelection()
 {
 	if (CurrentState != EInventoryUIState::Open) return;

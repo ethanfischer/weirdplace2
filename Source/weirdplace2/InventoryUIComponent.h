@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
 
+	// Check if the reticle is pointing at a slot that contains an item
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
+	bool IsLookingAtItem() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
