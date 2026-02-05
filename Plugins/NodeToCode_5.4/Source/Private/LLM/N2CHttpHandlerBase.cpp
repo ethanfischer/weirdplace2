@@ -106,8 +106,36 @@ void UN2CHttpHandlerBase::OnRequestComplete(
 {
     if (!bWasSuccessful || !Response.IsValid())
     {
-        FString ErrorMsg = TEXT("{\"error\": \"Request failed\"}");
-        FN2CLogger::Get().LogError(TEXT("HTTP request failed"), TEXT("HttpHandler"));
+        FString ErrorDetails;
+        if (Request.IsValid())
+        {
+            EHttpRequestStatus::Type Status = Request->GetStatus();
+            ErrorDetails = FString::Printf(TEXT("URL: %s, Status: %s, Response Valid: %s"),
+                *Request->GetURL(),
+                EHttpRequestStatus::ToString(Status),
+                Response.IsValid() ? TEXT("Yes") : TEXT("No"));
+
+            // Try to get more failure info from the request
+            if (Status == EHttpRequestStatus::Failed || Status == EHttpRequestStatus::Failed_ConnectionError)
+            {
+                ErrorDetails += TEXT(", Possible SSL/Connection error");
+            }
+        }
+        else
+        {
+            ErrorDetails = TEXT("Request object invalid");
+        }
+
+        // If we have a response, try to log it even if success is false
+        if (Response.IsValid())
+        {
+            ErrorDetails += FString::Printf(TEXT(", ResponseCode: %d, ResponseBody: %s"),
+                Response->GetResponseCode(),
+                *Response->GetContentAsString().Left(200));
+        }
+
+        FString ErrorMsg = FString::Printf(TEXT("{\"error\": \"Request failed: %s\"}"), *ErrorDetails);
+        FN2CLogger::Get().LogError(FString::Printf(TEXT("HTTP request failed - %s"), *ErrorDetails), TEXT("HttpHandler"));
         const bool bExecuted = OnComplete.ExecuteIfBound(ErrorMsg);
         OnTranslationResponseReceived.Broadcast(FN2CTranslationResponse(), false);
         return;
