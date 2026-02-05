@@ -35,6 +35,9 @@ void ADoor::BeginPlay()
 
 void ADoor::Interact_Implementation()
 {
+	UE_LOG(LogTemp, Warning, TEXT("ADoor::Interact_Implementation called on %s. IsLocked=%d, Opened=%d, DoorCurve=%p, DoorTimeline=%p"),
+		*GetName(), IsLocked, Opened, DoorCurve, DoorTimeline);
+
 	if (IsLocked)
 	{
 		if (HasKey())

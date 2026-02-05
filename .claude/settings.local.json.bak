@@ -65,7 +65,10 @@
       "Bash(move:*)",
       "Bash(move Key.cpp PickupKey.cpp)",
       "Bash(powershell.exe -Command \"Rename-Item -Path ''C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\Source\\\\weirdplace2\\\\Key.h'' -NewName ''PickupKey.h''\")",
-      "Bash(powershell.exe:*)"
+      "Bash(powershell.exe:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
