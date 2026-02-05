@@ -21,6 +21,19 @@ public class weirdplace2 : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
 
+		// Editor-only dependencies for BatchBlueprintToCodeCommandlet
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"UnrealEd",        // For UCommandlet
+				"AssetRegistry",   // For Blueprint discovery
+				"NodeToCode",      // For translation API
+				"BlueprintGraph",  // For K2Node types
+				"Json",            // For JSON serialization
+			});
+		}
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 
