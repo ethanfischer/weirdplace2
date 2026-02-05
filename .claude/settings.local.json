@@ -51,7 +51,16 @@
       "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=pythonscript -script=\"C:/Users/ethan/repos/weirdplace2/Content/Python/create_blur_background_material.py\")",
       "Bash(ren \"C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\Source\\\\weirdplace2\\\\BP_FirstPersonCharacter.h\" \"FirstPersonCharacter.h\")",
       "Bash(ren:*)",
-      "Bash(powershell -Command:*)"
+      "Bash(powershell -Command:*)",
+      "Bash(timeout:*)",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -DryRun)",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -Include=BP_Key)",
+      "Bash(ping:*)",
+      "Bash(curl -s -w \"\\\\nHTTP_CODE:%{http_code}\\\\n\" -X POST https://api.anthropic.com/v1/messages -H \"x-api-key: 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\" -H \"anthropic-version: 2023-06-01\" -H \"content-type: application/json\" -d '{\"\"model\"\":\"\"claude-sonnet-4-20250514\"\",\"\"max_tokens\"\":10,\"\"messages\"\":[{\"\"role\"\":\"\"user\"\",\"\"content\"\":\"\"Hello\"\"}]}')",
+      "Bash(curl:*)",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -Include=BP_Key -LogCmds=\"global verbose,LogHttp verbose,LogCurl verbose\")",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -Include=BP_Key -NullRHI -NoSound -NoSplash)",
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode)"
     ],
     "deny": [],
     "ask": []
