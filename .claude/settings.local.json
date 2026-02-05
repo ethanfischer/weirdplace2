@@ -60,7 +60,12 @@
       "Bash(curl:*)",
       "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -Include=BP_Key -LogCmds=\"global verbose,LogHttp verbose,LogCurl verbose\")",
       "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode -Include=BP_Key -NullRHI -NoSound -NoSplash)",
-      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode)"
+      "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Binaries\\\\Win64\\\\UnrealEditor-Cmd.exe\" \"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -run=BatchBlueprintToCode)",
+      "Bash(done)",
+      "Bash(move:*)",
+      "Bash(move Key.cpp PickupKey.cpp)",
+      "Bash(powershell.exe -Command \"Rename-Item -Path ''C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\Source\\\\weirdplace2\\\\Key.h'' -NewName ''PickupKey.h''\")",
+      "Bash(powershell.exe:*)"
     ],
     "deny": [],
     "ask": []
