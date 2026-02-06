@@ -46,8 +46,11 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 	DisplayText.Empty();
 	CurrentCharIndex = 0;
 
+	// Store context for timer use
+	ActiveContext = InActiveContext;
+
 	// Start typewriter effect after short delay
-	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, [this, InActiveContext]()
+	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, [this]()
 	{
 		SetNextDisplayTextCharacter();
 
@@ -63,12 +66,15 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 		}
 
 		// Update dialogue options
-		if (Options)
+		if (Options && IsValid(ActiveContext))
 		{
 			TArray<UWidget*> AllChildren = Options->GetAllChildren();
 			for (UWidget* Child : AllChildren)
 			{
-				// Options would be updated here - requires UUI_DialogueOption implementation
+				if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
+				{
+					Option->Update(ActiveContext);
+				}
 			}
 			CurrentOptionIndex = 0;
 		}
@@ -119,7 +125,17 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 
 void UUI_Dialogue::ClearOptionsText()
 {
-	// Clear all option text - requires UUI_DialogueOption implementation
+	if (Options)
+	{
+		TArray<UWidget*> AllChildren = Options->GetAllChildren();
+		for (UWidget* Child : AllChildren)
+		{
+			if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
+			{
+				Option->ClearText();
+			}
+		}
+	}
 }
 
 void UUI_Dialogue::ClearSpeakerText()
@@ -136,7 +152,17 @@ void UUI_Dialogue::ClearSpeakerText()
 
 void UUI_Dialogue::UnhighlightAllOptions()
 {
-	// Unhighlight all dialogue options - requires UUI_DialogueOption implementation
+	if (Options)
+	{
+		TArray<UWidget*> AllChildren = Options->GetAllChildren();
+		for (UWidget* Child : AllChildren)
+		{
+			if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
+			{
+				Option->Unhighlight();
+			}
+		}
+	}
 }
 
 void UUI_Dialogue::NativeOnFocusLost(const FFocusEvent& InFocusEvent)

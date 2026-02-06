@@ -4,14 +4,22 @@
 
 void UUI_DialogueOption::Update(UDlgContext* Context)
 {
-	if (!Context || !OptionText)
+	if (!Context)
 	{
+		SetVisibility(ESlateVisibility::Collapsed);
+		return;
+	}
+
+	if (!OptionText)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UUI_DialogueOption::Update - OptionText is null"));
+		SetVisibility(ESlateVisibility::Collapsed);
 		return;
 	}
 
 	// Get the option text for this index from the dialogue context
 	const TArray<FDlgEdge>& Options = Context->GetOptionsArray();
-	if (Options.IsValidIndex(OptionIndex))
+	if (OptionIndex >= 0 && OptionIndex < Options.Num())
 	{
 		const FDlgEdge& Edge = Options[OptionIndex];
 		OptionText->SetText(Edge.GetText());
