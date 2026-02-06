@@ -4,6 +4,7 @@
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
+#include "Seneca.h"
 #include "InventoryUI.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -255,17 +256,40 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 
 void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject* NPC)
 {
+	UE_LOG(LogTemp, Warning, TEXT("StartDialogueWithNPC called. NPC: %s, Dialogue: %s, IsInDialogue: %d"),
+		NPC ? *NPC->GetName() : TEXT("null"),
+		Dialogue ? *Dialogue->GetName() : TEXT("null"),
+		IsInDialogue);
+
 	if (!NPC || !Dialogue)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("  Early return - NPC or Dialogue is null"));
 		return;
 	}
 
-	// Get UI_Dialogue from NPC if it implements the interface
-	// This requires a UI_Dialogueable interface - for now we'll skip this part
-	// UI_Dialogue = IUI_Dialogueable::Execute_Get_UI_Dialogue(NPC);
+	// Get UI_Dialogue from NPC's widget component
+	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	{
+		if (Seneca->DialogueWidgetComponent)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("  DialogueWidgetComponent found. WidgetClass: %s"),
+				Seneca->DialogueWidgetComponent->GetWidgetClass() ? *Seneca->DialogueWidgetComponent->GetWidgetClass()->GetName() : TEXT("null"));
+
+			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
+			UE_LOG(LogTemp, Warning, TEXT("  GetUserWidgetObject: %s"), Widget ? *Widget->GetClass()->GetName() : TEXT("null"));
+
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+			UE_LOG(LogTemp, Warning, TEXT("  Cast to UUI_Dialogue: %s"), UI_Dialogue ? TEXT("valid") : TEXT("null"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("  Seneca->DialogueWidgetComponent is null!"));
+		}
+	}
 
 	if (IsInDialogue)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("  Already in dialogue, selecting option 0"));
 		SelectDialogueOption(0);
 	}
 	else
@@ -275,10 +299,12 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 		Participants.Add(NPC);
 		Participants.Add(PlayerPawn);
 
+		UE_LOG(LogTemp, Warning, TEXT("  Starting dialogue with %d participants"), Participants.Num());
 		DialogueContext = UDlgManager::StartDialogue(Dialogue, Participants);
 
 		if (IsValid(DialogueContext))
 		{
+			UE_LOG(LogTemp, Warning, TEXT("  DialogueContext valid. UI_Dialogue: %s"), UI_Dialogue ? TEXT("valid") : TEXT("null"));
 			if (UI_Dialogue)
 			{
 				UI_Dialogue->Open(DialogueContext);

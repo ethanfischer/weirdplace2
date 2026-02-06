@@ -3,47 +3,74 @@
 #include "BPFL_Utilities.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
+#include "Components/WidgetComponent.h"
+#include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgDialogue.h"
 
 ASeneca::ASeneca()
 {
 	PrimaryActorTick.bCanEverTick = false;
-
-	// Create skeletal mesh for body
-	Body = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Body"));
-	RootComponent = Body;
-
-	// Create dialogue trigger sphere
-	DialogueTriggerSphere = CreateDefaultSubobject<USphereComponent>(TEXT("DialogueTriggerSphere"));
-	DialogueTriggerSphere->SetupAttachment(RootComponent);
-	DialogueTriggerSphere->SetSphereRadius(DialogueTriggerRadius);
-	DialogueTriggerSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
-	DialogueTriggerSphere->SetGenerateOverlapEvents(true);
+	// Components are created in Blueprint to preserve MetaHuman setup
 }
 
 void ASeneca::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Update sphere radius in case it was changed in editor
-	DialogueTriggerSphere->SetSphereRadius(DialogueTriggerRadius);
+	// Find the dialogue widget component - it's inside a Child Actor Component
+	TArray<UChildActorComponent*> ChildActorComponents;
+	GetComponents<UChildActorComponent>(ChildActorComponents);
+	for (UChildActorComponent* ChildActorComp : ChildActorComponents)
+	{
+		if (ChildActorComp->GetName().Contains(TEXT("WorldSpace_UI_Dialogue")))
+		{
+			if (AActor* ChildActor = ChildActorComp->GetChildActor())
+			{
+				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("ASeneca: Found DialogueWidgetComponent in child actor: %s"), *DialogueWidgetComponent->GetName());
+				}
+			}
+			break;
+		}
+	}
+	if (!DialogueWidgetComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ASeneca: DialogueWidgetComponent NOT FOUND!"));
+	}
 
-	// Bind overlap events
-	DialogueTriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ASeneca::OnSphereBeginOverlap);
-	DialogueTriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
+	if (TriggerSphere)
+	{
+		// Update sphere radius in case it was changed in editor
+		TriggerSphere->SetSphereRadius(DialogueTriggerRadius);
+
+		// Bind overlap events
+		TriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ASeneca::OnSphereBeginOverlap);
+		TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
+	}
 }
 
 void ASeneca::Interact_Implementation()
 {
+	UE_LOG(LogTemp, Warning, TEXT("ASeneca::Interact_Implementation called on %s"), *GetName());
+
 	// Start dialogue when interacted with
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	UE_LOG(LogTemp, Warning, TEXT("  PlayerCharacter: %s"), PlayerCharacter ? *PlayerCharacter->GetName() : TEXT("null"));
+
 	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
 	{
+		UE_LOG(LogTemp, Warning, TEXT("  FPCharacter cast succeeded, Dialogue: %s"), Dialogue ? *Dialogue->GetName() : TEXT("null"));
 		if (Dialogue)
 		{
 			FPCharacter->StartDialogueWithNPC(Dialogue, this);
 		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("  FPCharacter cast FAILED"));
 	}
 }
 
@@ -51,7 +78,10 @@ void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	// Set look-at behavior
-	UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, Body);
+	if (BodyMesh)
+	{
+		UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
+	}
 
 	// Start dialogue with player
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
@@ -68,5 +98,8 @@ void ASeneca::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActo
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
 	// Stop look-at behavior
-	UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, Body);
+	if (BodyMesh)
+	{
+		UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, BodyMesh);
+	}
 }

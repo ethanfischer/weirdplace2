@@ -7,6 +7,7 @@
 
 class USkeletalMeshComponent;
 class USphereComponent;
+class UWidgetComponent;
 class UDlgDialogue;
 
 UCLASS()
@@ -24,6 +25,10 @@ public:
 	// IInteractable implementation
 	virtual void Interact_Implementation() override;
 
+	// Widget component hosting the dialogue UI - auto-found by name in BeginPlay
+	UPROPERTY(BlueprintReadOnly, Category = "Seneca|Dialogue")
+	UWidgetComponent* DialogueWidgetComponent;
+
 protected:
 	// Sphere overlap callbacks
 	UFUNCTION()
@@ -34,13 +39,13 @@ protected:
 	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
 
-	// --- Components ---
+	// --- Components (assigned in Blueprint) ---
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca")
-	USkeletalMeshComponent* Body;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
+	USkeletalMeshComponent* BodyMesh;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca")
-	USphereComponent* DialogueTriggerSphere;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
+	USphereComponent* TriggerSphere;
 
 	// --- Properties ---
 

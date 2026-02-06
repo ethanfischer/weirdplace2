@@ -39,9 +39,9 @@ protected:
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UPanelWidget* Options;
 
-	// First dialogue option for highlighting
+	// First dialogue option for highlighting (binds to widget named "FirstDialogueOption" in Designer)
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidgetOptional))
-	UUI_DialogueOption* Option0;
+	UUI_DialogueOption* FirstDialogueOption;
 
 	// Sound to play during typewriter effect
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
