@@ -2,7 +2,16 @@
   "permissions": {
     "allow": [
       "Bash(\"C:\\\\Program Files\\\\Epic Games\\\\UE_5.4\\\\Engine\\\\Build\\\\BatchFiles\\\\Build.bat\" weirdplace2Editor Win64 Development -Project=\"C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject\" -WaitMutex -FromMsBuild)",
-      "Bash(dir /b \"C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\*.cpp\")"
+      "Bash(dir /b \"C:\\\\Users\\\\ethan\\\\repos\\\\weirdplace2\\\\*.cpp\")",
+      "Bash(git checkout:*)",
+      "Read(C:\\\\Users\\\\ethan\\\\repos\\\\NodeToCode/**)",
+      "Edit(C:\\\\Users\\\\ethan\\\\repos\\\\NodeToCode/**)",
+      "Bash(dir:*)",
+      "Bash(git -C \"C:/Users/ethan/repos/NodeToCode\" status)",
+      "Bash(git -C \"C:/Users/ethan/repos/NodeToCode\" add Source/NodeToCode.Build.cs Source/Private/LLM/N2CLLMModule.cpp Source/Public/Core/N2CNodeCollector.h Source/Public/Core/N2CNodeTranslator.h Source/Public/Core/N2CSerializer.h Source/Public/Models/N2CBlueprint.h Source/Private/Commandlets Source/Public/Commandlets)",
+      "Bash(git -C \"C:/Users/ethan/repos/NodeToCode\" diff --cached --stat)",
+      "Bash(git -C \"C:/Users/ethan/repos/NodeToCode\" log --oneline -5)",
+      "Bash(gh search:*)"
     ]
   }
 }
