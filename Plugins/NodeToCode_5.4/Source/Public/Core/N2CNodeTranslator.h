@@ -16,7 +16,7 @@
  * Takes raw Blueprint nodes collected from the editor and translates them
  * into the structured FN2CBlueprint format for further processing.
  */
-class NODETOCODE_API FN2CNodeTranslator
+class FN2CNodeTranslator
 {
 public:
     /** Get the singleton instance */

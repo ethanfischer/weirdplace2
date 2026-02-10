@@ -15,7 +15,7 @@
  * Interfaces with the active Blueprint Editor instance to gather live nodes,
  * maintaining direct access to node properties and relationships.
  */
-class NODETOCODE_API FN2CNodeCollector
+class FN2CNodeCollector
 {
 public:
     /** Get the singleton instance */

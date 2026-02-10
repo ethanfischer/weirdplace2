@@ -209,7 +209,7 @@ struct FN2CStruct
     }
 
     /** Validates the struct definition */
-    NODETOCODE_API bool IsValid() const;
+    bool IsValid() const;
 };
 
 /**
@@ -264,7 +264,7 @@ struct FN2CEnum
     }
 
     /** Validates the enum definition */
-    NODETOCODE_API bool IsValid() const;
+    bool IsValid() const;
 };
 
 /**
@@ -323,7 +323,7 @@ struct FN2CGraph
     }
 
     /** Validates the graph structure */
-    NODETOCODE_API bool IsValid() const;
+    bool IsValid() const;
 };
 
 /**
@@ -361,5 +361,5 @@ struct FN2CBlueprint
     }
 
     /** Validates the Blueprint structure and its enums */
-    NODETOCODE_API bool IsValid() const;
+    bool IsValid() const;
 };
