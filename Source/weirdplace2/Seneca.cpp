@@ -77,20 +77,17 @@ void ASeneca::Interact_Implementation()
 void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// Set look-at behavior
+	// Set look-at behavior (applies to any actor)
 	if (BodyMesh)
 	{
 		UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
 	}
 
-	// Start dialogue with player
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
+	// Start dialogue only if OtherActor is the player
+	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(OtherActor);
+	if (FPCharacter && Dialogue)
 	{
-		if (Dialogue)
-		{
-			FPCharacter->StartDialogueWithNPC(Dialogue, this);
-		}
+		FPCharacter->StartDialogueWithNPC(Dialogue, this);
 	}
 }
 

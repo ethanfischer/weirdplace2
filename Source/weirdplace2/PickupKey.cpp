@@ -43,6 +43,11 @@ void APickupKey::NotifyActorBeginOverlap(AActor* OtherActor)
 	UInventoryComponent* Inventory = Character->GetInventoryComponent();
 	if (Inventory)
 	{
+		if (KeyName == NAME_None)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
+			return;
+		}
 		Inventory->AddItem(KeyName);
 	}
 
