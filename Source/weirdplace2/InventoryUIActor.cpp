@@ -164,13 +164,9 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 	}
 
 	// Update active item border opacity
-	if (ActiveItemBorder)
+	if (ActiveItemBorder && ActiveItemMaterial)
 	{
-		UMaterialInstanceDynamic* DynMat = Cast<UMaterialInstanceDynamic>(ActiveItemBorder->GetMaterial(0));
-		if (DynMat)
-		{
-			DynMat->SetScalarParameterValue(FName("Opacity"), Opacity);
-		}
+		ActiveItemMaterial->SetScalarParameterValue(FName("Opacity"), Opacity);
 	}
 
 	// Update text opacity
@@ -245,13 +241,22 @@ void AInventoryUIActor::CreateSlots()
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		if (BaseMat)
+		// Use M_Solid which properly supports color parameter
+		UMaterialInterface* SolidMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/LevelPrototyping/Materials/M_Solid.M_Solid"));
+		UMaterialInterface* MatToUse = SolidMat ? SolidMat : BaseMat;
+		UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Using SolidMat=%s"), SolidMat ? TEXT("YES") : TEXT("NO (fallback)"));
+
+		if (MatToUse)
 		{
-			SelectionMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
+			SelectionMaterial = UMaterialInstanceDynamic::Create(MatToUse, this);
 			if (SelectionMaterial)
 			{
+				// M_Solid uses "Color" parameter
+				SelectionMaterial->SetVectorParameterValue(FName("Color"), SelectionColor);
 				SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
 				SelectionHighlight->SetMaterial(0, SelectionMaterial);
+				UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Material=%s, SelectionColor=(%.2f, %.2f, %.2f, %.2f)"),
+					*SelectionMaterial->GetName(), SelectionColor.R, SelectionColor.G, SelectionColor.B, SelectionColor.A);
 			}
 		}
 	}
@@ -271,19 +276,35 @@ void AInventoryUIActor::CreateSlots()
 		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
 		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		if (BaseMat)
+		// Use M_Solid which properly supports color parameter
+		UMaterialInterface* SolidMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/LevelPrototyping/Materials/M_Solid.M_Solid"));
+		UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: SolidMat=%s"), SolidMat ? TEXT("LOADED") : TEXT("FAILED"));
+
+		UMaterialInterface* MaterialToUse = SolidMat ? SolidMat : BaseMat;
+
+		if (MaterialToUse)
 		{
-			UMaterialInstanceDynamic* ActiveMat = UMaterialInstanceDynamic::Create(BaseMat, this);
-			if (ActiveMat)
+			ActiveItemMaterial = UMaterialInstanceDynamic::Create(MaterialToUse, this);
+			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: ActiveItemMaterial=%s"), ActiveItemMaterial ? *ActiveItemMaterial->GetName() : TEXT("NULL"));
+
+			if (ActiveItemMaterial)
 			{
-				ActiveMat->SetVectorParameterValue(FName("BaseColor"), ActiveItemColor);
-				ActiveItemBorder->SetMaterial(0, ActiveMat);
+				// M_Solid uses "Color" parameter
+				ActiveItemMaterial->SetVectorParameterValue(FName("Color"), ActiveItemColor);
+				ActiveItemMaterial->SetVectorParameterValue(FName("BaseColor"), ActiveItemColor);
+				ActiveItemBorder->SetMaterial(0, ActiveItemMaterial);
+
+				UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: Applied with ActiveItemColor=(%.2f, %.2f, %.2f, %.2f)"),
+					ActiveItemColor.R, ActiveItemColor.G, ActiveItemColor.B, ActiveItemColor.A);
 			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ActiveItemBorder: No material available!"));
 		}
 
 		// Start hidden until an item is selected
 		ActiveItemBorder->SetVisibility(false);
-		UE_LOG(LogTemp, Warning, TEXT("Created ActiveItemBorder"));
 	}
 
 	// Reset hover animation state
@@ -310,8 +331,10 @@ void AInventoryUIActor::ClearSlots()
 
 	if (ActiveItemBorder)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("ClearSlots: Destroying ActiveItemBorder"));
 		ActiveItemBorder->DestroyComponent();
 		ActiveItemBorder = nullptr;
+		ActiveItemMaterial = nullptr; // Clear the material reference too
 	}
 }
 
@@ -433,7 +456,20 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 			Position.X += 0.1f; // Slightly behind thumbnail so it frames it
 			ActiveItemBorder->SetRelativeLocation(Position);
 			ActiveItemBorder->SetVisibility(true);
-			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder shown at index %d, pos %s"), ItemIndex, *Position.ToString());
+
+			// Debug: verify material state when showing
+			UMaterialInterface* CurrentMat = ActiveItemBorder->GetMaterial(0);
+			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder shown at index %d, pos %s, CurrentMaterial=%s, ActiveItemMaterial=%s"),
+				ItemIndex, *Position.ToString(),
+				CurrentMat ? *CurrentMat->GetName() : TEXT("NULL"),
+				ActiveItemMaterial ? *ActiveItemMaterial->GetName() : TEXT("NULL (member)"));
+
+			// Re-apply material if it was lost
+			if (!CurrentMat && ActiveItemMaterial)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Re-applying ActiveItemMaterial!"));
+				ActiveItemBorder->SetMaterial(0, ActiveItemMaterial);
+			}
 		}
 	}
 	else

@@ -156,6 +156,10 @@ private:
 	UPROPERTY()
 	UMaterialInstanceDynamic* SelectionMaterial;
 
+	// Dynamic material for active item border
+	UPROPERTY()
+	UMaterialInstanceDynamic* ActiveItemMaterial;
+
 	// Create the grid slots (empty slot visuals)
 	void CreateSlots();
 
