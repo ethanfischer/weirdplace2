@@ -16,8 +16,6 @@ void UInventoryComponent::AddItem(const FName& ItemID) {
     }
 
     Items.Add(ItemID);
-    UE_LOG(LogTemp, Log, TEXT("Added item '%s' to inventory on %s. Total items: %d"),
-        *ItemID.ToString(), *GetOwner()->GetName(), Items.Num());
     OnInventoryChanged.Broadcast(Items);
 }
 
@@ -25,7 +23,6 @@ bool UInventoryComponent::RemoveItem(const FName& ItemID) {
     int32 Index = Items.Find(ItemID);
     if (Index != INDEX_NONE) {
         Items.RemoveAt(Index);
-        UE_LOG(LogTemp, Log, TEXT("Removed item '%s' from inventory."), *ItemID.ToString());
 
         // Clear active item if it was the removed item
         if (ActiveItem == ItemID) {
@@ -56,7 +53,6 @@ void UInventoryComponent::SetActiveItem(const FName& ItemID) {
     if (ItemID.IsNone() || Items.Contains(ItemID)) {
         if (ActiveItem != ItemID) {
             ActiveItem = ItemID;
-            UE_LOG(LogTemp, Log, TEXT("Active item set to: '%s'"), *ActiveItem.ToString());
             OnActiveItemChanged.Broadcast(ActiveItem);
         }
     } else {
@@ -71,7 +67,6 @@ FName UInventoryComponent::GetActiveItem() const {
 void UInventoryComponent::ClearActiveItem() {
     if (!ActiveItem.IsNone()) {
         ActiveItem = NAME_None;
-        UE_LOG(LogTemp, Log, TEXT("Active item cleared"));
         OnActiveItemChanged.Broadcast(ActiveItem);
     }
 }

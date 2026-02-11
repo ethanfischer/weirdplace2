@@ -29,15 +29,12 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-	UE_LOG(LogTemp, Warning, TEXT("AMyCharacter::SetupPlayerInputComponent called"));
-
 	// Bind to "ToggleInventory" action (defined in DefaultInput.ini with Tab + Gamepad_Special_Left)
 	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventory);
 }
 
 void AMyCharacter::OnToggleInventory()
 {
-	UE_LOG(LogTemp, Warning, TEXT("AMyCharacter::OnToggleInventory called! InventoryUIComponent = %p"), InventoryUIComponent);
 	if (InventoryUIComponent)
 	{
 		InventoryUIComponent->ToggleInventoryUI();
@@ -55,7 +52,6 @@ void AMyCharacter::SetCanInteract(bool value)
 
 void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 {
-	UE_LOG(LogTemp, Log, TEXT("AddItemToInventory called with: %s"), *ItemID.ToString());
 	if (InventoryComponent)
 	{
 		InventoryComponent->AddItem(ItemID);

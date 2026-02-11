@@ -34,7 +34,6 @@ void UInventoryRoomComponent::BeginPlay()
 		if (FoundActors.Num() > 0)
 		{
 			InventoryRoomTarget = FoundActors[0];
-			UE_LOG(LogTemp, Log, TEXT("Found InventoryRoomTarget by tag: %s"), *InventoryRoomTarget->GetName());
 		}
 	}
 
@@ -46,7 +45,6 @@ void UInventoryRoomComponent::BeginPlay()
 		if (FoundActors.Num() > 0)
 		{
 			BackgroundWallActor = FoundActors[0];
-			UE_LOG(LogTemp, Log, TEXT("Found BackgroundWallActor by tag: %s"), *BackgroundWallActor->GetName());
 		}
 	}
 
@@ -54,10 +52,6 @@ void UInventoryRoomComponent::BeginPlay()
 	if (!BackgroundBlurMaterial)
 	{
 		BackgroundBlurMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_BlurredBackground"));
-		if (BackgroundBlurMaterial)
-		{
-			UE_LOG(LogTemp, Log, TEXT("Loaded M_BlurredBackground as background material"));
-		}
 	}
 
 	// Load BP_MovieBox as default display class (matches world appearance)
@@ -67,17 +61,14 @@ void UInventoryRoomComponent::BeginPlay()
 		if (MovieBoxClass)
 		{
 			MovieBoxDisplayActorClass = MovieBoxClass;
-			UE_LOG(LogTemp, Log, TEXT("Loaded BP_MovieBox as display class"));
 		}
 	}
 
 	// Load default item mappings at runtime (avoids editor startup issues)
-	UE_LOG(LogTemp, Log, TEXT("ItemDisplayMappings.Num() = %d"), ItemDisplayMappings.Num());
 	if (ItemDisplayMappings.Num() == 0)
 	{
 		// BP_Key for KEY_BASEMENT
 		UClass* KeyClass = LoadClass<AActor>(nullptr, TEXT("/Game/Blueprints/BP_Key.BP_Key_C"));
-		UE_LOG(LogTemp, Log, TEXT("LoadClass BP_Key: %s"), KeyClass ? TEXT("SUCCESS") : TEXT("FAILED"));
 		if (KeyClass)
 		{
 			FInventoryItemDisplayInfo KeyInfo;
@@ -90,7 +81,6 @@ void UInventoryRoomComponent::BeginPlay()
 
 	// Find the inventory component on the owner (use MyCharacter's getter to get the correct one)
 	AActor* Owner = GetOwner();
-	UE_LOG(LogTemp, Log, TEXT("InventoryRoomComponent Owner: %s"), Owner ? *Owner->GetName() : TEXT("NULL"));
 	if (Owner)
 	{
 		// Cast to AMyCharacter and use the explicit getter to avoid duplicate component issues
@@ -106,7 +96,6 @@ void UInventoryRoomComponent::BeginPlay()
 
 		if (InventoryComponent)
 		{
-			UE_LOG(LogTemp, Log, TEXT("Found InventoryComponent: %s on %s (ptr: %p)"), *InventoryComponent->GetName(), *InventoryComponent->GetOwner()->GetName(), InventoryComponent);
 			// Bind to inventory changes to refresh display while in room
 			InventoryComponent->OnInventoryChanged.AddDynamic(this, &UInventoryRoomComponent::OnInventoryChanged);
 		}
@@ -168,8 +157,6 @@ void UInventoryRoomComponent::TeleportToInventoryRoom()
 
 	// Spawn inventory display actors
 	SpawnInventoryDisplayActors();
-
-	UE_LOG(LogTemp, Log, TEXT("Entered Inventory Room at %s"), *TeleportLocation.ToString());
 }
 
 void UInventoryRoomComponent::TeleportBack()
@@ -197,14 +184,10 @@ void UInventoryRoomComponent::TeleportBack()
 	}
 
 	bIsInInventoryRoom = false;
-
-	UE_LOG(LogTemp, Log, TEXT("Returned from Inventory Room to %s"), *StoredLocation.ToString());
 }
 
 void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 {
-	UE_LOG(LogTemp, Log, TEXT("SpawnInventoryDisplayActors called"));
-
 	if (!InventoryComponent)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("SpawnInventoryDisplayActors: InventoryComponent is null!"));
@@ -215,8 +198,6 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 	if (!World) return;
 
 	TArray<FName> Items = InventoryComponent->GetItems();
-	UE_LOG(LogTemp, Log, TEXT("Inventory has %d items, ItemDisplayMappings has %d mappings (ptr: %p)"),
-		Items.Num(), ItemDisplayMappings.Num(), InventoryComponent);
 
 	// Get base location and rotation from target or fallback
 	FVector BaseLocation = InventoryRoomTarget ? InventoryRoomTarget->GetActorLocation() : InventoryRoomLocation;
@@ -318,8 +299,6 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 			#endif
 
 			SpawnedDisplayActors.Add(SpawnedActor);
-			UE_LOG(LogTemp, Log, TEXT("Spawned display actor for item '%s' at %s"),
-				*ItemID.ToString(), *SpawnLocation.ToString());
 		}
 	}
 
@@ -362,7 +341,6 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 				}
 
 				CurrentLookedAtItem = TEXT("");
-				UE_LOG(LogTemp, Log, TEXT("Created ItemNameText at %s"), *TextPosition.ToString());
 			}
 		}
 	}
@@ -523,7 +501,6 @@ void UInventoryRoomComponent::CaptureAndApplyBackground()
 	// Need wall actor and blur material to proceed
 	if (!BackgroundWallActor || !BackgroundBlurMaterial)
 	{
-		UE_LOG(LogTemp, Log, TEXT("CaptureAndApplyBackground: Missing BackgroundWallActor or BackgroundBlurMaterial"));
 		return;
 	}
 
@@ -658,7 +635,6 @@ void UInventoryRoomComponent::CaptureAndApplyBackground()
 
 			// Apply to wall
 			WallMesh->SetMaterial(0, BackgroundMaterialInstance);
-			UE_LOG(LogTemp, Log, TEXT("Applied captured background to wall (%dx%d)"), FinalWidth, FinalHeight);
 		}
 	}
 }
@@ -677,7 +653,6 @@ void UInventoryRoomComponent::RestoreWallMaterial()
 	if (WallMesh && OriginalWallMaterial)
 	{
 		WallMesh->SetMaterial(0, OriginalWallMaterial);
-		UE_LOG(LogTemp, Log, TEXT("Restored original wall material and scale"));
 	}
 
 	// Clean up

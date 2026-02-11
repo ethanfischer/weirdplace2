@@ -28,17 +28,9 @@ void ASeneca::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
-				if (DialogueWidgetComponent)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("ASeneca: Found DialogueWidgetComponent in child actor: %s"), *DialogueWidgetComponent->GetName());
-				}
 			}
 			break;
 		}
-	}
-	if (!DialogueWidgetComponent)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ASeneca: DialogueWidgetComponent NOT FOUND!"));
 	}
 
 	if (TriggerSphere)
@@ -54,23 +46,15 @@ void ASeneca::BeginPlay()
 
 void ASeneca::Interact_Implementation()
 {
-	UE_LOG(LogTemp, Warning, TEXT("ASeneca::Interact_Implementation called on %s"), *GetName());
-
 	// Start dialogue when interacted with
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	UE_LOG(LogTemp, Warning, TEXT("  PlayerCharacter: %s"), PlayerCharacter ? *PlayerCharacter->GetName() : TEXT("null"));
 
 	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("  FPCharacter cast succeeded, Dialogue: %s"), Dialogue ? *Dialogue->GetName() : TEXT("null"));
 		if (Dialogue)
 		{
 			FPCharacter->StartDialogueWithNPC(Dialogue, this);
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("  FPCharacter cast FAILED"));
 	}
 }
 
