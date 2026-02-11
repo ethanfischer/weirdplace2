@@ -5,6 +5,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
+#include "UObject/ConstructorHelpers.h"
 
 AInventoryUIActor::AInventoryUIActor()
 {
@@ -14,13 +15,20 @@ AInventoryUIActor::AInventoryUIActor()
 	RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	SetRootComponent(RootSceneComponent);
 
-	// Load plane mesh for all visuals
-	PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
+	// Load plane mesh for all visuals (using ConstructorHelpers for safe CDO construction)
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMeshAsset(TEXT("/Engine/BasicShapes/Plane.Plane"));
+	if (PlaneMeshAsset.Succeeded())
+	{
+		PlaneMesh = PlaneMeshAsset.Object;
+	}
 
 	// Create background panel
 	BackgroundPanel = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BackgroundPanel"));
 	BackgroundPanel->SetupAttachment(RootSceneComponent);
-	BackgroundPanel->SetStaticMesh(PlaneMesh);
+	if (PlaneMesh)
+	{
+		BackgroundPanel->SetStaticMesh(PlaneMesh);
+	}
 	BackgroundPanel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	BackgroundPanel->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, 0.0f)); // Slightly behind everything
