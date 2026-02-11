@@ -47,7 +47,7 @@ Build commands:
 ### Core Systems
 
 **Player Character (`AMyCharacter`)**
-- Owns `UInventoryComponent` (tracks collected items via `EInventoryItem` enum)
+- Owns `UInventoryComponent` (tracks collected items via `FName` identifiers)
 - Owns `UInventoryRoomComponent` (teleports player to separate space to view inventory)
 - Input: Tab toggles inventory room
 
