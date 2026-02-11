@@ -49,8 +49,8 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 	// Store context for timer use
 	ActiveContext = InActiveContext;
 
-	// Start typewriter effect after short delay
-	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, [this]()
+	// Start typewriter effect after short delay (weak-bound to prevent crash if widget destroyed)
+	FTimerDelegate TimerDelegate = FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
 		SetNextDisplayTextCharacter();
 
@@ -78,7 +78,8 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 			}
 			CurrentOptionIndex = 0;
 		}
-	}, 0.04f, false);
+	});
+	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, TimerDelegate, 0.04f, false);
 }
 
 void UUI_Dialogue::Open(UDlgContext* Context)
