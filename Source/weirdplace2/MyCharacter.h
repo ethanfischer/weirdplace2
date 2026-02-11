@@ -4,11 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "Inventory.h"
 #include "MyCharacter.generated.h"
 
 class UInventoryComponent;
-class UInventoryRoomComponent;
+class UInventoryUIComponent;
 
 UCLASS()
 class WEIRDPLACE2_API AMyCharacter : public ACharacter {
@@ -25,16 +24,18 @@ public:
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetCanInteract(bool value);
+	bool GetCanInteract() const { return CanInteract; }
 
+	// Add item to inventory by ID
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
-	void         AddItemToInventory(EInventoryItem Item);
-	virtual void AddItemToInventory_Implementation(EInventoryItem Item);
+	void AddItemToInventory(const FName& ItemID);
+	virtual void AddItemToInventory_Implementation(const FName& ItemID);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	UInventoryRoomComponent* GetInventoryRoomComponent() const { return InventoryRoomComponent; }
+	UInventoryUIComponent* GetInventoryUIComponent() const { return InventoryUIComponent; }
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
@@ -44,8 +45,8 @@ private:
 	UInventoryComponent* InventoryComponent;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	UInventoryRoomComponent* InventoryRoomComponent;
+	UInventoryUIComponent* InventoryUIComponent;
 
-	// Legacy input callback for Tab key
-	void OnToggleInventoryRoom();
+	// Input callback for Tab key - toggle inventory UI
+	void OnToggleInventory();
 };

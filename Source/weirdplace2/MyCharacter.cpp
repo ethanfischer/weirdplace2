@@ -2,7 +2,7 @@
 
 #include "MyCharacter.h"
 #include "Inventory.h"
-#include "InventoryRoomComponent.h"
+#include "InventoryUIComponent.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -11,8 +11,8 @@ AMyCharacter::AMyCharacter()
 	// Create and attach the inventory component
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
 
-	// Create and attach the inventory room component
-	InventoryRoomComponent = CreateDefaultSubobject<UInventoryRoomComponent>(TEXT("InventoryRoomComponent"));
+	// Create and attach the inventory UI component
+	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
 }
 
 void AMyCharacter::BeginPlay()
@@ -30,14 +30,18 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	// Bind to "ToggleInventory" action (defined in DefaultInput.ini with Tab + Gamepad_Special_Left)
-	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventoryRoom);
+	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventory);
 }
 
-void AMyCharacter::OnToggleInventoryRoom()
+void AMyCharacter::OnToggleInventory()
 {
-	if (InventoryRoomComponent)
+	if (InventoryUIComponent)
 	{
-		InventoryRoomComponent->ToggleInventoryRoom();
+		InventoryUIComponent->ToggleInventoryUI();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent is null!"));
 	}
 }
 
@@ -46,15 +50,14 @@ void AMyCharacter::SetCanInteract(bool value)
 	CanInteract = value;
 }
 
-void AMyCharacter::AddItemToInventory_Implementation(EInventoryItem Item)
+void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 {
-	UE_LOG(LogTemp, Warning, TEXT("C++ AddItemToInventory_Implementation called (InventoryComponent ptr: %p)"), InventoryComponent);
 	if (InventoryComponent)
 	{
-		InventoryComponent->AddItem(Item);
+		InventoryComponent->AddItem(ItemID);
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("C++ AddItemToInventory: InventoryComponent is null!"));
+		UE_LOG(LogTemp, Error, TEXT("AddItemToInventory: InventoryComponent is null!"));
 	}
 }

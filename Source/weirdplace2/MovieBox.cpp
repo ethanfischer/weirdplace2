@@ -2,7 +2,6 @@
 
 
 #include "MovieBox.h"
-
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
@@ -76,11 +75,8 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
-void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
+void AMovieBox::Interact_Implementation()
 {
-	if (!Actor)
-		return;
-
 	// Get the player's controller
 	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
@@ -94,22 +90,22 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 	FVector CameraLocation;
 	PlayerController->GetPlayerViewPoint(CameraLocation, CameraRotation);
 
-	// Store the actor’s original transform before moving it
-	OriginalActorTransform = Actor->GetActorTransform();
+	// Store the actor's original transform before moving it
+	OriginalActorTransform = GetActorTransform();
 
 	// Offset distance in front of the camera
-	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * inspectionDistance);
+	FVector NewLocation = CameraLocation + (CameraRotation.Vector() * InspectionDistance);
 
 	// Calculate rotation so the actor's X-axis (forward vector) faces the camera
 	FRotator NewRotation = (CameraLocation - NewLocation).Rotation();
 
 	// Set the actor's new position and rotation
-	Actor->SetActorLocation(NewLocation);
-	Actor->SetActorRotation(NewRotation);
-	Actor->SetActorHiddenInGame(false);
+	SetActorLocation(NewLocation);
+	SetActorRotation(NewRotation);
+	SetActorHiddenInGame(false);
 
-	// Store reference to inspected actor
-	InspectedActor = Actor;
+	// Store reference to inspected actor (this MovieBox)
+	InspectedActor = this;
 
 	// Freeze player camera and movement
 	PlayerController->SetIgnoreLookInput(true);
@@ -137,29 +133,26 @@ void AMovieBox::InteractWithObject(AActor* Actor, float inspectionDistance)
 void AMovieBox::CollectInspectedSubitem()
 {
 	if (DidCollectSubitem) return;
-	
+
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
 	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
-    MyCharacter->AddItemToInventory(EInventoryItem::InventoryItem1);
 
-	// Track which cover was collected
-	if (UInventoryComponent* PlayerInventory = MyCharacter->GetInventoryComponent())
+	// Get cover name from actor name (strip suffix)
+	FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
+	int32 LastUnderscore;
+	if (CoverName.FindLastChar('_', LastUnderscore))
 	{
-		FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
-		int32 LastUnderscore;
-		if (CoverName.FindLastChar('_', LastUnderscore))
+		const FString Suffix = CoverName.Mid(LastUnderscore + 1);
+		if (Suffix.IsNumeric())
 		{
-			const FString Suffix = CoverName.Mid(LastUnderscore + 1);
-			if (Suffix.IsNumeric())
-			{
-				CoverName = CoverName.Left(LastUnderscore);
-			}
+			CoverName = CoverName.Left(LastUnderscore);
 		}
-
-		PlayerInventory->AddMovieCover(FName(*CoverName));
 	}
+
+	// Add item to inventory using the unified FName-based system
+	MyCharacter->AddItemToInventory(FName(*CoverName));
 
 	// Close inspection after collecting
 	StopInspection();
@@ -179,12 +172,23 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 			InteractionWidget->SetVisibility(true);
 		}
 
-		PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
+		// Only bind if not already bound (prevent duplicate bindings)
+		if (!bCollectSubitemBound)
+		{
+			PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
+			bCollectSubitemBound = true;
+		}
 	}
 	else
 	{
 		InteractionWidget->SetVisibility(false);
-		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+
+		// Only unbind if currently bound
+		if (bCollectSubitemBound)
+		{
+			PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+			bCollectSubitemBound = false;
+		}
 	}
 
 	// Get the local up vector of the actor
@@ -220,6 +224,9 @@ void AMovieBox::StopInspection()
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
+
+	// Reset binding flag
+	bCollectSubitemBound = false;
 
 	MyCharacter->SetCanInteract(true);
 }

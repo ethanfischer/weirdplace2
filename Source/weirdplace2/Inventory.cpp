@@ -1,4 +1,4 @@
-﻿#include "Inventory.h"
+#include "Inventory.h"
 #include "GameFramework/Actor.h"
 
 UInventoryComponent::UInventoryComponent() {
@@ -9,51 +9,64 @@ void UInventoryComponent::BeginPlay() {
     Super::BeginPlay();
 }
 
-void UInventoryComponent::AddItem(EInventoryItem Item) {
-    Inventory.Add(Item);
-    UE_LOG(LogTemp, Log, TEXT("Added item %d to inventory on %s (ptr: %p). Total items: %d"),
-        static_cast<int32>(Item), *GetOwner()->GetName(), this, Inventory.Num());
-    OnInventoryChanged.Broadcast(Inventory);
+void UInventoryComponent::AddItem(const FName& ItemID) {
+    if (ItemID.IsNone()) {
+        UE_LOG(LogTemp, Warning, TEXT("AddItem: Cannot add item with None ID"));
+        return;
+    }
+
+    Items.Add(ItemID);
+    OnInventoryChanged.Broadcast(Items);
 }
 
-bool UInventoryComponent::RemoveItem(EInventoryItem Item) {
-    int32 Index = Inventory.Find(Item);
+bool UInventoryComponent::RemoveItem(const FName& ItemID) {
+    int32 Index = Items.Find(ItemID);
     if (Index != INDEX_NONE) {
-        Inventory.RemoveAt(Index);
-        UE_LOG(LogTemp, Log, TEXT("Removed item %d from inventory."), static_cast<int32>(Item));
-        OnInventoryChanged.Broadcast(Inventory);
+        Items.RemoveAt(Index);
+
+        // Clear active item if it was the removed item
+        if (ActiveItem == ItemID) {
+            ClearActiveItem();
+        }
+
+        OnInventoryChanged.Broadcast(Items);
         return true;
     }
-    UE_LOG(LogTemp, Warning, TEXT("Item %d not found in inventory."), static_cast<int32>(Item));
+    UE_LOG(LogTemp, Warning, TEXT("Item '%s' not found in inventory."), *ItemID.ToString());
     return false;
 }
 
-bool UInventoryComponent::HasItem(EInventoryItem Item) const {
-    return Inventory.Contains(Item);
+bool UInventoryComponent::HasItem(const FName& ItemID) const {
+    return Items.Contains(ItemID);
 }
 
-void UInventoryComponent::DisplayInventory() const {
-	FString InventoryString;
-	for (EInventoryItem Item : Inventory) {
-		InventoryString += FString::Printf(TEXT("%d "), static_cast<int32>(Item));
-	}
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Current Inventory: %s"), *InventoryString));
-	UE_LOG(LogTemp, Log, TEXT("Current Inventory: %s"), *InventoryString);
+TArray<FName> UInventoryComponent::GetItems() const {
+    return Items;
 }
 
-TArray<EInventoryItem> UInventoryComponent::GetInventoryItems() const {
-	return Inventory;
+int32 UInventoryComponent::GetItemCount() const {
+    return Items.Num();
 }
 
-void UInventoryComponent::AddMovieCover(const FName& CoverName)
-{
-	if (!CoverName.IsNone())
-	{
-		MovieCovers.Add(CoverName);
-		OnInventoryChanged.Broadcast(Inventory);
-	}
+void UInventoryComponent::SetActiveItem(const FName& ItemID) {
+    // Only set active if item is in inventory (or allow None to clear)
+    if (ItemID.IsNone() || Items.Contains(ItemID)) {
+        if (ActiveItem != ItemID) {
+            ActiveItem = ItemID;
+            OnActiveItemChanged.Broadcast(ActiveItem);
+        }
+    } else {
+        UE_LOG(LogTemp, Warning, TEXT("Cannot set active item '%s' - not in inventory"), *ItemID.ToString());
+    }
 }
 
-int32 UInventoryComponent::GetInventoryCount() const {
-	return Inventory.Num();
+FName UInventoryComponent::GetActiveItem() const {
+    return ActiveItem;
+}
+
+void UInventoryComponent::ClearActiveItem() {
+    if (!ActiveItem.IsNone()) {
+        ActiveItem = NAME_None;
+        OnActiveItemChanged.Broadcast(ActiveItem);
+    }
 }
