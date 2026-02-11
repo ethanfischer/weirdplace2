@@ -163,6 +163,16 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		}
 	}
 
+	// Update active item border opacity
+	if (ActiveItemBorder)
+	{
+		UMaterialInstanceDynamic* DynMat = Cast<UMaterialInstanceDynamic>(ActiveItemBorder->GetMaterial(0));
+		if (DynMat)
+		{
+			DynMat->SetScalarParameterValue(FName("Opacity"), Opacity);
+		}
+	}
+
 	// Update text opacity
 	if (ItemNameText)
 	{
@@ -246,6 +256,36 @@ void AInventoryUIActor::CreateSlots()
 		}
 	}
 
+	// Create active item border (shows which item is confirmed/equipped)
+	if (!ActiveItemBorder)
+	{
+		ActiveItemBorder = NewObject<UStaticMeshComponent>(this);
+		ActiveItemBorder->SetStaticMesh(PlaneMesh);
+		ActiveItemBorder->SetupAttachment(RootSceneComponent);
+		ActiveItemBorder->RegisterComponent();
+		ActiveItemBorder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		// Larger than thumbnail to create a visible border frame
+		float BorderWidth = ThumbnailSize * 1.2f;
+		float BorderHeight = ThumbnailSize * 1.4f * 1.2f;
+		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
+		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
+
+		if (BaseMat)
+		{
+			UMaterialInstanceDynamic* ActiveMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+			if (ActiveMat)
+			{
+				ActiveMat->SetVectorParameterValue(FName("BaseColor"), ActiveItemColor);
+				ActiveItemBorder->SetMaterial(0, ActiveMat);
+			}
+		}
+
+		// Start hidden until an item is selected
+		ActiveItemBorder->SetVisibility(false);
+		UE_LOG(LogTemp, Warning, TEXT("Created ActiveItemBorder"));
+	}
+
 	// Reset hover animation state
 	HoverAnimationProgress = 0.0f;
 	PulseTime = 0.0f;
@@ -266,6 +306,12 @@ void AInventoryUIActor::ClearSlots()
 	{
 		SelectionHighlight->DestroyComponent();
 		SelectionHighlight = nullptr;
+	}
+
+	if (ActiveItemBorder)
+	{
+		ActiveItemBorder->DestroyComponent();
+		ActiveItemBorder = nullptr;
 	}
 }
 
@@ -351,27 +397,48 @@ void AInventoryUIActor::UpdateSelectionHighlight()
 	SelectionHighlight->SetRelativeLocation(Position);
 	SelectionHighlight->SetVisibility(true);
 
-	// Update item name text
+	// Note: Item name text is now updated via SetActiveItemName when user confirms selection
+}
+
+void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
+{
+	// Update text
 	if (ItemNameText)
 	{
-		if (InventoryComponent)
+		if (ItemID.IsNone())
 		{
-			TArray<FName> Items = InventoryComponent->GetItems();
-			if (Items.IsValidIndex(SelectedIndex))
-			{
-				FString ItemName = Items[SelectedIndex].ToString();
-				ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
-				ItemNameText->SetText(FText::FromString(ItemName));
-			}
-			else
-			{
-				ItemNameText->SetText(FText::FromString(TEXT("Empty Slot")));
-			}
+			ItemNameText->SetText(FText::FromString(TEXT("No Item Selected")));
 		}
 		else
 		{
-			ItemNameText->SetText(FText::FromString(TEXT("Empty Slot")));
+			FString ItemName = ItemID.ToString();
+			ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
+			ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
+			ItemNameText->SetText(FText::FromString(ItemName));
 		}
+	}
+
+	// Update active item border
+	ActiveItemIndex = ItemIndex;
+	if (ActiveItemBorder)
+	{
+		if (ItemID.IsNone() || ItemIndex < 0)
+		{
+			ActiveItemBorder->SetVisibility(false);
+			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item)"));
+		}
+		else
+		{
+			FVector Position = CalculateSlotPosition(ItemIndex);
+			Position.X += 0.1f; // Slightly behind thumbnail so it frames it
+			ActiveItemBorder->SetRelativeLocation(Position);
+			ActiveItemBorder->SetVisibility(true);
+			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder shown at index %d, pos %s"), ItemIndex, *Position.ToString());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ActiveItemBorder is NULL!"));
 	}
 }
 

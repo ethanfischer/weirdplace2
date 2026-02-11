@@ -146,11 +146,24 @@ void UInventoryUIComponent::OpenInventoryUI()
 		MyCharacter->SetCanInteract(false);
 	}
 
-	// Update UI with current selection
+	// Update UI with current selection and active item
 	if (InventoryUIActor)
 	{
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
 		InventoryUIActor->RefreshDisplay();
+
+		// Show current active item and border (if any)
+		if (InventoryComponent)
+		{
+			FName ActiveItem = InventoryComponent->GetActiveItem();
+			int32 ActiveIndex = -1;
+			if (!ActiveItem.IsNone())
+			{
+				TArray<FName> Items = InventoryComponent->GetItems();
+				ActiveIndex = Items.IndexOfByKey(ActiveItem);
+			}
+			InventoryUIActor->SetActiveItem(ActiveItem, ActiveIndex);
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Opening Inventory UI"));
@@ -184,8 +197,14 @@ void UInventoryUIComponent::ConfirmSelection()
 		{
 			FName SelectedItem = Items[SelectedIndex];
 			InventoryComponent->SetActiveItem(SelectedItem);
+
+			// Update the UI to show the confirmed item name and border
+			if (InventoryUIActor)
+			{
+				InventoryUIActor->SetActiveItem(SelectedItem, SelectedIndex);
+			}
+
 			UE_LOG(LogTemp, Log, TEXT("Confirmed selection: %s"), *SelectedItem.ToString());
-			// TODO: Add visual/audio feedback for selection
 		}
 		else
 		{

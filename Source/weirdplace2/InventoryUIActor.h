@@ -38,6 +38,9 @@ public:
 	// Set opacity (for animation)
 	void SetOpacity(float Opacity);
 
+	// Set the active (confirmed) item to display at bottom and show border
+	void SetActiveItem(const FName& ItemID, int32 ItemIndex);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -82,9 +85,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor EmptySlotBorderColor = FLinearColor(0.3f, 0.3f, 0.35f, 0.8f);
 
-	// Selection highlight color
+	// Selection highlight color (hover)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+
+	// Active item border color (confirmed selection)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	FLinearColor ActiveItemColor = FLinearColor(0.0f, 1.0f, 0.5f, 1.0f);
 
 	// Hover scale multiplier (how much larger the hovered slot becomes)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
@@ -126,9 +133,16 @@ private:
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> ThumbnailMeshes;
 
-	// Selection highlight mesh
+	// Selection highlight mesh (hover)
 	UPROPERTY()
 	UStaticMeshComponent* SelectionHighlight;
+
+	// Active item border mesh (confirmed selection)
+	UPROPERTY()
+	UStaticMeshComponent* ActiveItemBorder;
+
+	// Index of currently active item (-1 if none)
+	int32 ActiveItemIndex = -1;
 
 	// Cached plane mesh
 	UPROPERTY()

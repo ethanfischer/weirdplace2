@@ -88,11 +88,23 @@ void UHeldItemComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UHeldItemComponent::CreateHeldItemMesh()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner || !CameraComponent) return;
+	if (!Owner)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HeldItemComponent: No owner!"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Creating mesh, Owner=%s, RootComponent=%s"),
+		*Owner->GetName(),
+		Owner->GetRootComponent() ? *Owner->GetRootComponent()->GetName() : TEXT("NULL"));
 
 	// Load the plane mesh (same as InventoryUIActor uses)
 	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-	if (!PlaneMesh) return;
+	if (!PlaneMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HeldItemComponent: Failed to load plane mesh!"));
+		return;
+	}
 
 	// Create the mesh component
 	HeldItemMesh = NewObject<UStaticMeshComponent>(Owner);
@@ -102,8 +114,8 @@ void UHeldItemComponent::CreateHeldItemMesh()
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetCastShadow(false);
 
-	// Attach to camera
-	HeldItemMesh->AttachToComponent(CameraComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	// Attach to character's root (body), not camera - diegetic VR positioning
+	HeldItemMesh->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
 	HeldItemMesh->RegisterComponent();
 
 	// Set relative transform
@@ -111,8 +123,24 @@ void UHeldItemComponent::CreateHeldItemMesh()
 	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
 	HeldItemMesh->SetRelativeScale3D(HeldItemScale * 0.01f); // Scale down (plane is 100x100 units)
 
-	// Start hidden
-	HeldItemMesh->SetVisibility(false);
+	// Set a bright debug material so we can see it
+	UMaterialInterface* DebugMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+	if (DebugMat)
+	{
+		UMaterialInstanceDynamic* BrightMat = UMaterialInstanceDynamic::Create(DebugMat, this);
+		if (BrightMat)
+		{
+			BrightMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.0f, 1.0f, 1.0f)); // Bright magenta
+			HeldItemMesh->SetMaterial(0, BrightMat);
+		}
+	}
+
+	// Start visible for debugging
+	HeldItemMesh->SetVisibility(true);
+
+	FVector WorldLoc = HeldItemMesh->GetComponentLocation();
+	UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Created mesh! RelativeOffset=%s Scale=%s WorldPos=%s"),
+		*HeldItemOffset.ToString(), *HeldItemScale.ToString(), *WorldLoc.ToString());
 }
 
 void UHeldItemComponent::UpdateHeldItemMaterial(const FName& ItemID)
@@ -153,7 +181,12 @@ void UHeldItemComponent::ShowHeldItem()
 	if (HeldItemMesh)
 	{
 		HeldItemMesh->SetVisibility(true);
-		UE_LOG(LogTemp, Log, TEXT("HeldItemComponent: Showing held item %s"), *CurrentItemID.ToString());
+		FVector WorldLoc = HeldItemMesh->GetComponentLocation();
+		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Showing held item %s at world pos %s"), *CurrentItemID.ToString(), *WorldLoc.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("HeldItemComponent: ShowHeldItem called but HeldItemMesh is NULL!"));
 	}
 }
 

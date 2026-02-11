@@ -35,17 +35,18 @@ protected:
 
 	// --- Configuration ---
 
-	// Offset from camera (Forward, Right, Down relative to camera)
+	// Offset from character root (Forward, Right, Up) - diegetic positioning
+	// Positioned as if held in right hand at chest/hip level
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FVector HeldItemOffset = FVector(50.0f, 20.0f, -15.0f);
+	FVector HeldItemOffset = FVector(30.0f, 25.0f, 40.0f);
 
-	// Rotation offset for held item
+	// Rotation offset for held item (tilted to face up toward player)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FRotator HeldItemRotation = FRotator(-10.0f, -20.0f, 5.0f);
+	FRotator HeldItemRotation = FRotator(-45.0f, 0.0f, 0.0f);
 
-	// Scale for held item (VHS box proportions - Width, Height, Depth)
+	// Scale for held item (VHS box proportions - realistic size ~10x19cm)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FVector HeldItemScale = FVector(1.0f, 7.0f, 10.0f);
+	FVector HeldItemScale = FVector(2.5f, 10.0f, 19.0f);
 
 private:
 	// Mesh component for the held VHS box
