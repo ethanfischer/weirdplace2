@@ -120,5 +120,7 @@ On macOS 26 with Xcode 26.x, edit `Engine/Config/Apple/Apple_SDK.json` and chang
 - Key files/classes
 - High-level behavior and configuration options
 
-We modified and used nodetocode to convert blueprints to c++. Modifications are here:
-https://github.com/protospatial/NodeToCode/pull/14
+
+# Misc
+- We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
+- This is gonna be a VR game. Implement features diagetically (no screenspace UI)
