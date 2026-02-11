@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "HeldItemComponent.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -13,6 +14,9 @@ AMyCharacter::AMyCharacter()
 
 	// Create and attach the inventory UI component
 	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
+
+	// Create and attach the held item component
+	HeldItemComponent = CreateDefaultSubobject<UHeldItemComponent>(TEXT("HeldItemComponent"));
 }
 
 void AMyCharacter::BeginPlay()
