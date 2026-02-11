@@ -78,3 +78,6 @@ DerivedDataCache/*
 
 Plugins/UnrealMCP/
 nul
+
+# Claude Code local settings (user-specific paths)
+.claude/settings.local.json
