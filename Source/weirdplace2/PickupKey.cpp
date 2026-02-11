@@ -41,15 +41,19 @@ void APickupKey::NotifyActorBeginOverlap(AActor* OtherActor)
 
 	// Add key to inventory
 	UInventoryComponent* Inventory = Character->GetInventoryComponent();
-	if (Inventory)
+	if (!Inventory)
 	{
-		if (KeyName == NAME_None)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
-			return;
-		}
-		Inventory->AddItem(KeyName);
+		UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s': Character missing InventoryComponent. Cannot add key."), *GetName());
+		return;
 	}
+
+	if (KeyName == NAME_None)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
+		return;
+	}
+
+	Inventory->AddItem(KeyName);
 
 	// Play pickup sound
 	if (PickupSound)
