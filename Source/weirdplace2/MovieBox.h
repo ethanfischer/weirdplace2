@@ -45,6 +45,7 @@ private:
 	APlayerController* PlayerController;
 	AMyCharacter* MyCharacter;
 	bool DidCollectSubitem = false;
+	bool bCollectSubitemBound = false;
 	FName InteractActionName = FName("Interact");
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))

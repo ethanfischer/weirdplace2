@@ -172,12 +172,23 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 			InteractionWidget->SetVisibility(true);
 		}
 
-		PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
+		// Only bind if not already bound (prevent duplicate bindings)
+		if (!bCollectSubitemBound)
+		{
+			PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
+			bCollectSubitemBound = true;
+		}
 	}
 	else
 	{
 		InteractionWidget->SetVisibility(false);
-		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+
+		// Only unbind if currently bound
+		if (bCollectSubitemBound)
+		{
+			PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+			bCollectSubitemBound = false;
+		}
 	}
 
 	// Get the local up vector of the actor
@@ -213,6 +224,9 @@ void AMovieBox::StopInspection()
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
+
+	// Reset binding flag
+	bCollectSubitemBound = false;
 
 	MyCharacter->SetCanInteract(true);
 }
