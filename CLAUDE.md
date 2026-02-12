@@ -71,7 +71,10 @@ Python scripts in `Content/Python/` drive material generation:
 1. `optimize_vhs_textures.py` - Caps textures at 512px, enables streaming
 2. `create_vhs_material_instances.py` - Generates MIs from textures
 
-Run in UE Output Log: `py "Content/Python/optimize_vhs_textures.py"`
+Run in UE Output Log (use absolute path - relative paths resolve from engine binaries):
+```
+py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
+```
 
 ### Input Bindings (DefaultInput.ini)
 
