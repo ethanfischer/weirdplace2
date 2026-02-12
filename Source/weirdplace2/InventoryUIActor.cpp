@@ -241,22 +241,23 @@ void AInventoryUIActor::CreateSlots()
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		// Use M_Solid which properly supports color parameter
-		UMaterialInterface* SolidMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/LevelPrototyping/Materials/M_Solid.M_Solid"));
-		UMaterialInterface* MatToUse = SolidMat ? SolidMat : BaseMat;
-		UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Using SolidMat=%s"), SolidMat ? TEXT("YES") : TEXT("NO (fallback)"));
-
-		if (MatToUse)
+		// Use M_SolidColor (created by Python script) which has proper Color parameter
+		UMaterialInterface* SolidColorMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
+		if (!SolidColorMat)
 		{
-			SelectionMaterial = UMaterialInstanceDynamic::Create(MatToUse, this);
+			SolidColorMat = BaseMat; // Fallback
+			UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: M_SolidColor not found, run: py \"Content/Python/create_solid_color_material.py\""));
+		}
+
+		if (SolidColorMat)
+		{
+			SelectionMaterial = UMaterialInstanceDynamic::Create(SolidColorMat, this);
 			if (SelectionMaterial)
 			{
-				// M_Solid uses "Color" parameter
 				SelectionMaterial->SetVectorParameterValue(FName("Color"), SelectionColor);
-				SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
 				SelectionHighlight->SetMaterial(0, SelectionMaterial);
-				UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Material=%s, SelectionColor=(%.2f, %.2f, %.2f, %.2f)"),
-					*SelectionMaterial->GetName(), SelectionColor.R, SelectionColor.G, SelectionColor.B, SelectionColor.A);
+				UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Applied color (%.2f, %.2f, %.2f)"),
+					SelectionColor.R, SelectionColor.G, SelectionColor.B);
 			}
 		}
 	}
@@ -276,26 +277,23 @@ void AInventoryUIActor::CreateSlots()
 		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
 		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		// Use M_Solid which properly supports color parameter
-		UMaterialInterface* SolidMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/LevelPrototyping/Materials/M_Solid.M_Solid"));
-		UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: SolidMat=%s"), SolidMat ? TEXT("LOADED") : TEXT("FAILED"));
-
-		UMaterialInterface* MaterialToUse = SolidMat ? SolidMat : BaseMat;
-
-		if (MaterialToUse)
+		// Use M_SolidColor (created by Python script) which has proper Color parameter
+		UMaterialInterface* SolidColorMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
+		if (!SolidColorMat)
 		{
-			ActiveItemMaterial = UMaterialInstanceDynamic::Create(MaterialToUse, this);
-			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: ActiveItemMaterial=%s"), ActiveItemMaterial ? *ActiveItemMaterial->GetName() : TEXT("NULL"));
+			SolidColorMat = BaseMat; // Fallback
+			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: M_SolidColor not found, run: py \"Content/Python/create_solid_color_material.py\""));
+		}
 
+		if (SolidColorMat)
+		{
+			ActiveItemMaterial = UMaterialInstanceDynamic::Create(SolidColorMat, this);
 			if (ActiveItemMaterial)
 			{
-				// M_Solid uses "Color" parameter
 				ActiveItemMaterial->SetVectorParameterValue(FName("Color"), ActiveItemColor);
-				ActiveItemMaterial->SetVectorParameterValue(FName("BaseColor"), ActiveItemColor);
 				ActiveItemBorder->SetMaterial(0, ActiveItemMaterial);
-
-				UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: Applied with ActiveItemColor=(%.2f, %.2f, %.2f, %.2f)"),
-					ActiveItemColor.R, ActiveItemColor.G, ActiveItemColor.B, ActiveItemColor.A);
+				UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: Applied color (%.2f, %.2f, %.2f)"),
+					ActiveItemColor.R, ActiveItemColor.G, ActiveItemColor.B);
 			}
 		}
 		else
