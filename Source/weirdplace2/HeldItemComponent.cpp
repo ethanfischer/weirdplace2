@@ -7,6 +7,7 @@
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "IXRTrackingSystem.h"
 
 UHeldItemComponent::UHeldItemComponent()
 {
@@ -114,14 +115,29 @@ void UHeldItemComponent::CreateHeldItemMesh()
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetCastShadow(false);
 
-	// Attach to character's root (body), not camera - diegetic VR positioning
-	HeldItemMesh->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	// Check if VR mode is active
+	bool bIsVRMode = GEngine && GEngine->XRSystem.IsValid() && GEngine->XRSystem->IsHeadTrackingAllowed();
+
+	// Attach based on mode
+	if (bIsVRMode)
+	{
+		// VR mode: TODO - attach to player's hand motion controller instead
+		// For now, attach to root as placeholder
+		HeldItemMesh->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: VR mode - attached to root (TODO: attach to hand)"));
+	}
+	else
+	{
+		// Flatscreen mode: attach to camera
+		HeldItemMesh->AttachToComponent(CameraComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Flatscreen mode - attached to camera"));
+	}
 	HeldItemMesh->RegisterComponent();
 
 	// Set relative transform
 	HeldItemMesh->SetRelativeLocation(HeldItemOffset);
 	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
-	HeldItemMesh->SetRelativeScale3D(HeldItemScale * 0.01f); // Scale down (plane is 100x100 units)
+	HeldItemMesh->SetRelativeScale3D(HeldItemScale);
 
 	// Set a bright debug material so we can see it
 	UMaterialInterface* DebugMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
