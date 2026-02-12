@@ -73,7 +73,7 @@ void UHeldItemComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		// Inventory just closed - show held item if we have one
 		if (!CurrentItemID.IsNone())
 		{
-			UpdateHeldItemMaterial(CurrentItemID);
+			UpdateHeldItem(CurrentItemID);
 			ShowHeldItem();
 		}
 	}
@@ -95,23 +95,10 @@ void UHeldItemComponent::CreateHeldItemMesh()
 		return;
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Creating mesh, Owner=%s, RootComponent=%s"),
-		*Owner->GetName(),
-		Owner->GetRootComponent() ? *Owner->GetRootComponent()->GetName() : TEXT("NULL"));
-
-	// Load the plane mesh (same as InventoryUIActor uses)
-	UStaticMesh* PlaneMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-	if (!PlaneMesh)
-	{
-		UE_LOG(LogTemp, Error, TEXT("HeldItemComponent: Failed to load plane mesh!"));
-		return;
-	}
-
-	// Create the mesh component
+	// Create the mesh component (mesh/materials will be set when active item changes)
 	HeldItemMesh = NewObject<UStaticMeshComponent>(Owner);
 	if (!HeldItemMesh) return;
 
-	HeldItemMesh->SetStaticMesh(PlaneMesh);
 	HeldItemMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	HeldItemMesh->SetCastShadow(false);
 
@@ -129,51 +116,56 @@ void UHeldItemComponent::CreateHeldItemMesh()
 	else
 	{
 		// Flatscreen mode: attach to camera
-		HeldItemMesh->AttachToComponent(CameraComponent, FAttachmentTransformRules::KeepRelativeTransform);
+		HeldItemMesh->AttachToComponent(CameraComponent, FAttachmentTransformRules::SnapToTargetIncludingScale);
 		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Flatscreen mode - attached to camera"));
 	}
 	HeldItemMesh->RegisterComponent();
 
-	// Set relative transform
+	// Set position offset (scale comes from item data)
 	HeldItemMesh->SetRelativeLocation(HeldItemOffset);
 	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
-	HeldItemMesh->SetRelativeScale3D(HeldItemScale);
 
-	// Set a bright debug material so we can see it
-	UMaterialInterface* DebugMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
-	if (DebugMat)
-	{
-		UMaterialInstanceDynamic* BrightMat = UMaterialInstanceDynamic::Create(DebugMat, this);
-		if (BrightMat)
-		{
-			BrightMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(1.0f, 0.0f, 1.0f, 1.0f)); // Bright magenta
-			HeldItemMesh->SetMaterial(0, BrightMat);
-		}
-	}
-
-	// Start visible for debugging
-	HeldItemMesh->SetVisibility(true);
-
-	FVector WorldLoc = HeldItemMesh->GetComponentLocation();
-	UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Created mesh! RelativeOffset=%s Scale=%s WorldPos=%s"),
-		*HeldItemOffset.ToString(), *HeldItemScale.ToString(), *WorldLoc.ToString());
+	// Start hidden until an item is selected
+	HeldItemMesh->SetVisibility(false);
 }
 
-void UHeldItemComponent::UpdateHeldItemMaterial(const FName& ItemID)
+void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)
 {
-	if (!HeldItemMesh || ItemID.IsNone()) return;
+	if (!HeldItemMesh || ItemID.IsNone() || !InventoryComponent) return;
 
-	// Try to load cover material (same path as InventoryUIActor)
-	FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemID.ToString());
-	UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+	// Get stored visual data for this item
+	FInventoryItemData ItemData = InventoryComponent->GetItemData(ItemID);
 
-	if (CoverMaterial)
+	if (ItemData.IsValid())
 	{
-		HeldItemMesh->SetMaterial(0, CoverMaterial);
+		// Use stored mesh
+		HeldItemMesh->SetStaticMesh(ItemData.Mesh);
+
+		// Apply stored materials
+		for (int32 i = 0; i < ItemData.Materials.Num(); i++)
+		{
+			if (ItemData.Materials[i])
+			{
+				HeldItemMesh->SetMaterial(i, ItemData.Materials[i]);
+			}
+		}
+
+		// Apply stored scale
+		HeldItemMesh->SetRelativeScale3D(ItemData.Scale);
+
+		UE_LOG(LogTemp, Log, TEXT("HeldItemComponent: Updated to item %s with stored visual data"), *ItemID.ToString());
 	}
 	else
 	{
-		// Fallback to default material with a color based on item name
+		// Fallback for items without visual data - use a placeholder cube
+		UStaticMesh* CubeMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cube.Cube"));
+		if (CubeMesh)
+		{
+			HeldItemMesh->SetStaticMesh(CubeMesh);
+			HeldItemMesh->SetRelativeScale3D(FVector(0.1f, 0.75f, 1.0f)); // VHS-like proportions
+		}
+
+		// Placeholder material with color based on item name
 		UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
 		if (BaseMat)
 		{
@@ -188,7 +180,7 @@ void UHeldItemComponent::UpdateHeldItemMaterial(const FName& ItemID)
 				HeldItemMesh->SetMaterial(0, PlaceholderMat);
 			}
 		}
-		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Could not load material for %s, using placeholder"), *ItemID.ToString());
+		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: No visual data for %s, using placeholder"), *ItemID.ToString());
 	}
 }
 
@@ -232,7 +224,7 @@ void UHeldItemComponent::OnActiveItemChanged(const FName& NewActiveItem)
 	else
 	{
 		// Update material immediately (visibility will be handled by tick when inventory closes)
-		UpdateHeldItemMaterial(NewActiveItem);
+		UpdateHeldItem(NewActiveItem);
 
 		// If inventory is already closed, show immediately
 		if (InventoryUIComponent && !InventoryUIComponent->IsInventoryOpen())

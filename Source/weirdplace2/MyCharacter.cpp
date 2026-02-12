@@ -65,3 +65,16 @@ void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 		UE_LOG(LogTemp, Error, TEXT("AddItemToInventory: InventoryComponent is null!"));
 	}
 }
+
+void AMyCharacter::AddItemToInventoryWithMesh(const FName& ItemID, UStaticMeshComponent* MeshComponent)
+{
+	if (InventoryComponent)
+	{
+		FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(ItemID, MeshComponent);
+		InventoryComponent->AddItemWithData(ItemData);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddItemToInventoryWithMesh: InventoryComponent is null!"));
+	}
+}

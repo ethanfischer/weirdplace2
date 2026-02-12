@@ -53,7 +53,9 @@ void APickupKey::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
-	Inventory->AddItem(KeyName);
+	// Add item with visual data captured from the mesh
+	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(KeyName, KeyMesh);
+	Inventory->AddItemWithData(ItemData);
 
 	// Play pickup sound
 	if (PickupSound)

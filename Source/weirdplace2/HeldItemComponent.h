@@ -44,9 +44,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
 	FRotator HeldItemRotation = FRotator(-45.0f, 0.0f, 0.0f);
 
-	// Scale for held item (VHS box proportions - realistic size ~10x19cm)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FVector HeldItemScale = FVector(2.5f, 10.0f, 19.0f);
 
 private:
 	// Mesh component for the held VHS box
@@ -71,8 +68,8 @@ private:
 	// Track previous inventory open state for edge detection
 	bool bWasInventoryOpen = false;
 
-	// Update the held item mesh material based on item ID
-	void UpdateHeldItemMaterial(const FName& ItemID);
+	// Update the held item mesh/materials/scale from stored inventory data
+	void UpdateHeldItem(const FName& ItemID);
 
 	// Create the held item mesh component
 	void CreateHeldItemMesh();

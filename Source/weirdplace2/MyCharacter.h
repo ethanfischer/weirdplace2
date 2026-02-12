@@ -9,6 +9,8 @@
 class UInventoryComponent;
 class UInventoryUIComponent;
 class UHeldItemComponent;
+class UStaticMeshComponent;
+struct FInventoryItemData;
 
 UCLASS()
 class WEIRDPLACE2_API AMyCharacter : public ACharacter {
@@ -27,10 +29,14 @@ public:
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
 
-	// Add item to inventory by ID
+	// Add item to inventory by ID (legacy - no visual data)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
 	void AddItemToInventory(const FName& ItemID);
 	virtual void AddItemToInventory_Implementation(const FName& ItemID);
+
+	// Add item to inventory with visual data captured from mesh component
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddItemToInventoryWithMesh(const FName& ItemID, UStaticMeshComponent* MeshComponent);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }

@@ -4,6 +4,33 @@
 #include "Components/ActorComponent.h"
 #include "Inventory.generated.h"
 
+class UStaticMesh;
+class UMaterialInterface;
+
+// Visual data captured from collected items
+USTRUCT(BlueprintType)
+struct FInventoryItemData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	FName ItemID;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	UStaticMesh* Mesh = nullptr;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	TArray<UMaterialInterface*> Materials;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	FVector Scale = FVector::OneVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	FRotator Rotation = FRotator::ZeroRotator;
+
+	bool IsValid() const { return !ItemID.IsNone() && Mesh != nullptr; }
+};
+
 // Delegate for inventory change notifications - Blueprint-bindable
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryChanged, const TArray<FName>&, CurrentItems);
 
@@ -29,7 +56,11 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	// Adds an item to the inventory by ID (e.g., "ALIEN", "KEY_BASEMENT", "FLASHLIGHT")
+	// Adds an item with visual data (preferred - captures mesh/materials from source actor)
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void AddItemWithData(const FInventoryItemData& ItemData);
+
+	// Adds an item by ID only (legacy - no visual data)
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void AddItem(const FName& ItemID);
 
@@ -41,9 +72,13 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	bool HasItem(const FName& ItemID) const;
 
-	// Returns copy of current inventory items
+	// Returns copy of current inventory item IDs
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	TArray<FName> GetItems() const;
+
+	// Returns visual data for an item (nullptr if not found or no data)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	FInventoryItemData GetItemData(const FName& ItemID) const;
 
 	// Returns count of items in inventory
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
@@ -57,14 +92,26 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	FName GetActiveItem() const;
 
+	// Gets visual data for the active item
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
+	FInventoryItemData GetActiveItemData() const;
+
 	// Clears the active item selection
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ClearActiveItem();
 
+	// Helper to create item data from a static mesh component
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	static FInventoryItemData CreateItemDataFromMeshComponent(const FName& ItemID, UStaticMeshComponent* MeshComponent);
+
 private:
-	// All inventory items by ID
+	// All inventory items by ID (for ordered iteration)
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
 	TArray<FName> Items;
+
+	// Visual data for each item
+	UPROPERTY(VisibleAnywhere, Category = "Inventory")
+	TMap<FName, FInventoryItemData> ItemDataMap;
 
 	// Currently selected/active item
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
