@@ -5,6 +5,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
 
 AInventoryUIActor::AInventoryUIActor()
@@ -342,6 +343,13 @@ void AInventoryUIActor::CreateThumbnails()
 
 	TArray<FName> Items = InventoryComponent->GetItems();
 
+	// Load the front-face material (shows only front portion of VHS cover texture)
+	UMaterialInterface* FrontFaceMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_VHSCoverFront.M_VHSCoverFront"));
+	if (!FrontFaceMaterial)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("M_VHSCoverFront not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_vhs_front_material.py\""));
+	}
+
 	// Create thumbnail for each collected item
 	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
 	{
@@ -363,32 +371,49 @@ void AInventoryUIActor::CreateThumbnails()
 		float Height = ThumbnailSize * 1.4f;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
-		// Try to load cover material
-		FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemID.ToString());
-		UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+		// Try to load the VHS cover texture directly and use front-face material
+		FString TexturePath = FString::Printf(TEXT("/Game/VHSCovers/%s"), *ItemID.ToString());
+		UTexture2D* CoverTexture = LoadObject<UTexture2D>(nullptr, *TexturePath);
 
-		if (CoverMaterial)
+		if (CoverTexture && FrontFaceMaterial)
 		{
-			Thumbnail->SetMaterial(0, CoverMaterial);
+			// Create dynamic material instance showing only front face
+			UMaterialInstanceDynamic* FrontFaceMat = UMaterialInstanceDynamic::Create(FrontFaceMaterial, this);
+			if (FrontFaceMat)
+			{
+				FrontFaceMat->SetTextureParameterValue(FName("CoverTexture"), CoverTexture);
+				Thumbnail->SetMaterial(0, FrontFaceMat);
+			}
 		}
 		else
 		{
-			// Create a placeholder colored material
-			UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
-			UMaterialInstanceDynamic* PlaceholderMat = UMaterialInstanceDynamic::Create(BaseMat, this);
-			if (PlaceholderMat)
+			// Fallback: try to load full cover material (shows all faces)
+			FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemID.ToString());
+			UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+
+			if (CoverMaterial)
 			{
-				// Hash the item name to get a unique color
-				uint32 Hash = GetTypeHash(ItemID);
-				float R = ((Hash >> 0) & 0xFF) / 255.0f;
-				float G = ((Hash >> 8) & 0xFF) / 255.0f;
-				float B = ((Hash >> 16) & 0xFF) / 255.0f;
-				// Ensure minimum brightness
-				R = FMath::Max(R, 0.2f);
-				G = FMath::Max(G, 0.2f);
-				B = FMath::Max(B, 0.2f);
-				PlaceholderMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(R, G, B, 1.0f));
-				Thumbnail->SetMaterial(0, PlaceholderMat);
+				Thumbnail->SetMaterial(0, CoverMaterial);
+			}
+			else
+			{
+				// Create a placeholder colored material
+				UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+				UMaterialInstanceDynamic* PlaceholderMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+				if (PlaceholderMat)
+				{
+					// Hash the item name to get a unique color
+					uint32 Hash = GetTypeHash(ItemID);
+					float R = ((Hash >> 0) & 0xFF) / 255.0f;
+					float G = ((Hash >> 8) & 0xFF) / 255.0f;
+					float B = ((Hash >> 16) & 0xFF) / 255.0f;
+					// Ensure minimum brightness
+					R = FMath::Max(R, 0.2f);
+					G = FMath::Max(G, 0.2f);
+					B = FMath::Max(B, 0.2f);
+					PlaceholderMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(R, G, B, 1.0f));
+					Thumbnail->SetMaterial(0, PlaceholderMat);
+				}
 			}
 		}
 
