@@ -59,16 +59,18 @@ void AInventoryUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Create dynamic material for background
-	UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
-	if (BaseMat && BackgroundPanel)
+	// Create dynamic material instance from the material set on BackgroundPanel in Blueprint
+	if (BackgroundPanel)
 	{
-		BackgroundMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
-		if (BackgroundMaterial)
+		UMaterialInterface* BaseMat = BackgroundPanel->GetMaterial(0);
+		if (!BaseMat)
 		{
-			BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), BackgroundColor);
-			BackgroundPanel->SetMaterial(0, BackgroundMaterial);
+			UE_LOG(LogTemp, Error, TEXT("InventoryUIActor: BackgroundPanel has no material set. Set a material in the Blueprint."));
+			return;
 		}
+
+		BackgroundMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
+		BackgroundPanel->SetMaterial(0, BackgroundMaterial);
 	}
 }
 
