@@ -11,6 +11,7 @@
 #include "DlgSystem/DlgDialogue.h"
 #include "DlgSystem/DlgContext.h"
 #include "DlgSystem/DlgManager.h"
+#include "DlgSystem/DlgDialogueParticipant.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -281,6 +282,17 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 		Participants.Add(NPC);
 		Participants.Add(PlayerPawn);
+
+		// Debug: Check if NPC implements dialogue participant interface
+		bool bImplementsInterface = NPC->GetClass()->ImplementsInterface(UDlgDialogueParticipant::StaticClass());
+		UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC '%s' implements IDlgDialogueParticipant: %s"),
+			*NPC->GetName(), bImplementsInterface ? TEXT("YES") : TEXT("NO"));
+
+		if (bImplementsInterface)
+		{
+			FName ParticipantName = IDlgDialogueParticipant::Execute_GetParticipantName(NPC);
+			UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC returns ParticipantName: '%s'"), *ParticipantName.ToString());
+		}
 
 		DialogueContext = UDlgManager::StartDialogue(Dialogue, Participants);
 
