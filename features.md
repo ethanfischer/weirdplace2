@@ -71,3 +71,9 @@ Feature: Inventory-Scoped Reticle Targeting
 - Purpose: Prevent reticle feedback from reacting to world objects while inventory is open.
 - Key files: Source/weirdplace2/FirstPersonCharacter.cpp; Source/weirdplace2/InventoryUIComponent.h/.cpp; Source/weirdplace2/Inventory.h/.cpp.
 - Behavior: When inventory is open, the reticle only switches to interactable state if the reticle is over the inventory grid and the currently looked-at slot is filled (selected slot index maps to a valid inventory item). Looking off the inventory returns the reticle to normal. World interactable raycast feedback is bypassed during open state. When inventory is closed, existing world interactable reticle behavior remains unchanged.
+
+Feature: Inventory Head-Mounted Flashlight
+- Purpose: Improve visibility in dark spaces while the diegetic inventory UI is open.
+- Key files: Source/weirdplace2/FirstPersonCharacter.h/.cpp; Source/weirdplace2/InventoryUIComponent.cpp.
+- Behavior: A Blueprint-authored rect light component named `RectLight` is used for inventory lighting. It turns on when inventory transitions from Opening to Open, and turns off as soon as inventory starts Closing (with additional safety-off when fully closed). On open, rect light source width/height are set from grid dimensions so the light roughly matches inventory size.
+- Configuration: Tune the `RectLight` component directly in `BP_FirstPersonCharacter` (intensity, attenuation, shadows, etc.). C++ no longer creates a separate inventory flashlight subcomponent.

@@ -1,5 +1,6 @@
 #include "FirstPersonCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Components/RectLightComponent.h"
 #include "Components/WidgetComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
@@ -33,6 +34,27 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Prefer a Blueprint-authored RectLight component (commonly named "RectLight")
+	// so designers can tune it directly in BP and have inventory logic use that light.
+	TArray<URectLightComponent*> RectLights;
+	GetComponents<URectLightComponent>(RectLights);
+	for (URectLightComponent* RectLight : RectLights)
+	{
+		if (!RectLight)
+		{
+			continue;
+		}
+
+		if (RectLight->GetFName() == TEXT("RectLight"))
+		{
+			InventoryFlashlightComponent = RectLight;
+			break;
+		}
+	}
+
+	// Ensure inventory light starts disabled at runtime.
+	SetInventoryFlashlightEnabled(false);
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -232,6 +254,33 @@ void AFirstPersonCharacter::HandleShowInventoryCompleted()
 {
 	// Reset DoOnce
 	bInventoryDoOnceCompleted = false;
+}
+
+void AFirstPersonCharacter::SetInventoryFlashlightEnabled(bool bEnabled)
+{
+	if (!InventoryFlashlightComponent)
+	{
+		return;
+	}
+
+	InventoryFlashlightComponent->SetVisibility(bEnabled);
+	InventoryFlashlightComponent->SetHiddenInGame(!bEnabled);
+}
+
+bool AFirstPersonCharacter::IsInventoryFlashlightEnabled() const
+{
+	return InventoryFlashlightComponent && InventoryFlashlightComponent->IsVisible();
+}
+
+void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height)
+{
+	if (!InventoryFlashlightComponent)
+	{
+		return;
+	}
+
+	InventoryFlashlightComponent->SetSourceWidth(FMath::Max(Width, 1.0f));
+	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
 }
 
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)

@@ -1,6 +1,7 @@
 #include "InventoryUIComponent.h"
 #include "InventoryUIActor.h"
 #include "Inventory.h"
+#include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -55,6 +56,11 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EInventoryUIState::Open;
+
+			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+			{
+				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
+			}
 		}
 		UpdateInventoryPosition();
 		break;
@@ -73,6 +79,11 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
 			{
 				MyCharacter->SetCanInteract(true);
+			}
+
+			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+			{
+				FirstPersonCharacter->SetInventoryFlashlightEnabled(false);
 			}
 		}
 		else
@@ -133,6 +144,15 @@ void UInventoryUIComponent::OpenInventoryUI()
 		SpawnInventoryUIActor();
 	}
 
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		const float ThumbnailSize = 8.0f;
+		const float ThumbnailSpacing = 2.0f;
+		const float GridWidth = GridColumns * ThumbnailSize + (GridColumns - 1) * ThumbnailSpacing;
+		const float GridHeight = GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
+	}
+
 	// Reset selection to first slot
 	SelectedIndex = 0;
 	bReticleOverGrid = true;
@@ -179,6 +199,11 @@ void UInventoryUIComponent::CloseInventoryUI()
 
 	CurrentState = EInventoryUIState::Closing;
 	bReticleOverGrid = false;
+
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		FirstPersonCharacter->SetInventoryFlashlightEnabled(false);
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("Closing Inventory UI"));
 }
