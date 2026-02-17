@@ -7,6 +7,7 @@
 class UInventoryComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UMaterialInterface;
 
 UCLASS()
 class WEIRDPLACE2_API AInventoryUIActor : public AActor
@@ -84,6 +85,10 @@ protected:
 	// Empty slot border color
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor EmptySlotBorderColor = FLinearColor(0.3f, 0.3f, 0.35f, 0.8f);
+
+	// Material used by empty slots (separate from background material)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* SlotMaterial = nullptr;
 
 	// Selection highlight color (hover)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")

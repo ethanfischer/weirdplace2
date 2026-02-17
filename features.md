@@ -59,3 +59,9 @@ Feature: Held Item Display
 - Behavior: When an active item is set and inventory closes, the held item mesh appears attached to the camera. Uses stored FInventoryItemData (mesh, materials, scale) from inventory. Hidden while inventory is open.
 - Configuration (on HeldItemComponent): HeldItemOffset (default 30, 25, 40); HeldItemRotation (default -45° pitch).
 - VR note: Currently attaches to camera; TODO: attach to motion controller hand in VR mode.
+
+Feature: Inventory UI Slot/Background Material Separation
+- Purpose: Keep empty item slots visually solid and independent from the inventory background material.
+- Key files: Source/weirdplace2/InventoryUIActor.h/.cpp; Content/Blueprints/BP_Inventory.
+- Behavior: Empty slots now use a dedicated `SlotMaterial` property on `AInventoryUIActor` (with fallback to `/Game/Materials/M_SolidColor`, then engine default). Background continues to use `BackgroundPanel`'s assigned material. Slots no longer receive opacity animation writes and remain fully opaque during open/close.
+- Configuration: In `BP_Inventory`, assign `SlotMaterial` to any solid material/instance you want for empty slots; keep `BackgroundPanel` material separate for the panel look.

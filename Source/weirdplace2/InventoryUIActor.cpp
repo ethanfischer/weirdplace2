@@ -130,18 +130,7 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), AdjustedColor);
 	}
 
-	// Update slot meshes opacity
-	for (UStaticMeshComponent* Mesh : SlotMeshes)
-	{
-		if (Mesh)
-		{
-			UMaterialInstanceDynamic* DynMat = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
-			if (DynMat)
-			{
-				DynMat->SetScalarParameterValue(FName("Opacity"), Opacity);
-			}
-		}
-	}
+	// Slots intentionally remain solid/opaque and do not fade with animation.
 
 	// Update thumbnail meshes opacity
 	for (UStaticMeshComponent* Mesh : ThumbnailMeshes)
@@ -193,7 +182,20 @@ void AInventoryUIActor::CreateSlots()
 	if (!PlaneMesh) return;
 
 	int32 TotalSlots = GetTotalSlots();
-	UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+	UMaterialInterface* BaseMat = SlotMaterial;
+	if (!BaseMat)
+	{
+		BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
+		if (BaseMat)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: SlotMaterial not assigned. Falling back to /Game/Materials/M_SolidColor."));
+		}
+	}
+	if (!BaseMat)
+	{
+		BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+		UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: M_SolidColor missing. Falling back to engine DefaultMaterial for slots."));
+	}
 
 	for (int32 i = 0; i < TotalSlots; i++)
 	{
@@ -221,6 +223,7 @@ void AInventoryUIActor::CreateSlots()
 			UMaterialInstanceDynamic* SlotMat = UMaterialInstanceDynamic::Create(BaseMat, this);
 			if (SlotMat)
 			{
+				SlotMat->SetVectorParameterValue(FName("Color"), EmptySlotColor);
 				SlotMat->SetVectorParameterValue(FName("BaseColor"), EmptySlotColor);
 				SlotMesh->SetMaterial(0, SlotMat);
 			}
