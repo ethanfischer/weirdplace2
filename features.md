@@ -1,5 +1,6 @@
 Feature: VHS Cover Pipeline and Texture Optimization
 - Purpose: randomize VHS box covers in-world while keeping memory use manageable.
+- Source: VHS cover scans downloaded from Retro Daze VHS Tape Cover Collection on Internet Archive: https://archive.org/details/retro-daze_vcs_tape_cover_collection
 - Key files: Content/Python/create_vhs_material_instances.py; Content/Python/optimize_vhs_textures.py; Content/CSVs/vhs_covers.csv; Content/CreatedMaterials/VHSCoverMaterials/*; Source/weirdplace2/MovieBox.cpp; Source/weirdplace2/SpawnerActorComponent.cpp.
 - Behavior: Spawner names spawned boxes with a DataTable row name plus index (e.g., TITLE_5); MovieBox strips the numeric suffix and loads MI_VHSCover_<TITLE> from /Game/CreatedMaterials/VHSCoverMaterials; MI generator builds material instances for each Texture2D under /Game/VHSCovers; CSV lists covers for data table import.
 - Optimization: optimize_vhs_textures.py now caps MaxTextureSize at 512, enables streaming, leaves virtual texture streaming off by default, keeps sRGB and default compression, nudges mip gen off NoMipmaps when present. Run in UE Output Log: py "Content/Python/optimize_vhs_textures.py".
