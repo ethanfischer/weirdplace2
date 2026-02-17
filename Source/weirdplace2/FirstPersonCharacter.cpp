@@ -87,11 +87,14 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 		{
 			if (InventoryUIComp->IsInventoryOpen())
 			{
-				if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+				if (InventoryUIComp->IsReticleOverGrid())
 				{
-					const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
-					const TArray<FName> Items = InventoryComp->GetItems();
-					bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+					{
+						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+						const TArray<FName> Items = InventoryComp->GetItems();
+						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+					}
 				}
 			}
 			else

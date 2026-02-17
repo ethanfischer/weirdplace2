@@ -69,4 +69,4 @@ Feature: Inventory UI Slot/Background Material Separation
 Feature: Inventory-Scoped Reticle Targeting
 - Purpose: Prevent reticle feedback from reacting to world objects while inventory is open.
 - Key files: Source/weirdplace2/FirstPersonCharacter.cpp; Source/weirdplace2/InventoryUIComponent.h/.cpp; Source/weirdplace2/Inventory.h/.cpp.
-- Behavior: When inventory is open, the reticle only switches to interactable state if the currently looked-at slot is filled (selected slot index maps to a valid inventory item). World interactable raycast feedback is bypassed during open state. When inventory is closed, existing world interactable reticle behavior remains unchanged.
+- Behavior: When inventory is open, the reticle only switches to interactable state if the reticle is over the inventory grid and the currently looked-at slot is filled (selected slot index maps to a valid inventory item). Looking off the inventory returns the reticle to normal. World interactable raycast feedback is bypassed during open state. When inventory is closed, existing world interactable reticle behavior remains unchanged.

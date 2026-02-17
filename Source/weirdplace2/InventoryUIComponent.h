@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
 
+	// True when the center reticle ray is currently over the inventory grid bounds
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
+	bool IsReticleOverGrid() const { return bReticleOverGrid; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -93,6 +97,9 @@ private:
 
 	// Currently selected grid index
 	int32 SelectedIndex = 0;
+
+	// Whether reticle is currently over any inventory slot area
+	bool bReticleOverGrid = false;
 
 	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
 	FVector StoredUIPosition;
