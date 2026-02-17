@@ -6,6 +6,8 @@
 #include "Interactable.h"
 #include "Seneca.h"
 #include "InventoryUI.h"
+#include "Inventory.h"
+#include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgDialogue.h"
@@ -74,14 +76,34 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Update crosshair based on what we're looking at
+	// Update crosshair based on context:
+	// - Inventory open: only react to filled inventory slots.
+	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		AActor* HitActor = nullptr;
-		bool bDidHitInteractable = false;
-		RaycastInteractableCheck(HitActor, bDidHitInteractable);
+		bool bShouldShowInteractable = false;
 
-		if (bDidHitInteractable)
+		if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+		{
+			if (InventoryUIComp->IsInventoryOpen())
+			{
+				if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+				{
+					const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+					const TArray<FName> Items = InventoryComp->GetItems();
+					bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+				}
+			}
+			else
+			{
+				AActor* HitActor = nullptr;
+				bool bDidHitInteractable = false;
+				RaycastInteractableCheck(HitActor, bDidHitInteractable);
+				bShouldShowInteractable = bDidHitInteractable;
+			}
+		}
+
+		if (bShouldShowInteractable)
 		{
 			CrosshairWidget->ShowInteractableCrosshair();
 		}

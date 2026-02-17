@@ -65,3 +65,8 @@ Feature: Inventory UI Slot/Background Material Separation
 - Key files: Source/weirdplace2/InventoryUIActor.h/.cpp; Content/Blueprints/BP_Inventory.
 - Behavior: Empty slots now use a dedicated `SlotMaterial` property on `AInventoryUIActor` (with fallback to `/Game/Materials/M_SolidColor`, then engine default). Background continues to use `BackgroundPanel`'s assigned material. Slots no longer receive opacity animation writes and remain fully opaque during open/close.
 - Configuration: In `BP_Inventory`, assign `SlotMaterial` to any solid material/instance you want for empty slots; keep `BackgroundPanel` material separate for the panel look.
+
+Feature: Inventory-Scoped Reticle Targeting
+- Purpose: Prevent reticle feedback from reacting to world objects while inventory is open.
+- Key files: Source/weirdplace2/FirstPersonCharacter.cpp; Source/weirdplace2/InventoryUIComponent.h/.cpp; Source/weirdplace2/Inventory.h/.cpp.
+- Behavior: When inventory is open, the reticle only switches to interactable state if the currently looked-at slot is filled (selected slot index maps to a valid inventory item). World interactable raycast feedback is bypassed during open state. When inventory is closed, existing world interactable reticle behavior remains unchanged.
