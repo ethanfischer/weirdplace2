@@ -57,7 +57,7 @@ Feature: Held Item Display
 - Purpose: Show the active/selected item in the player's view (as if held in hand).
 - Key files: Source/weirdplace2/HeldItemComponent.h/.cpp; Source/weirdplace2/MyCharacter.h/.cpp.
 - Behavior: When an active item is set and inventory closes, the held item mesh appears attached to the camera. Uses stored FInventoryItemData (mesh, materials, scale) from inventory. Hidden while inventory is open.
-- Configuration (on HeldItemComponent): HeldItemOffset (default 30, 25, 40); HeldItemRotation (default -45° pitch).
+- Configuration (on HeldItemComponent): `HeldItemOffset` default is `(50, 35, -25)` and `HeldItemRotation` default is `(roll 0, pitch 45, yaw 180)`; values remain BP-overridable.
 - VR note: Currently attaches to camera; TODO: attach to motion controller hand in VR mode.
 
 Feature: Inventory UI Slot/Background Material Separation
@@ -65,6 +65,7 @@ Feature: Inventory UI Slot/Background Material Separation
 - Key files: Source/weirdplace2/InventoryUIActor.h/.cpp; Content/Blueprints/BP_Inventory.
 - Behavior: Empty slots now use a dedicated `SlotMaterial` property on `AInventoryUIActor` (with fallback to `/Game/Materials/M_SolidColor`, then engine default). Background continues to use `BackgroundPanel`'s assigned material. Slots no longer receive opacity animation writes and remain fully opaque during open/close.
 - Configuration: In `BP_Inventory`, assign `SlotMaterial` to any solid material/instance you want for empty slots; keep `BackgroundPanel` material separate for the panel look.
+- Active item labels: The active item name now appears in both bottom and top labels on the inventory panel and both update together from `SetActiveItem`.
 
 Feature: Inventory-Scoped Reticle Targeting
 - Purpose: Prevent reticle feedback from reacting to world objects while inventory is open.

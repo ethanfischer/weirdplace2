@@ -58,6 +58,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UTextRenderComponent* ItemNameText;
 
+	// Text component for item name (top label)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UTextRenderComponent* ItemNameTextTop;
+
 	// Text component for item counter (e.g., "3/12")
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UTextRenderComponent* ItemCounterText;

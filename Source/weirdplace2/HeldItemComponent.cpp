@@ -121,12 +121,22 @@ void UHeldItemComponent::CreateHeldItemMesh()
 	}
 	HeldItemMesh->RegisterComponent();
 
-	// Set position offset (scale comes from item data)
-	HeldItemMesh->SetRelativeLocation(HeldItemOffset);
-	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
+	// Set locked held-item pose (scale comes from item data)
+	ApplyHeldItemPose();
 
 	// Start hidden until an item is selected
 	HeldItemMesh->SetVisibility(false);
+}
+
+void UHeldItemComponent::ApplyHeldItemPose()
+{
+	if (!HeldItemMesh)
+	{
+		return;
+	}
+
+	HeldItemMesh->SetRelativeLocation(HeldItemOffset);
+	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
 }
 
 void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)

@@ -38,11 +38,11 @@ protected:
 	// Offset from character root (Forward, Right, Up) - diegetic positioning
 	// Positioned as if held in right hand at chest/hip level
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FVector HeldItemOffset = FVector(30.0f, 25.0f, 40.0f);
+	FVector HeldItemOffset = FVector(50.0f, 35.0f, -25.0f);
 
-	// Rotation offset for held item (tilted to face up toward player)
+	// Rotation offset for held item
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Held Item|Position")
-	FRotator HeldItemRotation = FRotator(-45.0f, 0.0f, 0.0f);
+	FRotator HeldItemRotation = FRotator(45.0f, 180.0f, 0.0f);
 
 
 private:
@@ -73,6 +73,9 @@ private:
 
 	// Create the held item mesh component
 	void CreateHeldItemMesh();
+
+	// Apply current pose values to the held item mesh if valid
+	void ApplyHeldItemPose();
 
 	// Callback when active item changes in inventory
 	UFUNCTION()

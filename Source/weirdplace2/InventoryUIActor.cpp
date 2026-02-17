@@ -44,6 +44,16 @@ AInventoryUIActor::AInventoryUIActor()
 	ItemNameText->SetVerticalAlignment(EVRTA_TextCenter);
 	ItemNameText->SetText(FText::GetEmpty());
 
+	// Create top item name text (same content as bottom label)
+	ItemNameTextTop = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemNameTextTop"));
+	ItemNameTextTop->SetupAttachment(RootSceneComponent);
+	ItemNameTextTop->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	ItemNameTextTop->SetWorldSize(3.0f);
+	ItemNameTextTop->SetTextRenderColor(FColor::White);
+	ItemNameTextTop->SetHorizontalAlignment(EHTA_Left);
+	ItemNameTextTop->SetVerticalAlignment(EVRTA_TextCenter);
+	ItemNameTextTop->SetText(FText::GetEmpty());
+
 	// Create item counter text
 	ItemCounterText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemCounterText"));
 	ItemCounterText->SetupAttachment(RootSceneComponent);
@@ -167,6 +177,13 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		FColor TextColor = FColor::White;
 		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
 		ItemNameText->SetTextRenderColor(TextColor);
+	}
+
+	if (ItemNameTextTop)
+	{
+		FColor TextColor = FColor::White;
+		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
+		ItemNameTextTop->SetTextRenderColor(TextColor);
 	}
 
 	if (ItemCounterText)
@@ -430,20 +447,23 @@ void AInventoryUIActor::UpdateSelectionHighlight()
 
 void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 {
-	// Update text
+	FText ActiveItemText = FText::FromString(TEXT("No Item Selected"));
+	if (!ItemID.IsNone())
+	{
+		FString ItemName = ItemID.ToString();
+		ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
+		ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
+		ActiveItemText = FText::FromString(ItemName);
+	}
+
+	// Update both bottom and top labels
 	if (ItemNameText)
 	{
-		if (ItemID.IsNone())
-		{
-			ItemNameText->SetText(FText::FromString(TEXT("No Item Selected")));
-		}
-		else
-		{
-			FString ItemName = ItemID.ToString();
-			ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
-			ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
-			ItemNameText->SetText(FText::FromString(ItemName));
-		}
+		ItemNameText->SetText(ActiveItemText);
+	}
+	if (ItemNameTextTop)
+	{
+		ItemNameTextTop->SetText(ActiveItemText);
 	}
 
 	// Update active item border
@@ -492,7 +512,7 @@ void AInventoryUIActor::UpdateBackgroundSize()
 
 	// Add padding
 	float TotalWidth = GridW + BackgroundPadding * 2.0f;
-	float TotalHeight = GridH + BackgroundPadding * 2.0f + 8.0f; // Extra space for text at bottom
+	float TotalHeight = GridH + BackgroundPadding * 2.0f + 16.0f; // Extra space for text at top and bottom
 
 	// Scale background (plane is 100x100 units by default)
 	BackgroundPanel->SetRelativeScale3D(FVector(TotalHeight * 0.01f, TotalWidth * 0.01f, 1.0f));
@@ -504,6 +524,12 @@ void AInventoryUIActor::UpdateBackgroundSize()
 	if (ItemNameText)
 	{
 		ItemNameText->SetRelativeLocation(FVector(0.0f, TextY, TextZ));
+	}
+
+	if (ItemNameTextTop)
+	{
+		const float TopTextZ = GridH * 0.5f + BackgroundPadding + 2.0f;
+		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, TextY, TopTextZ));
 	}
 
 	if (ItemCounterText)
