@@ -94,9 +94,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
 
+	// Material used by selection highlight (recommended: a solid-color MI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* SelectionHighlightMaterial = nullptr;
+
 	// Active item border color (confirmed selection)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor ActiveItemColor = FLinearColor(0.0f, 1.0f, 0.5f, 1.0f);
+
+	// Material used by active item border (recommended: a solid-color MI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* ActiveItemBorderMaterial = nullptr;
 
 	// Hover scale multiplier (how much larger the hovered slot becomes)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")

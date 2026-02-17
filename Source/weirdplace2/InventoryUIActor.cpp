@@ -225,6 +225,7 @@ void AInventoryUIActor::CreateSlots()
 			{
 				SlotMat->SetVectorParameterValue(FName("Color"), EmptySlotColor);
 				SlotMat->SetVectorParameterValue(FName("BaseColor"), EmptySlotColor);
+				SlotMat->SetVectorParameterValue(FName("EmissiveColor"), EmptySlotColor);
 				SlotMesh->SetMaterial(0, SlotMat);
 			}
 		}
@@ -247,24 +248,14 @@ void AInventoryUIActor::CreateSlots()
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		// Use M_SolidColor (created by Python script) which has proper Color parameter
-		UMaterialInterface* SolidColorMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
-		if (!SolidColorMat)
+		if (SelectionHighlightMaterial)
 		{
-			SolidColorMat = BaseMat; // Fallback
-			UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: M_SolidColor not found, run: py \"Content/Python/create_solid_color_material.py\""));
+			SelectionHighlight->SetMaterial(0, SelectionHighlightMaterial);
+			SelectionMaterial = nullptr;
 		}
-
-		if (SolidColorMat)
+		else
 		{
-			SelectionMaterial = UMaterialInstanceDynamic::Create(SolidColorMat, this);
-			if (SelectionMaterial)
-			{
-				SelectionMaterial->SetVectorParameterValue(FName("Color"), SelectionColor);
-				SelectionHighlight->SetMaterial(0, SelectionMaterial);
-				UE_LOG(LogTemp, Warning, TEXT("SelectionHighlight: Applied color (%.2f, %.2f, %.2f)"),
-					SelectionColor.R, SelectionColor.G, SelectionColor.B);
-			}
+			UE_LOG(LogTemp, Error, TEXT("SelectionHighlightMaterial is not assigned on InventoryUIActor/BP_Inventory."));
 		}
 	}
 
@@ -283,28 +274,14 @@ void AInventoryUIActor::CreateSlots()
 		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
 		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		// Use M_SolidColor (created by Python script) which has proper Color parameter
-		UMaterialInterface* SolidColorMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
-		if (!SolidColorMat)
+		if (ActiveItemBorderMaterial)
 		{
-			SolidColorMat = BaseMat; // Fallback
-			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: M_SolidColor not found, run: py \"Content/Python/create_solid_color_material.py\""));
-		}
-
-		if (SolidColorMat)
-		{
-			ActiveItemMaterial = UMaterialInstanceDynamic::Create(SolidColorMat, this);
-			if (ActiveItemMaterial)
-			{
-				ActiveItemMaterial->SetVectorParameterValue(FName("Color"), ActiveItemColor);
-				ActiveItemBorder->SetMaterial(0, ActiveItemMaterial);
-				UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder: Applied color (%.2f, %.2f, %.2f)"),
-					ActiveItemColor.R, ActiveItemColor.G, ActiveItemColor.B);
-			}
+			ActiveItemBorder->SetMaterial(0, ActiveItemBorderMaterial);
+			ActiveItemMaterial = nullptr;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("ActiveItemBorder: No material available!"));
+			UE_LOG(LogTemp, Error, TEXT("ActiveItemBorderMaterial is not assigned on InventoryUIActor/BP_Inventory."));
 		}
 
 		// Start hidden until an item is selected
@@ -640,19 +617,13 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		PreviousSelectedIndex = -1; // Clear after resetting
 	}
 
-	// Pulse the selection highlight
-	if (SelectionHighlight && SelectionMaterial)
+	// Pulse the selection highlight scale
+	if (SelectionHighlight)
 	{
 		// Scale the highlight with hover + pulse
 		float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
 		float HighlightWidth = ThumbnailSize * HighlightScale;
 		float HighlightHeight = ThumbnailSize * 1.4f * HighlightScale;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
-
-		// Pulse the color brightness
-		float ColorIntensity = 1.0f + PulseValue * SelectionPulseIntensity;
-		FLinearColor PulsedColor = SelectionColor * ColorIntensity;
-		PulsedColor.A = SelectionColor.A * CurrentOpacity;
-		SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), PulsedColor);
 	}
 }
