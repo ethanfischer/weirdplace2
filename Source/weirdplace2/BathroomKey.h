@@ -2,19 +2,19 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "PickupKey.generated.h"
+#include "BathroomKey.generated.h"
 
 class USphereComponent;
 class UStaticMeshComponent;
 class USoundBase;
 
 UCLASS()
-class WEIRDPLACE2_API APickupKey : public AActor
+class WEIRDPLACE2_API ABathroomKey : public AActor
 {
 	GENERATED_BODY()
 
 public:
-	APickupKey();
+	ABathroomKey();
 
 protected:
 	virtual void BeginPlay() override;

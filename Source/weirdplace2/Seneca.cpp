@@ -10,6 +10,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgDialogue.h"
 #include "DlgSystem/DlgContext.h"
+#include "Engine/StaticMesh.h"
 
 ASeneca::ASeneca()
 {
@@ -181,8 +182,26 @@ void ASeneca::GiveKey()
 		return;
 	}
 
-	Inventory->AddItem(KeyToGive);
-	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyToGive.ToString());
+	if (!KeyMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::GiveKey - KeyMesh is not set, cannot give key with visual data"));
+		return;
+	}
+
+	// Build inventory item data with key visuals
+	FInventoryItemData ItemData;
+	ItemData.ItemID = KeyToGive;
+	ItemData.Mesh = KeyMesh;
+	ItemData.Scale = KeyScale;
+
+	// Copy materials from the mesh's default materials
+	for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
+	{
+		ItemData.Materials.Add(KeyMesh->GetMaterial(i));
+	}
+
+	Inventory->AddItemWithData(ItemData);
+	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player with visual data"), *KeyToGive.ToString());
 }
 
 bool ASeneca::ModifyFloatValue_Implementation(FName ValueName, bool bDelta, float Value)

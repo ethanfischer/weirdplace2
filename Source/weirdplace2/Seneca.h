@@ -11,6 +11,7 @@ class USphereComponent;
 class UWidgetComponent;
 class UDlgDialogue;
 class UDlgContext;
+class UStaticMesh;
 
 UCLASS()
 class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant
@@ -78,6 +79,14 @@ protected:
 	// Key name given to player via "GiveKey" dialogue event
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	FName KeyToGive = FName("Key");
+
+	// Static mesh for the key (used for inventory visual data)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	UStaticMesh* KeyMesh;
+
+	// Scale override for the key in inventory/held view
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	FVector KeyScale = FVector(0.001f, 0.001f, 0.001f);
 
 	// Called directly via DlgSystem "UnrealFunction" event type
 	UFUNCTION(BlueprintCallable, Category = "Seneca|Key")
