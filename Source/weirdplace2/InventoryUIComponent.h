@@ -87,6 +87,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	int32 GridRows = 3;
 
+	// Sound to play when opening the inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuOpenSound;
+
 private:
 	// Current state
 	UPROPERTY()

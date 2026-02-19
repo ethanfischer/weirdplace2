@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 UInventoryUIComponent::UInventoryUIComponent()
 {
@@ -120,6 +121,12 @@ void UInventoryUIComponent::OpenInventoryUI()
 	if (CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening)
 	{
 		return;
+	}
+
+	// Play menu open sound
+	if (MenuOpenSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuOpenSound);
 	}
 
 	// Store initial camera position/rotation for the UI
