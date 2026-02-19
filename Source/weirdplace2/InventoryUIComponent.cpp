@@ -238,6 +238,12 @@ void UInventoryUIComponent::ConfirmSelection()
 			FName SelectedItem = Items[SelectedIndex];
 			InventoryComponent->SetActiveItem(SelectedItem);
 
+			// Play item selected sound
+			if (MenuItemSelectedSound)
+			{
+				UGameplayStatics::PlaySound2D(this, MenuItemSelectedSound);
+			}
+
 			// Update the UI to show the confirmed item name and border
 			if (InventoryUIActor)
 			{

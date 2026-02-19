@@ -95,6 +95,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
 	USoundBase* MenuCloseSound;
 
+	// Sound to play when selecting an item
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuItemSelectedSound;
+
 private:
 	// Current state
 	UPROPERTY()
