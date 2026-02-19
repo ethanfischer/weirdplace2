@@ -71,7 +71,10 @@ Python scripts in `Content/Python/` drive material generation:
 1. `optimize_vhs_textures.py` - Caps textures at 512px, enables streaming
 2. `create_vhs_material_instances.py` - Generates MIs from textures
 
-Run in UE Output Log: `py "Content/Python/optimize_vhs_textures.py"`
+Run in UE Output Log (use absolute path - relative paths resolve from engine binaries):
+```
+py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
+```
 
 ### Input Bindings (DefaultInput.ini)
 
@@ -120,5 +123,7 @@ On macOS 26 with Xcode 26.x, edit `Engine/Config/Apple/Apple_SDK.json` and chang
 - Key files/classes
 - High-level behavior and configuration options
 
-We modified and used nodetocode to convert blueprints to c++. Modifications are here:
-https://github.com/protospatial/NodeToCode/pull/14
+
+# Misc
+- We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
+- This is gonna be a VR game. Implement features diagetically (no screenspace UI)

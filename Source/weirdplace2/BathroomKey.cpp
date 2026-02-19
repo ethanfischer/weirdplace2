@@ -1,4 +1,4 @@
-#include "PickupKey.h"
+#include "BathroomKey.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "Components/SphereComponent.h"
@@ -6,7 +6,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 
-APickupKey::APickupKey()
+ABathroomKey::ABathroomKey()
 {
 	PrimaryActorTick.bCanEverTick = false;
 
@@ -23,12 +23,12 @@ APickupKey::APickupKey()
 	KeyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
-void APickupKey::BeginPlay()
+void ABathroomKey::BeginPlay()
 {
 	Super::BeginPlay();
 }
 
-void APickupKey::NotifyActorBeginOverlap(AActor* OtherActor)
+void ABathroomKey::NotifyActorBeginOverlap(AActor* OtherActor)
 {
 	Super::NotifyActorBeginOverlap(OtherActor);
 
@@ -43,17 +43,19 @@ void APickupKey::NotifyActorBeginOverlap(AActor* OtherActor)
 	UInventoryComponent* Inventory = Character->GetInventoryComponent();
 	if (!Inventory)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s': Character missing InventoryComponent. Cannot add key."), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("BathroomKey '%s': Character missing InventoryComponent. Cannot add key."), *GetName());
 		return;
 	}
 
 	if (KeyName == NAME_None)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("PickupKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("BathroomKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
 		return;
 	}
 
-	Inventory->AddItem(KeyName);
+	// Add item with visual data captured from the mesh
+	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(KeyName, KeyMesh);
+	Inventory->AddItemWithData(ItemData);
 
 	// Play pickup sound
 	if (PickupSound)

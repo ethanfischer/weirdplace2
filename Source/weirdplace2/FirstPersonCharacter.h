@@ -13,6 +13,7 @@ class UDlgContext;
 class UWidgetComponent;
 class UInputAction;
 class UInputMappingContext;
+class URectLightComponent;
 
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API AFirstPersonCharacter : public AMyCharacter
@@ -31,6 +32,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
 	UCameraComponent* FirstPersonCamera;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
+	URectLightComponent* InventoryFlashlightComponent;
 
 	// --- Crosshair Widget ---
 
@@ -100,6 +104,15 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
+
+	UFUNCTION(BlueprintCallable, Category = "Lighting")
+	void SetInventoryFlashlightEnabled(bool bEnabled);
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Lighting")
+	bool IsInventoryFlashlightEnabled() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Lighting")
+	void SetInventoryFlashlightSize(float Width, float Height);
 
 	// --- Dialogue System ---
 

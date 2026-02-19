@@ -7,6 +7,7 @@
 class UInventoryComponent;
 class UStaticMeshComponent;
 class UTextRenderComponent;
+class UMaterialInterface;
 
 UCLASS()
 class WEIRDPLACE2_API AInventoryUIActor : public AActor
@@ -38,6 +39,9 @@ public:
 	// Set opacity (for animation)
 	void SetOpacity(float Opacity);
 
+	// Set the active (confirmed) item to display at bottom and show border
+	void SetActiveItem(const FName& ItemID, int32 ItemIndex);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
@@ -53,6 +57,10 @@ protected:
 	// Text component for item name
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UTextRenderComponent* ItemNameText;
+
+	// Text component for item name (top label)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UTextRenderComponent* ItemNameTextTop;
 
 	// Text component for item counter (e.g., "3/12")
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
@@ -82,9 +90,25 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor EmptySlotBorderColor = FLinearColor(0.3f, 0.3f, 0.35f, 0.8f);
 
-	// Selection highlight color
+	// Material used by empty slots (separate from background material)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* SlotMaterial = nullptr;
+
+	// Selection highlight color (hover)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
 	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+
+	// Material used by selection highlight (recommended: a solid-color MI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* SelectionHighlightMaterial = nullptr;
+
+	// Active item border color (confirmed selection)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	FLinearColor ActiveItemColor = FLinearColor(0.0f, 1.0f, 0.5f, 1.0f);
+
+	// Material used by active item border (recommended: a solid-color MI)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
+	UMaterialInterface* ActiveItemBorderMaterial = nullptr;
 
 	// Hover scale multiplier (how much larger the hovered slot becomes)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
@@ -126,9 +150,16 @@ private:
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> ThumbnailMeshes;
 
-	// Selection highlight mesh
+	// Selection highlight mesh (hover)
 	UPROPERTY()
 	UStaticMeshComponent* SelectionHighlight;
+
+	// Active item border mesh (confirmed selection)
+	UPROPERTY()
+	UStaticMeshComponent* ActiveItemBorder;
+
+	// Index of currently active item (-1 if none)
+	int32 ActiveItemIndex = -1;
 
 	// Cached plane mesh
 	UPROPERTY()
@@ -141,6 +172,10 @@ private:
 	// Dynamic material for selection highlight (for pulsing)
 	UPROPERTY()
 	UMaterialInstanceDynamic* SelectionMaterial;
+
+	// Dynamic material for active item border
+	UPROPERTY()
+	UMaterialInstanceDynamic* ActiveItemMaterial;
 
 	// Create the grid slots (empty slot visuals)
 	void CreateSlots();

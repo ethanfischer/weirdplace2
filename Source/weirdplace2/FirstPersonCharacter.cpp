@@ -1,16 +1,20 @@
 #include "FirstPersonCharacter.h"
 #include "Camera/CameraComponent.h"
+#include "Components/RectLightComponent.h"
 #include "Components/WidgetComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
 #include "Seneca.h"
 #include "InventoryUI.h"
+#include "Inventory.h"
+#include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgDialogue.h"
 #include "DlgSystem/DlgContext.h"
 #include "DlgSystem/DlgManager.h"
+#include "DlgSystem/DlgDialogueParticipant.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -30,6 +34,27 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Prefer a Blueprint-authored RectLight component (commonly named "RectLight")
+	// so designers can tune it directly in BP and have inventory logic use that light.
+	TArray<URectLightComponent*> RectLights;
+	GetComponents<URectLightComponent>(RectLights);
+	for (URectLightComponent* RectLight : RectLights)
+	{
+		if (!RectLight)
+		{
+			continue;
+		}
+
+		if (RectLight->GetFName() == TEXT("RectLight"))
+		{
+			InventoryFlashlightComponent = RectLight;
+			break;
+		}
+	}
+
+	// Ensure inventory light starts disabled at runtime.
+	SetInventoryFlashlightEnabled(false);
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -73,14 +98,37 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Update crosshair based on what we're looking at
+	// Update crosshair based on context:
+	// - Inventory open: only react to filled inventory slots.
+	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		AActor* HitActor = nullptr;
-		bool bDidHitInteractable = false;
-		RaycastInteractableCheck(HitActor, bDidHitInteractable);
+		bool bShouldShowInteractable = false;
 
-		if (bDidHitInteractable)
+		if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+		{
+			if (InventoryUIComp->IsInventoryOpen())
+			{
+				if (InventoryUIComp->IsReticleOverGrid())
+				{
+					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+					{
+						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+						const TArray<FName> Items = InventoryComp->GetItems();
+						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+					}
+				}
+			}
+			else
+			{
+				AActor* HitActor = nullptr;
+				bool bDidHitInteractable = false;
+				RaycastInteractableCheck(HitActor, bDidHitInteractable);
+				bShouldShowInteractable = bDidHitInteractable;
+			}
+		}
+
+		if (bShouldShowInteractable)
 		{
 			CrosshairWidget->ShowInteractableCrosshair();
 		}
@@ -208,6 +256,33 @@ void AFirstPersonCharacter::HandleShowInventoryCompleted()
 	bInventoryDoOnceCompleted = false;
 }
 
+void AFirstPersonCharacter::SetInventoryFlashlightEnabled(bool bEnabled)
+{
+	if (!InventoryFlashlightComponent)
+	{
+		return;
+	}
+
+	InventoryFlashlightComponent->SetVisibility(bEnabled);
+	InventoryFlashlightComponent->SetHiddenInGame(!bEnabled);
+}
+
+bool AFirstPersonCharacter::IsInventoryFlashlightEnabled() const
+{
+	return InventoryFlashlightComponent && InventoryFlashlightComponent->IsVisible();
+}
+
+void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height)
+{
+	if (!InventoryFlashlightComponent)
+	{
+		return;
+	}
+
+	InventoryFlashlightComponent->SetSourceWidth(FMath::Max(Width, 1.0f));
+	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
+}
+
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)
 {
 	OutHitActor = nullptr;
@@ -281,6 +356,17 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 		Participants.Add(NPC);
 		Participants.Add(PlayerPawn);
+
+		// Debug: Check if NPC implements dialogue participant interface
+		bool bImplementsInterface = NPC->GetClass()->ImplementsInterface(UDlgDialogueParticipant::StaticClass());
+		UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC '%s' implements IDlgDialogueParticipant: %s"),
+			*NPC->GetName(), bImplementsInterface ? TEXT("YES") : TEXT("NO"));
+
+		if (bImplementsInterface)
+		{
+			FName ParticipantName = IDlgDialogueParticipant::Execute_GetParticipantName(NPC);
+			UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC returns ParticipantName: '%s'"), *ParticipantName.ToString());
+		}
 
 		DialogueContext = UDlgManager::StartDialogue(Dialogue, Participants);
 

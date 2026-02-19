@@ -151,8 +151,8 @@ void AMovieBox::CollectInspectedSubitem()
 		}
 	}
 
-	// Add item to inventory using the unified FName-based system
-	MyCharacter->AddItemToInventory(FName(*CoverName));
+	// Add item to inventory with visual data captured from the envelope mesh
+	MyCharacter->AddItemToInventoryWithMesh(FName(*CoverName), EnvelopeMesh);
 
 	// Close inspection after collecting
 	StopInspection();

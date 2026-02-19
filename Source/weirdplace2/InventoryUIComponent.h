@@ -49,6 +49,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
 
+	// True when the center reticle ray is currently over the inventory grid bounds
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
+	bool IsReticleOverGrid() const { return bReticleOverGrid; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -83,6 +87,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	int32 GridRows = 3;
 
+	// Sound to play when opening the inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuOpenSound;
+
+	// Sound to play when closing the inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuCloseSound;
+
+	// Sound to play when selecting an item
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuItemSelectedSound;
+
 private:
 	// Current state
 	UPROPERTY()
@@ -93,6 +109,9 @@ private:
 
 	// Currently selected grid index
 	int32 SelectedIndex = 0;
+
+	// Whether reticle is currently over any inventory slot area
+	bool bReticleOverGrid = false;
 
 	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
 	FVector StoredUIPosition;

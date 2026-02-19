@@ -1,5 +1,6 @@
 #include "Inventory.h"
 #include "GameFramework/Actor.h"
+#include "Components/StaticMeshComponent.h"
 
 UInventoryComponent::UInventoryComponent() {
     PrimaryComponentTick.bCanEverTick = false;
@@ -9,6 +10,17 @@ void UInventoryComponent::BeginPlay() {
     Super::BeginPlay();
 }
 
+void UInventoryComponent::AddItemWithData(const FInventoryItemData& ItemData) {
+    if (ItemData.ItemID.IsNone()) {
+        UE_LOG(LogTemp, Warning, TEXT("AddItemWithData: Cannot add item with None ID"));
+        return;
+    }
+
+    Items.Add(ItemData.ItemID);
+    ItemDataMap.Add(ItemData.ItemID, ItemData);
+    OnInventoryChanged.Broadcast(Items);
+}
+
 void UInventoryComponent::AddItem(const FName& ItemID) {
     if (ItemID.IsNone()) {
         UE_LOG(LogTemp, Warning, TEXT("AddItem: Cannot add item with None ID"));
@@ -16,6 +28,10 @@ void UInventoryComponent::AddItem(const FName& ItemID) {
     }
 
     Items.Add(ItemID);
+    // No visual data for legacy AddItem - create empty entry
+    FInventoryItemData EmptyData;
+    EmptyData.ItemID = ItemID;
+    ItemDataMap.Add(ItemID, EmptyData);
     OnInventoryChanged.Broadcast(Items);
 }
 
@@ -23,6 +39,7 @@ bool UInventoryComponent::RemoveItem(const FName& ItemID) {
     int32 Index = Items.Find(ItemID);
     if (Index != INDEX_NONE) {
         Items.RemoveAt(Index);
+        ItemDataMap.Remove(ItemID);
 
         // Clear active item if it was the removed item
         if (ActiveItem == ItemID) {
@@ -42,6 +59,13 @@ bool UInventoryComponent::HasItem(const FName& ItemID) const {
 
 TArray<FName> UInventoryComponent::GetItems() const {
     return Items;
+}
+
+FInventoryItemData UInventoryComponent::GetItemData(const FName& ItemID) const {
+    if (const FInventoryItemData* Data = ItemDataMap.Find(ItemID)) {
+        return *Data;
+    }
+    return FInventoryItemData();
 }
 
 int32 UInventoryComponent::GetItemCount() const {
@@ -64,9 +88,32 @@ FName UInventoryComponent::GetActiveItem() const {
     return ActiveItem;
 }
 
+FInventoryItemData UInventoryComponent::GetActiveItemData() const {
+    return GetItemData(ActiveItem);
+}
+
 void UInventoryComponent::ClearActiveItem() {
     if (!ActiveItem.IsNone()) {
         ActiveItem = NAME_None;
         OnActiveItemChanged.Broadcast(ActiveItem);
     }
+}
+
+FInventoryItemData UInventoryComponent::CreateItemDataFromMeshComponent(const FName& ItemID, UStaticMeshComponent* MeshComponent) {
+    FInventoryItemData Data;
+    Data.ItemID = ItemID;
+
+    if (MeshComponent) {
+        Data.Mesh = MeshComponent->GetStaticMesh();
+        Data.Scale = MeshComponent->GetRelativeScale3D();
+        Data.Rotation = MeshComponent->GetRelativeRotation();
+
+        // Capture all materials
+        int32 NumMaterials = MeshComponent->GetNumMaterials();
+        for (int32 i = 0; i < NumMaterials; i++) {
+            Data.Materials.Add(MeshComponent->GetMaterial(i));
+        }
+    }
+
+    return Data;
 }

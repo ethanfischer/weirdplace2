@@ -5,6 +5,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "UObject/ConstructorHelpers.h"
 
 AInventoryUIActor::AInventoryUIActor()
@@ -43,6 +44,16 @@ AInventoryUIActor::AInventoryUIActor()
 	ItemNameText->SetVerticalAlignment(EVRTA_TextCenter);
 	ItemNameText->SetText(FText::GetEmpty());
 
+	// Create top item name text (same content as bottom label)
+	ItemNameTextTop = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemNameTextTop"));
+	ItemNameTextTop->SetupAttachment(RootSceneComponent);
+	ItemNameTextTop->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	ItemNameTextTop->SetWorldSize(3.0f);
+	ItemNameTextTop->SetTextRenderColor(FColor::White);
+	ItemNameTextTop->SetHorizontalAlignment(EHTA_Left);
+	ItemNameTextTop->SetVerticalAlignment(EVRTA_TextCenter);
+	ItemNameTextTop->SetText(FText::GetEmpty());
+
 	// Create item counter text
 	ItemCounterText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemCounterText"));
 	ItemCounterText->SetupAttachment(RootSceneComponent);
@@ -58,16 +69,18 @@ void AInventoryUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Create dynamic material for background
-	UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
-	if (BaseMat && BackgroundPanel)
+	// Create dynamic material instance from the material set on BackgroundPanel in Blueprint
+	if (BackgroundPanel)
 	{
-		BackgroundMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
-		if (BackgroundMaterial)
+		UMaterialInterface* BaseMat = BackgroundPanel->GetMaterial(0);
+		if (!BaseMat)
 		{
-			BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), BackgroundColor);
-			BackgroundPanel->SetMaterial(0, BackgroundMaterial);
+			UE_LOG(LogTemp, Error, TEXT("InventoryUIActor: BackgroundPanel has no material set. Set a material in the Blueprint."));
+			return;
 		}
+
+		BackgroundMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
+		BackgroundPanel->SetMaterial(0, BackgroundMaterial);
 	}
 }
 
@@ -127,18 +140,7 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), AdjustedColor);
 	}
 
-	// Update slot meshes opacity
-	for (UStaticMeshComponent* Mesh : SlotMeshes)
-	{
-		if (Mesh)
-		{
-			UMaterialInstanceDynamic* DynMat = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
-			if (DynMat)
-			{
-				DynMat->SetScalarParameterValue(FName("Opacity"), Opacity);
-			}
-		}
-	}
+	// Slots intentionally remain solid/opaque and do not fade with animation.
 
 	// Update thumbnail meshes opacity
 	for (UStaticMeshComponent* Mesh : ThumbnailMeshes)
@@ -163,12 +165,25 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		}
 	}
 
+	// Update active item border opacity
+	if (ActiveItemBorder && ActiveItemMaterial)
+	{
+		ActiveItemMaterial->SetScalarParameterValue(FName("Opacity"), Opacity);
+	}
+
 	// Update text opacity
 	if (ItemNameText)
 	{
 		FColor TextColor = FColor::White;
 		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
 		ItemNameText->SetTextRenderColor(TextColor);
+	}
+
+	if (ItemNameTextTop)
+	{
+		FColor TextColor = FColor::White;
+		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
+		ItemNameTextTop->SetTextRenderColor(TextColor);
 	}
 
 	if (ItemCounterText)
@@ -184,7 +199,20 @@ void AInventoryUIActor::CreateSlots()
 	if (!PlaneMesh) return;
 
 	int32 TotalSlots = GetTotalSlots();
-	UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+	UMaterialInterface* BaseMat = SlotMaterial;
+	if (!BaseMat)
+	{
+		BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
+		if (BaseMat)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: SlotMaterial not assigned. Falling back to /Game/Materials/M_SolidColor."));
+		}
+	}
+	if (!BaseMat)
+	{
+		BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+		UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: M_SolidColor missing. Falling back to engine DefaultMaterial for slots."));
+	}
 
 	for (int32 i = 0; i < TotalSlots; i++)
 	{
@@ -212,7 +240,9 @@ void AInventoryUIActor::CreateSlots()
 			UMaterialInstanceDynamic* SlotMat = UMaterialInstanceDynamic::Create(BaseMat, this);
 			if (SlotMat)
 			{
+				SlotMat->SetVectorParameterValue(FName("Color"), EmptySlotColor);
 				SlotMat->SetVectorParameterValue(FName("BaseColor"), EmptySlotColor);
+				SlotMat->SetVectorParameterValue(FName("EmissiveColor"), EmptySlotColor);
 				SlotMesh->SetMaterial(0, SlotMat);
 			}
 		}
@@ -235,15 +265,44 @@ void AInventoryUIActor::CreateSlots()
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
-		if (BaseMat)
+		if (SelectionHighlightMaterial)
 		{
-			SelectionMaterial = UMaterialInstanceDynamic::Create(BaseMat, this);
-			if (SelectionMaterial)
-			{
-				SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
-				SelectionHighlight->SetMaterial(0, SelectionMaterial);
-			}
+			SelectionHighlight->SetMaterial(0, SelectionHighlightMaterial);
+			SelectionMaterial = nullptr;
 		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("SelectionHighlightMaterial is not assigned on InventoryUIActor/BP_Inventory."));
+		}
+	}
+
+	// Create active item border (shows which item is confirmed/equipped)
+	if (!ActiveItemBorder)
+	{
+		ActiveItemBorder = NewObject<UStaticMeshComponent>(this);
+		ActiveItemBorder->SetStaticMesh(PlaneMesh);
+		ActiveItemBorder->SetupAttachment(RootSceneComponent);
+		ActiveItemBorder->RegisterComponent();
+		ActiveItemBorder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		// Larger than thumbnail to create a visible border frame
+		float BorderWidth = ThumbnailSize * 1.2f;
+		float BorderHeight = ThumbnailSize * 1.4f * 1.2f;
+		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
+		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
+
+		if (ActiveItemBorderMaterial)
+		{
+			ActiveItemBorder->SetMaterial(0, ActiveItemBorderMaterial);
+			ActiveItemMaterial = nullptr;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("ActiveItemBorderMaterial is not assigned on InventoryUIActor/BP_Inventory."));
+		}
+
+		// Start hidden until an item is selected
+		ActiveItemBorder->SetVisibility(false);
 	}
 
 	// Reset hover animation state
@@ -267,6 +326,14 @@ void AInventoryUIActor::ClearSlots()
 		SelectionHighlight->DestroyComponent();
 		SelectionHighlight = nullptr;
 	}
+
+	if (ActiveItemBorder)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ClearSlots: Destroying ActiveItemBorder"));
+		ActiveItemBorder->DestroyComponent();
+		ActiveItemBorder = nullptr;
+		ActiveItemMaterial = nullptr; // Clear the material reference too
+	}
 }
 
 void AInventoryUIActor::CreateThumbnails()
@@ -274,6 +341,13 @@ void AInventoryUIActor::CreateThumbnails()
 	if (!InventoryComponent || !PlaneMesh) return;
 
 	TArray<FName> Items = InventoryComponent->GetItems();
+
+	// Load the front-face material (shows only front portion of VHS cover texture)
+	UMaterialInterface* FrontFaceMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_VHSCoverFront.M_VHSCoverFront"));
+	if (!FrontFaceMaterial)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("M_VHSCoverFront not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_vhs_front_material.py\""));
+	}
 
 	// Create thumbnail for each collected item
 	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
@@ -296,32 +370,49 @@ void AInventoryUIActor::CreateThumbnails()
 		float Height = ThumbnailSize * 1.4f;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
-		// Try to load cover material
-		FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemID.ToString());
-		UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+		// Try to load the VHS cover texture directly and use front-face material
+		FString TexturePath = FString::Printf(TEXT("/Game/VHSCovers/%s"), *ItemID.ToString());
+		UTexture2D* CoverTexture = LoadObject<UTexture2D>(nullptr, *TexturePath);
 
-		if (CoverMaterial)
+		if (CoverTexture && FrontFaceMaterial)
 		{
-			Thumbnail->SetMaterial(0, CoverMaterial);
+			// Create dynamic material instance showing only front face
+			UMaterialInstanceDynamic* FrontFaceMat = UMaterialInstanceDynamic::Create(FrontFaceMaterial, this);
+			if (FrontFaceMat)
+			{
+				FrontFaceMat->SetTextureParameterValue(FName("CoverTexture"), CoverTexture);
+				Thumbnail->SetMaterial(0, FrontFaceMat);
+			}
 		}
 		else
 		{
-			// Create a placeholder colored material
-			UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
-			UMaterialInstanceDynamic* PlaceholderMat = UMaterialInstanceDynamic::Create(BaseMat, this);
-			if (PlaceholderMat)
+			// Fallback: try to load full cover material (shows all faces)
+			FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ItemID.ToString());
+			UMaterialInterface* CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
+
+			if (CoverMaterial)
 			{
-				// Hash the item name to get a unique color
-				uint32 Hash = GetTypeHash(ItemID);
-				float R = ((Hash >> 0) & 0xFF) / 255.0f;
-				float G = ((Hash >> 8) & 0xFF) / 255.0f;
-				float B = ((Hash >> 16) & 0xFF) / 255.0f;
-				// Ensure minimum brightness
-				R = FMath::Max(R, 0.2f);
-				G = FMath::Max(G, 0.2f);
-				B = FMath::Max(B, 0.2f);
-				PlaceholderMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(R, G, B, 1.0f));
-				Thumbnail->SetMaterial(0, PlaceholderMat);
+				Thumbnail->SetMaterial(0, CoverMaterial);
+			}
+			else
+			{
+				// Create a placeholder colored material
+				UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));
+				UMaterialInstanceDynamic* PlaceholderMat = UMaterialInstanceDynamic::Create(BaseMat, this);
+				if (PlaceholderMat)
+				{
+					// Hash the item name to get a unique color
+					uint32 Hash = GetTypeHash(ItemID);
+					float R = ((Hash >> 0) & 0xFF) / 255.0f;
+					float G = ((Hash >> 8) & 0xFF) / 255.0f;
+					float B = ((Hash >> 16) & 0xFF) / 255.0f;
+					// Ensure minimum brightness
+					R = FMath::Max(R, 0.2f);
+					G = FMath::Max(G, 0.2f);
+					B = FMath::Max(B, 0.2f);
+					PlaceholderMat->SetVectorParameterValue(FName("BaseColor"), FLinearColor(R, G, B, 1.0f));
+					Thumbnail->SetMaterial(0, PlaceholderMat);
+				}
 			}
 		}
 
@@ -351,27 +442,64 @@ void AInventoryUIActor::UpdateSelectionHighlight()
 	SelectionHighlight->SetRelativeLocation(Position);
 	SelectionHighlight->SetVisibility(true);
 
-	// Update item name text
+	// Note: Item name text is now updated via SetActiveItemName when user confirms selection
+}
+
+void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
+{
+	FText ActiveItemText = FText::FromString(TEXT("No Item Selected"));
+	if (!ItemID.IsNone())
+	{
+		FString ItemName = ItemID.ToString();
+		ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
+		ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
+		ActiveItemText = FText::FromString(ItemName);
+	}
+
+	// Update both bottom and top labels
 	if (ItemNameText)
 	{
-		if (InventoryComponent)
+		ItemNameText->SetText(ActiveItemText);
+	}
+	if (ItemNameTextTop)
+	{
+		ItemNameTextTop->SetText(ActiveItemText);
+	}
+
+	// Update active item border
+	ActiveItemIndex = ItemIndex;
+	if (ActiveItemBorder)
+	{
+		if (ItemID.IsNone() || ItemIndex < 0)
 		{
-			TArray<FName> Items = InventoryComponent->GetItems();
-			if (Items.IsValidIndex(SelectedIndex))
-			{
-				FString ItemName = Items[SelectedIndex].ToString();
-				ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
-				ItemNameText->SetText(FText::FromString(ItemName));
-			}
-			else
-			{
-				ItemNameText->SetText(FText::FromString(TEXT("Empty Slot")));
-			}
+			ActiveItemBorder->SetVisibility(false);
+			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item)"));
 		}
 		else
 		{
-			ItemNameText->SetText(FText::FromString(TEXT("Empty Slot")));
+			FVector Position = CalculateSlotPosition(ItemIndex);
+			Position.X += 0.1f; // Slightly behind thumbnail so it frames it
+			ActiveItemBorder->SetRelativeLocation(Position);
+			ActiveItemBorder->SetVisibility(true);
+
+			// Debug: verify material state when showing
+			UMaterialInterface* CurrentMat = ActiveItemBorder->GetMaterial(0);
+			UE_LOG(LogTemp, Warning, TEXT("ActiveItemBorder shown at index %d, pos %s, CurrentMaterial=%s, ActiveItemMaterial=%s"),
+				ItemIndex, *Position.ToString(),
+				CurrentMat ? *CurrentMat->GetName() : TEXT("NULL"),
+				ActiveItemMaterial ? *ActiveItemMaterial->GetName() : TEXT("NULL (member)"));
+
+			// Re-apply material if it was lost
+			if (!CurrentMat && ActiveItemMaterial)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Re-applying ActiveItemMaterial!"));
+				ActiveItemBorder->SetMaterial(0, ActiveItemMaterial);
+			}
 		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ActiveItemBorder is NULL!"));
 	}
 }
 
@@ -384,7 +512,7 @@ void AInventoryUIActor::UpdateBackgroundSize()
 
 	// Add padding
 	float TotalWidth = GridW + BackgroundPadding * 2.0f;
-	float TotalHeight = GridH + BackgroundPadding * 2.0f + 8.0f; // Extra space for text at bottom
+	float TotalHeight = GridH + BackgroundPadding * 2.0f + 16.0f; // Extra space for text at top and bottom
 
 	// Scale background (plane is 100x100 units by default)
 	BackgroundPanel->SetRelativeScale3D(FVector(TotalHeight * 0.01f, TotalWidth * 0.01f, 1.0f));
@@ -396,6 +524,12 @@ void AInventoryUIActor::UpdateBackgroundSize()
 	if (ItemNameText)
 	{
 		ItemNameText->SetRelativeLocation(FVector(0.0f, TextY, TextZ));
+	}
+
+	if (ItemNameTextTop)
+	{
+		const float TopTextZ = GridH * 0.5f + BackgroundPadding + 2.0f;
+		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, TextY, TopTextZ));
 	}
 
 	if (ItemCounterText)
@@ -509,19 +643,13 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		PreviousSelectedIndex = -1; // Clear after resetting
 	}
 
-	// Pulse the selection highlight
-	if (SelectionHighlight && SelectionMaterial)
+	// Pulse the selection highlight scale
+	if (SelectionHighlight)
 	{
 		// Scale the highlight with hover + pulse
 		float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
 		float HighlightWidth = ThumbnailSize * HighlightScale;
 		float HighlightHeight = ThumbnailSize * 1.4f * HighlightScale;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
-
-		// Pulse the color brightness
-		float ColorIntensity = 1.0f + PulseValue * SelectionPulseIntensity;
-		FLinearColor PulsedColor = SelectionColor * ColorIntensity;
-		PulsedColor.A = SelectionColor.A * CurrentOpacity;
-		SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), PulsedColor);
 	}
 }

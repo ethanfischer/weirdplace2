@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "HeldItemComponent.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -13,6 +14,9 @@ AMyCharacter::AMyCharacter()
 
 	// Create and attach the inventory UI component
 	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
+
+	// Create and attach the held item component
+	HeldItemComponent = CreateDefaultSubobject<UHeldItemComponent>(TEXT("HeldItemComponent"));
 }
 
 void AMyCharacter::BeginPlay()
@@ -59,5 +63,18 @@ void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("AddItemToInventory: InventoryComponent is null!"));
+	}
+}
+
+void AMyCharacter::AddItemToInventoryWithMesh(const FName& ItemID, UStaticMeshComponent* MeshComponent)
+{
+	if (InventoryComponent)
+	{
+		FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(ItemID, MeshComponent);
+		InventoryComponent->AddItemWithData(ItemData);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddItemToInventoryWithMesh: InventoryComponent is null!"));
 	}
 }

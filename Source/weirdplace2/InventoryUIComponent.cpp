@@ -1,11 +1,13 @@
 #include "InventoryUIComponent.h"
 #include "InventoryUIActor.h"
 #include "Inventory.h"
+#include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
 
 UInventoryUIComponent::UInventoryUIComponent()
 {
@@ -55,6 +57,11 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EInventoryUIState::Open;
+
+			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+			{
+				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
+			}
 		}
 		UpdateInventoryPosition();
 		break;
@@ -73,6 +80,11 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
 			{
 				MyCharacter->SetCanInteract(true);
+			}
+
+			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+			{
+				FirstPersonCharacter->SetInventoryFlashlightEnabled(false);
 			}
 		}
 		else
@@ -111,6 +123,12 @@ void UInventoryUIComponent::OpenInventoryUI()
 		return;
 	}
 
+	// Play menu open sound
+	if (MenuOpenSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuOpenSound);
+	}
+
 	// Store initial camera position/rotation for the UI
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (PC)
@@ -133,8 +151,18 @@ void UInventoryUIComponent::OpenInventoryUI()
 		SpawnInventoryUIActor();
 	}
 
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		const float ThumbnailSize = 8.0f;
+		const float ThumbnailSpacing = 2.0f;
+		const float GridWidth = GridColumns * ThumbnailSize + (GridColumns - 1) * ThumbnailSpacing;
+		const float GridHeight = GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
+	}
+
 	// Reset selection to first slot
 	SelectedIndex = 0;
+	bReticleOverGrid = true;
 
 	CurrentState = EInventoryUIState::Opening;
 	FreezePlayerMovement();
@@ -146,11 +174,24 @@ void UInventoryUIComponent::OpenInventoryUI()
 		MyCharacter->SetCanInteract(false);
 	}
 
-	// Update UI with current selection
+	// Update UI with current selection and active item
 	if (InventoryUIActor)
 	{
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
 		InventoryUIActor->RefreshDisplay();
+
+		// Show current active item and border (if any)
+		if (InventoryComponent)
+		{
+			FName ActiveItem = InventoryComponent->GetActiveItem();
+			int32 ActiveIndex = -1;
+			if (!ActiveItem.IsNone())
+			{
+				TArray<FName> Items = InventoryComponent->GetItems();
+				ActiveIndex = Items.IndexOfByKey(ActiveItem);
+			}
+			InventoryUIActor->SetActiveItem(ActiveItem, ActiveIndex);
+		}
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Opening Inventory UI"));
@@ -163,7 +204,19 @@ void UInventoryUIComponent::CloseInventoryUI()
 		return;
 	}
 
+	// Play menu close sound
+	if (MenuCloseSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+	}
+
 	CurrentState = EInventoryUIState::Closing;
+	bReticleOverGrid = false;
+
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		FirstPersonCharacter->SetInventoryFlashlightEnabled(false);
+	}
 
 	UE_LOG(LogTemp, Log, TEXT("Closing Inventory UI"));
 }
@@ -184,8 +237,20 @@ void UInventoryUIComponent::ConfirmSelection()
 		{
 			FName SelectedItem = Items[SelectedIndex];
 			InventoryComponent->SetActiveItem(SelectedItem);
+
+			// Play item selected sound
+			if (MenuItemSelectedSound)
+			{
+				UGameplayStatics::PlaySound2D(this, MenuItemSelectedSound);
+			}
+
+			// Update the UI to show the confirmed item name and border
+			if (InventoryUIActor)
+			{
+				InventoryUIActor->SetActiveItem(SelectedItem, SelectedIndex);
+			}
+
 			UE_LOG(LogTemp, Log, TEXT("Confirmed selection: %s"), *SelectedItem.ToString());
-			// TODO: Add visual/audio feedback for selection
 		}
 		else
 		{
@@ -312,6 +377,7 @@ void UInventoryUIComponent::UnfreezePlayerMovement()
 void UInventoryUIComponent::UpdateReticleSelection()
 {
 	int32 NewIndex = CalculateSlotFromReticle();
+	bReticleOverGrid = (NewIndex >= 0);
 
 	if (NewIndex != SelectedIndex && NewIndex >= 0)
 	{
@@ -325,10 +391,10 @@ void UInventoryUIComponent::UpdateReticleSelection()
 
 int32 UInventoryUIComponent::CalculateSlotFromReticle() const
 {
-	if (!InventoryUIActor) return SelectedIndex;
+	if (!InventoryUIActor) return -1;
 
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC) return SelectedIndex;
+	if (!PC) return -1;
 
 	FVector CameraLocation;
 	FRotator CameraRotation;
@@ -352,14 +418,14 @@ int32 UInventoryUIComponent::CalculateSlotFromReticle() const
 	if (FMath::Abs(Denom) < 0.0001f)
 	{
 		// Ray is parallel to plane
-		return SelectedIndex;
+		return -1;
 	}
 
 	float T = FVector::DotProduct(UILocation - CameraLocation, UIForward) / Denom;
 	if (T < 0)
 	{
 		// Intersection is behind camera
-		return SelectedIndex;
+		return -1;
 	}
 
 	// Point where look ray hits the UI plane
@@ -383,6 +449,16 @@ int32 UInventoryUIComponent::CalculateSlotFromReticle() const
 	// Grid is centered, so offset by half
 	float GridY = LocalY + GridWidth * 0.5f;
 	float GridZ = -LocalZ + GridHeight * 0.5f;  // Flip Z because grid row 0 is at top
+
+	// If reticle is outside grid bounds (including half-slot padding), treat as off-inventory.
+	const float MinY = -0.5f * SlotWidth;
+	const float MaxY = GridWidth + 0.5f * SlotWidth;
+	const float MinZ = -0.5f * SlotHeight;
+	const float MaxZ = GridHeight + 0.5f * SlotHeight;
+	if (GridY < MinY || GridY > MaxY || GridZ < MinZ || GridZ > MaxZ)
+	{
+		return -1;
+	}
 
 	// Calculate column and row
 	int32 Col = FMath::FloorToInt(GridY / SlotWidth + 0.5f);
