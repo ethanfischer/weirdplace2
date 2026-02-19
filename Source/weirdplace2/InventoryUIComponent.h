@@ -91,6 +91,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
 	USoundBase* MenuOpenSound;
 
+	// Sound to play when closing the inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* MenuCloseSound;
+
 private:
 	// Current state
 	UPROPERTY()

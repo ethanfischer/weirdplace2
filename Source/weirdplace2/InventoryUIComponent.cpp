@@ -204,6 +204,12 @@ void UInventoryUIComponent::CloseInventoryUI()
 		return;
 	}
 
+	// Play menu close sound
+	if (MenuCloseSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+	}
+
 	CurrentState = EInventoryUIState::Closing;
 	bReticleOverGrid = false;
 
