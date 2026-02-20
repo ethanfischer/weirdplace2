@@ -154,4 +154,7 @@ private:
 
 	// Clamp selected index to valid range
 	void ClampSelectedIndex();
+
+	// Dirty flag - true when inventory changed and UI needs refresh
+	bool bInventoryNeedsRefresh = true;
 };
