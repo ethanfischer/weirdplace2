@@ -9,10 +9,20 @@
 class USkeletalMeshComponent;
 class USphereComponent;
 class UWidgetComponent;
-class UDlgDialogue;
 class UDlgContext;
 class UStaticMesh;
 class ADoor;
+
+UENUM(BlueprintType)
+enum class ESenecaState : uint8
+{
+	WaitingForMovies,       // "Buy 3 movies first"
+	ReadyToGiveKey,         // "Nice picks, here's the key"
+	GaveKey,                // "Go use the bathroom outside"
+	Smoking,                // "Door's busted, use employee bathroom"
+	AtEmployeeBathroom,     // "Here you go" + unlocks door
+	Done                    // No more dialogue
+};
 
 UCLASS()
 class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant
@@ -49,6 +59,18 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
 
+	// --- Quest State ---
+
+	// Called by OutsideBathroomDoor when the key is dropped
+	void OnKeyDropped();
+
+	// Called by FirstPersonCharacter when dialogue with Seneca ends
+	void OnDialogueEnded();
+
+	// Current quest state (read-only in editor for debugging)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
+	ESenecaState CurrentState = ESenecaState::WaitingForMovies;
+
 protected:
 	// Sphere overlap callbacks
 	UFUNCTION()
@@ -67,17 +89,30 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
 	USphereComponent* TriggerSphere;
 
-	// --- Properties ---
+	// --- Dialogue per state (txt file paths relative to Content/) ---
 
-	// Dialogue asset to start when player enters sphere
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
-	UDlgDialogue* Dialogue;
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviesDialoguePath = TEXT("Dialogue/WaitingForMovies.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString ReadyToGiveKeyDialoguePath = TEXT("Dialogue/ReadyToGiveKey.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString GaveKeyDialoguePath = TEXT("Dialogue/GaveKey.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString SmokingDialoguePath = TEXT("Dialogue/Smoking.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString EmployeeBathroomDialoguePath = TEXT("Dialogue/EmployeeBathroom.txt");
 
 	// Radius of the dialogue trigger sphere
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
 	float DialogueTriggerRadius = 200.0f;
 
-	// Key name given to player via "GiveKey" dialogue event
+	// --- Key ---
+
+	// Key name given to player
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	FName KeyToGive = FName("Key");
 
@@ -89,39 +124,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	FVector KeyScale = FVector(0.001f, 0.001f, 0.001f);
 
-	// Called directly via DlgSystem "UnrealFunction" event type
-	UFUNCTION(BlueprintCallable, Category = "Seneca|Key")
-	void GiveKey();
-
-public:
-	// --- Quest State ---
-
-	// Called by OutsideBathroomDoor when the key is dropped
-	void OnKeyDropped();
-
-	// Teleport Seneca to the smoking position and switch dialogue
-	void MoveToSmokingPosition();
-
-	// Teleport Seneca to the employee bathroom position and switch dialogue
-	void MoveToEmployeeBathroomPosition();
-
-	// Unlock the employee bathroom door
-	void UnlockEmployeeBathroomDoor();
-
-protected:
-	// --- Quest State Storage ---
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
-	TMap<FName, bool> BoolValues;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
-	TMap<FName, int32> IntValues;
+	// --- Quest Config ---
 
 	// Number of movies required before Seneca gives the key
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
 	int32 RequiredMovieCount = 3;
 
-	// --- Position Targets ---
+	// --- Position Targets (assign on level instance, these are level actor refs) ---
 
 	// Empty actor placed at the smoking spot outside
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
@@ -131,30 +140,32 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
 	AActor* EmployeeBathroomPositionTarget;
 
-	// --- Door Reference ---
+	// --- Door Reference (assign on level instance) ---
 
-	// The employee bathroom door (starts locked, unlocked via dialogue)
+	// The employee bathroom door (starts locked, unlocked by Seneca)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Door")
 	ADoor* EmployeeBathroomDoor;
 
-	// --- Additional Dialogues ---
-
-	// Dialogue used when Seneca is at the smoking spot
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
-	UDlgDialogue* SmokingDialogue;
-
-	// Dialogue used when Seneca is at the employee bathroom
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
-	UDlgDialogue* EmployeeBathroomDialogue;
-
 private:
-	// Delegate listener for inventory changes
-	UFUNCTION()
-	void OnInventoryChanged(const TArray<FName>& CurrentItems);
+	// Gives the key to the player
+	void GiveKey();
 
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);
 
-	// Update MovieCount from player inventory
-	void UpdateMovieCount();
+	// Returns the loaded dialogue lines for the current state
+	const TArray<FText>* GetDialogueLinesForCurrentState() const;
+
+	// Check if player has enough movies and update state accordingly
+	void CheckMovieCount();
+
+	// Loaded dialogue lines per state
+	TMap<ESenecaState, TArray<FText>> DialogueLines;
+
+	// Helper to load a single dialogue file
+	void LoadDialogueFile(ESenecaState State, const FString& RelativePath);
+
+	// Delegate listener for inventory changes
+	UFUNCTION()
+	void OnInventoryChanged(const TArray<FName>& CurrentItems);
 };

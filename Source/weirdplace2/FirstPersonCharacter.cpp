@@ -207,6 +207,20 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	bInteractDoOnceCompleted = true;
 
+	// If in dialogue, advance it instead of raycasting
+	if (IsInDialogue)
+	{
+		if (bIsSimpleDialogue)
+		{
+			AdvanceSimpleDialogue();
+		}
+		else
+		{
+			SelectDialogueOption(0);
+		}
+		return;
+	}
+
 	// Check if we can interact
 	if (!GetCanInteract())
 	{
@@ -346,6 +360,8 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 		}
 	}
 
+	CurrentDialogueNPC = NPC;
+
 	if (IsInDialogue)
 	{
 		SelectDialogueOption(0);
@@ -414,5 +430,75 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		{
 			UI_Dialogue->Close();
 		}
+
+		// Notify the NPC that dialogue ended
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
+	}
+}
+
+void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC)
+{
+	if (Lines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartSimpleDialogue - No lines to display"));
+		return;
+	}
+
+	// Get UI_Dialogue from NPC's widget component
+	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	{
+		if (Seneca->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+
+	SimpleDialogueLines = Lines;
+	SimpleDialogueLineIndex = 0;
+	SimpleDialogueSpeaker = SpeakerName;
+	bIsSimpleDialogue = true;
+	IsInDialogue = true;
+	CurrentDialogueNPC = NPC;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
+	}
+}
+
+void AFirstPersonCharacter::AdvanceSimpleDialogue()
+{
+	SimpleDialogueLineIndex++;
+
+	if (SimpleDialogueLineIndex < SimpleDialogueLines.Num())
+	{
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->UpdateWithText(SimpleDialogueSpeaker, SimpleDialogueLines[SimpleDialogueLineIndex]);
+		}
+	}
+	else
+	{
+		// Dialogue exhausted
+		IsInDialogue = false;
+		bIsSimpleDialogue = false;
+		SimpleDialogueLines.Empty();
+		SimpleDialogueLineIndex = 0;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
 	}
 }

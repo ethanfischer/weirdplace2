@@ -3,15 +3,15 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "BPFL_Utilities.h"
+#include "Door.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "DlgSystem/DlgDialogue.h"
 #include "DlgSystem/DlgContext.h"
 #include "Engine/StaticMesh.h"
-#include "Door.h"
+#include "Misc/FileHelper.h"
 
 ASeneca::ASeneca()
 {
@@ -40,175 +40,177 @@ void ASeneca::BeginPlay()
 		}
 	}
 
-	// Initialize quest state
-	BoolValues.Add(FName("GaveKey"), false);
-	BoolValues.Add(FName("KeyDropped"), false);
-	IntValues.Add(FName("MovieCount"), 0);
-
-	// Bind to player inventory changes
+	// Listen for inventory changes to auto-advance WaitingForMovies → ReadyToGiveKey
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
 	{
 		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
 		{
 			Inventory->OnInventoryChanged.AddDynamic(this, &ASeneca::OnInventoryChanged);
-			UpdateMovieCount();
 		}
 	}
 
 	if (TriggerSphere)
 	{
-		// Update sphere radius in case it was changed in editor
 		TriggerSphere->SetSphereRadius(DialogueTriggerRadius);
-
-		// Bind overlap events
 		TriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ASeneca::OnSphereBeginOverlap);
 		TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
 	}
+
+	// Load dialogue text files
+	LoadDialogueFile(ESenecaState::WaitingForMovies, WaitingForMoviesDialoguePath);
+	LoadDialogueFile(ESenecaState::ReadyToGiveKey, ReadyToGiveKeyDialoguePath);
+	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
+	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
+	LoadDialogueFile(ESenecaState::AtEmployeeBathroom, EmployeeBathroomDialoguePath);
 }
+
+// --- State Machine ---
+
+const TArray<FText>* ASeneca::GetDialogueLinesForCurrentState() const
+{
+	return DialogueLines.Find(CurrentState);
+}
+
+void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
+{
+	FString FullPath = FPaths::ProjectContentDir() / RelativePath;
+	TArray<FString> Lines;
+	if (FFileHelper::LoadFileToStringArray(Lines, *FullPath))
+	{
+		TArray<FText>& TextLines = DialogueLines.Add(State);
+		for (const FString& Line : Lines)
+		{
+			if (!Line.IsEmpty())
+			{
+				TextLines.Add(FText::FromString(Line));
+			}
+		}
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Loaded %d lines from %s"), TextLines.Num(), *FullPath);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load dialogue file: %s"), *FullPath);
+	}
+}
+
+void ASeneca::CheckMovieCount()
+{
+	if (CurrentState != ESenecaState::WaitingForMovies)
+	{
+		return;
+	}
+
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
+	{
+		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
+		{
+			if (Inventory->GetItemCount() >= RequiredMovieCount)
+			{
+				CurrentState = ESenecaState::ReadyToGiveKey;
+				UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> ReadyToGiveKey (player has %d items)"), Inventory->GetItemCount());
+			}
+		}
+	}
+}
+
+void ASeneca::OnInventoryChanged(const TArray<FName>& CurrentItems)
+{
+	CheckMovieCount();
+}
+
+void ASeneca::OnDialogueEnded()
+{
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnDialogueEnded - CurrentState: %d"), static_cast<int32>(CurrentState));
+
+	switch (CurrentState)
+	{
+	case ESenecaState::ReadyToGiveKey:
+		GiveKey();
+		CurrentState = ESenecaState::GaveKey;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: ReadyToGiveKey -> GaveKey"));
+		break;
+
+	case ESenecaState::Smoking:
+		// Move to employee bathroom and unlock the door
+		MoveToTarget(EmployeeBathroomPositionTarget);
+		if (EmployeeBathroomDoor)
+		{
+			EmployeeBathroomDoor->SetLocked(false);
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
+		}
+		CurrentState = ESenecaState::AtEmployeeBathroom;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
+		break;
+
+	case ESenecaState::AtEmployeeBathroom:
+		CurrentState = ESenecaState::Done;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: AtEmployeeBathroom -> Done"));
+		break;
+
+	default:
+		break;
+	}
+}
+
+void ASeneca::OnKeyDropped()
+{
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Moving to smoking position"));
+	MoveToTarget(SmokingPositionTarget);
+	CurrentState = ESenecaState::Smoking;
+	UE_LOG(LogTemp, Log, TEXT("Seneca - State: -> Smoking"));
+}
+
+// --- Interaction ---
 
 void ASeneca::Interact_Implementation()
 {
-	// Start dialogue when interacted with
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Seneca::Interact - No dialogue for state %d"), static_cast<int32>(CurrentState));
+		return;
+	}
 
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
 	{
-		if (Dialogue)
-		{
-			FPCharacter->StartDialogueWithNPC(Dialogue, this);
-		}
+		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 	}
 }
 
 void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	// Set look-at behavior (applies to any actor)
 	if (BodyMesh)
 	{
 		UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
 	}
 
-	// Start dialogue only if OtherActor is the player
 	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(OtherActor);
-	if (FPCharacter && Dialogue)
+	if (!FPCharacter)
 	{
-		FPCharacter->StartDialogueWithNPC(Dialogue, this);
+		return;
+	}
+
+	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
+	if (Lines && Lines->Num() > 0)
+	{
+		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 	}
 }
 
 void ASeneca::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	// Stop look-at behavior
 	if (BodyMesh)
 	{
 		UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, BodyMesh);
 	}
 }
 
-// --- IDlgDialogueParticipant Implementation ---
-
-FName ASeneca::GetParticipantName_Implementation() const
-{
-	return FName("Seneca");
-}
-
-FText ASeneca::GetParticipantDisplayName_Implementation(FName ActiveSpeaker) const
-{
-	return FText::FromString("Seneca");
-}
-
-ETextGender ASeneca::GetParticipantGender_Implementation() const
-{
-	return ETextGender::Masculine;
-}
-
-UTexture2D* ASeneca::GetParticipantIcon_Implementation(FName ActiveSpeaker, FName ActiveSpeakerState) const
-{
-	return nullptr;
-}
-
-bool ASeneca::CheckCondition_Implementation(const UDlgContext* Context, FName ConditionName) const
-{
-	if (ConditionName == FName("HasEnoughMovies"))
-	{
-		const int32* MovieCount = IntValues.Find(FName("MovieCount"));
-		return MovieCount && *MovieCount >= RequiredMovieCount;
-	}
-
-	if (ConditionName == FName("HasKey"))
-	{
-		ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-		if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-		{
-			if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
-			{
-				return Inventory->HasItem(KeyToGive);
-			}
-		}
-		return false;
-	}
-
-	// Fallback: check BoolValues map
-	const bool* Value = BoolValues.Find(ConditionName);
-	return Value && *Value;
-}
-
-float ASeneca::GetFloatValue_Implementation(FName ValueName) const
-{
-	return 0.0f;
-}
-
-int32 ASeneca::GetIntValue_Implementation(FName ValueName) const
-{
-	const int32* Value = IntValues.Find(ValueName);
-	return Value ? *Value : 0;
-}
-
-bool ASeneca::GetBoolValue_Implementation(FName ValueName) const
-{
-	const bool* Value = BoolValues.Find(ValueName);
-	return Value && *Value;
-}
-
-FName ASeneca::GetNameValue_Implementation(FName ValueName) const
-{
-	return NAME_None;
-}
-
-bool ASeneca::OnDialogueEvent_Implementation(UDlgContext* Context, FName EventName)
-{
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnDialogueEvent - EventName: '%s'"), *EventName.ToString());
-
-	if (EventName == FName("GiveKey"))
-	{
-		GiveKey();
-		BoolValues.Add(FName("GaveKey"), true);
-		return true;
-	}
-
-	if (EventName == FName("MoveToSmoking"))
-	{
-		MoveToSmokingPosition();
-		return true;
-	}
-
-	if (EventName == FName("MoveToEmployeeBathroom"))
-	{
-		MoveToEmployeeBathroomPosition();
-		return true;
-	}
-
-	if (EventName == FName("UnlockEmployeeDoor"))
-	{
-		UnlockEmployeeBathroomDoor();
-		return true;
-	}
-
-	return false;
-}
+// --- Key ---
 
 void ASeneca::GiveKey()
 {
@@ -243,103 +245,25 @@ void ASeneca::GiveKey()
 
 	if (!KeyMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::GiveKey - KeyMesh is not set, cannot give key with visual data"));
+		UE_LOG(LogTemp, Error, TEXT("Seneca::GiveKey - KeyMesh is not set"));
 		return;
 	}
 
-	// Build inventory item data with key visuals
 	FInventoryItemData ItemData;
 	ItemData.ItemID = KeyToGive;
 	ItemData.Mesh = KeyMesh;
 	ItemData.Scale = KeyScale;
 
-	// Copy materials from the mesh's default materials
 	for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
 	{
 		ItemData.Materials.Add(KeyMesh->GetMaterial(i));
 	}
 
 	Inventory->AddItemWithData(ItemData);
-	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player with visual data"), *KeyToGive.ToString());
+	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyToGive.ToString());
 }
 
-bool ASeneca::ModifyFloatValue_Implementation(FName ValueName, bool bDelta, float Value)
-{
-	return false;
-}
-
-bool ASeneca::ModifyIntValue_Implementation(FName ValueName, bool bDelta, int32 Value)
-{
-	if (bDelta)
-	{
-		int32& Current = IntValues.FindOrAdd(ValueName, 0);
-		Current += Value;
-	}
-	else
-	{
-		IntValues.Add(ValueName, Value);
-	}
-	return true;
-}
-
-bool ASeneca::ModifyBoolValue_Implementation(FName ValueName, bool bNewValue)
-{
-	BoolValues.Add(ValueName, bNewValue);
-	return true;
-}
-
-bool ASeneca::ModifyNameValue_Implementation(FName ValueName, FName NameValue)
-{
-	return false;
-}
-
-// --- Quest State Methods ---
-
-void ASeneca::OnKeyDropped()
-{
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Key was dropped, moving to smoking position"));
-	BoolValues.Add(FName("KeyDropped"), true);
-	MoveToSmokingPosition();
-}
-
-void ASeneca::MoveToSmokingPosition()
-{
-	MoveToTarget(SmokingPositionTarget);
-	if (SmokingDialogue)
-	{
-		Dialogue = SmokingDialogue;
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::MoveToSmokingPosition - SmokingDialogue is not set"));
-	}
-}
-
-void ASeneca::MoveToEmployeeBathroomPosition()
-{
-	MoveToTarget(EmployeeBathroomPositionTarget);
-	if (EmployeeBathroomDialogue)
-	{
-		Dialogue = EmployeeBathroomDialogue;
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::MoveToEmployeeBathroomPosition - EmployeeBathroomDialogue is not set"));
-	}
-}
-
-void ASeneca::UnlockEmployeeBathroomDoor()
-{
-	if (EmployeeBathroomDoor)
-	{
-		EmployeeBathroomDoor->SetLocked(false);
-		UE_LOG(LogTemp, Log, TEXT("Seneca::UnlockEmployeeBathroomDoor - Employee bathroom door unlocked"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::UnlockEmployeeBathroomDoor - EmployeeBathroomDoor is not set"));
-	}
-}
+// --- Helpers ---
 
 void ASeneca::MoveToTarget(AActor* Target)
 {
@@ -354,19 +278,74 @@ void ASeneca::MoveToTarget(AActor* Target)
 	UE_LOG(LogTemp, Log, TEXT("Seneca::MoveToTarget - Moved to %s"), *Target->GetName());
 }
 
-void ASeneca::UpdateMovieCount()
+// --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---
+
+FName ASeneca::GetParticipantName_Implementation() const
 {
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-	{
-		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
-		{
-			IntValues.Add(FName("MovieCount"), Inventory->GetItemCount());
-		}
-	}
+	return FName("Seneca");
 }
 
-void ASeneca::OnInventoryChanged(const TArray<FName>& CurrentItems)
+FText ASeneca::GetParticipantDisplayName_Implementation(FName ActiveSpeaker) const
 {
-	UpdateMovieCount();
+	return FText::FromString("Seneca");
+}
+
+ETextGender ASeneca::GetParticipantGender_Implementation() const
+{
+	return ETextGender::Masculine;
+}
+
+UTexture2D* ASeneca::GetParticipantIcon_Implementation(FName ActiveSpeaker, FName ActiveSpeakerState) const
+{
+	return nullptr;
+}
+
+bool ASeneca::CheckCondition_Implementation(const UDlgContext* Context, FName ConditionName) const
+{
+	return false;
+}
+
+float ASeneca::GetFloatValue_Implementation(FName ValueName) const
+{
+	return 0.0f;
+}
+
+int32 ASeneca::GetIntValue_Implementation(FName ValueName) const
+{
+	return 0;
+}
+
+bool ASeneca::GetBoolValue_Implementation(FName ValueName) const
+{
+	return false;
+}
+
+FName ASeneca::GetNameValue_Implementation(FName ValueName) const
+{
+	return NAME_None;
+}
+
+bool ASeneca::OnDialogueEvent_Implementation(UDlgContext* Context, FName EventName)
+{
+	return false;
+}
+
+bool ASeneca::ModifyFloatValue_Implementation(FName ValueName, bool bDelta, float Value)
+{
+	return false;
+}
+
+bool ASeneca::ModifyIntValue_Implementation(FName ValueName, bool bDelta, int32 Value)
+{
+	return false;
+}
+
+bool ASeneca::ModifyBoolValue_Implementation(FName ValueName, bool bNewValue)
+{
+	return false;
+}
+
+bool ASeneca::ModifyNameValue_Implementation(FName ValueName, FName NameValue)
+{
+	return false;
 }

@@ -122,9 +122,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void SelectDialogueOption(int32 OptionIndex);
 
+	// Simple text-based dialogue (no DlgContext)
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC);
+
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void AdvanceSimpleDialogue();
+
 private:
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
+	// The NPC we're currently in dialogue with (for end-of-dialogue callbacks)
+	UPROPERTY()
+	UObject* CurrentDialogueNPC = nullptr;
+
+	// Simple dialogue state
+	TArray<FText> SimpleDialogueLines;
+	int32 SimpleDialogueLineIndex = 0;
+	FText SimpleDialogueSpeaker;
+	bool bIsSimpleDialogue = false;
 };

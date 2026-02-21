@@ -25,6 +25,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void Update(UDlgContext* InActiveContext);
 
+	// Show dialogue with raw text (no DlgContext needed)
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void OpenWithText(const FText& Speaker, const FText& DialogueLine);
+
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void UpdateWithText(const FText& Speaker, const FText& DialogueLine);
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
