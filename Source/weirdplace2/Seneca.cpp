@@ -142,6 +142,11 @@ void ASeneca::OnDialogueEnded()
 		break;
 
 	case ESenecaState::AtEmployeeBathroom:
+		if (EmployeeBathroomDoor)
+		{
+			EmployeeBathroomDoor->SetLocked(false);
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
+		}
 		CurrentState = ESenecaState::Done;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: AtEmployeeBathroom -> Done"));
 		break;
@@ -328,11 +333,6 @@ void ASeneca::Tick(float DeltaTime)
 		bWasLookingAtMe = false;
 		SetActorTickEnabled(false);
 
-		if (EmployeeBathroomDoor)
-		{
-			EmployeeBathroomDoor->SetLocked(false);
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
-		}
 		CurrentState = ESenecaState::AtEmployeeBathroom;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
 	}
