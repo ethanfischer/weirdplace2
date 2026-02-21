@@ -12,6 +12,7 @@ class UWidgetComponent;
 class UDlgDialogue;
 class UDlgContext;
 class UStaticMesh;
+class ADoor;
 
 UCLASS()
 class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant
@@ -91,4 +92,69 @@ protected:
 	// Called directly via DlgSystem "UnrealFunction" event type
 	UFUNCTION(BlueprintCallable, Category = "Seneca|Key")
 	void GiveKey();
+
+public:
+	// --- Quest State ---
+
+	// Called by OutsideBathroomDoor when the key is dropped
+	void OnKeyDropped();
+
+	// Teleport Seneca to the smoking position and switch dialogue
+	void MoveToSmokingPosition();
+
+	// Teleport Seneca to the employee bathroom position and switch dialogue
+	void MoveToEmployeeBathroomPosition();
+
+	// Unlock the employee bathroom door
+	void UnlockEmployeeBathroomDoor();
+
+protected:
+	// --- Quest State Storage ---
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
+	TMap<FName, bool> BoolValues;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
+	TMap<FName, int32> IntValues;
+
+	// Number of movies required before Seneca gives the key
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
+	int32 RequiredMovieCount = 3;
+
+	// --- Position Targets ---
+
+	// Empty actor placed at the smoking spot outside
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
+	AActor* SmokingPositionTarget;
+
+	// Empty actor placed at the employee bathroom
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
+	AActor* EmployeeBathroomPositionTarget;
+
+	// --- Door Reference ---
+
+	// The employee bathroom door (starts locked, unlocked via dialogue)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Door")
+	ADoor* EmployeeBathroomDoor;
+
+	// --- Additional Dialogues ---
+
+	// Dialogue used when Seneca is at the smoking spot
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
+	UDlgDialogue* SmokingDialogue;
+
+	// Dialogue used when Seneca is at the employee bathroom
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
+	UDlgDialogue* EmployeeBathroomDialogue;
+
+private:
+	// Delegate listener for inventory changes
+	UFUNCTION()
+	void OnInventoryChanged(const TArray<FName>& CurrentItems);
+
+	// Teleport Seneca to target actor's location/rotation
+	void MoveToTarget(AActor* Target);
+
+	// Update MovieCount from player inventory
+	void UpdateMovieCount();
 };

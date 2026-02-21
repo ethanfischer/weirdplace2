@@ -84,6 +84,13 @@ py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
 - `ToggleInventory` (Tab) - Toggle inventory room
 - `Turn Right / Left Mouse/Gamepad` - Rotate inspected actor
 
+## Editor Property Assignment
+
+When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `ASeneca*`):
+- **Level instance references** (pointing to actors placed in the level) must be assigned on the **level instance** in the viewport Details panel, NOT in the Blueprint class defaults. The Blueprint editor cannot see level-placed actors.
+- **Asset references** (pointing to meshes, materials, sounds, dialogue assets, classes) can be assigned in either the Blueprint class defaults or the level instance.
+- Always tell the user which properties need to be set on the **level instance** vs **Blueprint defaults**.
+
 ## Code Conventions
 
 - **Never name C++ classes with `BP_` or `BPI_` prefix** - those stand for Blueprint/BlueprintInterface
