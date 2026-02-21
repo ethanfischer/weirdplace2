@@ -231,6 +231,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	bool bDidHitInteractable = false;
 	RaycastInteractableCheck(HitActor, bDidHitInteractable);
 
+	UE_LOG(LogTemp, Warning, TEXT("HandleInteractTriggered - bDidHit=%d, HitActor=%s, Class=%s"),
+		bDidHitInteractable,
+		HitActor ? *HitActor->GetName() : TEXT("null"),
+		HitActor ? *HitActor->GetClass()->GetName() : TEXT("null"));
+
 	if (bDidHitInteractable && HitActor)
 	{
 		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))

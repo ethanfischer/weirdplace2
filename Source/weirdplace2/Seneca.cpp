@@ -15,7 +15,8 @@
 
 ASeneca::ASeneca()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	// Components are created in Blueprint to preserve MetaHuman setup
 }
 
@@ -133,15 +134,11 @@ void ASeneca::OnDialogueEnded()
 		break;
 
 	case ESenecaState::Smoking:
-		// Move to employee bathroom and unlock the door
-		MoveToTarget(EmployeeBathroomPositionTarget);
-		if (EmployeeBathroomDoor)
-		{
-			EmployeeBathroomDoor->SetLocked(false);
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
-		}
-		CurrentState = ESenecaState::AtEmployeeBathroom;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
+		// Defer move until player looks away
+		PendingMoveTarget = EmployeeBathroomPositionTarget;
+		bWasLookingAtMe = false;
+		SetActorTickEnabled(true);
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, waiting for player to look away"));
 		break;
 
 	case ESenecaState::AtEmployeeBathroom:
@@ -276,6 +273,72 @@ void ASeneca::MoveToTarget(AActor* Target)
 	SetActorLocation(Target->GetActorLocation());
 	SetActorRotation(Target->GetActorRotation());
 	UE_LOG(LogTemp, Log, TEXT("Seneca::MoveToTarget - Moved to %s"), *Target->GetName());
+}
+
+void ASeneca::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (!PendingMoveTarget)
+	{
+		return;
+	}
+
+	bool bLooking = IsPlayerLookingAtMe();
+
+	if (bLooking)
+	{
+		// Player is currently looking — track that they were
+		bWasLookingAtMe = true;
+	}
+	else if (bWasLookingAtMe)
+	{
+		// Player was looking and now turned away — move
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
+		MoveToTarget(PendingMoveTarget);
+		PendingMoveTarget = nullptr;
+		bWasLookingAtMe = false;
+		SetActorTickEnabled(false);
+
+		if (EmployeeBathroomDoor)
+		{
+			EmployeeBathroomDoor->SetLocked(false);
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
+		}
+		CurrentState = ESenecaState::AtEmployeeBathroom;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
+	}
+}
+
+bool ASeneca::IsPlayerLookingAtMe() const
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return false;
+	}
+
+	FVector CameraLoc;
+	FRotator CameraRot;
+	PC->GetPlayerViewPoint(CameraLoc, CameraRot);
+
+	// Use mesh center (chest height) instead of actor origin (feet)
+	FVector SenecaCenter;
+	if (BodyMesh)
+	{
+		SenecaCenter = BodyMesh->Bounds.Origin;
+	}
+	else
+	{
+		SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
+	}
+
+	FVector ToSeneca = (SenecaCenter - CameraLoc).GetSafeNormal();
+	FVector CameraForward = CameraRot.Vector();
+
+	float Dot = FVector::DotProduct(CameraForward, ToSeneca);
+	// ~60 degree half-angle cone
+	return Dot > 0.5f;
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---

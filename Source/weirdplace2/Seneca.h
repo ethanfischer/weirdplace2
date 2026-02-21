@@ -34,6 +34,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
 public:
 	// IInteractable implementation
@@ -168,4 +169,13 @@ private:
 	// Delegate listener for inventory changes
 	UFUNCTION()
 	void OnInventoryChanged(const TArray<FName>& CurrentItems);
+
+	// Returns true if the player camera is looking at Seneca
+	bool IsPlayerLookingAtMe() const;
+
+	// Deferred move: target to teleport to once player looks away
+	AActor* PendingMoveTarget = nullptr;
+
+	// Tracks that the player was looking at Seneca (requires look then look-away)
+	bool bWasLookingAtMe = false;
 };

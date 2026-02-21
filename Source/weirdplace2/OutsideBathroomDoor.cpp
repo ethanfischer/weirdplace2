@@ -13,54 +13,70 @@ AOutsideBathroomDoor::AOutsideBathroomDoor()
 
 void AOutsideBathroomDoor::Interact_Implementation()
 {
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor::Interact_Implementation CALLED. bDidDropKey=%d, IsLocked=%d"), bDidDropKey, IsLocked);
+
 	// If key was already dropped, behave as a normal locked door
 	if (bDidDropKey)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Key already dropped, falling through to Super"));
 		Super::Interact_Implementation();
 		return;
 	}
 
-	// Check if player has the key
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
 	if (!MyCharacter)
 	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - Could not get AMyCharacter"));
 		Super::Interact_Implementation();
 		return;
 	}
 
 	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-	if (!Inventory || !Inventory->HasItem(KeyToRemove))
+	if (!Inventory)
 	{
-		// Player doesn't have the key - standard locked behavior
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - No InventoryComponent on character"));
 		Super::Interact_Implementation();
+		return;
+	}
+
+	FName ActiveItem = Inventory->GetActiveItem();
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - ActiveItem='%s', KeyToRemove='%s', HasKey=%d"),
+		*ActiveItem.ToString(), *KeyToRemove.ToString(), Inventory->HasItem(KeyToRemove));
+
+	if (ActiveItem != KeyToRemove)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Active item does not match key, playing locked sound"));
+		if (LockedDoorSound)
+		{
+			UGameplayStatics::PlaySound2D(this, LockedDoorSound);
+		}
 		return;
 	}
 
 	// Scripted key drop event
 	Inventory->RemoveItem(KeyToRemove);
+	Inventory->ClearActiveItem();
 	bDidDropKey = true;
 
-	UE_LOG(LogTemp, Log, TEXT("OutsideBathroomDoor - Key '%s' dropped!"), *KeyToRemove.ToString());
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Key '%s' dropped!"), *KeyToRemove.ToString());
 
 	if (KeyDropSound)
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, KeyDropSound, GetActorLocation());
 	}
 
-	// Play locked door sound as feedback (door doesn't open)
 	if (LockedDoorSound)
 	{
 		UGameplayStatics::PlaySound2D(this, LockedDoorSound);
 	}
 
-	// Notify Seneca to move to smoking position
 	if (SenecaRef)
 	{
 		SenecaRef->OnKeyDropped();
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - SenecaRef is not set, cannot notify key drop"));
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - SenecaRef is NOT SET, cannot notify key drop"));
 	}
 }
