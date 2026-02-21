@@ -131,6 +131,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
 	int32 RequiredMovieCount = 3;
 
+	// Seconds after key drop before Seneca appears at smoking position
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
+	float SmokingAppearDelay = 60.0f;
+
 	// --- Position Targets (assign on level instance, these are level actor refs) ---
 
 	// Empty actor placed at the smoking spot outside
@@ -170,6 +174,9 @@ private:
 	UFUNCTION()
 	void OnInventoryChanged(const TArray<FName>& CurrentItems);
 
+	// Returns true if the player camera is facing the given world position
+	bool IsPlayerLookingAt(const FVector& Position) const;
+
 	// Returns true if the player camera is looking at Seneca
 	bool IsPlayerLookingAtMe() const;
 
@@ -178,4 +185,13 @@ private:
 
 	// Tracks that the player was looking at Seneca (requires look then look-away)
 	bool bWasLookingAtMe = false;
+
+	// Timer for delayed appearance at smoking position
+	FTimerHandle SmokingAppearTimerHandle;
+
+	// True while waiting for player to look away so Seneca can appear
+	bool bWaitingToAppear = false;
+
+	// Called when the smoking appear delay expires
+	void OnSmokingDelayComplete();
 };

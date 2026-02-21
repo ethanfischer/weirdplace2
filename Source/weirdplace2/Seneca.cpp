@@ -153,10 +153,21 @@ void ASeneca::OnDialogueEnded()
 
 void ASeneca::OnKeyDropped()
 {
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Moving to smoking position"));
-	MoveToTarget(SmokingPositionTarget);
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Hiding, will appear at smoking position in %.0f seconds"), SmokingAppearDelay);
+	SetActorHiddenInGame(true);
+	if (TriggerSphere)
+	{
+		TriggerSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
 	CurrentState = ESenecaState::Smoking;
-	UE_LOG(LogTemp, Log, TEXT("Seneca - State: -> Smoking"));
+	GetWorldTimerManager().SetTimer(SmokingAppearTimerHandle, this, &ASeneca::OnSmokingDelayComplete, SmokingAppearDelay, false);
+}
+
+void ASeneca::OnSmokingDelayComplete()
+{
+	UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking delay complete, waiting for player to look away from smoking spot"));
+	bWaitingToAppear = true;
+	SetActorTickEnabled(true);
 }
 
 // --- Interaction ---
@@ -279,6 +290,25 @@ void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Waiting to appear at smoking position — teleport when player isn't looking at that spot
+	if (bWaitingToAppear && SmokingPositionTarget)
+	{
+		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
+		{
+			MoveToTarget(SmokingPositionTarget);
+			SetActorHiddenInGame(false);
+			if (TriggerSphere)
+			{
+				TriggerSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+			}
+			bWaitingToAppear = false;
+			SetActorTickEnabled(false);
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
+		}
+		return;
+	}
+
+	// Waiting for player to look away so Seneca can teleport to employee bathroom
 	if (!PendingMoveTarget)
 	{
 		return;
@@ -288,12 +318,10 @@ void ASeneca::Tick(float DeltaTime)
 
 	if (bLooking)
 	{
-		// Player is currently looking — track that they were
 		bWasLookingAtMe = true;
 	}
 	else if (bWasLookingAtMe)
 	{
-		// Player was looking and now turned away — move
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
 		MoveToTarget(PendingMoveTarget);
 		PendingMoveTarget = nullptr;
@@ -310,7 +338,7 @@ void ASeneca::Tick(float DeltaTime)
 	}
 }
 
-bool ASeneca::IsPlayerLookingAtMe() const
+bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 {
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC)
@@ -322,7 +350,16 @@ bool ASeneca::IsPlayerLookingAtMe() const
 	FRotator CameraRot;
 	PC->GetPlayerViewPoint(CameraLoc, CameraRot);
 
-	// Use mesh center (chest height) instead of actor origin (feet)
+	FVector ToTarget = (Position - CameraLoc).GetSafeNormal();
+	FVector CameraForward = CameraRot.Vector();
+
+	float Dot = FVector::DotProduct(CameraForward, ToTarget);
+	// ~60 degree half-angle cone
+	return Dot > 0.5f;
+}
+
+bool ASeneca::IsPlayerLookingAtMe() const
+{
 	FVector SenecaCenter;
 	if (BodyMesh)
 	{
@@ -332,13 +369,7 @@ bool ASeneca::IsPlayerLookingAtMe() const
 	{
 		SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
 	}
-
-	FVector ToSeneca = (SenecaCenter - CameraLoc).GetSafeNormal();
-	FVector CameraForward = CameraRot.Vector();
-
-	float Dot = FVector::DotProduct(CameraForward, ToSeneca);
-	// ~60 degree half-angle cone
-	return Dot > 0.5f;
+	return IsPlayerLookingAt(SenecaCenter);
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---
