@@ -31,7 +31,11 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 - Run `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"` to launch the UE editor
 - Do NOT ask the user to build or press play — do it yourself via MCP
 
-If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), ask the user to close the editor first and wait for confirmation before building.
+If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), kill the Unreal Editor process yourself before building:
+```cmd
+taskkill //F //IM UnrealEditor.exe
+```
+(The `//` is needed because the shell interprets `/` as a path — this is the Git Bash escape for `/IM`.)
 
 Build commands (fallback if MCP is unavailable):
 ```cmd
