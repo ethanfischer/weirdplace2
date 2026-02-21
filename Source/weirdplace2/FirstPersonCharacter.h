@@ -14,6 +14,7 @@ class UWidgetComponent;
 class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
+class UBladderUrgencyComponent;
 
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API AFirstPersonCharacter : public AMyCharacter
@@ -35,6 +36,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
 	URectLightComponent* InventoryFlashlightComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
+	UBladderUrgencyComponent* BladderUrgencyComponent;
 
 	// --- Crosshair Widget ---
 

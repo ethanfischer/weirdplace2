@@ -1,4 +1,5 @@
 #include "FirstPersonCharacter.h"
+#include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/WidgetComponent.h"
@@ -29,6 +30,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	FirstPersonCamera->SetupAttachment(RootComponent);
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Eye height
 	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	// Create bladder urgency reminder component
+	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
 }
 
 void AFirstPersonCharacter::BeginPlay()
