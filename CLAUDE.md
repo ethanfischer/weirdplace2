@@ -24,13 +24,16 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 - Changing class inheritance
 - Modifying `.Build.cs`
 
-**Always tell the user which type of rebuild is needed after making changes.**
-
 **Always build after making C++ changes** to verify they compile before telling the user you're done.
+
+**Use the Rider MCP server to build and launch.** After making changes:
+- Run `mcp__jetbrains__build_project` to compile
+- Run `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"` to launch the UE editor
+- Do NOT ask the user to build or press play — do it yourself via MCP
 
 If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), ask the user to close the editor first and wait for confirmation before building.
 
-Build commands:
+Build commands (fallback if MCP is unavailable):
 ```cmd
 # Build editor target (typical for C++ changes)
 "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
