@@ -103,7 +103,7 @@ bool ADoor::HasKey() const
 {
 	if (KeyName.IsNone())
 	{
-		return true; // No key required
+		return false; // No key configured — only unlockable via SetLocked()
 	}
 
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
