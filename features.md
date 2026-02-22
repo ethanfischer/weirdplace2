@@ -78,3 +78,10 @@ Feature: Inventory Head-Mounted Flashlight
 - Key files: Source/weirdplace2/FirstPersonCharacter.h/.cpp; Source/weirdplace2/InventoryUIComponent.cpp.
 - Behavior: A Blueprint-authored rect light component named `RectLight` is used for inventory lighting. It turns on when inventory transitions from Opening to Open, and turns off as soon as inventory starts Closing (with additional safety-off when fully closed). On open, rect light source width/height are set from grid dimensions so the light roughly matches inventory size.
 - Configuration: Tune the `RectLight` component directly in `BP_FirstPersonCharacter` (intensity, attenuation, shadows, etc.). C++ no longer creates a separate inventory flashlight subcomponent.
+
+Feature: Bladder Urgency Vignette Pulse
+- Purpose: Signal bladder urgency with a periodic yellow pulse and vignette.
+- Key files: Source/weirdplace2/BladderUrgencyComponent.h/.cpp; Source/weirdplace2/FirstPersonCharacter.h/.cpp.
+- Behavior: `UBladderUrgencyComponent` runs a repeating timer and triggers a pulse using a sine curve (`0 -> 1 -> 0`) over `PulseDuration`. It creates a dynamic material instance from the urgency post-process material, adds it once as a camera blendable, and updates the material's `Intensity` scalar each tick for smooth fade in/out.
+- Configuration (on `BP_FirstPersonCharacter` -> `BladderUrgencyComponent`): `ReminderInterval`, `PulseDuration`, `PulseIntensity`, and optional `UrgencyVignetteMaterial`.
+- Notes: Default fallback material path is `/Game/CreatedMaterials/M_BladderVignette`. Legacy built-in color grading/vignette overrides are reset/disabled by the component.
