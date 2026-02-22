@@ -1,7 +1,9 @@
 #include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Sound/SoundBase.h"
 
 namespace BladderUrgencyInternal
 {
@@ -66,6 +68,11 @@ void UBladderUrgencyComponent::BeginPlay()
 	ResetLegacyPostProcessOverrides();
 	InitializeVignetteMaterial();
 	SetVignetteIntensity(0.f);
+
+	if (!UrgencySound)
+	{
+		UrgencySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/bladder2.bladder2"));
+	}
 
 	GetWorld()->GetTimerManager().SetTimer(
 		ReminderTimerHandle,
@@ -144,6 +151,11 @@ void UBladderUrgencyComponent::StartPulse()
 	bIsPulsing = true;
 	PulseElapsed = 0.f;
 	SetComponentTickEnabled(true);
+
+	if (UrgencySound)
+	{
+		UGameplayStatics::PlaySound2D(this, UrgencySound);
+	}
 }
 
 void UBladderUrgencyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

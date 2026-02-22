@@ -28,6 +28,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bladder Urgency|Visual")
 	TObjectPtr<UMaterialInterface> UrgencyVignetteMaterial = nullptr;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bladder Urgency|Audio")
+	TObjectPtr<USoundBase> UrgencySound = nullptr;
+
 protected:
 	virtual void BeginPlay() override;
 
