@@ -8,6 +8,8 @@ class UCameraComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBladderDeath);
+
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UBladderUrgencyComponent : public UActorComponent
 {
@@ -16,8 +18,17 @@ class WEIRDPLACE2_API UBladderUrgencyComponent : public UActorComponent
 public:
 	UBladderUrgencyComponent();
 
+	/** Initial interval between pulses (seconds). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
-	float ReminderInterval = 60.f;
+	float StartInterval = 60.f;
+
+	/** Fastest interval right before death (seconds). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
+	float MinInterval = 2.f;
+
+	/** Total seconds until the player dies. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
+	float TimeUntilDeath = 600.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
 	float PulseDuration = 2.f;
@@ -31,6 +42,9 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bladder Urgency|Audio")
 	TObjectPtr<USoundBase> UrgencySound = nullptr;
 
+	UPROPERTY(BlueprintAssignable, Category = "Bladder Urgency")
+	FOnBladderDeath OnBladderDeath;
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -42,6 +56,7 @@ private:
 	void SetVignetteIntensity(float Value);
 	void ResetLegacyPostProcessOverrides();
 	void StartPulse();
+	void ScheduleNextPulse();
 
 	UPROPERTY()
 	UCameraComponent* CachedCamera = nullptr;
@@ -50,6 +65,7 @@ private:
 	UMaterialInstanceDynamic* UrgencyVignetteMID = nullptr;
 
 	FTimerHandle ReminderTimerHandle;
+	float StartTimeSeconds = 0.f;
 	float PulseElapsed = 0.f;
 	bool bIsPulsing = false;
 };

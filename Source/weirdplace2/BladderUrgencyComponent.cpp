@@ -74,13 +74,8 @@ void UBladderUrgencyComponent::BeginPlay()
 		UrgencySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/bladder2.bladder2"));
 	}
 
-	GetWorld()->GetTimerManager().SetTimer(
-		ReminderTimerHandle,
-		this,
-		&UBladderUrgencyComponent::StartPulse,
-		ReminderInterval,
-		true
-	);
+	StartTimeSeconds = GetWorld()->GetTimeSeconds();
+	ScheduleNextPulse();
 }
 
 bool UBladderUrgencyComponent::InitializeVignetteMaterial()
@@ -146,8 +141,32 @@ void UBladderUrgencyComponent::ResetLegacyPostProcessOverrides()
 	CachedCamera->PostProcessSettings.ColorGain = FVector4(1.f, 1.f, 1.f, 1.f);
 }
 
+void UBladderUrgencyComponent::ScheduleNextPulse()
+{
+	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;
+	const float Progress = FMath::Clamp(Elapsed / TimeUntilDeath, 0.f, 1.f);
+	const float Interval = FMath::Lerp(StartInterval, MinInterval, Progress);
+
+	GetWorld()->GetTimerManager().SetTimer(
+		ReminderTimerHandle,
+		this,
+		&UBladderUrgencyComponent::StartPulse,
+		Interval,
+		false
+	);
+}
+
 void UBladderUrgencyComponent::StartPulse()
 {
+	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;
+
+	if (Elapsed >= TimeUntilDeath)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("BladderUrgencyComponent: Time's up — bladder death on %s"), *GetOwner()->GetName());
+		OnBladderDeath.Broadcast();
+		return;
+	}
+
 	bIsPulsing = true;
 	PulseElapsed = 0.f;
 	SetComponentTickEnabled(true);
@@ -156,6 +175,8 @@ void UBladderUrgencyComponent::StartPulse()
 	{
 		UGameplayStatics::PlaySound2D(this, UrgencySound);
 	}
+
+	ScheduleNextPulse();
 }
 
 void UBladderUrgencyComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
