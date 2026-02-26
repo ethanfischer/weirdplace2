@@ -42,8 +42,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bladder Urgency|Audio")
 	TObjectPtr<USoundBase> UrgencySound = nullptr;
 
+	/** If false, urgency won't start in BeginPlay. Call StartUrgency() manually. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
+	bool bAutoStart = true;
+
 	UPROPERTY(BlueprintAssignable, Category = "Bladder Urgency")
 	FOnBladderDeath OnBladderDeath;
+
+	/** Manually start the urgency timer. Use when bAutoStart is false. */
+	UFUNCTION(BlueprintCallable, Category = "Bladder Urgency")
+	void StartUrgency();
 
 protected:
 	virtual void BeginPlay() override;

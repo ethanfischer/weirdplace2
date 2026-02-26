@@ -74,6 +74,14 @@ void UBladderUrgencyComponent::BeginPlay()
 		UrgencySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/bladder2.bladder2"));
 	}
 
+	if (bAutoStart)
+	{
+		StartUrgency();
+	}
+}
+
+void UBladderUrgencyComponent::StartUrgency()
+{
 	StartTimeSeconds = GetWorld()->GetTimeSeconds();
 	ScheduleNextPulse();
 }

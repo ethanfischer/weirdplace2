@@ -7,6 +7,7 @@
 #include "UI_Dialogue.h"
 #include "Interactable.h"
 #include "Seneca.h"
+#include "Rick.h"
 #include "InventoryUI.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
@@ -217,6 +218,10 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		if (bIsSimpleDialogue)
 		{
 			AdvanceSimpleDialogue();
+		}
+		else if (bIsMultiSpeakerDialogue)
+		{
+			AdvanceMultiSpeakerDialogue();
 		}
 		else
 		{
@@ -507,6 +512,81 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
 		{
 			Seneca->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
+	}
+}
+
+void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC)
+{
+	if (Lines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartSimpleDialogueMultiSpeaker - No lines to display"));
+		return;
+	}
+
+	// Get UI_Dialogue from NPC's widget component
+	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	{
+		if (Seneca->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+	else if (ARick* Rick = Cast<ARick>(NPC))
+	{
+		if (Rick->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Rick->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+
+	MultiSpeakerLines = Lines;
+	MultiSpeakerLineIndex = 0;
+	bIsMultiSpeakerDialogue = true;
+	IsInDialogue = true;
+	CurrentDialogueNPC = NPC;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
+	}
+}
+
+void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
+{
+	MultiSpeakerLineIndex++;
+
+	if (MultiSpeakerLineIndex < MultiSpeakerLines.Num())
+	{
+		if (UI_Dialogue)
+		{
+			const FSimpleDialogueLine& Line = MultiSpeakerLines[MultiSpeakerLineIndex];
+			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
+		}
+	}
+	else
+	{
+		// Dialogue exhausted
+		IsInDialogue = false;
+		bIsMultiSpeakerDialogue = false;
+		MultiSpeakerLines.Empty();
+		MultiSpeakerLineIndex = 0;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		else if (ARick* Rick = Cast<ARick>(CurrentDialogueNPC))
+		{
+			Rick->OnDialogueEnded();
 		}
 		CurrentDialogueNPC = nullptr;
 	}

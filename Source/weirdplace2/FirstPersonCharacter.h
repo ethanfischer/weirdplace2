@@ -16,6 +16,18 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 
+USTRUCT()
+struct FSimpleDialogueLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FText Speaker;
+
+	UPROPERTY()
+	FText Text;
+};
+
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API AFirstPersonCharacter : public AMyCharacter
 {
@@ -133,6 +145,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void AdvanceSimpleDialogue();
 
+	// Multi-speaker dialogue (each line has its own speaker)
+	void StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
+	void AdvanceMultiSpeakerDialogue();
+
 private:
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
@@ -148,4 +164,9 @@ private:
 	int32 SimpleDialogueLineIndex = 0;
 	FText SimpleDialogueSpeaker;
 	bool bIsSimpleDialogue = false;
+
+	// Multi-speaker dialogue state
+	TArray<FSimpleDialogueLine> MultiSpeakerLines;
+	int32 MultiSpeakerLineIndex = 0;
+	bool bIsMultiSpeakerDialogue = false;
 };
