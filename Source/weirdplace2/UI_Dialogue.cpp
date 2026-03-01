@@ -39,6 +39,7 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 	{
 		FText ParticipantName = InActiveContext->GetActiveNodeParticipantDisplayName();
 		SpeakerName->SetText(ParticipantName);
+
 	}
 
 	const FText& NodeText = InActiveContext->GetActiveNodeText();
@@ -110,6 +111,7 @@ void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLin
 	if (SpeakerName)
 	{
 		SpeakerName->SetText(Speaker);
+
 	}
 
 	FullText = DialogueLine.ToString();
@@ -155,6 +157,7 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 		if (Text)
 		{
 			Text->SetText(FText::FromString(DisplayText));
+
 		}
 
 		// Continue typewriter effect
@@ -204,6 +207,18 @@ void UUI_Dialogue::UnhighlightAllOptions()
 				Option->Unhighlight();
 			}
 		}
+	}
+}
+
+void UUI_Dialogue::SetTextColor(const FSlateColor& Color)
+{
+	if (SpeakerName)
+	{
+		SpeakerName->SetColorAndOpacity(Color);
+	}
+	if (Text)
+	{
+		Text->SetColorAndOpacity(Color);
 	}
 }
 

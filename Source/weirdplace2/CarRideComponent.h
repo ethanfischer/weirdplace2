@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Styling/SlateColor.h"
 #include "CarRideComponent.generated.h"
 
 class ARick;
@@ -64,6 +65,10 @@ public:
 	// Empty actor positioned behind windshield where dialogue widget appears
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
 	AActor* DialogueWidgetTarget;
+
+	// Text color for car ride dialogue (darker for readability against windshield)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 
 private:
 	void StartRide();

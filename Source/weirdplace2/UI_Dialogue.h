@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void UpdateWithText(const FText& Speaker, const FText& DialogueLine);
 
+	// Override the text color for both speaker name and dialogue text
+	void SetTextColor(const FSlateColor& Color);
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;

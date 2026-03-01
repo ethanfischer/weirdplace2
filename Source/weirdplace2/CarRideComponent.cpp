@@ -1,5 +1,6 @@
 #include "CarRideComponent.h"
 #include "Rick.h"
+#include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
@@ -116,6 +117,15 @@ void UCarRideComponent::StartDialogue()
 				DialogueWidgetTarget->GetActorLocation(),
 				DialogueWidgetTarget->GetActorRotation()
 			);
+		}
+	}
+
+	// Set dark text color for car ride dialogue readability
+	if (Rick->DialogueWidgetComponent)
+	{
+		if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(Rick->DialogueWidgetComponent->GetWidget()))
+		{
+			DialogueWidget->SetTextColor(DialogueTextColor);
 		}
 	}
 
