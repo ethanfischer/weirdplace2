@@ -1,5 +1,6 @@
 #include "CarRideComponent.h"
 #include "Rick.h"
+#include "Components/WidgetComponent.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "BladderUrgencyComponent.h"
@@ -82,6 +83,26 @@ void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 		FVector Delta = SceneryMoveDirection.GetSafeNormal() * ScenerySpeed * DeltaTime;
 		SceneryRoot->AddActorWorldOffset(Delta);
 	}
+
+	// Reposition dialogue widget in front of the player's camera
+	if (bDialogueActive && DialogueWidgetActor)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			FVector CamLoc;
+			FRotator CamRot;
+			PC->GetPlayerViewPoint(CamLoc, CamRot);
+
+			FVector Forward = CamRot.Vector();
+			FVector Up = FRotationMatrix(CamRot).GetUnitAxis(EAxis::Z);
+
+			FVector WidgetPos = CamLoc + Forward * DialogueWidgetDistance + Up * DialogueWidgetVerticalOffset;
+			FRotator WidgetRot = (CamLoc - WidgetPos).Rotation(); // face toward camera
+
+			DialogueWidgetActor->SetActorLocationAndRotation(WidgetPos, WidgetRot);
+		}
+	}
 }
 
 void UCarRideComponent::StartDialogue()
@@ -105,12 +126,22 @@ void UCarRideComponent::StartDialogue()
 		}
 	}
 
+	// Cache the child actor that owns the dialogue widget so we can reposition it
+	if (Rick->DialogueWidgetComponent)
+	{
+		DialogueWidgetActor = Rick->DialogueWidgetComponent->GetOwner();
+	}
+	bDialogueActive = true;
+
 	Rick->StartDialogue();
 	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Dialogue started"));
 }
 
 void UCarRideComponent::OnDialogueEnded()
 {
+	bDialogueActive = false;
+	DialogueWidgetActor = nullptr;
+
 	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Dialogue ended, post-ride for %.1f seconds"), PostDialogueRideTime);
 
 	// Disable interaction again during post-dialogue ride
