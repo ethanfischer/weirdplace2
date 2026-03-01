@@ -18,7 +18,21 @@ UCarRideComponent::UCarRideComponent()
 void UCarRideComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	StartRide();
+
+	// Poll until the player pawn is the right type, then start the ride
+	GetWorld()->GetTimerManager().SetTimer(
+		DialogueStartTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			APlayerController* PC = GetWorld()->GetFirstPlayerController();
+			if (PC && Cast<AFirstPersonCharacter>(PC->GetPawn()))
+			{
+				StartRide();
+			}
+		}),
+		0.1f,
+		true
+	);
 }
 
 void UCarRideComponent::StartRide()
@@ -37,6 +51,12 @@ void UCarRideComponent::StartRide()
 		return;
 	}
 
+	// Disable collision on scenery so it doesn't block player spawn or capsule
+	if (SceneryRoot)
+	{
+		SceneryRoot->SetActorEnableCollision(false);
+	}
+
 	// Teleport player to passenger seat
 	// Offset down by camera relative position so the player's eye (not feet) lands at the target
 	if (PassengerSeatTarget)
@@ -50,12 +70,18 @@ void UCarRideComponent::StartRide()
 		Player->SetActorRotation(PassengerSeatTarget->GetActorRotation());
 		PC->SetControlRotation(PassengerSeatTarget->GetActorRotation());
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: PassengerSeatTarget is null!"));
+	}
 
-	// Disable movement and interaction
+	// Disable movement, gravity, and interaction
 	PC->SetIgnoreMoveInput(true);
 	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
 	{
 		MoveComp->SetJumpAllowed(false);
+		MoveComp->GravityScale = 0.0f;
+		MoveComp->Velocity = FVector::ZeroVector;
 	}
 	Player->SetCanInteract(false);
 
@@ -72,7 +98,6 @@ void UCarRideComponent::StartRide()
 		false
 	);
 
-	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Ride started, dialogue in %.1f seconds"), DialogueStartDelay);
 }
 
 void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -130,13 +155,10 @@ void UCarRideComponent::StartDialogue()
 	}
 
 	Rick->StartDialogue();
-	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Dialogue started"));
 }
 
 void UCarRideComponent::OnDialogueEnded()
 {
-	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Dialogue ended, post-ride for %.1f seconds"), PostDialogueRideTime);
-
 	// Disable interaction again during post-dialogue ride
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC)
@@ -159,8 +181,6 @@ void UCarRideComponent::OnDialogueEnded()
 
 void UCarRideComponent::EndRide()
 {
-	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Fading to black"));
-
 	// Fade camera to black
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC && PC->PlayerCameraManager)
@@ -209,11 +229,18 @@ void UCarRideComponent::OnFadeOutComplete()
 		PC->SetControlRotation(ArrivalTarget->GetActorRotation());
 	}
 
-	// Re-enable movement
+	// Re-enable collision on scenery
+	if (SceneryRoot)
+	{
+		SceneryRoot->SetActorEnableCollision(true);
+	}
+
+	// Re-enable movement and gravity
 	PC->SetIgnoreMoveInput(false);
 	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
 	{
 		MoveComp->SetJumpAllowed(true);
+		MoveComp->GravityScale = 1.0f;
 	}
 	Player->SetCanInteract(true);
 
@@ -229,5 +256,4 @@ void UCarRideComponent::OnFadeOutComplete()
 		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeDuration, FLinearColor::Black, false, false);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Ride complete, player arrived"));
 }
