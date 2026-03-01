@@ -61,13 +61,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float FadeDuration = 1.0f;
 
-	// How far in front of the camera the dialogue widget appears (cm)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float DialogueWidgetDistance = 150.0f;
-
-	// Vertical offset for the dialogue widget (negative = down)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float DialogueWidgetVerticalOffset = -20.0f;
+	// Empty actor positioned behind windshield where dialogue widget appears
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
+	AActor* DialogueWidgetTarget;
 
 private:
 	void StartRide();
@@ -79,10 +75,6 @@ private:
 	void OnDialogueEnded();
 
 	bool bSceneryMoving = false;
-	bool bDialogueActive = false;
-
-	UPROPERTY()
-	AActor* DialogueWidgetActor = nullptr;
 
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;
