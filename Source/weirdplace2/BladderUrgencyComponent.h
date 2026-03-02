@@ -53,6 +53,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Bladder Urgency")
 	void StartUrgency();
 
+	/** Play the vignette + sound once without scheduling the next pulse or checking death timer. */
+	UFUNCTION(BlueprintCallable, Category = "Bladder Urgency")
+	void FireSinglePulse();
+
 protected:
 	virtual void BeginPlay() override;
 

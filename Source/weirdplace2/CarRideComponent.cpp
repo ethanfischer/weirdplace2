@@ -154,6 +154,15 @@ void UCarRideComponent::StartDialogue()
 		}
 	}
 
+	// Bind to player's dialogue line delegate for bladder pulse trigger
+	if (PC)
+	{
+		if (AFirstPersonCharacter* FPPlayer = Cast<AFirstPersonCharacter>(PC->GetPawn()))
+		{
+			FPPlayer->OnDialogueLineShown.AddDynamic(this, &UCarRideComponent::OnDialogueLineShown);
+		}
+	}
+
 	Rick->StartDialogue();
 }
 
@@ -177,6 +186,81 @@ void UCarRideComponent::OnDialogueEnded()
 		PostDialogueRideTime,
 		false
 	);
+}
+
+void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
+{
+	if (LineIndex != BladderPulseLineIndex)
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!Player)
+	{
+		return;
+	}
+
+	if (!bBladderPulseArmed)
+	{
+		// First broadcast: line was just displayed normally.
+		// Arm the block so the next E press triggers the pulse beat instead of advancing.
+		bBladderPulseArmed = true;
+		Player->bBlockNextMultiSpeakerAdvance = true;
+		return;
+	}
+
+	// Second broadcast: player pressed E, advance was blocked, dialogue closed.
+	// Fire the pulse as its own beat, then auto-advance after it finishes.
+	bBladderPulseArmed = false;
+	Player->SetCanInteract(false);
+
+	if (UBladderUrgencyComponent* BladderComp = Player->FindComponentByClass<UBladderUrgencyComponent>())
+	{
+		BladderComp->FireSinglePulse();
+
+		GetWorld()->GetTimerManager().SetTimer(
+			BladderPulseTimerHandle,
+			this,
+			&UCarRideComponent::OnBladderPulseFinished,
+			BladderComp->PulseDuration,
+			false
+		);
+	}
+}
+
+void UCarRideComponent::OnBladderPulseFinished()
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!Player)
+	{
+		return;
+	}
+
+	// Re-show the dialogue widget (Close() set it to Collapsed, UpdateWithText doesn't restore visibility)
+	if (Rick && Rick->DialogueWidgetComponent)
+	{
+		if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(Rick->DialogueWidgetComponent->GetWidget()))
+		{
+			DialogueWidget->SetVisibility(ESlateVisibility::Visible);
+		}
+	}
+
+	// Auto-advance to show the next line ("You need to pee?")
+	Player->AdvanceMultiSpeakerDialogue();
+	Player->SetCanInteract(true);
 }
 
 void UCarRideComponent::EndRide()

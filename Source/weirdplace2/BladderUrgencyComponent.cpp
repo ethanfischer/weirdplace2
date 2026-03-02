@@ -149,6 +149,18 @@ void UBladderUrgencyComponent::ResetLegacyPostProcessOverrides()
 	CachedCamera->PostProcessSettings.ColorGain = FVector4(1.f, 1.f, 1.f, 1.f);
 }
 
+void UBladderUrgencyComponent::FireSinglePulse()
+{
+	bIsPulsing = true;
+	PulseElapsed = 0.f;
+	SetComponentTickEnabled(true);
+
+	if (UrgencySound)
+	{
+		UGameplayStatics::PlaySound2D(this, UrgencySound);
+	}
+}
+
 void UBladderUrgencyComponent::ScheduleNextPulse()
 {
 	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;

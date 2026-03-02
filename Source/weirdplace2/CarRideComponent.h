@@ -70,6 +70,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 
+	// Dialogue line index that triggers a single bladder pulse (0-based)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	int32 BladderPulseLineIndex = 3;
+
 private:
 	void StartRide();
 	void StartDialogue();
@@ -79,9 +83,16 @@ private:
 	UFUNCTION()
 	void OnDialogueEnded();
 
+	UFUNCTION()
+	void OnDialogueLineShown(int32 LineIndex);
+
+	void OnBladderPulseFinished();
+
 	bool bSceneryMoving = false;
+	bool bBladderPulseArmed = false;
 
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;
 	FTimerHandle FadeOutTimerHandle;
+	FTimerHandle BladderPulseTimerHandle;
 };

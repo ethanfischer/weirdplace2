@@ -554,10 +554,27 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 	{
 		UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
 	}
+
+	OnDialogueLineShown.Broadcast(0);
 }
 
 void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 {
+	// If blocked, consume the advance: hide dialogue and broadcast the current index
+	// so external systems (e.g. CarRideComponent) can play an interstitial beat.
+	if (bBlockNextMultiSpeakerAdvance)
+	{
+		bBlockNextMultiSpeakerAdvance = false;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
+		return;
+	}
+
 	MultiSpeakerLineIndex++;
 
 	if (MultiSpeakerLineIndex < MultiSpeakerLines.Num())
@@ -567,6 +584,8 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 			const FSimpleDialogueLine& Line = MultiSpeakerLines[MultiSpeakerLineIndex];
 			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
 		}
+
+		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
 	}
 	else
 	{

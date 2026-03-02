@@ -28,6 +28,8 @@ struct FSimpleDialogueLine
 	FText Text;
 };
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueLineShown, int32, LineIndex);
+
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API AFirstPersonCharacter : public AMyCharacter
 {
@@ -148,6 +150,14 @@ public:
 	// Multi-speaker dialogue (each line has its own speaker)
 	void StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
 	void AdvanceMultiSpeakerDialogue();
+
+	// Fires whenever a multi-speaker dialogue line is displayed, carrying the line index
+	UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+	FOnDialogueLineShown OnDialogueLineShown;
+
+	// When true, the next multi-speaker advance is consumed without progressing.
+	// OnDialogueLineShown broadcasts with the CURRENT index so listeners can act.
+	bool bBlockNextMultiSpeakerAdvance = false;
 
 private:
 	// DoOnce state tracking
