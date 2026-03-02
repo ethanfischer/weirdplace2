@@ -5,6 +5,7 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "BladderUrgencyComponent.h"
+#include "MovieBox.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -63,6 +64,17 @@ void UCarRideComponent::StartRide()
 		TArray<AActor*> GasStationActors;
 		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
 		for (AActor* Actor : GasStationActors)
+		{
+			Actor->SetActorHiddenInGame(true);
+			Actor->SetActorEnableCollision(false);
+		}
+	}
+
+	// Hide all spawned movie boxes during the ride
+	{
+		TArray<AActor*> MovieBoxes;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
+		for (AActor* Actor : MovieBoxes)
 		{
 			Actor->SetActorHiddenInGame(true);
 			Actor->SetActorEnableCollision(false);
@@ -334,6 +346,17 @@ void UCarRideComponent::OnFadeOutComplete()
 		TArray<AActor*> GasStationActors;
 		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
 		for (AActor* Actor : GasStationActors)
+		{
+			Actor->SetActorHiddenInGame(false);
+			Actor->SetActorEnableCollision(true);
+		}
+	}
+
+	// Restore all spawned movie boxes
+	{
+		TArray<AActor*> MovieBoxes;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
+		for (AActor* Actor : MovieBoxes)
 		{
 			Actor->SetActorHiddenInGame(false);
 			Actor->SetActorEnableCollision(true);
