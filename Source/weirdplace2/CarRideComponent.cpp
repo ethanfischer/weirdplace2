@@ -57,6 +57,18 @@ void UCarRideComponent::StartRide()
 		SceneryRoot->SetActorEnableCollision(false);
 	}
 
+	// Hide the gas station during the ride (must iterate children; SetActorHiddenInGame doesn't propagate)
+	if (GasStationRoot)
+	{
+		TArray<AActor*> GasStationActors;
+		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
+		for (AActor* Actor : GasStationActors)
+		{
+			Actor->SetActorHiddenInGame(true);
+			Actor->SetActorEnableCollision(false);
+		}
+	}
+
 	// Teleport player to passenger seat
 	// Offset down by camera relative position so the player's eye (not feet) lands at the target
 	if (PassengerSeatTarget)
@@ -131,6 +143,9 @@ void UCarRideComponent::StartDialogue()
 			Player->SetCanInteract(true);
 		}
 	}
+
+	// Rick may be a child of GasStationRoot and was hidden with it — make him visible now
+	Rick->SetActorHiddenInGame(false);
 
 	// Move dialogue widget to windshield target so player can see it from passenger seat
 	if (DialogueWidgetTarget && Rick->DialogueWidgetComponent)
@@ -311,6 +326,18 @@ void UCarRideComponent::OnFadeOutComplete()
 		Player->SetActorLocation(ArrivalTarget->GetActorLocation() - CameraOffset);
 		Player->SetActorRotation(ArrivalTarget->GetActorRotation());
 		PC->SetControlRotation(ArrivalTarget->GetActorRotation());
+	}
+
+	// Show the gas station now that the ride is over
+	if (GasStationRoot)
+	{
+		TArray<AActor*> GasStationActors;
+		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
+		for (AActor* Actor : GasStationActors)
+		{
+			Actor->SetActorHiddenInGame(false);
+			Actor->SetActorEnableCollision(true);
+		}
 	}
 
 	// Re-enable collision on scenery

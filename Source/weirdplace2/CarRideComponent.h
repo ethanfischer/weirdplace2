@@ -40,6 +40,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
 	AActor* ArrivalTarget;
 
+	// GasStation folder actor — hidden during ride, shown when ride ends
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
+	AActor* GasStationRoot;
+
 	// --- Settings ---
 
 	// Direction scenery moves (default: -X, simulating forward car travel)
