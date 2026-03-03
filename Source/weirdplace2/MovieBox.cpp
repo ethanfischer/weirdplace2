@@ -67,13 +67,13 @@ void AMovieBox::BeginPlay()
 	// Hide it initially
 	InteractionWidget->SetVisibility(false);
 
-	TArray<UWidgetComponent*> AllWidgets;
-	GetComponents<UWidgetComponent>(AllWidgets);
-	for (UWidgetComponent* Widget : AllWidgets)
+	TArray<UTextRenderComponent*> AllTextRenders;
+	GetComponents<UTextRenderComponent>(AllTextRenders);
+	for (UTextRenderComponent* Comp : AllTextRenders)
 	{
-		if (Widget->GetFName() == TEXT("CantCarryText"))
+		if (Comp->GetFName() == TEXT("CantCarryText"))
 		{
-			CantCarryWidget = Widget;
+			CantCarryWidget = Comp;
 			break;
 		}
 	}
