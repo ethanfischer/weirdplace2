@@ -7,6 +7,3 @@
 
 - **Bladder urgency vignette fires during Seneca dialogue**
   The bladder pulse triggers while the Seneca dialogue is playing. It shouldn't — dialogue should suppress or pause the bladder urgency timer.
-
-- **Seneca conversation loops — gives shopping basket repeatedly**
-  Talking to Seneca multiple times restarts the conversation and gives the player the shopping basket again. The handoff should only happen once; subsequent interactions should either do nothing or play a different response.
