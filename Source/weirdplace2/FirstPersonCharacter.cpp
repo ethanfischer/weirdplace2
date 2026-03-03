@@ -215,20 +215,20 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	bInteractDoOnceCompleted = true;
 
 	// If in dialogue, advance it instead of raycasting
-	if (IsInDialogue)
+	EPlayerActivityState State = GetActivityState();
+	if (State == EPlayerActivityState::InSimpleDialogue)
 	{
-		if (bIsSimpleDialogue)
-		{
-			AdvanceSimpleDialogue();
-		}
-		else if (bIsMultiSpeakerDialogue)
-		{
-			AdvanceMultiSpeakerDialogue();
-		}
-		else
-		{
-			SelectDialogueOption(0);
-		}
+		AdvanceSimpleDialogue();
+		return;
+	}
+	if (State == EPlayerActivityState::InMultiSpeakerDialogue)
+	{
+		AdvanceMultiSpeakerDialogue();
+		return;
+	}
+	if (State == EPlayerActivityState::InDlgDialogue)
+	{
+		SelectDialogueOption(0);
 		return;
 	}
 
@@ -273,6 +273,11 @@ void AFirstPersonCharacter::HandleShowInventory()
 	if (!IsInventoryUnlocked())
 	{
 		UE_LOG(LogTemp, Log, TEXT("HandleShowInventory - inventory not yet unlocked (talk to Seneca first)"));
+		return;
+	}
+
+	if (GetActivityState() != EPlayerActivityState::FreeRoaming)
+	{
 		return;
 	}
 
@@ -388,7 +393,7 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 
 	CurrentDialogueNPC = NPC;
 
-	if (IsInDialogue)
+	if (IsInAnyDialogue())
 	{
 		SelectDialogueOption(0);
 	}
@@ -418,7 +423,7 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 			{
 				UI_Dialogue->Open(DialogueContext);
 			}
-			IsInDialogue = true;
+			SetActivityState(EPlayerActivityState::InDlgDialogue);
 		}
 		else
 		{
@@ -451,7 +456,7 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 	{
 		// Dialogue ended
 		DialogueContext = nullptr;
-		IsInDialogue = false;
+		SetActivityState(EPlayerActivityState::FreeRoaming);
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
@@ -487,8 +492,7 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 	SimpleDialogueLines = Lines;
 	SimpleDialogueLineIndex = 0;
 	SimpleDialogueSpeaker = SpeakerName;
-	bIsSimpleDialogue = true;
-	IsInDialogue = true;
+	SetActivityState(EPlayerActivityState::InSimpleDialogue);
 	CurrentDialogueNPC = NPC;
 
 	if (UI_Dialogue)
@@ -511,8 +515,7 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 	else
 	{
 		// Dialogue exhausted
-		IsInDialogue = false;
-		bIsSimpleDialogue = false;
+		SetActivityState(EPlayerActivityState::FreeRoaming);
 		SimpleDialogueLines.Empty();
 		SimpleDialogueLineIndex = 0;
 
@@ -557,8 +560,7 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 
 	MultiSpeakerLines = Lines;
 	MultiSpeakerLineIndex = 0;
-	bIsMultiSpeakerDialogue = true;
-	IsInDialogue = true;
+	SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
 	CurrentDialogueNPC = NPC;
 
 	if (UI_Dialogue)
@@ -601,8 +603,7 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 	else
 	{
 		// Dialogue exhausted
-		IsInDialogue = false;
-		bIsMultiSpeakerDialogue = false;
+		SetActivityState(EPlayerActivityState::FreeRoaming);
 		MultiSpeakerLines.Empty();
 		MultiSpeakerLineIndex = 0;
 

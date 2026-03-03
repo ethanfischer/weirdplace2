@@ -75,9 +75,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
 	UDlgContext* DialogueContext;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
-	bool IsInDialogue = false;
-
 	// --- Interaction ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Interaction")
@@ -173,10 +170,8 @@ private:
 	TArray<FText> SimpleDialogueLines;
 	int32 SimpleDialogueLineIndex = 0;
 	FText SimpleDialogueSpeaker;
-	bool bIsSimpleDialogue = false;
 
 	// Multi-speaker dialogue state
 	TArray<FSimpleDialogueLine> MultiSpeakerLines;
 	int32 MultiSpeakerLineIndex = 0;
-	bool bIsMultiSpeakerDialogue = false;
 };

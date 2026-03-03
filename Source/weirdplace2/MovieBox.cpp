@@ -136,6 +136,7 @@ void AMovieBox::Interact_Implementation()
 	PlayerController->SetIgnoreMoveInput(true);
 
 	MyCharacter->SetCanInteract(false);
+	MyCharacter->SetActivityState(EPlayerActivityState::Interacting);
 
 	// Ensure input component exists
 	if (!PlayerController->InputComponent)
@@ -278,6 +279,7 @@ void AMovieBox::StopInspection()
 	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
 
 	MyCharacter->SetCanInteract(true);
+	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
 }
 
 void AMovieBox::RemoveInteractBinding()
@@ -287,5 +289,6 @@ void AMovieBox::RemoveInteractBinding()
 		return;
 	}
 
+	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding(InteractActionName, IE_Pressed);
 }

@@ -12,6 +12,16 @@ class UHeldItemComponent;
 class UStaticMeshComponent;
 struct FInventoryItemData;
 
+UENUM(BlueprintType)
+enum class EPlayerActivityState : uint8
+{
+	FreeRoaming            UMETA(DisplayName = "Free Roaming"),
+	Interacting            UMETA(DisplayName = "Interacting"),
+	InSimpleDialogue       UMETA(DisplayName = "In Simple Dialogue"),
+	InMultiSpeakerDialogue UMETA(DisplayName = "In Multi-Speaker Dialogue"),
+	InDlgDialogue          UMETA(DisplayName = "In Dlg Dialogue")
+};
+
 UCLASS()
 class WEIRDPLACE2_API AMyCharacter : public ACharacter {
 	GENERATED_BODY()
@@ -28,6 +38,10 @@ public:
 
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
+
+	void SetActivityState(EPlayerActivityState NewState);
+	EPlayerActivityState GetActivityState() const { return ActivityState; }
+	bool IsInAnyDialogue() const;
 
 	// Unlocks inventory access (called by Seneca after first dialogue)
 	void UnlockInventory();
@@ -54,6 +68,9 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", meta = (AllowPrivateAccess = "true"))
+	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
 
 	bool bInventoryUnlocked = false;
 

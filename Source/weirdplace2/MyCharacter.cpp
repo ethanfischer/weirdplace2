@@ -45,6 +45,11 @@ void AMyCharacter::OnToggleInventory()
 		return;
 	}
 
+	if (ActivityState != EPlayerActivityState::FreeRoaming)
+	{
+		return;
+	}
+
 	if (InventoryUIComponent)
 	{
 		InventoryUIComponent->ToggleInventoryUI();
@@ -68,6 +73,18 @@ void AMyCharacter::UnlockInventory()
 void AMyCharacter::SetCanInteract(bool value)
 {
 	CanInteract = value;
+}
+
+void AMyCharacter::SetActivityState(EPlayerActivityState NewState)
+{
+	ActivityState = NewState;
+}
+
+bool AMyCharacter::IsInAnyDialogue() const
+{
+	return ActivityState == EPlayerActivityState::InSimpleDialogue
+		|| ActivityState == EPlayerActivityState::InMultiSpeakerDialogue
+		|| ActivityState == EPlayerActivityState::InDlgDialogue;
 }
 
 void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
