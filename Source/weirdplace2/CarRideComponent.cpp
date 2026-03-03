@@ -199,6 +199,12 @@ void UCarRideComponent::OnDialogueEnded()
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC)
 	{
+		// Unbind bladder pulse listener — car ride dialogue is over
+		if (AFirstPersonCharacter* FPPlayer = Cast<AFirstPersonCharacter>(PC->GetPawn()))
+		{
+			FPPlayer->OnDialogueLineShown.RemoveDynamic(this, &UCarRideComponent::OnDialogueLineShown);
+		}
+
 		if (AMyCharacter* Player = Cast<AMyCharacter>(PC->GetPawn()))
 		{
 			Player->SetCanInteract(false);
