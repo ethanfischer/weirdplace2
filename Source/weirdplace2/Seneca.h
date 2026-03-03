@@ -73,6 +73,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
 	ESenecaState CurrentState = ESenecaState::WaitingForMovies;
 
+	// Set once the WaitingForMovies basket beat has fully played; prevents replaying on re-enter/re-interact
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
+	bool bIntroDialoguePlayed = false;
+
 protected:
 	// Sphere overlap callbacks
 	UFUNCTION()

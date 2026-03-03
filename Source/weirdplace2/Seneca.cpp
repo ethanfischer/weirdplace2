@@ -156,6 +156,7 @@ void ASeneca::OnDialogueEnded()
 		{
 			MyCharacter->UnlockInventory();
 		}
+		bIntroDialoguePlayed = true;
 		break;
 	}
 
@@ -221,7 +222,15 @@ void ASeneca::Interact_Implementation()
 
 	if (CurrentState == ESenecaState::WaitingForMovies)
 	{
-		StartWaitingForMoviesDialogue(FPCharacter);
+		if (!bIntroDialoguePlayed)
+		{
+			StartWaitingForMoviesDialogue(FPCharacter);
+		}
+		else
+		{
+			TArray<FText> ReminderLines = { FText::FromString(TEXT("You need to rent 3 movies.")) };
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+		}
 		return;
 	}
 
@@ -251,7 +260,8 @@ void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 
 	if (CurrentState == ESenecaState::WaitingForMovies)
 	{
-		StartWaitingForMoviesDialogue(FPCharacter);
+		if (!bIntroDialoguePlayed)
+			StartWaitingForMoviesDialogue(FPCharacter);
 		return;
 	}
 
