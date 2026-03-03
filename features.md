@@ -86,6 +86,9 @@ Feature: Bladder Urgency Vignette Pulse
 - Configuration (on `BP_FirstPersonCharacter` -> `BladderUrgencyComponent`): `ReminderInterval`, `PulseDuration`, `PulseIntensity`, and optional `UrgencyVignetteMaterial`.
 - Notes: Default fallback material path is `/Game/CreatedMaterials/M_BladderVignette`. Legacy built-in color grading/vignette overrides are reset/disabled by the component.
 
+Feature: Player Activity State Machine
+- `EPlayerActivityState` enum on `AMyCharacter` (FreeRoaming, Interacting, InSimpleDialogue, InMultiSpeakerDialogue, InDlgDialogue) replaces the three scattered bools (`IsInDialogue`, `bIsSimpleDialogue`, `bIsMultiSpeakerDialogue`) and gates inventory Tab in both `HandleShowInventory()` and `OnToggleInventory()`.
+
 Feature: Car Ride Sequence
 - Key files: Source/weirdplace2/CarRideComponent.h/.cpp; Source/weirdplace2/Rick.h/.cpp; Content/Dialogue/CarRide.txt.
 - Behavior: Scripted opening sequence where scenery scrolls past while Rick drives the player to the store, plays multi-speaker dialogue loaded from CarRide.txt, fires a single bladder urgency pulse mid-dialogue at a configurable line index, then fades to black and teleports the player to the store entrance.
