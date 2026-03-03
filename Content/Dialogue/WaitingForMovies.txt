@@ -1,2 +1,4 @@
-You gotta buy 3 movies before I let you use the bathroom.
-Store policy.
+You need the bathroom?
+You'll have to buy 3 movies first
+Here, take this
+Press [[InventoryButton]] to use it

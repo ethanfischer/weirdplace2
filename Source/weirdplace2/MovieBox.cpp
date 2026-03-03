@@ -66,6 +66,25 @@ void AMovieBox::BeginPlay()
 
 	// Hide it initially
 	InteractionWidget->SetVisibility(false);
+
+	TArray<UWidgetComponent*> AllWidgets;
+	GetComponents<UWidgetComponent>(AllWidgets);
+	for (UWidgetComponent* Widget : AllWidgets)
+	{
+		if (Widget->GetFName() == TEXT("CantCarryText"))
+		{
+			CantCarryWidget = Widget;
+			break;
+		}
+	}
+	if (!CantCarryWidget)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CantCarryWidget component not found — add 'CantCarryText' widget component to BP_MovieBox"));
+	}
+	else
+	{
+		CantCarryWidget->SetVisibility(false);
+	}
 }
 
 // Called every frame
@@ -77,6 +96,11 @@ void AMovieBox::Tick(float DeltaTime)
 
 void AMovieBox::Interact_Implementation()
 {
+	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
+	{
+		return;
+	}
+
 	// Get the player's controller
 	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
@@ -134,6 +158,11 @@ void AMovieBox::CollectInspectedSubitem()
 {
 	if (DidCollectSubitem) return;
 
+	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
+	{
+		return;
+	}
+
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
@@ -168,8 +197,12 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	{
 		if (!DidCollectSubitem)
 		{
-			//If back of movie box is facing player, try showing collectable UI text on screen
-			InteractionWidget->SetVisibility(true);
+			bool bCanCollect = MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() < 3;
+			InteractionWidget->SetVisibility(bCanCollect);
+			if (CantCarryWidget)
+			{
+				CantCarryWidget->SetVisibility(!bCanCollect);
+			}
 		}
 
 		// Only bind if not already bound (prevent duplicate bindings)
@@ -182,6 +215,10 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	else
 	{
 		InteractionWidget->SetVisibility(false);
+		if (CantCarryWidget)
+		{
+			CantCarryWidget->SetVisibility(false);
+		}
 
 		// Only unbind if currently bound
 		if (bCollectSubitemBound)

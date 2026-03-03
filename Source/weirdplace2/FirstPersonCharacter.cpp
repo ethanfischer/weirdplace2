@@ -6,6 +6,7 @@
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
+#include "MovieBox.h"
 #include "Seneca.h"
 #include "Rick.h"
 #include "InventoryUI.h"
@@ -269,6 +270,12 @@ void AFirstPersonCharacter::HandleShowInventory()
 	}
 	bInventoryDoOnceCompleted = true;
 
+	if (!IsInventoryUnlocked())
+	{
+		UE_LOG(LogTemp, Log, TEXT("HandleShowInventory - inventory not yet unlocked (talk to Seneca first)"));
+		return;
+	}
+
 	if (InventoryUIWidgetComponent)
 	{
 		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
@@ -352,6 +359,10 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
+			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked())
+			{
+				return;
+			}
 			OutHitActor = HitActor;
 			bDidHitInteractable = true;
 		}

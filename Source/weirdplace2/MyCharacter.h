@@ -29,6 +29,10 @@ public:
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
 
+	// Unlocks inventory access (called by Seneca after first dialogue)
+	void UnlockInventory();
+	bool IsInventoryUnlocked() const { return bInventoryUnlocked; }
+
 	// Add item to inventory by ID (legacy - no visual data)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
 	void AddItemToInventory(const FName& ItemID);
@@ -50,6 +54,8 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
+
+	bool bInventoryUnlocked = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;

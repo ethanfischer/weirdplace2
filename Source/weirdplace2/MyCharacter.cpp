@@ -39,6 +39,12 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::OnToggleInventory()
 {
+	if (!bInventoryUnlocked)
+	{
+		UE_LOG(LogTemp, Log, TEXT("OnToggleInventory - inventory not yet unlocked (talk to Seneca first)"));
+		return;
+	}
+
 	if (InventoryUIComponent)
 	{
 		InventoryUIComponent->ToggleInventoryUI();
@@ -47,6 +53,16 @@ void AMyCharacter::OnToggleInventory()
 	{
 		UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent is null!"));
 	}
+}
+
+void AMyCharacter::UnlockInventory()
+{
+	if (bInventoryUnlocked)
+	{
+		return;
+	}
+	bInventoryUnlocked = true;
+	UE_LOG(LogTemp, Log, TEXT("Inventory unlocked for player"));
 }
 
 void AMyCharacter::SetCanInteract(bool value)

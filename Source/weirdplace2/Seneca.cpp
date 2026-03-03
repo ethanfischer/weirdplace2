@@ -11,7 +11,10 @@
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgContext.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Misc/FileHelper.h"
+#include "UI_Dialogue.h"
+#include "FirstPersonCharacter.h"
 
 ASeneca::ASeneca()
 {
@@ -87,6 +90,16 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 				TextLines.Add(FText::FromString(Line));
 			}
 		}
+
+		if (State == ESenecaState::WaitingForMovies)
+		{
+			for (FText& Line : TextLines)
+			{
+				FString Str = Line.ToString().Replace(TEXT("[[InventoryButton]]"), *InventoryButtonDisplayName);
+				Line = FText::FromString(Str);
+			}
+		}
+
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Loaded %d lines from %s"), TextLines.Num(), *FullPath);
 	}
 	else
@@ -127,6 +140,25 @@ void ASeneca::OnDialogueEnded()
 
 	switch (CurrentState)
 	{
+	case ESenecaState::WaitingForMovies:
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn()))
+			{
+				FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnBasketDialogueLineShown);
+			}
+		}
+
+		ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+		if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
+		{
+			MyCharacter->UnlockInventory();
+		}
+		break;
+	}
+
 	case ESenecaState::ReadyToGiveKey:
 		GiveKey();
 		CurrentState = ESenecaState::GaveKey;
@@ -179,6 +211,20 @@ void ASeneca::OnSmokingDelayComplete()
 
 void ASeneca::Interact_Implementation()
 {
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter);
+	if (!FPCharacter)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::Interact - Player is not AFirstPersonCharacter"));
+		return;
+	}
+
+	if (CurrentState == ESenecaState::WaitingForMovies)
+	{
+		StartWaitingForMoviesDialogue(FPCharacter);
+		return;
+	}
+
 	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
 	if (!Lines || Lines->Num() == 0)
 	{
@@ -186,11 +232,7 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
-	{
-		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
-	}
+	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 }
 
 void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
@@ -204,6 +246,12 @@ void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(OtherActor);
 	if (!FPCharacter)
 	{
+		return;
+	}
+
+	if (CurrentState == ESenecaState::WaitingForMovies)
+	{
+		StartWaitingForMoviesDialogue(FPCharacter);
 		return;
 	}
 
@@ -370,6 +418,116 @@ bool ASeneca::IsPlayerLookingAtMe() const
 		SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
 	}
 	return IsPlayerLookingAt(SenecaCenter);
+}
+
+// --- Basket Beat ---
+
+void ASeneca::StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar)
+{
+	const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::WaitingForMovies);
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartWaitingForMoviesDialogue - No lines found"));
+		return;
+	}
+
+	TArray<FSimpleDialogueLine> MultiLines;
+	for (const FText& LineText : *Lines)
+	{
+		FSimpleDialogueLine Line;
+		Line.Speaker = FText::FromString(TEXT("Seneca"));
+		Line.Text = LineText;
+		MultiLines.Add(Line);
+	}
+
+	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnBasketDialogueLineShown);
+	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnBasketDialogueLineShown);
+	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
+}
+
+void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
+{
+	if (LineIndex != BasketBeatLineIndex)
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!FPChar)
+	{
+		return;
+	}
+
+	if (!bBasketBeatArmed)
+	{
+		// First broadcast: arm the block so the next E press triggers the beat
+		bBasketBeatArmed = true;
+		FPChar->bBlockNextMultiSpeakerAdvance = true;
+		return;
+	}
+
+	// Second broadcast: player pressed E, advance was blocked, dialogue closed — fire the beat
+	bBasketBeatArmed = false;
+	FPChar->SetCanInteract(false);
+
+	if (ShoppingBasketMesh)
+	{
+		FVector CameraLoc;
+		FRotator CameraRot;
+		PC->GetPlayerViewPoint(CameraLoc, CameraRot);
+		FVector SpawnLocation = CameraLoc + CameraRot.Vector() * BasketDistance;
+
+		AStaticMeshActor* BasketActor = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnLocation, FRotator::ZeroRotator);
+		if (BasketActor)
+		{
+			BasketActor->GetStaticMeshComponent()->SetStaticMesh(ShoppingBasketMesh);
+			BasketActor->GetStaticMeshComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			BasketActor->SetActorScale3D(BasketScale);
+			SpawnedBasketActor = BasketActor;
+		}
+	}
+
+	GetWorldTimerManager().SetTimer(BasketBeatTimerHandle, this, &ASeneca::OnBasketBeatFinished, BasketBeatDuration, false);
+}
+
+void ASeneca::OnBasketBeatFinished()
+{
+	if (SpawnedBasketActor)
+	{
+		SpawnedBasketActor->Destroy();
+		SpawnedBasketActor = nullptr;
+	}
+
+	if (DialogueWidgetComponent)
+	{
+		if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(DialogueWidgetComponent->GetWidget()))
+		{
+			DialogueWidget->SetVisibility(ESlateVisibility::Visible);
+		}
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketBeatFinished - No PlayerController"));
+		return;
+	}
+
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!FPChar)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketBeatFinished - Player is not AFirstPersonCharacter"));
+		return;
+	}
+
+	FPChar->AdvanceMultiSpeakerDialogue();
+	FPChar->SetCanInteract(true);
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---

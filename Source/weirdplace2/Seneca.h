@@ -12,6 +12,7 @@ class UWidgetComponent;
 class UDlgContext;
 class UStaticMesh;
 class ADoor;
+class AFirstPersonCharacter;
 
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
@@ -151,6 +152,26 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Door")
 	ADoor* EmployeeBathroomDoor;
 
+	// --- Basket Beat Config ---
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	UStaticMesh* ShoppingBasketMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	float BasketBeatDuration = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	float BasketDistance = 60.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	FVector BasketScale = FVector(1.0f, 1.0f, 1.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	int32 BasketBeatLineIndex = 2;
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString InventoryButtonDisplayName = TEXT("Tab");
+
 private:
 	// Gives the key to the player
 	void GiveKey();
@@ -194,4 +215,19 @@ private:
 
 	// Called when the smoking appear delay expires
 	void OnSmokingDelayComplete();
+
+	// --- Basket Beat ---
+
+	void StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar);
+
+	UFUNCTION()
+	void OnBasketDialogueLineShown(int32 LineIndex);
+
+	void OnBasketBeatFinished();
+
+	bool bBasketBeatArmed = false;
+	FTimerHandle BasketBeatTimerHandle;
+
+	UPROPERTY()
+	AActor* SpawnedBasketActor = nullptr;
 };
