@@ -48,6 +48,7 @@ private:
 	bool DidCollectSubitem = false;
 	bool bCollectSubitemBound = false;
 	FName InteractActionName = FName("Interact");
+	FTimerHandle CantCarryTimerHandle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;

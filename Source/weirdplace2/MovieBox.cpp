@@ -160,6 +160,14 @@ void AMovieBox::CollectInspectedSubitem()
 
 	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
 	{
+		if (CantCarryWidget)
+		{
+			CantCarryWidget->SetVisibility(true);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle, [this]()
+			{
+				if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+			}, 2.0f, false);
+		}
 		return;
 	}
 
@@ -199,10 +207,6 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 		{
 			bool bCanCollect = MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() < 3;
 			InteractionWidget->SetVisibility(bCanCollect);
-			if (CantCarryWidget)
-			{
-				CantCarryWidget->SetVisibility(!bCanCollect);
-			}
 		}
 
 		// Only bind if not already bound (prevent duplicate bindings)
@@ -217,6 +221,7 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 		InteractionWidget->SetVisibility(false);
 		if (CantCarryWidget)
 		{
+			GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
 			CantCarryWidget->SetVisibility(false);
 		}
 
@@ -263,7 +268,14 @@ void AMovieBox::StopInspection()
 	InspectedActor = nullptr;
 
 	// Reset binding flag
-	bCollectSubitemBound = false;
+	if (bCollectSubitemBound)
+	{
+		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+		bCollectSubitemBound = false;
+	}
+
+	GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
+	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
 
 	MyCharacter->SetCanInteract(true);
 }
