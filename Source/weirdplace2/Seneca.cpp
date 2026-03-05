@@ -365,6 +365,7 @@ void ASeneca::Tick(float DeltaTime)
 				TriggerSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 			}
 			bWaitingToAppear = false;
+			bIsSmoking = true;
 			SetActorTickEnabled(false);
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
@@ -387,6 +388,7 @@ void ASeneca::Tick(float DeltaTime)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
 		MoveToTarget(PendingMoveTarget);
+		bIsSmoking = false;
 		PendingMoveTarget = nullptr;
 		bWasLookingAtMe = false;
 		SetActorTickEnabled(false);

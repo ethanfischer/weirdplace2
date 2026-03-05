@@ -11,6 +11,7 @@ class USphereComponent;
 class UWidgetComponent;
 class UDlgContext;
 class UStaticMesh;
+class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
 
@@ -76,6 +77,14 @@ public:
 	// Set once the WaitingForMovies basket beat has fully played; prevents replaying on re-enter/re-interact
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
+
+	// --- Animation ---
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Animation")
+	UAnimSequenceBase* SmokingAnimation;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Animation")
+	bool bIsSmoking = false;
 
 protected:
 	// Sphere overlap callbacks
