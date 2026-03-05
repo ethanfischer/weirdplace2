@@ -11,6 +11,7 @@ class USphereComponent;
 class UWidgetComponent;
 class UDlgContext;
 class UStaticMesh;
+class UMeshComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
@@ -103,6 +104,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
 	USphereComponent* TriggerSphere;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
+	UMeshComponent* CigaretteMesh;
 
 	// --- Dialogue per state (txt file paths relative to Content/) ---
 
