@@ -5,8 +5,6 @@
 #include "BPFL_Utilities.h"
 #include "Door.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/MeshComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -63,26 +61,21 @@ void ASeneca::BeginPlay()
 		TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
 	}
 
-	// Find cigarette mesh inside the BP_Cigarette child actor component
+	// Find the Cigarette ChildActorComponent by name
 	TArray<UChildActorComponent*> ChildActorComps;
 	GetComponents<UChildActorComponent>(ChildActorComps);
 	for (UChildActorComponent* ChildActorComp : ChildActorComps)
 	{
 		if (ChildActorComp->GetName().Contains(TEXT("Cigarette")))
 		{
-			if (AActor* ChildActor = ChildActorComp->GetChildActor())
-			{
-				CigaretteMesh = ChildActor->FindComponentByClass<UStaticMeshComponent>();
-			}
+			CigaretteComp = ChildActorComp;
 			break;
 		}
 	}
-	if (!CigaretteMesh)
+	if (!CigaretteComp)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette mesh component"));
+		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
 	}
-
-	if (CigaretteMesh) CigaretteMesh->SetVisibility(false);
 
 	// Load dialogue text files
 	LoadDialogueFile(ESenecaState::WaitingForMovies, WaitingForMoviesDialoguePath);
@@ -389,7 +382,7 @@ void ASeneca::Tick(float DeltaTime)
 			}
 			bWaitingToAppear = false;
 			bIsSmoking = true;
-			if (CigaretteMesh) CigaretteMesh->SetVisibility(true);
+			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
 			SetActorTickEnabled(false);
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
@@ -413,7 +406,7 @@ void ASeneca::Tick(float DeltaTime)
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
 		MoveToTarget(PendingMoveTarget);
 		bIsSmoking = false;
-		if (CigaretteMesh) CigaretteMesh->SetVisibility(false);
+		if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
 		PendingMoveTarget = nullptr;
 		bWasLookingAtMe = false;
 		SetActorTickEnabled(false);
