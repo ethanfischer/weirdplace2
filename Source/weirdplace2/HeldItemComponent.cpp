@@ -222,6 +222,15 @@ bool UHeldItemComponent::IsHeldItemVisible() const
 	return HeldItemMesh && HeldItemMesh->IsVisible();
 }
 
+FTransform UHeldItemComponent::GetHeldItemWorldTransform() const
+{
+	if (HeldItemMesh)
+	{
+		return HeldItemMesh->GetComponentTransform();
+	}
+	return FTransform::Identity;
+}
+
 void UHeldItemComponent::OnActiveItemChanged(const FName& NewActiveItem)
 {
 	CurrentItemID = NewActiveItem;

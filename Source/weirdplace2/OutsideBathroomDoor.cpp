@@ -2,13 +2,64 @@
 #include "Seneca.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "HeldItemComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/TimelineComponent.h"
+#include "Curves/CurveFloat.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 
 AOutsideBathroomDoor::AOutsideBathroomDoor()
 {
 	// Outside bathroom door is locked by default
 	IsLocked = true;
+
+	// Scene component marking the keyhole position - designer positions this in BP
+	KeyLockSocket = CreateDefaultSubobject<USceneComponent>(TEXT("KeyLockSocket"));
+	KeyLockSocket->SetupAttachment(RootComponent);
+
+	// Persistent mesh used only during the animation (hidden until the sequence runs)
+	AnimKeyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AnimKeyMesh"));
+	AnimKeyMesh->SetupAttachment(RootComponent);
+	AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	AnimKeyMesh->SetCastShadow(false);
+	AnimKeyMesh->SetVisibility(false);
+
+	// Timeline components for the two animation phases
+	KeyInsertTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("KeyInsertTimeline"));
+	KeyTurnTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("KeyTurnTimeline"));
+}
+
+void AOutsideBathroomDoor::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (KeyInsertCurve && KeyInsertTimeline)
+	{
+		FOnTimelineFloat InsertCallback;
+		InsertCallback.BindUFunction(this, FName("UpdateKeyInsert"));
+		KeyInsertTimeline->AddInterpFloat(KeyInsertCurve, InsertCallback);
+		KeyInsertTimeline->SetLooping(false);
+
+		FOnTimelineEvent InsertFinishCallback;
+		InsertFinishCallback.BindUFunction(this, FName("OnKeyInsertComplete"));
+		KeyInsertTimeline->SetTimelineFinishedFunc(InsertFinishCallback);
+	}
+
+	if (KeyTurnCurve && KeyTurnTimeline)
+	{
+		FOnTimelineFloat TurnCallback;
+		TurnCallback.BindUFunction(this, FName("UpdateKeyTurn"));
+		KeyTurnTimeline->AddInterpFloat(KeyTurnCurve, TurnCallback);
+		KeyTurnTimeline->SetLooping(false);
+
+		FOnTimelineEvent TurnFinishCallback;
+		TurnFinishCallback.BindUFunction(this, FName("OnKeyTurnComplete"));
+		KeyTurnTimeline->SetTimelineFinishedFunc(TurnFinishCallback);
+	}
 }
 
 void AOutsideBathroomDoor::Interact_Implementation()
@@ -54,22 +105,146 @@ void AOutsideBathroomDoor::Interact_Implementation()
 		return;
 	}
 
-	// Scripted key drop event
+	StartKeyBreakSequence();
+}
+
+void AOutsideBathroomDoor::StartKeyBreakSequence()
+{
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
+	if (!MyCharacter)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - No AMyCharacter"));
+		return;
+	}
+
+	UHeldItemComponent* HeldItem = MyCharacter->GetHeldItemComponent();
+	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
+	if (!HeldItem || !Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - Missing HeldItem or Inventory"));
+		return;
+	}
+
+	// Capture world transform from the held item before it disappears
+	FTransform HeldTransform = HeldItem->GetHeldItemWorldTransform();
+	KeyAnimStartPos = HeldTransform.GetLocation();
+	KeyAnimStartRot = HeldTransform.GetRotation().Rotator();
+
+	// Hide the real held item immediately - seamless hand-off to AnimKeyMesh
+	HeldItem->HideHeldItem();
+
+	// Capture materials from key's inventory data before removing it
+	FInventoryItemData KeyData = Inventory->GetItemData(KeyToRemove);
+	KeyMaterials = KeyData.Materials;
+
+	// Remove key from inventory and clear active item so HeldItemComponent stops tracking it
 	Inventory->RemoveItem(KeyToRemove);
 	Inventory->ClearActiveItem();
+
+	// Set up the animated key mesh at the hand position
+	if (AnimKeyMesh)
+	{
+		if (FullKeyMesh)
+		{
+			AnimKeyMesh->SetStaticMesh(FullKeyMesh);
+		}
+		for (int32 i = 0; i < KeyMaterials.Num(); i++)
+		{
+			if (KeyMaterials[i])
+			{
+				AnimKeyMesh->SetMaterial(i, KeyMaterials[i]);
+			}
+		}
+		AnimKeyMesh->SetWorldScale3D(FVector(0.001f));
+		AnimKeyMesh->SetWorldLocation(KeyAnimStartPos);
+		AnimKeyMesh->SetWorldRotation(KeyAnimStartRot);
+		AnimKeyMesh->SetVisibility(true);
+	}
+
+	if (KeyInsertSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyInsertSound, KeyAnimStartPos);
+	}
+
+	if (KeyInsertTimeline)
+	{
+		KeyInsertTimeline->PlayFromStart();
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence started from pos %s"), *KeyAnimStartPos.ToString());
+}
+
+void AOutsideBathroomDoor::UpdateKeyInsert(float Alpha)
+{
+	if (!AnimKeyMesh || !KeyLockSocket) return;
+
+	FVector TargetPos = KeyLockSocket->GetComponentLocation();
+	AnimKeyMesh->SetWorldLocation(FMath::Lerp(KeyAnimStartPos, TargetPos, Alpha));
+}
+
+void AOutsideBathroomDoor::OnKeyInsertComplete()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key inserted - starting turn phase"));
+
+	if (KeyTurnSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyTurnSound, KeyLockSocket->GetComponentLocation());
+	}
+
+	if (KeyTurnTimeline)
+	{
+		KeyTurnTimeline->PlayFromStart();
+	}
+}
+
+void AOutsideBathroomDoor::UpdateKeyTurn(float Alpha)
+{
+	if (!AnimKeyMesh || !KeyLockSocket) return;
+
+	FRotator LockRot = KeyLockSocket->GetComponentRotation();
+	float TurnYaw = FMath::Lerp(0.0f, -90.0f, Alpha);
+	AnimKeyMesh->SetWorldRotation(LockRot + FRotator(0.0f, TurnYaw, 0.0f));
+}
+
+void AOutsideBathroomDoor::OnKeyTurnComplete()
+{
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key turned - breaking"));
+
+	if (KeyBreakSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
+	}
+
+	// Swap to broken mesh and drop with physics
+	if (AnimKeyMesh)
+	{
+		if (BrokenKeyMesh)
+		{
+			AnimKeyMesh->SetStaticMesh(BrokenKeyMesh);
+		}
+		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		AnimKeyMesh->SetSimulatePhysics(true);
+	}
+
+	// Add broken key to inventory with the same materials but the broken mesh
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
+	if (MyCharacter)
+	{
+		UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
+		if (Inventory && BrokenKeyMesh)
+		{
+			FInventoryItemData BrokenKeyData;
+			BrokenKeyData.ItemID = FName("BrokenKey");
+			BrokenKeyData.Mesh = BrokenKeyMesh;
+			BrokenKeyData.Materials = KeyMaterials;
+			BrokenKeyData.Scale = FVector(0.001f);
+			Inventory->AddItemWithData(BrokenKeyData);
+		}
+	}
+
 	bDidDropKey = true;
-
-	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Key '%s' dropped!"), *KeyToRemove.ToString());
-
-	if (KeyDropSound)
-	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyDropSound, GetActorLocation());
-	}
-
-	if (LockedDoorSound)
-	{
-		UGameplayStatics::PlaySound2D(this, LockedDoorSound);
-	}
 
 	if (SenecaRef)
 	{
@@ -79,4 +254,6 @@ void AOutsideBathroomDoor::Interact_Implementation()
 	{
 		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - SenecaRef is NOT SET, cannot notify key drop"));
 	}
+
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
 }
