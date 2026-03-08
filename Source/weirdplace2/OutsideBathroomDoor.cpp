@@ -180,7 +180,8 @@ void AOutsideBathroomDoor::UpdateKeyInsert(float Alpha)
 {
 	if (!AnimKeyMesh || !KeyLockSocket) return;
 
-	FVector TargetPos = KeyLockSocket->GetComponentLocation();
+	FVector WorldApproachDir = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyInsertApproachAxis.GetSafeNormal());
+	FVector TargetPos = KeyLockSocket->GetComponentLocation() + WorldApproachDir * KeyInsertEndOffset;
 	AnimKeyMesh->SetWorldLocation(FMath::Lerp(KeyAnimStartPos, TargetPos, Alpha));
 }
 
@@ -205,7 +206,7 @@ void AOutsideBathroomDoor::UpdateKeyTurn(float Alpha)
 
 	FQuat BaseRot = FQuat(KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset);
 	FVector WorldTurnAxis = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyTurnAxis.GetSafeNormal());
-	FQuat TurnDelta = FQuat(WorldTurnAxis, FMath::DegreesToRadians(FMath::Lerp(0.0f, -90.0f, Alpha)));
+	FQuat TurnDelta = FQuat(WorldTurnAxis, FMath::DegreesToRadians(FMath::Lerp(0.0f, KeyTurnAngle, Alpha)));
 	AnimKeyMesh->SetWorldRotation(TurnDelta * BaseRot);
 }
 
@@ -218,13 +219,20 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
 	}
 
-	// Swap to broken mesh and drop with physics
+	// Swap to broken mesh immediately so the visual snap is instant
+	if (AnimKeyMesh && BrokenKeyMesh)
+	{
+		AnimKeyMesh->SetStaticMesh(BrokenKeyMesh);
+	}
+
+	// Delay physics so the broken half hangs in the lock briefly before falling
+	GetWorldTimerManager().SetTimer(KeyFallTimerHandle, this, &AOutsideBathroomDoor::EnableKeyFall, KeyFallDelay, false);
+}
+
+void AOutsideBathroomDoor::EnableKeyFall()
+{
 	if (AnimKeyMesh)
 	{
-		if (BrokenKeyMesh)
-		{
-			AnimKeyMesh->SetStaticMesh(BrokenKeyMesh);
-		}
 		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		AnimKeyMesh->SetSimulatePhysics(true);
 	}

@@ -63,6 +63,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	FVector KeyInsertApproachAxis = FVector(1.0f, 0.0f, 0.0f);
 
+	// How many cm short of the socket the key stops (pull back if inserting too deep)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float KeyInsertEndOffset = 2.0f;
+
 	// Rotation offset applied to the key mesh on top of the socket rotation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	FRotator KeyMeshRotationOffset = FRotator::ZeroRotator;
@@ -70,6 +74,14 @@ protected:
 	// Local-space axis of KeyLockSocket to rotate around during the turn phase (e.g. (0,0,1) = socket up)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	FVector KeyTurnAxis = FVector(0.0f, 0.0f, 1.0f);
+
+	// Degrees to rotate during the turn phase (negative = clockwise when viewed down the axis)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float KeyTurnAngle = -90.0f;
+
+	// Seconds after the turn completes before the broken key falls
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float KeyFallDelay = 1.0f;
 
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
@@ -124,4 +136,9 @@ private:
 
 	UFUNCTION()
 	void OnKeyTurnComplete();
+
+	UFUNCTION()
+	void EnableKeyFall();
+
+	FTimerHandle KeyFallTimerHandle;
 };
