@@ -130,7 +130,7 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 	// slide into the door surface, not a depth-axis shrink from the camera
 	FVector WorldApproachDir = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyInsertApproachAxis.GetSafeNormal());
 	KeyAnimStartPos = KeyLockSocket->GetComponentLocation() + WorldApproachDir * KeyInsertStartOffset;
-	KeyAnimStartRot = KeyLockSocket->GetComponentRotation();
+	KeyAnimStartRot = KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset;
 
 	// Hide the real held item immediately - seamless hand-off to AnimKeyMesh
 	HeldItem->HideHeldItem();
@@ -203,7 +203,7 @@ void AOutsideBathroomDoor::UpdateKeyTurn(float Alpha)
 {
 	if (!AnimKeyMesh || !KeyLockSocket) return;
 
-	FRotator LockRot = KeyLockSocket->GetComponentRotation();
+	FRotator LockRot = KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset;
 	float TurnYaw = FMath::Lerp(0.0f, -90.0f, Alpha);
 	AnimKeyMesh->SetWorldRotation(LockRot + FRotator(0.0f, TurnYaw, 0.0f));
 }
