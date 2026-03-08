@@ -126,10 +126,11 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		return;
 	}
 
-	// Capture world transform from the held item before it disappears
-	FTransform HeldTransform = HeldItem->GetHeldItemWorldTransform();
-	KeyAnimStartPos = HeldTransform.GetLocation();
-	KeyAnimStartRot = HeldTransform.GetRotation().Rotator();
+	// Start the key just in front of the keyhole so the insertion is a visible
+	// slide into the door surface, not a depth-axis shrink from the camera
+	FVector WorldApproachDir = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyInsertApproachAxis.GetSafeNormal());
+	KeyAnimStartPos = KeyLockSocket->GetComponentLocation() + WorldApproachDir * KeyInsertStartOffset;
+	KeyAnimStartRot = KeyLockSocket->GetComponentRotation();
 
 	// Hide the real held item immediately - seamless hand-off to AnimKeyMesh
 	HeldItem->HideHeldItem();

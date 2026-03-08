@@ -55,6 +55,14 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
 	UTimelineComponent* KeyTurnTimeline;
 
+	// How far from the keyhole the key appears before sliding in (cm)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float KeyInsertStartOffset = 10.0f;
+
+	// Local-space axis of KeyLockSocket the key approaches from (e.g. (1,0,0) = socket forward, (0,0,1) = socket up)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	FVector KeyInsertApproachAxis = FVector(1.0f, 0.0f, 0.0f);
+
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	UCurveFloat* KeyInsertCurve;
