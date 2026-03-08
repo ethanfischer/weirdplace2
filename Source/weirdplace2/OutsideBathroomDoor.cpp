@@ -203,9 +203,10 @@ void AOutsideBathroomDoor::UpdateKeyTurn(float Alpha)
 {
 	if (!AnimKeyMesh || !KeyLockSocket) return;
 
-	FRotator LockRot = KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset;
-	float TurnYaw = FMath::Lerp(0.0f, -90.0f, Alpha);
-	AnimKeyMesh->SetWorldRotation(LockRot + FRotator(0.0f, TurnYaw, 0.0f));
+	FQuat BaseRot = FQuat(KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset);
+	FVector WorldTurnAxis = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyTurnAxis.GetSafeNormal());
+	FQuat TurnDelta = FQuat(WorldTurnAxis, FMath::DegreesToRadians(FMath::Lerp(0.0f, -90.0f, Alpha)));
+	AnimKeyMesh->SetWorldRotation(TurnDelta * BaseRot);
 }
 
 void AOutsideBathroomDoor::OnKeyTurnComplete()

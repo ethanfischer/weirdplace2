@@ -67,6 +67,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	FRotator KeyMeshRotationOffset = FRotator::ZeroRotator;
 
+	// Local-space axis of KeyLockSocket to rotate around during the turn phase (e.g. (0,0,1) = socket up)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	FVector KeyTurnAxis = FVector(0.0f, 0.0f, 1.0f);
+
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	UCurveFloat* KeyInsertCurve;
