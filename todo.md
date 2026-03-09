@@ -7,6 +7,7 @@
 [x] walk inside
 [x] talk to seneca
 [x] he tells you you can use bathroom but need to buy 3 movies first
+[ ] he gives you shopping cart
 [] buy 3 movies
     [ ] inventory starts with only 3 slots
     [ ] give each movie directly, he makes a comment about each selection
