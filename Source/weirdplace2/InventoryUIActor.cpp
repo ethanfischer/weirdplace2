@@ -377,9 +377,16 @@ void AInventoryUIActor::CreateThumbnails()
 		float Height = ThumbnailSize * 1.4f;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
-		// Check for item-specific thumbnail first (convention: /Game/Images/ItemThumbnails/<ItemID>_thumbnail)
-		FString ItemThumbnailPath = FString::Printf(TEXT("/Game/Images/ItemThumbnails/%s_thumbnail"), *ItemID.ToString());
-		UTexture2D* ItemThumbnailTex = LoadObject<UTexture2D>(nullptr, *ItemThumbnailPath);
+		// Check for runtime thumbnail override on the item data first
+		UTexture2D* ItemThumbnailTex = InventoryComponent->GetItemData(ItemID).Thumbnail;
+
+		// Fall back to the convention path if no override
+		if (!ItemThumbnailTex)
+		{
+			FString ItemThumbnailPath = FString::Printf(TEXT("/Game/Images/ItemThumbnails/%s_thumbnail"), *ItemID.ToString());
+			ItemThumbnailTex = LoadObject<UTexture2D>(nullptr, *ItemThumbnailPath);
+		}
+
 		if (ItemThumbnailTex && ItemThumbnailMaterial)
 		{
 			UMaterialInstanceDynamic* ThumbnailMat = UMaterialInstanceDynamic::Create(ItemThumbnailMaterial, this);

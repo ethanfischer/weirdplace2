@@ -6,6 +6,7 @@
 
 class UStaticMesh;
 class UMaterialInterface;
+class UTexture2D;
 
 // Visual data captured from collected items
 USTRUCT(BlueprintType)
@@ -27,6 +28,10 @@ struct FInventoryItemData
 
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
 	FRotator Rotation = FRotator::ZeroRotator;
+
+	// Optional thumbnail override; if set, InventoryUIActor uses this instead of the convention path
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	UTexture2D* Thumbnail = nullptr;
 
 	bool IsValid() const { return !ItemID.IsNone() && Mesh != nullptr; }
 };
@@ -99,6 +104,10 @@ public:
 	// Clears the active item selection
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ClearActiveItem();
+
+	// Overrides the thumbnail for an existing inventory item and broadcasts OnInventoryChanged
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void UpdateItemThumbnail(const FName& ItemID, UTexture2D* NewThumbnail);
 
 	// Helper to create item data from a static mesh component
 	UFUNCTION(BlueprintCallable, Category = "Inventory")

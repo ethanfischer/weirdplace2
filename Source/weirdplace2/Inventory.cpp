@@ -99,6 +99,18 @@ void UInventoryComponent::ClearActiveItem() {
     }
 }
 
+void UInventoryComponent::UpdateItemThumbnail(const FName& ItemID, UTexture2D* NewThumbnail)
+{
+    FInventoryItemData* Data = ItemDataMap.Find(ItemID);
+    if (!Data)
+    {
+        UE_LOG(LogTemp, Error, TEXT("UpdateItemThumbnail: Item '%s' not found in inventory"), *ItemID.ToString());
+        return;
+    }
+    Data->Thumbnail = NewThumbnail;
+    OnInventoryChanged.Broadcast(Items);
+}
+
 FInventoryItemData UInventoryComponent::CreateItemDataFromMeshComponent(const FName& ItemID, UStaticMeshComponent* MeshComponent) {
     FInventoryItemData Data;
     Data.ItemID = ItemID;

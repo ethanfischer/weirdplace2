@@ -214,6 +214,24 @@ void ASeneca::OnKeyDropped()
 		TriggerSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 	CurrentState = ESenecaState::Smoking;
+
+	if (KeyBrokenThumbnail)
+	{
+		ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+		if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
+		{
+			if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
+			{
+				// OutsideBathroomDoor adds the broken key as "BrokenKey", not KeyToGive
+				Inventory->UpdateItemThumbnail(FName("BrokenKey"), KeyBrokenThumbnail);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::OnKeyDropped - KeyBrokenThumbnail not assigned on level instance"));
+	}
+
 	GetWorldTimerManager().SetTimer(SmokingAppearTimerHandle, this, &ASeneca::OnSmokingDelayComplete, SmokingAppearDelay, false);
 }
 

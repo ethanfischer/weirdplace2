@@ -11,6 +11,7 @@ class USphereComponent;
 class UWidgetComponent;
 class UDlgContext;
 class UStaticMesh;
+class UTexture2D;
 class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
@@ -142,6 +143,10 @@ protected:
 	// Scale override for the key in inventory/held view
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	FVector KeyScale = FVector(0.001f, 0.001f, 0.001f);
+
+	// Thumbnail shown in inventory after the key is dropped (broken key)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	UTexture2D* KeyBrokenThumbnail;
 
 	// --- Quest Config ---
 
