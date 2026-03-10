@@ -138,6 +138,21 @@ On macOS 26 with Xcode 26.x, edit `Engine/Config/Apple/Apple_SDK.json` and chang
 - High-level behavior and configuration options
 
 
+## Hiding Actors at Runtime
+
+**Do NOT use `SetActorHiddenInGame`** — it sets a flag on the actor but the component's own `bVisible` takes precedence and the mesh stays visible.
+
+Use `SetVisibility` on the root component instead:
+```cpp
+// Requires: #include "Components/SceneComponent.h"
+if (USceneComponent* Root = Actor->GetRootComponent())
+{
+    Root->SetVisibility(false, true); // false=hide, true=propagate to children
+}
+```
+
+Setting "Hidden in Game" in the editor Details panel is also unreliable — always enforce visibility state in C++.
+
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)

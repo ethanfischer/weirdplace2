@@ -4,6 +4,7 @@
 #include "Inventory.h"
 #include "BPFL_Utilities.h"
 #include "Door.h"
+#include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
@@ -11,7 +12,6 @@
 #include "Kismet/GameplayStatics.h"
 #include "DlgSystem/DlgContext.h"
 #include "Engine/StaticMesh.h"
-#include "Engine/StaticMeshActor.h"
 #include "Misc/FileHelper.h"
 #include "UI_Dialogue.h"
 #include "FirstPersonCharacter.h"
@@ -75,6 +75,26 @@ void ASeneca::BeginPlay()
 	if (!CigaretteComp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
+	}
+
+	if (ShoppingBasketActor)
+	{
+		FTimerHandle HideBasketHandle;
+		GetWorldTimerManager().SetTimer(HideBasketHandle, [this]()
+		{
+			if (ShoppingBasketActor)
+			{
+				UE_LOG(LogTemp, Log, TEXT("Seneca - Hiding ShoppingBasketActor: %s"), *ShoppingBasketActor->GetName());
+				if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
+				{
+					Root->SetVisibility(false, true);
+				}
+			}
+		}, 0.1f, false);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - ShoppingBasketActor is not assigned"));
 	}
 
 	// Load dialogue text files
@@ -512,6 +532,21 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
+	if (bBasketVisible)
+	{
+		// Third call: player pressed E to dismiss basket — hide it and continue dialogue
+		bBasketVisible = false;
+		if (ShoppingBasketActor)
+		{
+			if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
+			{
+				Root->SetVisibility(false, true);
+			}
+		}
+		FPChar->AdvanceMultiSpeakerDialogue();
+		return;
+	}
+
 	if (!bBasketBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
@@ -520,62 +555,22 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	// Second broadcast: player pressed E, advance was blocked, dialogue closed — fire the beat
+	// Second broadcast: player pressed E — show the basket and wait for another E to dismiss
 	bBasketBeatArmed = false;
-	FPChar->SetCanInteract(false);
+	bBasketVisible = true;
+	FPChar->bBlockNextMultiSpeakerAdvance = true;
 
-	if (ShoppingBasketMesh)
+	if (ShoppingBasketActor)
 	{
-		FVector CameraLoc;
-		FRotator CameraRot;
-		PC->GetPlayerViewPoint(CameraLoc, CameraRot);
-		FVector SpawnLocation = CameraLoc + CameraRot.Vector() * BasketDistance;
-
-		AStaticMeshActor* BasketActor = GetWorld()->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(), SpawnLocation, FRotator::ZeroRotator);
-		if (BasketActor)
+		if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
 		{
-			BasketActor->GetStaticMeshComponent()->SetStaticMesh(ShoppingBasketMesh);
-			BasketActor->GetStaticMeshComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			BasketActor->SetActorScale3D(BasketScale);
-			SpawnedBasketActor = BasketActor;
+			Root->SetVisibility(true, true);
 		}
 	}
-
-	GetWorldTimerManager().SetTimer(BasketBeatTimerHandle, this, &ASeneca::OnBasketBeatFinished, BasketBeatDuration, false);
-}
-
-void ASeneca::OnBasketBeatFinished()
-{
-	if (SpawnedBasketActor)
+	else
 	{
-		SpawnedBasketActor->Destroy();
-		SpawnedBasketActor = nullptr;
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor not assigned on level instance"));
 	}
-
-	if (DialogueWidgetComponent)
-	{
-		if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(DialogueWidgetComponent->GetWidget()))
-		{
-			DialogueWidget->SetVisibility(ESlateVisibility::Visible);
-		}
-	}
-
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketBeatFinished - No PlayerController"));
-		return;
-	}
-
-	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
-	if (!FPChar)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketBeatFinished - Player is not AFirstPersonCharacter"));
-		return;
-	}
-
-	FPChar->AdvanceMultiSpeakerDialogue();
-	FPChar->SetCanInteract(true);
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---

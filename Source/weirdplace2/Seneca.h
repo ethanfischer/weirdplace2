@@ -176,17 +176,9 @@ protected:
 
 	// --- Basket Beat Config ---
 
+	// Pre-placed ShoppingBasket actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	UStaticMesh* ShoppingBasketMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	float BasketBeatDuration = 2.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	float BasketDistance = 60.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	FVector BasketScale = FVector(1.0f, 1.0f, 1.0f);
+	AActor* ShoppingBasketActor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
 	int32 BasketBeatLineIndex = 2;
@@ -245,11 +237,6 @@ private:
 	UFUNCTION()
 	void OnBasketDialogueLineShown(int32 LineIndex);
 
-	void OnBasketBeatFinished();
-
 	bool bBasketBeatArmed = false;
-	FTimerHandle BasketBeatTimerHandle;
-
-	UPROPERTY()
-	AActor* SpawnedBasketActor = nullptr;
+	bool bBasketVisible = false;
 };
