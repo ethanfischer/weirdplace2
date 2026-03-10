@@ -148,6 +148,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	UTexture2D* KeyBrokenThumbnail;
 
+	// Pre-placed key actor in the level — shown on beat, hidden on next E press
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	AActor* KeyActor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	int32 KeyBeatLineIndex = 0;
+
 	// --- Quest Config ---
 
 	// Number of movies required before Seneca gives the key
@@ -239,4 +246,14 @@ private:
 
 	bool bBasketBeatArmed = false;
 	bool bBasketVisible = false;
+
+	// --- Key Beat ---
+
+	void StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar);
+
+	UFUNCTION()
+	void OnKeyDialogueLineShown(int32 LineIndex);
+
+	bool bKeyBeatArmed = false;
+	bool bKeyVisible = false;
 };

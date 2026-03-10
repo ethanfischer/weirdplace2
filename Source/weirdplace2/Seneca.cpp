@@ -77,6 +77,21 @@ void ASeneca::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
 	}
 
+	if (KeyActor)
+	{
+		FTimerHandle HideKeyHandle;
+		GetWorldTimerManager().SetTimer(HideKeyHandle, [this]()
+		{
+			if (KeyActor)
+			{
+				if (USceneComponent* Root = KeyActor->GetRootComponent())
+				{
+					Root->SetVisibility(false, true);
+				}
+			}
+		}, 0.1f, false);
+	}
+
 	if (ShoppingBasketActor)
 	{
 		FTimerHandle HideBasketHandle;
@@ -197,10 +212,20 @@ void ASeneca::OnDialogueEnded()
 	}
 
 	case ESenecaState::ReadyToGiveKey:
+	{
+		APlayerController* PC2 = GetWorld()->GetFirstPlayerController();
+		if (PC2)
+		{
+			if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC2->GetPawn()))
+			{
+				FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
+			}
+		}
 		GiveKey();
 		CurrentState = ESenecaState::GaveKey;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: ReadyToGiveKey -> GaveKey"));
 		break;
+	}
 
 	case ESenecaState::Smoking:
 		// Defer move until player looks away
@@ -288,6 +313,12 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
+	if (CurrentState == ESenecaState::ReadyToGiveKey)
+	{
+		StartReadyToGiveKeyDialogue(FPCharacter);
+		return;
+	}
+
 	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
 	if (!Lines || Lines->Num() == 0)
 	{
@@ -316,6 +347,12 @@ void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 	{
 		if (!bIntroDialoguePlayed)
 			StartWaitingForMoviesDialogue(FPCharacter);
+		return;
+	}
+
+	if (CurrentState == ESenecaState::ReadyToGiveKey)
+	{
+		StartReadyToGiveKeyDialogue(FPCharacter);
 		return;
 	}
 
@@ -570,6 +607,91 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor not assigned on level instance"));
+	}
+}
+
+// --- Key Beat ---
+
+void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
+{
+	const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::ReadyToGiveKey);
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartReadyToGiveKeyDialogue - No lines found"));
+		return;
+	}
+
+	TArray<FSimpleDialogueLine> MultiLines;
+	for (const FText& LineText : *Lines)
+	{
+		FSimpleDialogueLine Line;
+		Line.Speaker = FText::FromString(TEXT("Seneca"));
+		Line.Text = LineText;
+		MultiLines.Add(Line);
+	}
+
+	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
+	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnKeyDialogueLineShown);
+	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
+}
+
+void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
+{
+	if (LineIndex != KeyBeatLineIndex)
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!FPChar)
+	{
+		return;
+	}
+
+	if (bKeyVisible)
+	{
+		// Third call: player pressed E to dismiss key — hide it and continue
+		bKeyVisible = false;
+		if (KeyActor)
+		{
+			if (USceneComponent* Root = KeyActor->GetRootComponent())
+			{
+				Root->SetVisibility(false, true);
+			}
+		}
+		FPChar->AdvanceMultiSpeakerDialogue();
+		return;
+	}
+
+	if (!bKeyBeatArmed)
+	{
+		// First broadcast: arm the block so the next E press triggers the beat
+		bKeyBeatArmed = true;
+		FPChar->bBlockNextMultiSpeakerAdvance = true;
+		return;
+	}
+
+	// Second broadcast: player pressed E — show the key and wait for another E to dismiss
+	bKeyBeatArmed = false;
+	bKeyVisible = true;
+	FPChar->bBlockNextMultiSpeakerAdvance = true;
+
+	if (KeyActor)
+	{
+		if (USceneComponent* Root = KeyActor->GetRootComponent())
+		{
+			Root->SetVisibility(true, true);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor not assigned on level instance"));
 	}
 }
 
