@@ -595,7 +595,7 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 		if (UI_Dialogue)
 		{
 			const FSimpleDialogueLine& Line = MultiSpeakerLines[MultiSpeakerLineIndex];
-			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
+			UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
 		}
 
 		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
