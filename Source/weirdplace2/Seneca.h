@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "PropActor.h"
 #include "Interactable.h"
 #include "DlgSystem/DlgDialogueParticipant.h"
 #include "GameFramework/Actor.h"
@@ -150,7 +151,7 @@ protected:
 
 	// Pre-placed key actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	AActor* KeyActor;
+	APropActor* KeyActor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	int32 KeyBeatLineIndex = 0;
@@ -185,7 +186,7 @@ protected:
 
 	// Pre-placed ShoppingBasket actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	AActor* ShoppingBasketActor;
+	APropActor* ShoppingBasketActor;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
 	int32 BasketBeatLineIndex = 2;
@@ -245,7 +246,6 @@ private:
 	void OnBasketDialogueLineShown(int32 LineIndex);
 
 	bool bBasketBeatArmed = false;
-	bool bBasketVisible = false;
 
 	// --- Key Beat ---
 
@@ -255,5 +255,4 @@ private:
 	void OnKeyDialogueLineShown(int32 LineIndex);
 
 	bool bKeyBeatArmed = false;
-	bool bKeyVisible = false;
 };

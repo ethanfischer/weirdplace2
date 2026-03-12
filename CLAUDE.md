@@ -14,28 +14,17 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 
 ## Build Commands
 
-**Live Coding (Ctrl+Alt+F11 in UE Editor)** - use for:
-- `.cpp` implementation changes (function body edits only)
+**Always build after making C++ changes.** Do NOT ask the user to build — do it yourself.
 
-**Full Restart Required** - close UE, rebuild from Rider/VS:
-- Adding/removing `UPROPERTY` or `UFUNCTION`
-- Changing function signatures in headers
-- Adding new classes or files
-- Changing class inheritance
-- Modifying `.Build.cs`
-
-**Always build after making C++ changes** to verify they compile before telling the user you're done.
-
-**Use the Rider MCP server to build and launch.** After making changes:
-- Run `mcp__jetbrains__build_project` to compile
-- Run `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"` to launch the UE editor
-- Do NOT ask the user to build or press play — do it yourself via MCP
-
-If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), kill the Unreal Editor process yourself before building:
-```cmd
-taskkill //F //IM UnrealEditor.exe
+**`.cpp`-only changes → Live Coding** (editor stays open):
+```bash
+powershell -ExecutionPolicy Bypass -File livecode.ps1
 ```
-(The `//` is needed because the shell interprets `/` as a path — this is the Git Bash escape for `/IM`.)
+
+**Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
+1. `taskkill //F //IM UnrealEditor.exe`
+2. `mcp__jetbrains__build_project`
+3. `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"`
 
 Build commands (fallback if MCP is unavailable):
 ```cmd
@@ -152,6 +141,20 @@ if (USceneComponent* Root = Actor->GetRootComponent())
 ```
 
 Setting "Hidden in Game" in the editor Details panel is also unreliable — always enforce visibility state in C++.
+
+## Reading Output Logs
+
+Always read logs directly — never ask the user to copy-paste them.
+
+The active log is at:
+```
+C:\Users\ethan\repos\weirdplace2\Saved\Logs\weirdplace2.log
+```
+
+Use `grep` to search for relevant lines:
+```bash
+grep -n "MyKeyword\|OtherKeyword" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/weirdplace2.log" | tail -80
+```
 
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14

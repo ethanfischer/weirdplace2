@@ -84,10 +84,8 @@ void ASeneca::BeginPlay()
 		{
 			if (KeyActor)
 			{
-				if (USceneComponent* Root = KeyActor->GetRootComponent())
-				{
-					Root->SetVisibility(false, true);
-				}
+				KeyActor->MeshComponent->SetVisibility(false, true);
+				KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			}
 		}, 0.1f, false);
 	}
@@ -100,10 +98,8 @@ void ASeneca::BeginPlay()
 			if (ShoppingBasketActor)
 			{
 				UE_LOG(LogTemp, Log, TEXT("Seneca - Hiding ShoppingBasketActor: %s"), *ShoppingBasketActor->GetName());
-				if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
-				{
-					Root->SetVisibility(false, true);
-				}
+				ShoppingBasketActor->MeshComponent->SetVisibility(false, true);
+				ShoppingBasketActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			}
 		}, 0.1f, false);
 	}
@@ -569,21 +565,6 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	if (bBasketVisible)
-	{
-		// Third call: player pressed E to dismiss basket — hide it and continue dialogue
-		bBasketVisible = false;
-		if (ShoppingBasketActor)
-		{
-			if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
-			{
-				Root->SetVisibility(false, true);
-			}
-		}
-		FPChar->AdvanceMultiSpeakerDialogue();
-		return;
-	}
-
 	if (!bBasketBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
@@ -592,22 +573,37 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	// Second broadcast: player pressed E — show the basket and wait for another E to dismiss
+	// Second broadcast: show the basket, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
 	bBasketBeatArmed = false;
-	bBasketVisible = true;
-	FPChar->bBlockNextMultiSpeakerAdvance = true;
 
-	if (ShoppingBasketActor)
+	if (!ShoppingBasketActor)
 	{
-		if (USceneComponent* Root = ShoppingBasketActor->GetRootComponent())
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor is not assigned"));
+		return;
+	}
+
+	ShoppingBasketActor->MeshComponent->SetVisibility(true, true);
+	ShoppingBasketActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
+
+	TWeakObjectPtr<APropActor> WeakProp(ShoppingBasketActor);
+	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
+
+	ShoppingBasketActor->OnInteracted.AddLambda([WeakProp, WeakFPChar]()
+	{
+		if (APropActor* P = WeakProp.Get())
 		{
-			Root->SetVisibility(true, true);
+			P->MeshComponent->SetVisibility(false, true);
+			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			P->OnInteracted.Clear();
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor not assigned on level instance"));
-	}
+		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
+		{
+			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+			FPC->AdvanceMultiSpeakerDialogue();
+		}
+	});
 }
 
 // --- Key Beat ---
@@ -654,45 +650,49 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	if (bKeyVisible)
-	{
-		// Third call: player pressed E to dismiss key — hide it and continue
-		bKeyVisible = false;
-		if (KeyActor)
-		{
-			if (USceneComponent* Root = KeyActor->GetRootComponent())
-			{
-				Root->SetVisibility(false, true);
-			}
-		}
-		FPChar->AdvanceMultiSpeakerDialogue();
-		return;
-	}
-
 	if (!bKeyBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
+		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - First broadcast (LineIndex=%d), arming beat"), LineIndex);
 		bKeyBeatArmed = true;
 		FPChar->bBlockNextMultiSpeakerAdvance = true;
 		return;
 	}
 
-	// Second broadcast: player pressed E — show the key and wait for another E to dismiss
+	// Second broadcast: show the key, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Second broadcast, binding lambda. KeyActor=%s"),
+		KeyActor ? *KeyActor->GetName() : TEXT("NULL"));
 	bKeyBeatArmed = false;
-	bKeyVisible = true;
-	FPChar->bBlockNextMultiSpeakerAdvance = true;
 
-	if (KeyActor)
+	if (!KeyActor)
 	{
-		if (USceneComponent* Root = KeyActor->GetRootComponent())
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
+		return;
+	}
+
+	KeyActor->MeshComponent->SetVisibility(true, true);
+	KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
+
+	TWeakObjectPtr<APropActor> WeakProp(KeyActor);
+	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
+
+	KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar]()
+	{
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
+		if (APropActor* P = WeakProp.Get())
 		{
-			Root->SetVisibility(true, true);
+			P->MeshComponent->SetVisibility(false, true);
+			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			P->OnInteracted.Clear();
 		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor not assigned on level instance"));
-	}
+		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
+		{
+			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+			FPC->AdvanceMultiSpeakerDialogue();
+		}
+	});
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---
