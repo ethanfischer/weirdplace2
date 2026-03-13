@@ -44,6 +44,8 @@ public:
 	EPlayerActivityState GetActivityState() const { return ActivityState; }
 	bool IsInAnyDialogue() const;
 
+	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
+
 	// Unlocks inventory access (called by Seneca after first dialogue)
 	void UnlockInventory();
 	bool IsInventoryUnlocked() const { return bInventoryUnlocked; }

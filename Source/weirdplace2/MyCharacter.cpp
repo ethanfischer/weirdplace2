@@ -87,6 +87,15 @@ bool AMyCharacter::IsInAnyDialogue() const
 		|| ActivityState == EPlayerActivityState::InDlgDialogue;
 }
 
+void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
+{
+	if (IsInAnyDialogue() || ActivityState == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+	{
+		return;
+	}
+	Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
+}
+
 void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
 {
 	if (InventoryComponent)
