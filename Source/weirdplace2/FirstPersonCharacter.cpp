@@ -368,6 +368,10 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			{
 				return;
 			}
+			if (HitActor->IsA<ASeneca>() && GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+			{
+				return;
+			}
 			OutHitActor = HitActor;
 			bDidHitInteractable = true;
 		}

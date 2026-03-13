@@ -210,16 +210,22 @@ void ASeneca::OnDialogueEnded()
 	case ESenecaState::ReadyToGiveKey:
 	{
 		APlayerController* PC2 = GetWorld()->GetFirstPlayerController();
-		if (PC2)
+		AFirstPersonCharacter* FPChar = PC2 ? Cast<AFirstPersonCharacter>(PC2->GetPawn()) : nullptr;
+		if (FPChar)
 		{
-			if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC2->GetPawn()))
-			{
-				FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
-			}
+			FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
 		}
 		GiveKey();
 		CurrentState = ESenecaState::GaveKey;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: ReadyToGiveKey -> GaveKey"));
+		if (FPChar)
+		{
+			const TArray<FText>* GaveKeyLines = DialogueLines.Find(ESenecaState::GaveKey);
+			if (GaveKeyLines && GaveKeyLines->Num() > 0)
+			{
+				FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *GaveKeyLines, this);
+			}
+		}
 		break;
 	}
 
