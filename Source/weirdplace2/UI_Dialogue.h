@@ -57,6 +57,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
 	USoundBase* VoiceSound;
 
+	// Per-character blip sound with randomized pitch
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
+	USoundBase* BlipSound;
+
 private:
 	void SetNextDisplayTextCharacter();
 	void ClearOptionsText();

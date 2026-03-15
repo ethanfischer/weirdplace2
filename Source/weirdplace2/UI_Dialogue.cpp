@@ -157,7 +157,14 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 		if (Text)
 		{
 			Text->SetText(FText::FromString(DisplayText));
+		}
 
+		// Play blip with randomized pitch on non-whitespace characters
+		TCHAR NewChar = FullText[CurrentCharIndex - 1];
+		if (BlipSound && !FChar::IsWhitespace(NewChar))
+		{
+			float Pitch = FMath::RandRange(0.8f, 1.2f);
+			UGameplayStatics::PlaySound2D(GetWorld(), BlipSound, 1.0f, Pitch);
 		}
 
 		// Continue typewriter effect
