@@ -7,6 +7,7 @@
 class UStaticMesh;
 class UMaterialInterface;
 class UTexture2D;
+class USoundBase;
 
 // Visual data captured from collected items
 USTRUCT(BlueprintType)
@@ -48,6 +49,10 @@ class WEIRDPLACE2_API UInventoryComponent : public UActorComponent {
 
 public:
 	UInventoryComponent();
+
+	// Sound played when an item is added to inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Audio")
+	USoundBase* CollectSound = nullptr;
 
 	// Delegate that fires when inventory contents change
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")

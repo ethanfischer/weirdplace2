@@ -215,7 +215,6 @@ void ASeneca::OnDialogueEnded()
 		{
 			FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
 		}
-		GiveKey();
 		CurrentState = ESenecaState::GaveKey;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: ReadyToGiveKey -> GaveKey"));
 		if (FPChar)
@@ -611,6 +610,10 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		}
 		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
 		{
+			if (UInventoryComponent* Inv = FPC->GetInventoryComponent())
+			{
+				UGameplayStatics::PlaySound2D(FPC->GetWorld(), Inv->CollectSound);
+			}
 			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
 			FPC->AdvanceMultiSpeakerDialogue();
 		}
@@ -688,8 +691,9 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 
 	TWeakObjectPtr<APropActor> WeakProp(KeyActor);
 	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
+	TWeakObjectPtr<ASeneca> WeakSeneca(this);
 
-	KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar]()
+	KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
 	{
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
 		if (APropActor* P = WeakProp.Get())
@@ -697,6 +701,10 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 			P->MeshComponent->SetVisibility(false, true);
 			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			P->OnInteracted.Clear();
+		}
+		if (ASeneca* S = WeakSeneca.Get())
+		{
+			S->GiveKey();
 		}
 		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
 		{

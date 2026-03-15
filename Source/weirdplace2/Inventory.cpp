@@ -1,6 +1,7 @@
 #include "Inventory.h"
 #include "GameFramework/Actor.h"
 #include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 UInventoryComponent::UInventoryComponent() {
     PrimaryComponentTick.bCanEverTick = false;
@@ -18,6 +19,10 @@ void UInventoryComponent::AddItemWithData(const FInventoryItemData& ItemData) {
 
     Items.Add(ItemData.ItemID);
     ItemDataMap.Add(ItemData.ItemID, ItemData);
+    if (CollectSound)
+    {
+        UGameplayStatics::PlaySound2D(this, CollectSound);
+    }
     OnInventoryChanged.Broadcast(Items);
 }
 
@@ -32,6 +37,10 @@ void UInventoryComponent::AddItem(const FName& ItemID) {
     FInventoryItemData EmptyData;
     EmptyData.ItemID = ItemID;
     ItemDataMap.Add(ItemID, EmptyData);
+    if (CollectSound)
+    {
+        UGameplayStatics::PlaySound2D(this, CollectSound);
+    }
     OnInventoryChanged.Broadcast(Items);
 }
 

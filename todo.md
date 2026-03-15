@@ -7,8 +7,8 @@
 [x] walk inside
 [x] talk to seneca
 [x] he tells you you can use bathroom but need to buy 3 movies first
-[ ] he gives you shopping basket
-    [ ] press 'e' to use it not consistently showing 
+[x] he gives you shopping basket
+    [x] press 'e' to use it not consistently showing 
 [ ] buy 3 movies
     [ ] inventory starts with only 3 slots
     [ ] give each movie directly, he makes a comment about each selection
@@ -18,8 +18,8 @@
     [ ] choose whether to give to homeless person
 [ ] get key
     [x] key needs an inventory thumbnail
-    [ ] show key in convo
-    [ ] require clicking the key to collect
+    [x] show key in convo
+    [x] require clicking the key to collect
     [ ] play collect sfx
 [x] go outside
 [ ] drop key
