@@ -60,6 +60,12 @@ void AMyCharacter::OnToggleInventory()
 	}
 }
 
+void AMyCharacter::LockMovieCollection()
+{
+	bMovieCollectionLocked = true;
+	UE_LOG(LogTemp, Log, TEXT("AMyCharacter::LockMovieCollection - Movie collection locked"));
+}
+
 void AMyCharacter::UnlockInventory()
 {
 	if (bInventoryUnlocked)

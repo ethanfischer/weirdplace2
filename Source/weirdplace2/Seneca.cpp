@@ -160,28 +160,7 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 
 void ASeneca::CheckMovieCount()
 {
-	if (CurrentState != ESenecaState::WaitingForMovies)
-	{
-		return;
-	}
-
-	if (!bIntroDialoguePlayed)
-	{
-		return;
-	}
-
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-	{
-		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
-		{
-			if (Inventory->GetItemCount() >= RequiredMovieCount)
-			{
-				CurrentState = ESenecaState::WaitingForMoviePurchase;
-				UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (player has %d items)"), Inventory->GetItemCount());
-			}
-		}
-	}
+	// State transition now happens in OnDialogueEnded (WaitingForMovies case)
 }
 
 void ASeneca::OnInventoryChanged(const TArray<FName>& CurrentItems)
@@ -212,6 +191,8 @@ void ASeneca::OnDialogueEnded()
 			MyCharacter->UnlockInventory();
 		}
 		bIntroDialoguePlayed = true;
+		CurrentState = ESenecaState::WaitingForMoviePurchase;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (intro dialogue done)"));
 		break;
 	}
 
@@ -223,6 +204,11 @@ void ASeneca::OnDialogueEnded()
 		{
 			CurrentState = ESenecaState::WaitingForMoney;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoviePurchase -> WaitingForMoney"));
+			ACharacter* PC2 = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+			if (AMyCharacter* MC = Cast<AMyCharacter>(PC2))
+			{
+				MC->LockMovieCollection();
+			}
 			StartMoviePurchaseDialogue(FPChar3);
 		}
 		break;

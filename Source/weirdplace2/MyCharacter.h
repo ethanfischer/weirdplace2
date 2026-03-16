@@ -50,6 +50,10 @@ public:
 	void UnlockInventory();
 	bool IsInventoryUnlocked() const { return bInventoryUnlocked; }
 
+	// Locks movie collection (called by Seneca when checkout begins)
+	void LockMovieCollection();
+	bool IsMovieCollectionLocked() const { return bMovieCollectionLocked; }
+
 	// Add item to inventory by ID (legacy - no visual data)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
 	void AddItemToInventory(const FName& ItemID);
@@ -76,6 +80,7 @@ private:
 	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
 
 	bool bInventoryUnlocked = false;
+	bool bMovieCollectionLocked = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;

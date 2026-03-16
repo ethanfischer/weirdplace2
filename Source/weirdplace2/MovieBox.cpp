@@ -159,6 +159,19 @@ void AMovieBox::CollectInspectedSubitem()
 {
 	if (DidCollectSubitem) return;
 
+	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
+	{
+		if (CantCarryWidget)
+		{
+			CantCarryWidget->SetVisibility(true);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle, [this]()
+			{
+				if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+			}, 2.0f, false);
+		}
+		return;
+	}
+
 	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
 	{
 		if (CantCarryWidget)
@@ -206,7 +219,9 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	{
 		if (!DidCollectSubitem)
 		{
-			bool bCanCollect = MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() < 3;
+			bool bCanCollect = MyCharacter
+			&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
+			&& !MyCharacter->IsMovieCollectionLocked();
 			InteractionWidget->SetVisibility(bCanCollect);
 		}
 
