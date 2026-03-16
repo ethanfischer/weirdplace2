@@ -110,10 +110,13 @@ void ASeneca::BeginPlay()
 
 	// Load dialogue text files
 	LoadDialogueFile(ESenecaState::WaitingForMovies, WaitingForMoviesDialoguePath);
+	LoadDialogueFile(ESenecaState::WaitingForMoviePurchase, WaitingForMoviePurchaseDialoguePath);
+	LoadDialogueFile(ESenecaState::WaitingForMoney, WaitingForMoneyDialoguePath);
 	LoadDialogueFile(ESenecaState::ReadyToGiveKey, ReadyToGiveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
 	LoadDialogueFile(ESenecaState::AtEmployeeBathroom, EmployeeBathroomDialoguePath);
+	LoadMovieComments();
 }
 
 // --- State Machine ---
@@ -162,6 +165,11 @@ void ASeneca::CheckMovieCount()
 		return;
 	}
 
+	if (!bIntroDialoguePlayed)
+	{
+		return;
+	}
+
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
 	{
@@ -169,8 +177,8 @@ void ASeneca::CheckMovieCount()
 		{
 			if (Inventory->GetItemCount() >= RequiredMovieCount)
 			{
-				CurrentState = ESenecaState::ReadyToGiveKey;
-				UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> ReadyToGiveKey (player has %d items)"), Inventory->GetItemCount());
+				CurrentState = ESenecaState::WaitingForMoviePurchase;
+				UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (player has %d items)"), Inventory->GetItemCount());
 			}
 		}
 	}
@@ -204,6 +212,19 @@ void ASeneca::OnDialogueEnded()
 			MyCharacter->UnlockInventory();
 		}
 		bIntroDialoguePlayed = true;
+		break;
+	}
+
+	case ESenecaState::WaitingForMoviePurchase:
+	{
+		APlayerController* PC3 = GetWorld()->GetFirstPlayerController();
+		AFirstPersonCharacter* FPChar3 = PC3 ? Cast<AFirstPersonCharacter>(PC3->GetPawn()) : nullptr;
+		if (MoviesGivenCount >= RequiredMovieCount && FPChar3)
+		{
+			CurrentState = ESenecaState::WaitingForMoney;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoviePurchase -> WaitingForMoney"));
+			StartMoviePurchaseDialogue(FPChar3);
+		}
 		break;
 	}
 
@@ -319,6 +340,29 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
+	if (CurrentState == ESenecaState::WaitingForMoviePurchase)
+	{
+		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForMoviePurchase"));
+			return;
+		}
+
+		FName ActiveItem = Inventory->GetActiveItem();
+		if (ActiveItem.IsNone() || ActiveItem == FName("Key") || ActiveItem == FName("BrokenKey"))
+		{
+			TArray<FText> ReminderLines = { FText::FromString(TEXT("Grab one of those movies from your bag and hold it up.")) };
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+		}
+		else
+		{
+			HandleMovieGive(FPCharacter, Inventory, ActiveItem);
+		}
+		return;
+	}
+
 	if (CurrentState == ESenecaState::ReadyToGiveKey)
 	{
 		StartReadyToGiveKeyDialogue(FPCharacter);
@@ -362,6 +406,7 @@ void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AAc
 		return;
 	}
 
+	// WaitingForMoviePurchase and WaitingForMoney fall through to default: play loaded txt lines
 	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
 	if (Lines && Lines->Num() > 0)
 	{
@@ -712,6 +757,91 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 			FPC->AdvanceMultiSpeakerDialogue();
 		}
 	});
+}
+
+// --- Movie Purchase Beat ---
+
+void ASeneca::LoadMovieComments()
+{
+	FString FullPath = FPaths::ProjectContentDir() / MovieCommentsPath;
+	TArray<FString> Lines;
+	if (!FFileHelper::LoadFileToStringArray(Lines, *FullPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::LoadMovieComments - Failed to load: %s"), *FullPath);
+		return;
+	}
+
+	for (const FString& Line : Lines)
+	{
+		if (Line.IsEmpty()) continue;
+
+		FString Key, Comment;
+		if (!Line.Split(TEXT(": "), &Key, &Comment))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Seneca::LoadMovieComments - Skipping malformed line: %s"), *Line);
+			continue;
+		}
+
+		Key.TrimStartAndEndInline();
+		Comment.TrimStartAndEndInline();
+
+		if (Key == TEXT("FALLBACK"))
+		{
+			FallbackMovieComment = FText::FromString(Comment);
+		}
+		else
+		{
+			MovieComments.Add(FName(*Key), FText::FromString(Comment));
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Seneca::LoadMovieComments - Loaded %d comments (+fallback)"), MovieComments.Num());
+}
+
+void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID)
+{
+	const FText* Found = MovieComments.Find(MovieID);
+	FText Comment = Found ? *Found : FallbackMovieComment;
+
+	Inventory->RemoveItem(MovieID);
+	Inventory->ClearActiveItem();
+	MoviesGivenCount++;
+
+	UE_LOG(LogTemp, Log, TEXT("Seneca::HandleMovieGive - Received '%s', MoviesGivenCount=%d"), *MovieID.ToString(), MoviesGivenCount);
+
+	TArray<FText> CommentLines = { Comment };
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), CommentLines, this);
+}
+
+void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
+{
+	FString FullPath = FPaths::ProjectContentDir() / MoviePurchaseDialoguePath;
+	TArray<FString> RawLines;
+	if (!FFileHelper::LoadFileToStringArray(RawLines, *FullPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::StartMoviePurchaseDialogue - Failed to load: %s"), *FullPath);
+		return;
+	}
+
+	TArray<FSimpleDialogueLine> MultiLines;
+	for (const FString& Raw : RawLines)
+	{
+		if (Raw.IsEmpty()) continue;
+
+		FString Speaker, Text;
+		if (!Raw.Split(TEXT(": "), &Speaker, &Text))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Seneca::StartMoviePurchaseDialogue - Skipping malformed line: %s"), *Raw);
+			continue;
+		}
+
+		FSimpleDialogueLine Line;
+		Line.Speaker = FText::FromString(Speaker.TrimStartAndEnd());
+		Line.Text = FText::FromString(Text.TrimStartAndEnd());
+		MultiLines.Add(Line);
+	}
+
+	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
 }
 
 // --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---

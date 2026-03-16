@@ -17,16 +17,19 @@ class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
+class UInventoryComponent;
 
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
 {
-	WaitingForMovies,       // "Buy 3 movies first"
-	ReadyToGiveKey,         // "Nice picks, here's the key"
-	GaveKey,                // "Go use the bathroom outside"
-	Smoking,                // "Door's busted, use employee bathroom"
-	AtEmployeeBathroom,     // "Here you go" + unlocks door
-	Done                    // No more dialogue
+	WaitingForMovies,           // "Buy 3 movies first"
+	WaitingForMoviePurchase,    // Player must give each movie to Seneca
+	WaitingForMoney,            // Price quoted; player needs to find money
+	ReadyToGiveKey,             // "Nice picks, here's the key"
+	GaveKey,                    // "Go use the bathroom outside"
+	Smoking,                    // "Door's busted, use employee bathroom"
+	AtEmployeeBathroom,         // "Here you go" + unlocks door
+	Done                        // No more dialogue
 };
 
 UCLASS()
@@ -77,6 +80,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
 	ESenecaState CurrentState = ESenecaState::WaitingForMovies;
 
+	// Number of movies the player has given to Seneca (read-only for debugging)
+	UPROPERTY(VisibleAnywhere, Category = "Seneca|Quest")
+	int32 MoviesGivenCount = 0;
+
 	// Set once the WaitingForMovies basket beat has fully played; prevents replaying on re-enter/re-interact
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
@@ -114,6 +121,18 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviesDialoguePath = TEXT("Dialogue/WaitingForMovies.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString MovieCommentsPath = TEXT("Dialogue/MovieComments.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString MoviePurchaseDialoguePath = TEXT("Dialogue/MoviePurchase.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoneyDialoguePath = TEXT("Dialogue/WaitingForMoney.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviePurchaseDialoguePath = TEXT("Dialogue/WaitingForMoviePurchase.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString ReadyToGiveKeyDialoguePath = TEXT("Dialogue/ReadyToGiveKey.txt");
@@ -255,4 +274,14 @@ private:
 	void OnKeyDialogueLineShown(int32 LineIndex);
 
 	bool bKeyBeatArmed = false;
+
+	// --- Movie Purchase Beat ---
+
+	// Per-movie comment lookup (key = DataTable row name, e.g. "BLADE-RUNNER")
+	TMap<FName, FText> MovieComments;
+	FText FallbackMovieComment;
+
+	void LoadMovieComments();
+	void HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID);
+	void StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar);
 };
