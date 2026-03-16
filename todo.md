@@ -16,11 +16,11 @@
     [ ] you have no money
     [ ] get money from rick
     [ ] choose whether to give to homeless person
-[ ] get key
+[x] get key
     [x] key needs an inventory thumbnail
     [x] show key in convo
     [x] require clicking the key to collect
-    [ ] play collect sfx
+    [x] play collect sfx
 [x] go outside
 [ ] drop key
     [x] need animation
