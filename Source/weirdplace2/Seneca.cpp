@@ -795,7 +795,17 @@ void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::HandleMovieGive - Received '%s', MoviesGivenCount=%d"), *MovieID.ToString(), MoviesGivenCount);
 
-	TArray<FText> CommentLines = { Comment };
+	TArray<FText> CommentLines;
+	FString Line1, Line2;
+	if (Comment.ToString().Split(TEXT("|"), &Line1, &Line2))
+	{
+		CommentLines.Add(FText::FromString(Line1.TrimStartAndEnd()));
+		CommentLines.Add(FText::FromString(Line2.TrimStartAndEnd()));
+	}
+	else
+	{
+		CommentLines.Add(Comment);
+	}
 	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), CommentLines, this);
 }
 
