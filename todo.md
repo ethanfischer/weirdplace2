@@ -11,8 +11,8 @@
     [x] press 'e' to use it not consistently showing 
 [ ] buy 3 movies
     [ ] inventory starts with only 3 slots
-    [ ] give each movie directly, he makes a comment about each selection
-    [ ] tells you the price
+    [x] give each movie directly, he makes a comment about each selection
+    [x] tells you the price
     [ ] you have no money
     [ ] get money from rick
     [ ] choose whether to give to homeless person
