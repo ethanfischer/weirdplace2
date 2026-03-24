@@ -12,6 +12,17 @@ class UHeldItemComponent;
 class UStaticMeshComponent;
 struct FInventoryItemData;
 
+UENUM(BlueprintType)
+enum class EPlayerActivityState : uint8
+{
+	FreeRoaming            UMETA(DisplayName = "Free Roaming"),
+	Interacting            UMETA(DisplayName = "Interacting"),
+	InSimpleDialogue       UMETA(DisplayName = "In Simple Dialogue"),
+	InMultiSpeakerDialogue                  UMETA(DisplayName = "In Multi-Speaker Dialogue"),
+	WaitingForItemInteractionInDialogue     UMETA(DisplayName = "Waiting For Item Interaction In Dialogue"),
+	InDlgDialogue                           UMETA(DisplayName = "In Dlg Dialogue")
+};
+
 UCLASS()
 class WEIRDPLACE2_API AMyCharacter : public ACharacter {
 	GENERATED_BODY()
@@ -28,6 +39,20 @@ public:
 
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
+
+	void SetActivityState(EPlayerActivityState NewState);
+	EPlayerActivityState GetActivityState() const { return ActivityState; }
+	bool IsInAnyDialogue() const;
+
+	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
+
+	// Unlocks inventory access (called by Seneca after first dialogue)
+	void UnlockInventory();
+	bool IsInventoryUnlocked() const { return bInventoryUnlocked; }
+
+	// Locks movie collection (called by Seneca when checkout begins)
+	void LockMovieCollection();
+	bool IsMovieCollectionLocked() const { return bMovieCollectionLocked; }
 
 	// Add item to inventory by ID (legacy - no visual data)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
@@ -50,6 +75,12 @@ public:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", meta = (AllowPrivateAccess = "true"))
+	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
+
+	bool bInventoryUnlocked = false;
+	bool bMovieCollectionLocked = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;

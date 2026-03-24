@@ -14,6 +14,21 @@ class UWidgetComponent;
 class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
+class UBladderUrgencyComponent;
+
+USTRUCT()
+struct FSimpleDialogueLine
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FText Speaker;
+
+	UPROPERTY()
+	FText Text;
+};
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueLineShown, int32, LineIndex);
 
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API AFirstPersonCharacter : public AMyCharacter
@@ -36,6 +51,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
 	URectLightComponent* InventoryFlashlightComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
+	UBladderUrgencyComponent* BladderUrgencyComponent;
+
 	// --- Crosshair Widget ---
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "UI")
@@ -56,9 +74,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
 	UDlgContext* DialogueContext;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
-	bool IsInDialogue = false;
 
 	// --- Interaction ---
 
@@ -122,9 +137,41 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void SelectDialogueOption(int32 OptionIndex);
 
+	// Simple text-based dialogue (no DlgContext)
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC);
+
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void AdvanceSimpleDialogue();
+
+	// Multi-speaker dialogue (each line has its own speaker)
+	void StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
+	void AdvanceMultiSpeakerDialogue();
+
+	// Fires whenever a multi-speaker dialogue line is displayed, carrying the line index
+	UPROPERTY(BlueprintAssignable, Category = "Dialogue")
+	FOnDialogueLineShown OnDialogueLineShown;
+
+	// When true, the next multi-speaker advance is consumed without progressing.
+	// OnDialogueLineShown broadcasts with the CURRENT index so listeners can act.
+	bool bBlockNextMultiSpeakerAdvance = false;
+
 private:
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
+	// The NPC we're currently in dialogue with (for end-of-dialogue callbacks)
+	UPROPERTY()
+	UObject* CurrentDialogueNPC = nullptr;
+
+	// Simple dialogue state
+	TArray<FText> SimpleDialogueLines;
+	int32 SimpleDialogueLineIndex = 0;
+	FText SimpleDialogueSpeaker;
+
+	// Multi-speaker dialogue state
+	TArray<FSimpleDialogueLine> MultiSpeakerLines;
+	int32 MultiSpeakerLineIndex = 0;
 };

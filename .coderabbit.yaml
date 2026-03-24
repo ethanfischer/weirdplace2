@@ -1,0 +1,14 @@
+reviews:
+  path_filters:
+    - "!**/*.uasset"
+    - "!**/*.umap"
+    - "!**/*.wav"
+    - "!Content/__ExternalActors__/**"
+    - "!Content/__ExternalObjects__/**"
+    - "!Content/MetaHumans/**"
+    - "!Content/Vehicles/**"
+    - "!Content/Fab/**"
+    - "!Content/Sounds/**"
+    - "!Content/Images/**"
+    - "!Content/Animations/**"
+    - "!Content/Python/**"

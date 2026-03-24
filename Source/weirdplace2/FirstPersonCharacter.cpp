@@ -1,11 +1,14 @@
 #include "FirstPersonCharacter.h"
+#include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/WidgetComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
+#include "MovieBox.h"
 #include "Seneca.h"
+#include "Rick.h"
 #include "InventoryUI.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
@@ -23,12 +26,16 @@
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
 	// Create first person camera
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(RootComponent);
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Eye height
 	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	// Create bladder urgency reminder component
+	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
 }
 
 void AFirstPersonCharacter::BeginPlay()
@@ -207,6 +214,24 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	bInteractDoOnceCompleted = true;
 
+	// If in dialogue, advance it instead of raycasting
+	EPlayerActivityState State = GetActivityState();
+	if (State == EPlayerActivityState::InSimpleDialogue)
+	{
+		AdvanceSimpleDialogue();
+		return;
+	}
+	if (State == EPlayerActivityState::InMultiSpeakerDialogue)
+	{
+		AdvanceMultiSpeakerDialogue();
+		return;
+	}
+	if (State == EPlayerActivityState::InDlgDialogue)
+	{
+		SelectDialogueOption(0);
+		return;
+	}
+
 	// Check if we can interact
 	if (!GetCanInteract())
 	{
@@ -216,6 +241,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	AActor* HitActor = nullptr;
 	bool bDidHitInteractable = false;
 	RaycastInteractableCheck(HitActor, bDidHitInteractable);
+
+	UE_LOG(LogTemp, Warning, TEXT("HandleInteractTriggered - bDidHit=%d, HitActor=%s, Class=%s"),
+		bDidHitInteractable,
+		HitActor ? *HitActor->GetName() : TEXT("null"),
+		HitActor ? *HitActor->GetClass()->GetName() : TEXT("null"));
 
 	if (bDidHitInteractable && HitActor)
 	{
@@ -239,6 +269,17 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 	bInventoryDoOnceCompleted = true;
+
+	if (!IsInventoryUnlocked())
+	{
+		UE_LOG(LogTemp, Log, TEXT("HandleShowInventory - inventory not yet unlocked (talk to Seneca first)"));
+		return;
+	}
+
+	if (GetActivityState() != EPlayerActivityState::FreeRoaming)
+	{
+		return;
+	}
 
 	if (InventoryUIWidgetComponent)
 	{
@@ -323,6 +364,14 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
+			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked())
+			{
+				return;
+			}
+			if (HitActor->IsA<ASeneca>() && GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+			{
+				return;
+			}
 			OutHitActor = HitActor;
 			bDidHitInteractable = true;
 		}
@@ -346,7 +395,9 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 		}
 	}
 
-	if (IsInDialogue)
+	CurrentDialogueNPC = NPC;
+
+	if (IsInAnyDialogue())
 	{
 		SelectDialogueOption(0);
 	}
@@ -376,7 +427,7 @@ void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject
 			{
 				UI_Dialogue->Open(DialogueContext);
 			}
-			IsInDialogue = true;
+			SetActivityState(EPlayerActivityState::InDlgDialogue);
 		}
 		else
 		{
@@ -409,10 +460,170 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 	{
 		// Dialogue ended
 		DialogueContext = nullptr;
-		IsInDialogue = false;
+		SetActivityState(EPlayerActivityState::FreeRoaming);
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
 		}
+
+		// Notify the NPC that dialogue ended
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
+	}
+}
+
+void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC)
+{
+	if (Lines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartSimpleDialogue - No lines to display"));
+		return;
+	}
+
+	// Get UI_Dialogue from NPC's widget component
+	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	{
+		if (Seneca->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+
+	SimpleDialogueLines = Lines;
+	SimpleDialogueLineIndex = 0;
+	SimpleDialogueSpeaker = SpeakerName;
+	SetActivityState(EPlayerActivityState::InSimpleDialogue);
+	CurrentDialogueNPC = NPC;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
+	}
+}
+
+void AFirstPersonCharacter::AdvanceSimpleDialogue()
+{
+	SimpleDialogueLineIndex++;
+
+	if (SimpleDialogueLineIndex < SimpleDialogueLines.Num())
+	{
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->UpdateWithText(SimpleDialogueSpeaker, SimpleDialogueLines[SimpleDialogueLineIndex]);
+		}
+	}
+	else
+	{
+		// Dialogue exhausted
+		SetActivityState(EPlayerActivityState::FreeRoaming);
+		SimpleDialogueLines.Empty();
+		SimpleDialogueLineIndex = 0;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
+	}
+}
+
+void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC)
+{
+	if (Lines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StartSimpleDialogueMultiSpeaker - No lines to display"));
+		return;
+	}
+
+	// Get UI_Dialogue from NPC's widget component
+	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	{
+		if (Seneca->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+	else if (ARick* Rick = Cast<ARick>(NPC))
+	{
+		if (Rick->DialogueWidgetComponent)
+		{
+			UUserWidget* Widget = Rick->DialogueWidgetComponent->GetUserWidgetObject();
+			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
+		}
+	}
+
+	MultiSpeakerLines = Lines;
+	MultiSpeakerLineIndex = 0;
+	SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+	CurrentDialogueNPC = NPC;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
+	}
+
+	OnDialogueLineShown.Broadcast(0);
+}
+
+void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
+{
+	// If blocked, consume the advance: hide dialogue and broadcast the current index
+	// so external systems (e.g. CarRideComponent) can play an interstitial beat.
+	if (bBlockNextMultiSpeakerAdvance)
+	{
+		bBlockNextMultiSpeakerAdvance = false;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
+		return;
+	}
+
+	MultiSpeakerLineIndex++;
+
+	if (MultiSpeakerLineIndex < MultiSpeakerLines.Num())
+	{
+		if (UI_Dialogue)
+		{
+			const FSimpleDialogueLine& Line = MultiSpeakerLines[MultiSpeakerLineIndex];
+			UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
+		}
+
+		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
+	}
+	else
+	{
+		// Dialogue exhausted
+		SetActivityState(EPlayerActivityState::FreeRoaming);
+		MultiSpeakerLines.Empty();
+		MultiSpeakerLineIndex = 0;
+
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+
+		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		{
+			Seneca->OnDialogueEnded();
+		}
+		else if (ARick* Rick = Cast<ARick>(CurrentDialogueNPC))
+		{
+			Rick->OnDialogueEnded();
+		}
+		CurrentDialogueNPC = nullptr;
 	}
 }
