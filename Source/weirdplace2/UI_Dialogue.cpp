@@ -39,6 +39,7 @@ void UUI_Dialogue::Update(UDlgContext* InActiveContext)
 	{
 		FText ParticipantName = InActiveContext->GetActiveNodeParticipantDisplayName();
 		SpeakerName->SetText(ParticipantName);
+
 	}
 
 	const FText& NodeText = InActiveContext->GetActiveNodeText();
@@ -93,6 +94,48 @@ void UUI_Dialogue::Open(UDlgContext* Context)
 	// Highlight first option - requires UUI_DialogueOption implementation
 }
 
+void UUI_Dialogue::OpenWithText(const FText& Speaker, const FText& DialogueLine)
+{
+	UnhighlightAllOptions();
+	CurrentOptionIndex = 0;
+	ActiveContext = nullptr;
+	SetVisibility(ESlateVisibility::Visible);
+	UpdateWithText(Speaker, DialogueLine);
+}
+
+void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLine)
+{
+	ClearSpeakerText();
+	ClearOptionsText();
+
+	if (SpeakerName)
+	{
+		SpeakerName->SetText(Speaker);
+
+	}
+
+	FullText = DialogueLine.ToString();
+	DisplayText.Empty();
+	CurrentCharIndex = 0;
+
+	// Start typewriter effect after short delay
+	FTimerDelegate TimerDelegate = FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		SetNextDisplayTextCharacter();
+
+		if (VoiceSound)
+		{
+			if (!IsValid(SpawnedSound) || !SpawnedSound->IsPlaying())
+			{
+				float RandomPitch = FMath::RandRange(0.75f, 1.25f);
+				float RandomStartTime = FMath::RandRange(0.0f, 3.0f);
+				SpawnedSound = UGameplayStatics::SpawnSound2D(GetWorld(), VoiceSound, 1.0f, RandomPitch, RandomStartTime);
+			}
+		}
+	});
+	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, TimerDelegate, 0.04f, false);
+}
+
 void UUI_Dialogue::SetNextDisplayTextCharacter()
 {
 	if (DisplayText.Equals(FullText, ESearchCase::CaseSensitive))
@@ -114,6 +157,14 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 		if (Text)
 		{
 			Text->SetText(FText::FromString(DisplayText));
+		}
+
+		// Play blip with randomized pitch on non-whitespace characters
+		TCHAR NewChar = FullText[CurrentCharIndex - 1];
+		if (BlipSound && !FChar::IsWhitespace(NewChar))
+		{
+			float Pitch = FMath::RandRange(0.8f, 1.2f);
+			UGameplayStatics::PlaySound2D(GetWorld(), BlipSound, 1.0f, Pitch);
 		}
 
 		// Continue typewriter effect
@@ -163,6 +214,18 @@ void UUI_Dialogue::UnhighlightAllOptions()
 				Option->Unhighlight();
 			}
 		}
+	}
+}
+
+void UUI_Dialogue::SetTextColor(const FSlateColor& Color)
+{
+	if (SpeakerName)
+	{
+		SpeakerName->SetColorAndOpacity(Color);
+	}
+	if (Text)
+	{
+		Text->SetColorAndOpacity(Color);
 	}
 }
 

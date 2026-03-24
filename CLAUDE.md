@@ -14,23 +14,19 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 
 ## Build Commands
 
-**Live Coding (Ctrl+Alt+F11 in UE Editor)** - use for:
-- `.cpp` implementation changes (function body edits only)
+**Always build after making C++ changes.** Do NOT ask the user to build — do it yourself.
 
-**Full Restart Required** - close UE, rebuild from Rider/VS:
-- Adding/removing `UPROPERTY` or `UFUNCTION`
-- Changing function signatures in headers
-- Adding new classes or files
-- Changing class inheritance
-- Modifying `.Build.cs`
+**`.cpp`-only changes → Live Coding** (editor stays open):
+```bash
+powershell -ExecutionPolicy Bypass -File livecode.ps1
+```
 
-**Always tell the user which type of rebuild is needed after making changes.**
+**Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
+1. `taskkill //F //IM UnrealEditor.exe`
+2. `mcp__jetbrains__build_project`
+3. `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"`
 
-**Always build after making C++ changes** to verify they compile before telling the user you're done.
-
-If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), ask the user to close the editor first and wait for confirmation before building.
-
-Build commands:
+Build commands (fallback if MCP is unavailable):
 ```cmd
 # Build editor target (typical for C++ changes)
 "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
@@ -84,6 +80,13 @@ py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
 - `ToggleInventory` (Tab) - Toggle inventory room
 - `Turn Right / Left Mouse/Gamepad` - Rotate inspected actor
 
+## Editor Property Assignment
+
+When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `ASeneca*`):
+- **Level instance references** (pointing to actors placed in the level) must be assigned on the **level instance** in the viewport Details panel, NOT in the Blueprint class defaults. The Blueprint editor cannot see level-placed actors.
+- **Asset references** (pointing to meshes, materials, sounds, dialogue assets, classes) can be assigned in either the Blueprint class defaults or the level instance.
+- Always tell the user which properties need to be set on the **level instance** vs **Blueprint defaults**.
+
 ## Code Conventions
 
 - **Never name C++ classes with `BP_` or `BPI_` prefix** - those stand for Blueprint/BlueprintInterface
@@ -123,6 +126,35 @@ On macOS 26 with Xcode 26.x, edit `Engine/Config/Apple/Apple_SDK.json` and chang
 - Key files/classes
 - High-level behavior and configuration options
 
+
+## Hiding Actors at Runtime
+
+**Do NOT use `SetActorHiddenInGame`** — it sets a flag on the actor but the component's own `bVisible` takes precedence and the mesh stays visible.
+
+Use `SetVisibility` on the root component instead:
+```cpp
+// Requires: #include "Components/SceneComponent.h"
+if (USceneComponent* Root = Actor->GetRootComponent())
+{
+    Root->SetVisibility(false, true); // false=hide, true=propagate to children
+}
+```
+
+Setting "Hidden in Game" in the editor Details panel is also unreliable — always enforce visibility state in C++.
+
+## Reading Output Logs
+
+Always read logs directly — never ask the user to copy-paste them.
+
+The active log is at:
+```
+C:\Users\ethan\repos\weirdplace2\Saved\Logs\weirdplace2.log
+```
+
+Use `grep` to search for relevant lines:
+```bash
+grep -n "MyKeyword\|OtherKeyword" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/weirdplace2.log" | tail -80
+```
 
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
