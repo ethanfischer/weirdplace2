@@ -95,6 +95,10 @@ private:
 	bool bSceneryMoving = false;
 	bool bBladderPulseArmed = false;
 
+	// Cached widget actor relative transform before car-ride overwrites it
+	FVector CachedWidgetRelativeLocation = FVector::ZeroVector;
+	FRotator CachedWidgetRelativeRotation = FRotator::ZeroRotator;
+
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;
 	FTimerHandle FadeOutTimerHandle;

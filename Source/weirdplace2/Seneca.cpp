@@ -24,6 +24,15 @@ ASeneca::ASeneca()
 	// Components are created in Blueprint to preserve MetaHuman setup
 }
 
+UUI_Dialogue* ASeneca::GetDialogueWidget() const
+{
+	if (!DialogueWidgetComponent)
+	{
+		return nullptr;
+	}
+	return Cast<UUI_Dialogue>(DialogueWidgetComponent->GetUserWidgetObject());
+}
+
 void ASeneca::BeginPlay()
 {
 	Super::BeginPlay();
@@ -346,6 +355,28 @@ void ASeneca::Interact_Implementation()
 		else
 		{
 			HandleMovieGive(FPCharacter, Inventory, ActiveItem);
+		}
+		return;
+	}
+
+	if (CurrentState == ESenecaState::WaitingForMoney)
+	{
+		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		if (Inventory && Inventory->GetActiveItem() == FName("Money"))
+		{
+			Inventory->RemoveItem(FName("Money"));
+			CurrentState = ESenecaState::ReadyToGiveKey;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> ReadyToGiveKey (money received)"));
+			StartReadyToGiveKeyDialogue(FPCharacter);
+		}
+		else
+		{
+			const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::WaitingForMoney);
+			if (Lines && Lines->Num() > 0)
+			{
+				FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+			}
 		}
 		return;
 	}

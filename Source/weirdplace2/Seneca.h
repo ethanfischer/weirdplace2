@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 class APropActor;
 #include "Interactable.h"
+#include "DialogueWidgetProvider.h"
 #include "DlgSystem/DlgDialogueParticipant.h"
 #include "GameFramework/Actor.h"
 #include "Seneca.generated.h"
@@ -10,6 +11,7 @@ class APropActor;
 class USkeletalMeshComponent;
 class USphereComponent;
 class UWidgetComponent;
+class UUI_Dialogue;
 class UDlgContext;
 class UStaticMesh;
 class UTexture2D;
@@ -33,7 +35,7 @@ enum class ESenecaState : uint8
 };
 
 UCLASS()
-class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant
+class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant, public IDialogueWidgetProvider
 {
 	GENERATED_BODY()
 
@@ -47,6 +49,9 @@ protected:
 public:
 	// IInteractable implementation
 	virtual void Interact_Implementation() override;
+
+	// IDialogueWidgetProvider implementation
+	virtual UUI_Dialogue* GetDialogueWidget() const override;
 
 	// IDlgDialogueParticipant implementation
 	virtual FName GetParticipantName_Implementation() const override;

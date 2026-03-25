@@ -9,6 +9,7 @@
 #include "MovieBox.h"
 #include "Seneca.h"
 #include "Rick.h"
+#include "DialogueWidgetProvider.h"
 #include "InventoryUI.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
@@ -464,6 +465,7 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		// Notify the NPC that dialogue ended
@@ -484,14 +486,15 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 		return;
 	}
 
-	// Get UI_Dialogue from NPC's widget component
-	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	UI_Dialogue = nullptr;
+	if (IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(NPC))
 	{
-		if (Seneca->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UI_Dialogue = Provider->GetDialogueWidget();
+	}
+	if (!UI_Dialogue)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartSimpleDialogue - NPC does not provide a dialogue widget"));
+		return;
 	}
 
 	SimpleDialogueLines = Lines;
@@ -500,10 +503,7 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 	SetActivityState(EPlayerActivityState::InSimpleDialogue);
 	CurrentDialogueNPC = NPC;
 
-	if (UI_Dialogue)
-	{
-		UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
-	}
+	UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
 }
 
 void AFirstPersonCharacter::AdvanceSimpleDialogue()
@@ -527,6 +527,7 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		UObject* EndedNPC = CurrentDialogueNPC;
@@ -546,22 +547,15 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 		return;
 	}
 
-	// Get UI_Dialogue from NPC's widget component
-	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	UI_Dialogue = nullptr;
+	if (IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(NPC))
 	{
-		if (Seneca->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UI_Dialogue = Provider->GetDialogueWidget();
 	}
-	else if (ARick* Rick = Cast<ARick>(NPC))
+	if (!UI_Dialogue)
 	{
-		if (Rick->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Rick->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UE_LOG(LogTemp, Error, TEXT("StartSimpleDialogueMultiSpeaker - NPC does not provide a dialogue widget"));
+		return;
 	}
 
 	MultiSpeakerLines = Lines;
@@ -569,10 +563,7 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 	SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
 	CurrentDialogueNPC = NPC;
 
-	if (UI_Dialogue)
-	{
-		UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
-	}
+	UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
 
 	OnDialogueLineShown.Broadcast(0);
 }
@@ -616,6 +607,7 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		UObject* EndedNPC = CurrentDialogueNPC;

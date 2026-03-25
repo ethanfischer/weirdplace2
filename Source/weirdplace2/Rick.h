@@ -3,14 +3,19 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "FirstPersonCharacter.h"
+#include "Interactable.h"
+#include "DialogueWidgetProvider.h"
 #include "Rick.generated.h"
 
 class UWidgetComponent;
+class UStaticMesh;
+class ASeneca;
+class UUI_Dialogue;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRickDialogueEnded);
 
 UCLASS()
-class WEIRDPLACE2_API ARick : public AActor
+class WEIRDPLACE2_API ARick : public AActor, public IInteractable, public IDialogueWidgetProvider
 {
 	GENERATED_BODY()
 
@@ -27,6 +32,15 @@ public:
 	// Called by FirstPersonCharacter when multi-speaker dialogue ends
 	void OnDialogueEnded();
 
+	// IInteractable
+	virtual void Interact_Implementation() override;
+
+	// IDialogueWidgetProvider
+	virtual UUI_Dialogue* GetDialogueWidget() const override;
+
+	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
+	void AppearOutside();
+
 	// Delegate fired when dialogue ends (CarRideComponent binds to this)
 	UPROPERTY(BlueprintAssignable, Category = "Rick|Dialogue")
 	FOnRickDialogueEnded OnRickDialogueEnded;
@@ -40,10 +54,33 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")
 	FString CarDialoguePath = TEXT("Dialogue/CarRide.txt");
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
+	UStaticMesh* MoneyMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
+	FVector MoneyScale = FVector(1.f, 1.f, 1.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Outside")
+	ASeneca* SenecaRef;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Outside")
+	AActor* OutsidePositionTarget;
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
+	FString RickOutsideIdlePath = TEXT("Dialogue/RickOutsideIdle.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
+	FString RickGivesMoneyPath = TEXT("Dialogue/RickGivesMoney.txt");
+
 private:
-	// Parsed dialogue lines (speaker + text per line)
+	// Parsed car ride dialogue lines (speaker + text per line)
 	TArray<FSimpleDialogueLine> ParsedLines;
 
-	// Load and parse the dialogue file
+	TArray<FText> OutsideIdleLines;
+	TArray<FSimpleDialogueLine> GivesMoneyLines;
+
+	bool bGaveMoney = false;
+
 	void LoadDialogueFile();
+	void LoadOutsideDialogue();
 };

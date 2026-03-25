@@ -159,12 +159,15 @@ void UCarRideComponent::StartDialogue()
 	// Rick may be a child of GasStationRoot and was hidden with it — make him visible now
 	Rick->SetActorHiddenInGame(false);
 
-	// Move dialogue widget to windshield target so player can see it from passenger seat
+	// Move dialogue widget to windshield target so player can see it from passenger seat.
+	// Cache the original relative transform so we can restore it after the ride ends.
 	if (DialogueWidgetTarget && Rick->DialogueWidgetComponent)
 	{
 		AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();
-		if (WidgetActor)
+		if (WidgetActor && WidgetActor->GetRootComponent())
 		{
+			CachedWidgetRelativeLocation = WidgetActor->GetRootComponent()->GetRelativeLocation();
+			CachedWidgetRelativeRotation = WidgetActor->GetRootComponent()->GetRelativeRotation();
 			WidgetActor->SetActorLocationAndRotation(
 				DialogueWidgetTarget->GetActorLocation(),
 				DialogueWidgetTarget->GetActorRotation()
@@ -396,4 +399,22 @@ void UCarRideComponent::OnFadeOutComplete()
 		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeDuration, FLinearColor::Black, false, false);
 	}
 
+	if (Rick)
+	{
+		// Restore widget to its original relative position and ensure it's closed
+		if (Rick->DialogueWidgetComponent)
+		{
+			AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();
+			if (WidgetActor && WidgetActor->GetRootComponent())
+			{
+				WidgetActor->GetRootComponent()->SetRelativeLocation(CachedWidgetRelativeLocation);
+				WidgetActor->GetRootComponent()->SetRelativeRotation(CachedWidgetRelativeRotation);
+			}
+			if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(Rick->DialogueWidgetComponent->GetWidget()))
+			{
+				DialogueWidget->Close();
+			}
+		}
+		Rick->AppearOutside();
+	}
 }
