@@ -1,4 +1,5 @@
 #include "Seneca.h"
+#include "PropActor.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"

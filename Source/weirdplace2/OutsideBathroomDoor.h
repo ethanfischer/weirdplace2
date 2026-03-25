@@ -10,6 +10,8 @@ class USceneComponent;
 class UStaticMeshComponent;
 class UStaticMesh;
 class UMaterialInterface;
+class UTimelineComponent;
+class UCurveFloat;
 
 UCLASS()
 class WEIRDPLACE2_API AOutsideBathroomDoor : public ADoor

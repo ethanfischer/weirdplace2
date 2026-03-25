@@ -84,6 +84,10 @@ void UBladderUrgencyComponent::StartUrgency()
 {
 	StartTimeSeconds = GetWorld()->GetTimeSeconds();
 	ScheduleNextPulse();
+
+	GetWorld()->GetTimerManager().SetTimer(
+		DeathTimerHandle, this, &UBladderUrgencyComponent::OnBladderDeathFired,
+		TimeUntilDeath, false);
 }
 
 bool UBladderUrgencyComponent::InitializeVignetteMaterial()
@@ -176,17 +180,28 @@ void UBladderUrgencyComponent::ScheduleNextPulse()
 	);
 }
 
+void UBladderUrgencyComponent::OnBladderDeathFired()
+{
+	UE_LOG(LogTemp, Warning, TEXT("BladderUrgencyComponent: Time's up — bladder death on %s"), *GetOwner()->GetName());
+	OnBladderDeath.Broadcast();
+}
+
+void UBladderUrgencyComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	GetWorld()->GetTimerManager().ClearTimer(ReminderTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(DeathTimerHandle);
+	if (CachedCamera && UrgencyVignetteMID)
+	{
+		BladderUrgencyInternal::SetBlendableWeight(CachedCamera->PostProcessSettings, UrgencyVignetteMID, 0.f);
+		CachedCamera->PostProcessSettings.WeightedBlendables.Array.RemoveAll(
+			[this](const FWeightedBlendable& B){ return B.Object == UrgencyVignetteMID; });
+		UrgencyVignetteMID = nullptr;
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
 void UBladderUrgencyComponent::StartPulse()
 {
-	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;
-
-	if (Elapsed >= TimeUntilDeath)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("BladderUrgencyComponent: Time's up — bladder death on %s"), *GetOwner()->GetName());
-		OnBladderDeath.Broadcast();
-		return;
-	}
-
 	bIsPulsing = true;
 	PulseElapsed = 0.f;
 	SetComponentTickEnabled(true);

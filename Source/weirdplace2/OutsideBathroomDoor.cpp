@@ -126,6 +126,28 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		return;
 	}
 
+	// Validate all required assets before making irreversible inventory changes
+	if (!KeyLockSocket)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - KeyLockSocket is null"));
+		return;
+	}
+	if (!AnimKeyMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - AnimKeyMesh is null"));
+		return;
+	}
+	if (!FullKeyMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - FullKeyMesh is null"));
+		return;
+	}
+	if (!KeyInsertTimeline)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - KeyInsertTimeline is null"));
+		return;
+	}
+
 	// Start the key just in front of the keyhole so the insertion is a visible
 	// slide into the door surface, not a depth-axis shrink from the camera
 	FVector WorldApproachDir = KeyLockSocket->GetComponentTransform().TransformVectorNoScale(KeyInsertApproachAxis.GetSafeNormal());

@@ -7,6 +7,7 @@
 class UCameraComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
+class USoundBase;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBladderDeath);
 
@@ -59,6 +60,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
@@ -69,6 +71,7 @@ private:
 	void ResetLegacyPostProcessOverrides();
 	void StartPulse();
 	void ScheduleNextPulse();
+	void OnBladderDeathFired();
 
 	UPROPERTY()
 	UCameraComponent* CachedCamera = nullptr;
@@ -77,6 +80,7 @@ private:
 	UMaterialInstanceDynamic* UrgencyVignetteMID = nullptr;
 
 	FTimerHandle ReminderTimerHandle;
+	FTimerHandle DeathTimerHandle;
 	float StartTimeSeconds = 0.f;
 	float PulseElapsed = 0.f;
 	bool bIsPulsing = false;

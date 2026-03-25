@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "PropActor.h"
+class APropActor;
 #include "Interactable.h"
 #include "DlgSystem/DlgDialogueParticipant.h"
 #include "GameFramework/Actor.h"
@@ -178,11 +178,11 @@ protected:
 	// --- Quest Config ---
 
 	// Number of movies required before Seneca gives the key
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest", meta = (ClampMin = "1", UIMin = "1"))
 	int32 RequiredMovieCount = 3;
 
 	// Seconds after key drop before Seneca appears at smoking position
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float SmokingAppearDelay = 60.0f;
 
 	// --- Position Targets (assign on level instance, these are level actor refs) ---
@@ -243,6 +243,7 @@ private:
 	bool IsPlayerLookingAtMe() const;
 
 	// Deferred move: target to teleport to once player looks away
+	UPROPERTY()
 	AActor* PendingMoveTarget = nullptr;
 
 	// Tracks that the player was looking at Seneca (requires look then look-away)

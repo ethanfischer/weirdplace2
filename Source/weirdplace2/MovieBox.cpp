@@ -5,6 +5,7 @@
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
+#include "Components/TextRenderComponent.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -164,10 +165,11 @@ void AMovieBox::CollectInspectedSubitem()
 		if (CantCarryWidget)
 		{
 			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle, [this]()
-			{
-				if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-			}, 2.0f, false);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+				}), 2.0f, false);
 		}
 		return;
 	}
@@ -177,10 +179,11 @@ void AMovieBox::CollectInspectedSubitem()
 		if (CantCarryWidget)
 		{
 			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle, [this]()
-			{
-				if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-			}, 2.0f, false);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+				}), 2.0f, false);
 		}
 		return;
 	}

@@ -1,5 +1,6 @@
 #include "InventoryUIComponent.h"
 #include "InventoryUIActor.h"
+#include "Components/SceneComponent.h"
 #include "Inventory.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
@@ -269,7 +270,11 @@ void UInventoryUIComponent::SpawnInventoryUIActor()
 	// Reuse existing cached actor if available
 	if (InventoryUIActor)
 	{
-		InventoryUIActor->SetActorHiddenInGame(false);
+		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
+		{
+			Root->SetVisibility(true, true);
+		}
+		InventoryUIActor->SetActorEnableCollision(true);
 		InventoryUIActor->SetActorTickEnabled(true);
 		UE_LOG(LogTemp, Log, TEXT("Reusing cached InventoryUIActor"));
 		return;
@@ -298,10 +303,24 @@ void UInventoryUIComponent::DestroyInventoryUIActor()
 {
 	if (InventoryUIActor)
 	{
-		InventoryUIActor->SetActorHiddenInGame(true);
+		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
+		{
+			Root->SetVisibility(false, true);
+		}
+		InventoryUIActor->SetActorEnableCollision(false);
 		InventoryUIActor->SetActorTickEnabled(false);
 		UE_LOG(LogTemp, Log, TEXT("Hid InventoryUIActor (cached for reuse)"));
 	}
+}
+
+void UInventoryUIComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (IsValid(InventoryUIActor))
+	{
+		InventoryUIActor->Destroy();
+		InventoryUIActor = nullptr;
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 void UInventoryUIComponent::UpdateInventoryPosition()

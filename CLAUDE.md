@@ -22,7 +22,7 @@ powershell -ExecutionPolicy Bypass -File livecode.ps1
 ```
 
 **Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
-1. `taskkill //F //IM UnrealEditor.exe`
+1. `taskkill //F //IM UnrealEditor.exe` (Note: `//F //IM` is Windows CMD syntax; run from a CMD terminal if Git Bash rejects the flags.)
 2. `mcp__jetbrains__build_project`
 3. `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"`
 
@@ -93,6 +93,7 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 - **Interface naming**: UINTERFACE is `UInteractable`, interface class is `IInteractable`, file is `Interactable.h`
 - Forward declarations in headers; heavy includes only in .cpp
 - `GENERATED_BODY()` first inside UCLASS/USTRUCT
+- `#include "ClassName.generated.h"` must be the **last** `#include` in every header — UHT enforces this and will error if any include follows it
 - Use `TArray`, `TMap`, `TSet` (not STL) for reflection/GC compatibility
 - Mark UObject pointers with `UPROPERTY()` to prevent GC collection
 - Use `CreateDefaultSubobject` for owned components in constructors

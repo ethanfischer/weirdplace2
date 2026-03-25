@@ -2,10 +2,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "FirstPersonCharacter.h"
 #include "Rick.generated.h"
 
 class UWidgetComponent;
-struct FSimpleDialogueLine;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnRickDialogueEnded);
 

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Interactable.h"
 #include "MyCharacter.h"
-#include "Components/TextRenderComponent.h"
+class UTextRenderComponent;
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"

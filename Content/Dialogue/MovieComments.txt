@@ -1,4 +1,4 @@
-FALLBACK: Good taste.
+FALLBACK: Unknown VHS.|Good taste.
 12-MONKEYS: 12 Monkeys.|Terry Gilliam. Classic.
 1990-THE-BRONX-WARRIORS: 1990 The Bronx Warriors.|Cult classic right there.
 1990-THE-BRONX-WARRIORS-FRED-WILLIAMSON: 1990 The Bronx Warriors Fred Williamson.|Fred Williamson version. Even better.
@@ -239,7 +239,7 @@ DEATH-WISH-3: Death Wish 3.|Gets ridiculous. In a good way.
 DEATH-WISH-3-CHARLES-BRONSON: Death Wish 3 Charles Bronson.|Same tape. Bronson on the cover.
 DEATH-WISH-4-THE-CRACKDOWN: Death Wish 4 The Crackdown.|Still going. Still Bronson.
 DEATHDREAM-MAC-VIDEO: Deathdream Mac Video.|Bob Clark zombie Vietnam vet film. Very underrated.
-DEATHDREAM: Same film. Classic label.
+DEATHDREAM: Deathdream.|Same film. Classic label.
 DEATHLINE: Deathline.|British horror. Donald Pleasence. Very raw.
 DEATHSTALKER-3: Deathstalker 3.|Third one. They made four. You figure out the quality curve.
 DEFCON-4: Defcon 4.|Canadian nuclear war film. Decent tension.
@@ -782,7 +782,7 @@ THE-BIGGEST-EVER-PRE-SCHOOL-VIDEO: The Biggest Ever Pre School Video.|Big video.
 THE-BLACK-SIX: The Black Six.|Blaxploitation biker film. Six Black Vietnam vets. Motorcycle revenge.
 THE-BLADE-MASTER: The Blade Master.|Miles O'Keeffe. Master of blades.
 THE-BLAZING-NINJA-VIDEO-TREASURES: The Blazing Ninja Video Treasures.|Ninja comp tape. Multiple films probably.
-THE-BLOOD-OF-HEROES: Rutger Hauer plays a future sport. Gritty. Very good.
+THE-BLOOD-OF-HEROES: The Blood Of Heroes.|Rutger Hauer plays a future sport. Gritty. Very good.
 THE-BOY-WHO-CRIED-WOLF-PLUS-THE-EMPERORS-NEW-CLOTHES: The Boy Who Cried Wolf Plus The Emperors New Clothes.|Two fables. Double feature.
 THE-BRAVE-TIN-SOLDIER-AND-OTHER-CARTOON-CLASSICS: The Brave Tin Soldier And Other Cartoon Classics.|Classic fairy tale cartoons.
 THE-BROTHER: The Brother.|Never heard of it.

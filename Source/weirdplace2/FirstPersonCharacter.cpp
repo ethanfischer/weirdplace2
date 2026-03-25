@@ -467,11 +467,12 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		}
 
 		// Notify the NPC that dialogue ended
-		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		UObject* EndedNPC = CurrentDialogueNPC;
+		CurrentDialogueNPC = nullptr;
+		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
 		}
-		CurrentDialogueNPC = nullptr;
 	}
 }
 
@@ -528,11 +529,12 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 			UI_Dialogue->Close();
 		}
 
-		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		UObject* EndedNPC = CurrentDialogueNPC;
+		CurrentDialogueNPC = nullptr;
+		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
 		}
-		CurrentDialogueNPC = nullptr;
 	}
 }
 
@@ -616,14 +618,15 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 			UI_Dialogue->Close();
 		}
 
-		if (ASeneca* Seneca = Cast<ASeneca>(CurrentDialogueNPC))
+		UObject* EndedNPC = CurrentDialogueNPC;
+		CurrentDialogueNPC = nullptr;
+		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
 		}
-		else if (ARick* Rick = Cast<ARick>(CurrentDialogueNPC))
+		else if (ARick* Rick = Cast<ARick>(EndedNPC))
 		{
 			Rick->OnDialogueEnded();
 		}
-		CurrentDialogueNPC = nullptr;
 	}
 }
