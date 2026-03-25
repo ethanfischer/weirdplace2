@@ -5,6 +5,7 @@
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
+#include "Components/TextRenderComponent.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -66,6 +67,25 @@ void AMovieBox::BeginPlay()
 
 	// Hide it initially
 	InteractionWidget->SetVisibility(false);
+
+	TArray<UTextRenderComponent*> AllTextRenders;
+	GetComponents<UTextRenderComponent>(AllTextRenders);
+	for (UTextRenderComponent* Comp : AllTextRenders)
+	{
+		if (Comp->GetFName() == TEXT("CantCarryText"))
+		{
+			CantCarryWidget = Comp;
+			break;
+		}
+	}
+	if (!CantCarryWidget)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("CantCarryWidget component not found — add 'CantCarryText' widget component to BP_MovieBox"));
+	}
+	else
+	{
+		CantCarryWidget->SetVisibility(false);
+	}
 }
 
 // Called every frame
@@ -77,6 +97,11 @@ void AMovieBox::Tick(float DeltaTime)
 
 void AMovieBox::Interact_Implementation()
 {
+	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
+	{
+		return;
+	}
+
 	// Get the player's controller
 	PlayerController = GetWorld()->GetFirstPlayerController();
 	if (!PlayerController)
@@ -112,6 +137,7 @@ void AMovieBox::Interact_Implementation()
 	PlayerController->SetIgnoreMoveInput(true);
 
 	MyCharacter->SetCanInteract(false);
+	MyCharacter->SetActivityState(EPlayerActivityState::Interacting);
 
 	// Ensure input component exists
 	if (!PlayerController->InputComponent)
@@ -133,6 +159,34 @@ void AMovieBox::Interact_Implementation()
 void AMovieBox::CollectInspectedSubitem()
 {
 	if (DidCollectSubitem) return;
+
+	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
+	{
+		if (CantCarryWidget)
+		{
+			CantCarryWidget->SetVisibility(true);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+				}), 2.0f, false);
+		}
+		return;
+	}
+
+	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
+	{
+		if (CantCarryWidget)
+		{
+			CantCarryWidget->SetVisibility(true);
+			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+				FTimerDelegate::CreateWeakLambda(this, [this]()
+				{
+					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+				}), 2.0f, false);
+		}
+		return;
+	}
 
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
@@ -168,8 +222,10 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	{
 		if (!DidCollectSubitem)
 		{
-			//If back of movie box is facing player, try showing collectable UI text on screen
-			InteractionWidget->SetVisibility(true);
+			bool bCanCollect = MyCharacter
+			&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
+			&& !MyCharacter->IsMovieCollectionLocked();
+			InteractionWidget->SetVisibility(bCanCollect);
 		}
 
 		// Only bind if not already bound (prevent duplicate bindings)
@@ -182,6 +238,11 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	else
 	{
 		InteractionWidget->SetVisibility(false);
+		if (CantCarryWidget)
+		{
+			GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
+			CantCarryWidget->SetVisibility(false);
+		}
 
 		// Only unbind if currently bound
 		if (bCollectSubitemBound)
@@ -226,9 +287,17 @@ void AMovieBox::StopInspection()
 	InspectedActor = nullptr;
 
 	// Reset binding flag
-	bCollectSubitemBound = false;
+	if (bCollectSubitemBound)
+	{
+		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
+		bCollectSubitemBound = false;
+	}
+
+	GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
+	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
 
 	MyCharacter->SetCanInteract(true);
+	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
 }
 
 void AMovieBox::RemoveInteractBinding()
@@ -238,5 +307,6 @@ void AMovieBox::RemoveInteractBinding()
 		return;
 	}
 
+	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding(InteractActionName, IE_Pressed);
 }

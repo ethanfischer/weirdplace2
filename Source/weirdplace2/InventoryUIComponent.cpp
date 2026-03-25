@@ -1,5 +1,6 @@
 #include "InventoryUIComponent.h"
 #include "InventoryUIActor.h"
+#include "Components/SceneComponent.h"
 #include "Inventory.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
@@ -145,11 +146,8 @@ void UInventoryUIComponent::OpenInventoryUI()
 		StoredUIRotation = CameraRotation;
 	}
 
-	// Spawn the UI actor if needed
-	if (!InventoryUIActor)
-	{
-		SpawnInventoryUIActor();
-	}
+	// Spawn or unhide the UI actor
+	SpawnInventoryUIActor();
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
@@ -178,7 +176,13 @@ void UInventoryUIComponent::OpenInventoryUI()
 	if (InventoryUIActor)
 	{
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
-		InventoryUIActor->RefreshDisplay();
+
+		// Only refresh display if inventory changed since last open
+		if (bInventoryNeedsRefresh)
+		{
+			InventoryUIActor->RefreshDisplay();
+			bInventoryNeedsRefresh = false;
+		}
 
 		// Show current active item and border (if any)
 		if (InventoryComponent)
@@ -263,8 +267,20 @@ void UInventoryUIComponent::ConfirmSelection()
 
 void UInventoryUIComponent::SpawnInventoryUIActor()
 {
-	if (InventoryUIActor) return;
+	// Reuse existing cached actor if available
+	if (InventoryUIActor)
+	{
+		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
+		{
+			Root->SetVisibility(true, true);
+		}
+		InventoryUIActor->SetActorEnableCollision(true);
+		InventoryUIActor->SetActorTickEnabled(true);
+		UE_LOG(LogTemp, Log, TEXT("Reusing cached InventoryUIActor"));
+		return;
+	}
 
+	// First time: spawn the actor
 	UWorld* World = GetWorld();
 	if (!World || !InventoryUIActorClass) return;
 
@@ -287,10 +303,24 @@ void UInventoryUIComponent::DestroyInventoryUIActor()
 {
 	if (InventoryUIActor)
 	{
+		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
+		{
+			Root->SetVisibility(false, true);
+		}
+		InventoryUIActor->SetActorEnableCollision(false);
+		InventoryUIActor->SetActorTickEnabled(false);
+		UE_LOG(LogTemp, Log, TEXT("Hid InventoryUIActor (cached for reuse)"));
+	}
+}
+
+void UInventoryUIComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (IsValid(InventoryUIActor))
+	{
 		InventoryUIActor->Destroy();
 		InventoryUIActor = nullptr;
-		UE_LOG(LogTemp, Log, TEXT("Destroyed InventoryUIActor"));
 	}
+	Super::EndPlay(EndPlayReason);
 }
 
 void UInventoryUIComponent::UpdateInventoryPosition()
@@ -476,12 +506,16 @@ int32 UInventoryUIComponent::CalculateSlotFromReticle() const
 
 void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems)
 {
-	// Refresh UI if open
+	// Mark that inventory needs refresh
+	bInventoryNeedsRefresh = true;
+
+	// If UI is currently open, refresh immediately
 	if (InventoryUIActor && IsInventoryOpen())
 	{
 		ClampSelectedIndex();
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
 		InventoryUIActor->RefreshDisplay();
+		bInventoryNeedsRefresh = false;
 	}
 }
 

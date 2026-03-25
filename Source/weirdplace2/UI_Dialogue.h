@@ -25,6 +25,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void Update(UDlgContext* InActiveContext);
 
+	// Show dialogue with raw text (no DlgContext needed)
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void OpenWithText(const FText& Speaker, const FText& DialogueLine);
+
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void UpdateWithText(const FText& Speaker, const FText& DialogueLine);
+
+	// Override the text color for both speaker name and dialogue text
+	void SetTextColor(const FSlateColor& Color);
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
@@ -46,6 +56,10 @@ protected:
 	// Sound to play during typewriter effect
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
 	USoundBase* VoiceSound;
+
+	// Per-character blip sound with randomized pitch
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
+	USoundBase* BlipSound;
 
 private:
 	void SetNextDisplayTextCharacter();

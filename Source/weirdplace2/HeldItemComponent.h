@@ -29,6 +29,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Held Item")
 	bool IsHeldItemVisible() const;
 
+	// Get the world transform of the held item mesh (returns Identity if no mesh)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Held Item")
+	FTransform GetHeldItemWorldTransform() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;

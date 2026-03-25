@@ -68,5 +68,8 @@
 	],
 	"TargetPlatforms": [
 		"Windows"
+	],
+	"AdditionalNonAssetDirectoriesToPackage": [
+		{ "Path": "Content/Dialogue" }
 	]
 }

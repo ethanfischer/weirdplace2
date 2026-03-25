@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Interactable.h"
 #include "MyCharacter.h"
+class UTextRenderComponent;
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"
@@ -47,9 +48,13 @@ private:
 	bool DidCollectSubitem = false;
 	bool bCollectSubitemBound = false;
 	FName InteractActionName = FName("Interact");
+	FTimerHandle CantCarryTimerHandle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
+	UTextRenderComponent* CantCarryWidget;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh", meta=(AllowPrivateAccess="true"))
 	UStaticMeshComponent* EnvelopeMesh;

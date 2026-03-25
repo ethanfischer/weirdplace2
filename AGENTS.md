@@ -26,9 +26,18 @@ git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
 
 **Always build after making C++ changes** to verify they compile before telling the user you're done.
 
-If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), ask the user to close the editor first and wait for confirmation before building.
+**Use the Rider MCP server to build and launch.** After making changes:
+- Run `mcp__jetbrains__build_project` to compile
+- Run `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"` to launch the UE editor
+- Do NOT ask the user to build or press play; do it yourself via MCP
 
-Build commands:
+If the change requires a **Full Restart** (header changes with UPROPERTY/UFUNCTION, new classes, etc.), kill the Unreal Editor process yourself before building:
+```cmd
+taskkill //F //IM UnrealEditor.exe
+```
+(The `//` is needed because the shell interprets `/` as a path - this is the Git Bash escape for `/IM`.)
+
+Build commands (fallback if MCP is unavailable):
 ```cmd
 # Build editor target (typical for C++ changes)
 "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
@@ -81,6 +90,13 @@ py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
 - `Collect Inspected Subitem` (E/SpaceBar) - Collect from inspected box
 - `ToggleInventory` (Tab) - Toggle inventory room
 - `Turn Right / Left Mouse/Gamepad` - Rotate inspected actor
+
+## Editor Property Assignment
+
+When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `ASeneca*`):
+- **Level instance references** (pointing to actors placed in the level) must be assigned on the **level instance** in the viewport Details panel, NOT in the Blueprint class defaults. The Blueprint editor cannot see level-placed actors.
+- **Asset references** (pointing to meshes, materials, sounds, dialogue assets, classes) can be assigned in either the Blueprint class defaults or the level instance.
+- Always tell the user which properties need to be set on the **level instance** vs **Blueprint defaults**.
 
 ## Code Conventions
 

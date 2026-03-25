@@ -349,6 +349,13 @@ void AInventoryUIActor::CreateThumbnails()
 		UE_LOG(LogTemp, Warning, TEXT("M_VHSCoverFront not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_vhs_front_material.py\""));
 	}
 
+	// Load the simple item thumbnail material (full UV, unlit — for non-VHS items)
+	UMaterialInterface* ItemThumbnailMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_ItemThumbnail.M_ItemThumbnail"));
+	if (!ItemThumbnailMaterial)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("M_ItemThumbnail not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_item_thumbnail_material.py\""));
+	}
+
 	// Create thumbnail for each collected item
 	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
 	{
@@ -369,6 +376,28 @@ void AInventoryUIActor::CreateThumbnails()
 		float Width = ThumbnailSize;
 		float Height = ThumbnailSize * 1.4f;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
+
+		// Check for runtime thumbnail override on the item data first
+		UTexture2D* ItemThumbnailTex = InventoryComponent->GetItemData(ItemID).Thumbnail;
+
+		// Fall back to the convention path if no override
+		if (!ItemThumbnailTex)
+		{
+			FString ItemThumbnailPath = FString::Printf(TEXT("/Game/Images/ItemThumbnails/%s_thumbnail"), *ItemID.ToString());
+			ItemThumbnailTex = LoadObject<UTexture2D>(nullptr, *ItemThumbnailPath);
+		}
+
+		if (ItemThumbnailTex && ItemThumbnailMaterial)
+		{
+			UMaterialInstanceDynamic* ThumbnailMat = UMaterialInstanceDynamic::Create(ItemThumbnailMaterial, this);
+			if (ThumbnailMat)
+			{
+				ThumbnailMat->SetTextureParameterValue(FName("ThumbnailTexture"), ItemThumbnailTex);
+				Thumbnail->SetMaterial(0, ThumbnailMat);
+			}
+			ThumbnailMeshes.Add(Thumbnail);
+			continue;
+		}
 
 		// Try to load the VHS cover texture directly and use front-face material
 		FString TexturePath = FString::Printf(TEXT("/Game/VHSCovers/%s"), *ItemID.ToString());

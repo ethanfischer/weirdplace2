@@ -55,6 +55,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 	// --- Configuration ---
@@ -154,4 +155,7 @@ private:
 
 	// Clamp selected index to valid range
 	void ClampSelectedIndex();
+
+	// Dirty flag - true when inventory changed and UI needs refresh
+	bool bInventoryNeedsRefresh = true;
 };

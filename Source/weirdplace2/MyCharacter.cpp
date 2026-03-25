@@ -39,6 +39,17 @@ void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 void AMyCharacter::OnToggleInventory()
 {
+	if (!bInventoryUnlocked)
+	{
+		UE_LOG(LogTemp, Log, TEXT("OnToggleInventory - inventory not yet unlocked (talk to Seneca first)"));
+		return;
+	}
+
+	if (ActivityState != EPlayerActivityState::FreeRoaming)
+	{
+		return;
+	}
+
 	if (InventoryUIComponent)
 	{
 		InventoryUIComponent->ToggleInventoryUI();
@@ -49,9 +60,46 @@ void AMyCharacter::OnToggleInventory()
 	}
 }
 
+void AMyCharacter::LockMovieCollection()
+{
+	bMovieCollectionLocked = true;
+	UE_LOG(LogTemp, Log, TEXT("AMyCharacter::LockMovieCollection - Movie collection locked"));
+}
+
+void AMyCharacter::UnlockInventory()
+{
+	if (bInventoryUnlocked)
+	{
+		return;
+	}
+	bInventoryUnlocked = true;
+	UE_LOG(LogTemp, Log, TEXT("Inventory unlocked for player"));
+}
+
 void AMyCharacter::SetCanInteract(bool value)
 {
 	CanInteract = value;
+}
+
+void AMyCharacter::SetActivityState(EPlayerActivityState NewState)
+{
+	ActivityState = NewState;
+}
+
+bool AMyCharacter::IsInAnyDialogue() const
+{
+	return ActivityState == EPlayerActivityState::InSimpleDialogue
+		|| ActivityState == EPlayerActivityState::InMultiSpeakerDialogue
+		|| ActivityState == EPlayerActivityState::InDlgDialogue;
+}
+
+void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
+{
+	if (!bForce && (IsInAnyDialogue() || ActivityState == EPlayerActivityState::WaitingForItemInteractionInDialogue))
+	{
+		return;
+	}
+	Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
 }
 
 void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)

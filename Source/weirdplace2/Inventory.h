@@ -6,6 +6,8 @@
 
 class UStaticMesh;
 class UMaterialInterface;
+class UTexture2D;
+class USoundBase;
 
 // Visual data captured from collected items
 USTRUCT(BlueprintType)
@@ -28,6 +30,10 @@ struct FInventoryItemData
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
 	FRotator Rotation = FRotator::ZeroRotator;
 
+	// Optional thumbnail override; if set, InventoryUIActor uses this instead of the convention path
+	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
+	UTexture2D* Thumbnail = nullptr;
+
 	bool IsValid() const { return !ItemID.IsNone() && Mesh != nullptr; }
 };
 
@@ -43,6 +49,10 @@ class WEIRDPLACE2_API UInventoryComponent : public UActorComponent {
 
 public:
 	UInventoryComponent();
+
+	// Sound played when an item is added to inventory
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory|Audio")
+	USoundBase* CollectSound = nullptr;
 
 	// Delegate that fires when inventory contents change
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
@@ -99,6 +109,10 @@ public:
 	// Clears the active item selection
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void ClearActiveItem();
+
+	// Overrides the thumbnail for an existing inventory item and broadcasts OnInventoryChanged
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void UpdateItemThumbnail(const FName& ItemID, UTexture2D* NewThumbnail);
 
 	// Helper to create item data from a static mesh component
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
