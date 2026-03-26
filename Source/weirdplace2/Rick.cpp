@@ -139,7 +139,52 @@ void ARick::StartDialogue()
 void ARick::OnDialogueEnded()
 {
 	UE_LOG(LogTemp, Log, TEXT("Rick::OnDialogueEnded"));
+
+	// Safety cleanup in case dialogue ended before reaching the money line
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter))
+	{
+		FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
+	}
+
 	OnRickDialogueEnded.Broadcast();
+}
+
+void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
+{
+	if (LineIndex != MoneyGiveLineIndex)
+	{
+		return;
+	}
+
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
+	if (!FPChar)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - no FPChar"));
+		return;
+	}
+
+	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
+
+	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
+	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	if (!Inventory || !MoneyMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - missing Inventory or MoneyMesh"));
+		return;
+	}
+
+	FInventoryItemData ItemData;
+	ItemData.ItemID = FName("Money");
+	ItemData.Mesh   = MoneyMesh;
+	ItemData.Scale  = MoneyScale;
+	for (int32 i = 0; i < MoneyMesh->GetStaticMaterials().Num(); i++)
+		ItemData.Materials.Add(MoneyMesh->GetMaterial(i));
+
+	Inventory->AddItemWithData(ItemData);
+	bGaveMoney = true;
+	UE_LOG(LogTemp, Log, TEXT("Rick - Gave Money to player"));
 }
 
 void ARick::AppearOutside()
@@ -174,21 +219,9 @@ void ARick::Interact_Implementation()
 		return;
 	}
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
-	if (!Inventory) { UE_LOG(LogTemp, Error, TEXT("Rick::Interact - No inventory")); return; }
-	if (!MoneyMesh) { UE_LOG(LogTemp, Error, TEXT("Rick::Interact - MoneyMesh not assigned")); return; }
-
-	FInventoryItemData ItemData;
-	ItemData.ItemID = FName("Money");
-	ItemData.Mesh   = MoneyMesh;
-	ItemData.Scale  = MoneyScale;
-	for (int32 i = 0; i < MoneyMesh->GetStaticMaterials().Num(); i++)
-		ItemData.Materials.Add(MoneyMesh->GetMaterial(i));
-
-	Inventory->AddItemWithData(ItemData);
-	bGaveMoney = true;
-	UE_LOG(LogTemp, Log, TEXT("Rick - Gave Money to player"));
+	// Bind line-shown handler so money is given on the correct line
+	FPCharacter->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
+	FPCharacter->OnDialogueLineShown.AddDynamic(this, &ARick::OnMoneyDialogueLineShown);
 
 	if (GivesMoneyLines.Num() > 0)
 		FPCharacter->StartSimpleDialogueMultiSpeaker(GivesMoneyLines, this);

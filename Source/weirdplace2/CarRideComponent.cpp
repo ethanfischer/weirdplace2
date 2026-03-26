@@ -198,6 +198,9 @@ void UCarRideComponent::StartDialogue()
 
 void UCarRideComponent::OnDialogueEnded()
 {
+	// Unbind so future Rick dialogues (money, idle) don't re-trigger the car-ride end sequence
+	Rick->OnRickDialogueEnded.RemoveDynamic(this, &UCarRideComponent::OnDialogueEnded);
+
 	// Disable interaction again during post-dialogue ride
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC)
