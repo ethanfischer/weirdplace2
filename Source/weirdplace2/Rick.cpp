@@ -195,7 +195,8 @@ void ARick::AppearOutside()
 		return;
 	}
 	SetActorLocation(OutsidePositionTarget->GetActorLocation());
-	SetActorRotation(OutsidePositionTarget->GetActorRotation());
+
+	SetActorRotation(FRotator(0.f, 180.f, 0.f));
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
 
