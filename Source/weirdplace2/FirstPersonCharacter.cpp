@@ -9,6 +9,7 @@
 #include "MovieBox.h"
 #include "Seneca.h"
 #include "Rick.h"
+#include "Hudson.h"
 #include "DialogueWidgetProvider.h"
 #include "InventoryUI.h"
 #include "Inventory.h"
@@ -484,6 +485,10 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		{
 			Seneca->OnDialogueEnded();
 		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
+		}
 	}
 }
 
@@ -544,6 +549,10 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
+		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
 		}
 	}
 }
@@ -628,6 +637,10 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 		else if (ARick* Rick = Cast<ARick>(EndedNPC))
 		{
 			Rick->OnDialogueEnded();
+		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
 		}
 	}
 }
