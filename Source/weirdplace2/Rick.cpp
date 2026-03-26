@@ -199,6 +199,21 @@ void ARick::AppearOutside()
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
 
+	if (CarActor)
+	{
+		FVector CarTarget = OutsidePositionTarget->GetActorLocation() + CarActorOffset;
+		CarActor->SetActorLocation(CarTarget);
+		CarActor->SetActorRotation(OutsidePositionTarget->GetActorRotation());
+		UE_LOG(LogTemp, Log, TEXT("Rick - Moved car to %s (OutsideTarget=%s, Offset=%s)"),
+			*CarTarget.ToString(),
+			*OutsidePositionTarget->GetActorLocation().ToString(),
+			*CarActorOffset.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::AppearOutside - CarActor not assigned on level instance"));
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("Rick - Appeared outside store"));
 }
 

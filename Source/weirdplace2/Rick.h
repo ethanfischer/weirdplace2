@@ -70,6 +70,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Outside")
 	AActor* OutsidePositionTarget;
 
+	// The car actor placed in the level — teleported alongside Rick after the ride
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Outside")
+	AActor* CarActor;
+
+	// Offset applied to OutsidePositionTarget when placing the car (so it doesn't overlap Rick)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Outside")
+	FVector CarActorOffset = FVector(0.f, 250.f, 0.f);
+
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
 	FString RickOutsideIdlePath = TEXT("Dialogue/RickOutsideIdle.txt");
 

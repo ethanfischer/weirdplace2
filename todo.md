@@ -11,7 +11,7 @@
 [x] he tells you you can use bathroom but need to buy 3 movies first
 [x] he gives you shopping basket
     [x] press 'e' to use it not consistently showing 
-[ ] homeless man dialogue
+[x] homeless man dialogue
 [ ] buy 3 movies
     [ ] inventory starts with only 3 slots
     [x] give each movie directly, he makes a comment about each selection
