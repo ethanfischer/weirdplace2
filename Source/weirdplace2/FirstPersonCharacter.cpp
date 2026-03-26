@@ -23,6 +23,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "Engine/GameViewportClient.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -42,6 +43,14 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Sprite icons (trigger boxes, empty actors, etc.) are editor-only but leak into PIE
+	// when the viewport show flags get reset by Blueprint recompiles. Suppress them here
+	// so rebuilds can't re-enable them.
+	if (UGameViewportClient* GVC = GetWorld()->GetGameViewport())
+	{
+		GVC->EngineShowFlags.SetBillboardSprites(false);
+	}
 
 	// Prefer a Blueprint-authored RectLight component (commonly named "RectLight")
 	// so designers can tune it directly in BP and have inventory logic use that light.
