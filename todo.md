@@ -3,18 +3,21 @@
 
 
 [x] start at gastation
+[ ] Show car at gasstation
+[ ] fix dialogue (we're just using what claude gave us right now)
 [x] have to go pee
 [x] walk inside
 [x] talk to seneca
 [x] he tells you you can use bathroom but need to buy 3 movies first
 [x] he gives you shopping basket
     [x] press 'e' to use it not consistently showing 
+[ ] homeless man dialogue
 [ ] buy 3 movies
     [ ] inventory starts with only 3 slots
     [x] give each movie directly, he makes a comment about each selection
     [x] tells you the price
-    [ ] you have no money
-    [ ] get money from rick
+    [x] you have no money
+    [x] get money from rick
     [ ] choose whether to give to homeless person
 [x] get key
     [x] key needs an inventory thumbnail
