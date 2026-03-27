@@ -87,9 +87,16 @@ Feature: Bladder Urgency Vignette Pulse
 - Notes: Default fallback material path is `/Game/CreatedMaterials/M_BladderVignette`. Legacy built-in color grading/vignette overrides are reset/disabled by the component.
 
 Feature: Player Activity State Machine
-- `EPlayerActivityState` enum on `AMyCharacter` (FreeRoaming, Interacting, InSimpleDialogue, InMultiSpeakerDialogue, InDlgDialogue) replaces the three scattered bools (`IsInDialogue`, `bIsSimpleDialogue`, `bIsMultiSpeakerDialogue`) and gates inventory Tab in both `HandleShowInventory()` and `OnToggleInventory()`.
+- `EPlayerActivityState` enum on `AMyCharacter` (FreeRoaming, Interacting, InSimpleDialogue, InMultiSpeakerDialogue, InDlgDialogue, WaitingForItemInteractionInDialogue) replaces the three scattered bools (`IsInDialogue`, `bIsSimpleDialogue`, `bIsMultiSpeakerDialogue`) and gates inventory Tab in both `HandleShowInventory()` and `OnToggleInventory()`.
+- `WaitingForItemInteractionInDialogue` is set by Seneca's basket beat — the interaction trace adds `CurrentDialogueNPC` to `ActorsToIgnore` so the ray passes through the NPC and hits the prop behind them.
 
 Feature: Car Ride Sequence
 - Key files: Source/weirdplace2/CarRideComponent.h/.cpp; Source/weirdplace2/Rick.h/.cpp; Content/Dialogue/CarRide.txt.
 - Behavior: Scripted opening sequence where scenery scrolls past while Rick drives the player to the store, plays multi-speaker dialogue loaded from CarRide.txt, fires a single bladder urgency pulse mid-dialogue at a configurable line index, then fades to black and teleports the player to the store entrance.
 - Configuration (on `CarRideComponent` level instance): `SceneryRoot`, `Rick`, `PassengerSeatTarget`, `ArrivalTarget`, `GasStationRoot`, `DialogueWidgetTarget`, `BladderPulseLineIndex`.
+
+Feature: NPC Look-At-Player
+- Key files: Source/weirdplace2/LookAtPlayerComponent.h/.cpp; Source/weirdplace2/BPFL_Utilities.h/.cpp.
+- Behavior: `ULookAtPlayerComponent` (subclass of `USphereComponent`) is attached to NPC Blueprints. When the player enters the sphere, it calls `UBPFL_Utilities::SetShouldLookAtPlayer(true)` on the NPC's body skeletal mesh; on exit, sets it false. The anim blueprint reads this to rotate the head toward the player.
+- Collision: Uses `QueryOnly` with `ECR_Ignore` on all channels except `ECC_Pawn` (Overlap). This makes the sphere invisible to line traces so it doesn't block the interaction raycast.
+- Configuration: `SphereRadius` (default 200), `BodyMeshComponentName` (FName matching the skeletal mesh component on the owning actor).
