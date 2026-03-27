@@ -3,7 +3,7 @@
 
 
 [x] start at gastation
-[ ] Show car at gasstation
+[x] Show car at gasstation
 [ ] fix dialogue (we're just using what claude gave us right now)
 [x] have to go pee
 [x] walk inside
@@ -18,7 +18,7 @@
     [x] tells you the price
     [x] you have no money
     [x] get money from rick
-    [ ] choose whether to give to homeless person
+    [x] choose whether to give to homeless person
 [x] get key
     [x] key needs an inventory thumbnail
     [x] show key in convo
