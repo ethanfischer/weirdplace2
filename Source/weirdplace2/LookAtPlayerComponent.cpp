@@ -1,11 +1,14 @@
 #include "LookAtPlayerComponent.h"
 #include "BPFL_Utilities.h"
-#include "Components/SphereComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/Character.h"
+#include "Kismet/GameplayStatics.h"
 
 ULookAtPlayerComponent::ULookAtPlayerComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+	InitSphereRadius(200.0f);
+	ShapeColor = FColor::Cyan;
 }
 
 void ULookAtPlayerComponent::BeginPlay()
@@ -18,6 +21,9 @@ void ULookAtPlayerComponent::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("ULookAtPlayerComponent::BeginPlay - No owner actor"));
 		return;
 	}
+
+	SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	SetGenerateOverlapEvents(true);
 
 	// Auto-find the Body skeletal mesh by component name
 	TArray<USkeletalMeshComponent*> SkelMeshes;
@@ -36,39 +42,26 @@ void ULookAtPlayerComponent::BeginPlay()
 			*Owner->GetName(), *BodyMeshComponentName.ToString());
 		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("ULookAtPlayerComponent on '%s': Found BodyMesh '%s', AnimInstance=%s"),
-		*Owner->GetName(), *BodyMesh->GetName(),
-		BodyMesh->GetAnimInstance() ? *BodyMesh->GetAnimInstance()->GetClass()->GetName() : TEXT("null"));
 
-	TriggerSphere = NewObject<USphereComponent>(Owner, TEXT("LookAtTriggerSphere"));
-	TriggerSphere->RegisterComponent();
-	TriggerSphere->AttachToComponent(Owner->GetRootComponent(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-	TriggerSphere->SetSphereRadius(TriggerRadius);
-	TriggerSphere->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
-	TriggerSphere->SetGenerateOverlapEvents(true);
-	TriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ULookAtPlayerComponent::OnSphereBeginOverlap);
-	TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ULookAtPlayerComponent::OnSphereEndOverlap);
-	UE_LOG(LogTemp, Log, TEXT("ULookAtPlayerComponent::BeginPlay - Sphere created on '%s', radius=%.0f"), *Owner->GetName(), TriggerRadius);
+	OnComponentBeginOverlap.AddDynamic(this, &ULookAtPlayerComponent::OnSphereBeginOverlap);
+	OnComponentEndOverlap.AddDynamic(this, &ULookAtPlayerComponent::OnSphereEndOverlap);
 }
 
 void ULookAtPlayerComponent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (!BodyMesh)
+	if (!BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
 	{
-		UE_LOG(LogTemp, Error, TEXT("ULookAtPlayerComponent on '%s': BodyMesh is not assigned"), *GetOwner()->GetName());
 		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("ULookAtPlayerComponent on '%s': BeginOverlap with '%s'"), *GetOwner()->GetName(), *OtherActor->GetName());
 	UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
 }
 
 void ULookAtPlayerComponent::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (!BodyMesh)
+	if (!BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
 	{
-		UE_LOG(LogTemp, Error, TEXT("ULookAtPlayerComponent on '%s': BodyMesh is not assigned"), *GetOwner()->GetName());
 		return;
 	}
 	UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, BodyMesh);
