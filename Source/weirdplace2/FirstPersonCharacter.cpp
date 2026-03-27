@@ -356,6 +356,13 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6)); // Custom channel
 
 	TArray<AActor*> ActorsToIgnore;
+	if (GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+	{
+		if (AActor* NPCActor = Cast<AActor>(CurrentDialogueNPC))
+		{
+			ActorsToIgnore.Add(NPCActor);
+		}
+	}
 	FHitResult HitResult;
 
 	bool bHit = UKismetSystemLibrary::LineTraceSingleForObjects(
@@ -376,10 +383,6 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked())
-			{
-				return;
-			}
-			if (HitActor->IsA<ASeneca>() && GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
 			{
 				return;
 			}

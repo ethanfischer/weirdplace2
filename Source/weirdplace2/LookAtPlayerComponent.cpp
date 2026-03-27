@@ -22,7 +22,9 @@ void ULookAtPlayerComponent::BeginPlay()
 		return;
 	}
 
-	SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+	SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	SetCollisionResponseToAllChannels(ECR_Ignore);
+	SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
 	SetGenerateOverlapEvents(true);
 
 	// Auto-find the Body skeletal mesh by component name
