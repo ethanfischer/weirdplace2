@@ -1,12 +1,13 @@
 #pragma once
 #include "CoreMinimal.h"
-#include "Components/SphereComponent.h"
+#include "Components/ActorComponent.h"
 #include "LookAtPlayerComponent.generated.h"
 
 class USkeletalMeshComponent;
+class USphereComponent;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class WEIRDPLACE2_API ULookAtPlayerComponent : public USphereComponent
+class WEIRDPLACE2_API ULookAtPlayerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 public:
@@ -16,9 +17,15 @@ protected:
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LookAt")
 	FName BodyMeshComponentName = FName("Body");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LookAt")
+	float TriggerRadius = 200.0f;
 private:
 	UPROPERTY()
 	USkeletalMeshComponent* BodyMesh;
+private:
+	UPROPERTY()
+	USphereComponent* TriggerSphere;
 
 	UFUNCTION()
 	void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
