@@ -3,11 +3,9 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
-#include "BPFL_Utilities.h"
 #include "Door.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -62,13 +60,6 @@ void ASeneca::BeginPlay()
 		{
 			Inventory->OnInventoryChanged.AddDynamic(this, &ASeneca::OnInventoryChanged);
 		}
-	}
-
-	if (TriggerSphere)
-	{
-		TriggerSphere->SetSphereRadius(DialogueTriggerRadius);
-		TriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ASeneca::OnSphereBeginOverlap);
-		TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
 	}
 
 	// Find the Cigarette ChildActorComponent by name
@@ -272,10 +263,6 @@ void ASeneca::OnKeyDropped()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Hiding, will appear at smoking position in %.0f seconds"), SmokingAppearDelay);
 	SetActorHiddenInGame(true);
-	if (TriggerSphere)
-	{
-		TriggerSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
 	CurrentState = ESenecaState::Smoking;
 
 	if (KeyBrokenThumbnail)
@@ -397,50 +384,6 @@ void ASeneca::Interact_Implementation()
 	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 }
 
-void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (BodyMesh)
-	{
-		UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
-	}
-
-	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(OtherActor);
-	if (!FPCharacter)
-	{
-		return;
-	}
-
-	if (CurrentState == ESenecaState::WaitingForMovies)
-	{
-		if (!bIntroDialoguePlayed)
-			StartWaitingForMoviesDialogue(FPCharacter);
-		return;
-	}
-
-	if (CurrentState == ESenecaState::ReadyToGiveKey)
-	{
-		StartReadyToGiveKeyDialogue(FPCharacter);
-		return;
-	}
-
-	// WaitingForMoviePurchase and WaitingForMoney fall through to default: play loaded txt lines
-	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
-	if (Lines && Lines->Num() > 0)
-	{
-		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
-	}
-}
-
-void ASeneca::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (BodyMesh)
-	{
-		UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, BodyMesh);
-	}
-}
-
 // --- Key ---
 
 void ASeneca::GiveKey()
@@ -520,10 +463,6 @@ void ASeneca::Tick(float DeltaTime)
 		{
 			MoveToTarget(SmokingPositionTarget);
 			SetActorHiddenInGame(false);
-			if (TriggerSphere)
-			{
-				TriggerSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-			}
 			bWaitingToAppear = false;
 			bIsSmoking = true;
 			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
@@ -582,15 +521,7 @@ bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 
 bool ASeneca::IsPlayerLookingAtMe() const
 {
-	FVector SenecaCenter;
-	if (BodyMesh)
-	{
-		SenecaCenter = BodyMesh->Bounds.Origin;
-	}
-	else
-	{
-		SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
-	}
+	const FVector SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
 	return IsPlayerLookingAt(SenecaCenter);
 }
 

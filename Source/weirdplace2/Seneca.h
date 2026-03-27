@@ -8,8 +8,6 @@ class APropActor;
 #include "GameFramework/Actor.h"
 #include "Seneca.generated.h"
 
-class USkeletalMeshComponent;
-class USphereComponent;
 class UWidgetComponent;
 class UUI_Dialogue;
 class UDlgContext;
@@ -102,22 +100,7 @@ public:
 	bool bIsSmoking = false;
 
 protected:
-	// Sphere overlap callbacks
-	UFUNCTION()
-	void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
-	UFUNCTION()
-	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-
 	// --- Components (assigned in Blueprint) ---
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
-	USkeletalMeshComponent* BodyMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
-	USphereComponent* TriggerSphere;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
 	UChildActorComponent* CigaretteComp;
@@ -150,10 +133,6 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString EmployeeBathroomDialoguePath = TEXT("Dialogue/EmployeeBathroom.txt");
-
-	// Radius of the dialogue trigger sphere
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
-	float DialogueTriggerRadius = 200.0f;
 
 	// --- Key ---
 
