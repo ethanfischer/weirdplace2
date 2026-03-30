@@ -40,7 +40,7 @@ AInventoryUIActor::AInventoryUIActor()
 	ItemNameTextTop->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	ItemNameTextTop->SetWorldSize(3.0f);
 	ItemNameTextTop->SetTextRenderColor(FColor::White);
-	ItemNameTextTop->SetHorizontalAlignment(EHTA_Left);
+	ItemNameTextTop->SetHorizontalAlignment(EHTA_Center);
 	ItemNameTextTop->SetVerticalAlignment(EVRTA_TextCenter);
 	ItemNameTextTop->SetText(FText::GetEmpty());
 
@@ -454,7 +454,32 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 
 	if (ItemNameTextTop)
 	{
-		ItemNameTextTop->SetText(ActiveItemText);
+		// Word-wrap long titles to fit above the grid
+		const int32 MaxLineLength = 20;
+		FString RawText = ActiveItemText.ToString();
+		FString WrappedText;
+		int32 CurrentLineLength = 0;
+
+		TArray<FString> Words;
+		RawText.ParseIntoArray(Words, TEXT(" "), true);
+
+		for (int32 i = 0; i < Words.Num(); i++)
+		{
+			if (CurrentLineLength > 0 && CurrentLineLength + 1 + Words[i].Len() > MaxLineLength)
+			{
+				WrappedText += TEXT("\n");
+				CurrentLineLength = 0;
+			}
+			else if (CurrentLineLength > 0)
+			{
+				WrappedText += TEXT(" ");
+				CurrentLineLength += 1;
+			}
+			WrappedText += Words[i];
+			CurrentLineLength += Words[i].Len();
+		}
+
+		ItemNameTextTop->SetText(FText::FromString(WrappedText));
 	}
 
 	// Update active item border
@@ -515,7 +540,8 @@ void AInventoryUIActor::UpdateBackgroundSize()
 	if (ItemNameTextTop)
 	{
 		const float TopTextZ = GridH * 0.5f + BackgroundPadding + 2.0f;
-		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, TextY, TopTextZ));
+		ItemNameTextTop->SetHorizontalAlignment(EHTA_Center);
+		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, 0.0f, TopTextZ));
 	}
 
 }
