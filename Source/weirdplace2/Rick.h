@@ -49,6 +49,9 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Rick|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
 
+	// Line index parsed from [Bladder] tag in dialogue file (-1 if absent)
+	int32 BladderPulseLineIndex = INDEX_NONE;
+
 protected:
 	// Path to dialogue text file (relative to Content/)
 	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")

@@ -117,6 +117,32 @@ void ASeneca::BeginPlay()
 	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
 	LoadDialogueFile(ESenecaState::AtEmployeeBathroom, EmployeeBathroomDialoguePath);
+
+	// Load reminder lines (not keyed by state)
+	{
+		auto LoadReminderFile = [](const FString& RelativePath, TArray<FText>& OutLines)
+		{
+			FString FullPath = FPaths::ProjectContentDir() / RelativePath;
+			TArray<FString> Raw;
+			if (FFileHelper::LoadFileToStringArray(Raw, *FullPath))
+			{
+				for (const FString& Line : Raw)
+				{
+					if (!Line.IsEmpty())
+					{
+						OutLines.Add(FText::FromString(Line));
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load reminder file: %s"), *FullPath);
+			}
+		};
+		LoadReminderFile(WaitingForMoviesReminderPath, WaitingForMoviesReminderLines);
+		LoadReminderFile(WaitingForMoviePurchaseReminderPath, WaitingForMoviePurchaseReminderLines);
+	}
+
 	LoadMovieComments();
 }
 
@@ -317,8 +343,7 @@ void ASeneca::Interact_Implementation()
 		}
 		else
 		{
-			TArray<FText> ReminderLines = { FText::FromString(TEXT("You need to rent 3 movies.")) };
-			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForMoviesReminderLines, this);
 		}
 		return;
 	}
@@ -336,8 +361,7 @@ void ASeneca::Interact_Implementation()
 		FName ActiveItem = Inventory->GetActiveItem();
 		if (ActiveItem.IsNone() || ActiveItem == FName("Key") || ActiveItem == FName("BrokenKey"))
 		{
-			TArray<FText> ReminderLines = { FText::FromString(TEXT("Grab one of those movies from your bag and hold it up.")) };
-			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForMoviePurchaseReminderLines, this);
 		}
 		else
 		{

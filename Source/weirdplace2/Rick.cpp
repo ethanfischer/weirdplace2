@@ -61,10 +61,18 @@ void ARick::LoadDialogueFile()
 	}
 
 	ParsedLines.Empty();
+	BladderPulseLineIndex = INDEX_NONE;
 	for (const FString& Line : RawLines)
 	{
 		if (Line.IsEmpty())
 		{
+			continue;
+		}
+
+		if (Line.TrimStartAndEnd().Equals(TEXT("[Bladder]"), ESearchCase::IgnoreCase))
+		{
+			// Tag marks the transition point — pulse fires after the preceding line
+			BladderPulseLineIndex = ParsedLines.Num() - 1;
 			continue;
 		}
 

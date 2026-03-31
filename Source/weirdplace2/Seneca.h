@@ -134,6 +134,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString EmployeeBathroomDialoguePath = TEXT("Dialogue/EmployeeBathroom.txt");
 
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviesReminderPath = TEXT("Dialogue/WaitingForMoviesReminder.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviePurchaseReminderPath = TEXT("Dialogue/WaitingForMoviePurchaseReminder.txt");
+
 	// --- Key ---
 
 	// Key name given to player
@@ -212,6 +218,10 @@ private:
 
 	// Loaded dialogue lines per state
 	TMap<ESenecaState, TArray<FText>> DialogueLines;
+
+	// Reminder lines for re-interactions within a state
+	TArray<FText> WaitingForMoviesReminderLines;
+	TArray<FText> WaitingForMoviePurchaseReminderLines;
 
 	// Helper to load a single dialogue file
 	void LoadDialogueFile(ESenecaState State, const FString& RelativePath);

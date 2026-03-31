@@ -229,7 +229,7 @@ void UCarRideComponent::OnDialogueEnded()
 
 void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
 {
-	if (LineIndex != BladderPulseLineIndex)
+	if (!Rick || Rick->BladderPulseLineIndex == INDEX_NONE || LineIndex != Rick->BladderPulseLineIndex)
 	{
 		return;
 	}
