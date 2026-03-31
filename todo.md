@@ -12,8 +12,8 @@
 [x] he gives you shopping basket
     [x] press 'e' to use it not consistently showing 
 [x] homeless man dialogue
-[ ] buy 3 movies
-    [ ] inventory starts with only 3 slots
+[x] buy 3 movies
+    [x] inventory starts with only 3 slots
     [x] give each movie directly, he makes a comment about each selection
     [x] tells you the price
     [x] you have no money

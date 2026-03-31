@@ -1,4 +1,2 @@
 Seneca: Alright, let's see what we got here.
-Seneca: That'll be $5.95.
-Player: I... don't have any money.
-Seneca: You serious? Go find some. Ask around.
+Seneca: That'll be $2.47
