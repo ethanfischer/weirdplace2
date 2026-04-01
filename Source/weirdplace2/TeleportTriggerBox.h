@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TriggerBox.h"
+#include "Engine/TargetPoint.h"
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -20,7 +21,11 @@ protected:
 
 	// --- Properties ---
 
-	// Transform to teleport the actor to
+	// Target point actor to teleport to (set on the level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	ATargetPoint* TeleportTarget;
+
+	// Fallback transform if no TeleportTarget is set
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
 	FTransform TeleportTransform;
 

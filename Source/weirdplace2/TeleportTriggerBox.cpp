@@ -24,8 +24,34 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		DestroyUltraDynamicActors();
 	}
 
+	// Determine teleport destination
+	FVector TeleportLocation;
+	FRotator TeleportRotation;
+
+	if (TeleportTarget)
+	{
+		TeleportLocation = TeleportTarget->GetActorLocation();
+		TeleportRotation = TeleportTarget->GetActorRotation();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set, using TeleportTransform fallback"), *GetName());
+		TeleportLocation = TeleportTransform.GetLocation();
+		TeleportRotation = TeleportTransform.GetRotation().Rotator();
+	}
+
 	// Teleport the actor
-	OtherActor->SetActorTransform(TeleportTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	OtherActor->SetActorLocation(TeleportLocation);
+	OtherActor->SetActorRotation(TeleportRotation);
+
+	// Sync controller rotation so first-person camera faces the right direction
+	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
+	{
+		if (AController* Controller = Character->GetController())
+		{
+			Controller->SetControlRotation(TeleportRotation);
+		}
+	}
 }
 
 void ATeleportTriggerBox::DestroyUltraDynamicActors()
