@@ -76,6 +76,7 @@ public:
 
 private:
 	void StartRide();
+	void SkipRide();
 	void StartDialogue();
 	void EndRide();
 	void OnFadeOutComplete();

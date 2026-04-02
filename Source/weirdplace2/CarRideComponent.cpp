@@ -10,6 +10,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
+#if WITH_EDITOR
+#include "Settings/LevelEditorPlaySettings.h"
+#endif
+
 UCarRideComponent::UCarRideComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -20,15 +24,30 @@ void UCarRideComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Poll until the player pawn is the right type, then start the ride
+	bool bSkipRide = false;
+#if WITH_EDITOR
+	if (const ULevelEditorPlaySettings* PlaySettings = GetDefault<ULevelEditorPlaySettings>())
+	{
+		bSkipRide = PlaySettings->LastExecutedPlayModeLocation == PlayLocation_CurrentCameraLocation;
+	}
+#endif
+
+	// Poll until the player pawn is the right type, then start (or skip) the ride
 	GetWorld()->GetTimerManager().SetTimer(
 		DialogueStartTimerHandle,
-		FTimerDelegate::CreateWeakLambda(this, [this]()
+		FTimerDelegate::CreateWeakLambda(this, [this, bSkipRide]()
 		{
 			APlayerController* PC = GetWorld()->GetFirstPlayerController();
 			if (PC && Cast<AFirstPersonCharacter>(PC->GetPawn()))
 			{
-				StartRide();
+				if (bSkipRide)
+				{
+					SkipRide();
+				}
+				else
+				{
+					StartRide();
+				}
 			}
 		}),
 		0.1f,
@@ -122,6 +141,34 @@ void UCarRideComponent::StartRide()
 		false
 	);
 
+}
+
+void UCarRideComponent::SkipRide()
+{
+	GetWorld()->GetTimerManager().ClearTimer(DialogueStartTimerHandle);
+	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Skipping car ride (Spawn At Camera Location)"));
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipRide - No player"));
+		return;
+	}
+
+	if (UBladderUrgencyComponent* BladderComp = Player->FindComponentByClass<UBladderUrgencyComponent>())
+	{
+		BladderComp->StartUrgency();
+	}
+
+	if (Rick)
+	{
+		Rick->AppearOutside();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipRide - Rick is null"));
+	}
 }
 
 void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
