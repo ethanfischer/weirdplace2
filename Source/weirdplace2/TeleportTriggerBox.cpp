@@ -1,5 +1,6 @@
 #include "TeleportTriggerBox.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 
@@ -18,38 +19,40 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
+	if (!TeleportTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set"), *GetName());
+		return;
+	}
+
 	// Optionally destroy Ultra Dynamic Sky actors
 	if (bDestroyUltraDynamicActors)
 	{
 		DestroyUltraDynamicActors();
 	}
 
-	// Determine teleport destination
-	FVector TeleportLocation;
-	FRotator TeleportRotation;
+	// Compute rotation delta between trigger and target
+	FQuat RotationDelta = FQuat(TeleportTarget->GetActorRotation()) * FQuat(GetActorRotation()).Inverse();
 
-	if (TeleportTarget)
-	{
-		TeleportLocation = TeleportTarget->GetActorLocation();
-		TeleportRotation = TeleportTarget->GetActorRotation();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set, using TeleportTransform fallback"), *GetName());
-		TeleportLocation = TeleportTransform.GetLocation();
-		TeleportRotation = TeleportTransform.GetRotation().Rotator();
-	}
+	// 1. Preserve relative position offset
+	FVector Offset = OtherActor->GetActorLocation() - GetActorLocation();
+	FVector RotatedOffset = RotationDelta.RotateVector(Offset);
+	OtherActor->SetActorLocation(TeleportTarget->GetActorLocation() + RotatedOffset);
 
-	// Teleport the actor
-	OtherActor->SetActorLocation(TeleportLocation);
-	OtherActor->SetActorRotation(TeleportRotation);
-
-	// Sync controller rotation so first-person camera faces the right direction
 	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
 	{
+		// 2. Preserve camera direction (rotated by the delta)
 		if (AController* Controller = Character->GetController())
 		{
-			Controller->SetControlRotation(TeleportRotation);
+			FRotator NewViewRot = (RotationDelta * FQuat(Controller->GetControlRotation())).Rotator();
+			Controller->SetControlRotation(NewViewRot);
+			Character->SetActorRotation(FRotator(0, NewViewRot.Yaw, 0));
+		}
+
+		// 3. Preserve movement velocity (rotated by the delta)
+		if (UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
+		{
+			MoveComp->Velocity = RotationDelta.RotateVector(MoveComp->Velocity);
 		}
 	}
 }
