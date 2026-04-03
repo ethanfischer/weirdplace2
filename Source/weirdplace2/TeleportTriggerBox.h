@@ -21,13 +21,9 @@ protected:
 
 	// --- Properties ---
 
-	// Target point actor to teleport to (set on the level instance)
+	// Required target point actor to teleport to (set on the level instance)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	ATargetPoint* TeleportTarget;
-
-	// Fallback transform if no TeleportTarget is set
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
-	FTransform TeleportTransform;
 
 	// Whether to destroy Ultra Dynamic Sky actors on teleport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
