@@ -1,4 +1,7 @@
 # Todo / Bugs
+[ ] make NPC interaction distant same a look at player distance
+[ ] prevent interaction between walls
+[ ] maybe make reticle show chat bubble while in dialogue
 [ ] allow walking away mid dialogue
 [ ] improve movie pickup
     [ ] don't have to turn to take
