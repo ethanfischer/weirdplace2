@@ -6,6 +6,7 @@
 [ ] get money
     [ ] money mesh
     [ ] handle homeless scenario
+    [ ] rick shouldn't teleport while in dialogue or while looking at him
 [ ] drop key
     [ ] need better sfx
     [ ] broken key mesh
