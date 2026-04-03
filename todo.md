@@ -1,4 +1,9 @@
 # Todo / Bugs
+[ ] allow walking away mid dialogue
+[ ] improve movie pickup
+    [ ] don't have to turn to take
+    [ ] tell player what button to put back
+[ ] fix key dialogue key given on wrong beat
 [ ] fix text not childed to npc heads
 [ ] gas station door animation
 [ ] buy 3 movies
@@ -13,3 +18,4 @@
 [ ] meet seneca outside smoking cig
     [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
         Cigarette prop already attached to finger bone in `BP_Seneca`.
+[ ] replace llm responses to movies
