@@ -1,38 +1,14 @@
 # Todo / Bugs
-- [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`. Cigarette prop already attached to finger bone in `BP_Seneca`.
-
-
-[x] start at gastation
-[x] Show car at gasstation
-[ ] fix dialogue (we're just using what claude gave us right now)
-[x] have to go pee
-[x] walk inside
-[x] talk to seneca
-[x] he tells you you can use bathroom but need to buy 3 movies first
-[x] he gives you shopping basket
-    [x] press 'e' to use it not consistently showing 
-[x] homeless man dialogue
-[x] buy 3 movies
-    [x] inventory starts with only 3 slots
-    [x] give each movie directly, he makes a comment about each selection
-    [x] tells you the price
-    [x] you have no money
-    [x] get money from rick
-    [x] choose whether to give to homeless person
-[x] get key
-    [x] key needs an inventory thumbnail
-    [x] show key in convo
-    [x] require clicking the key to collect
-    [x] play collect sfx
-[x] go outside
+[ ] fix text not childed to npc heads
+[ ] gas station door animation
+[ ] buy 3 movies
+    [ ] movies should stack on the counter
+[ ] get money
+    [ ] money mesh
+    [ ] handle homeless scenario
 [ ] drop key
-    [x] need animation
     [ ] need better sfx
     [ ] broken key mesh
-[x] seneca is gone
-[ ] meet him outside smoking cig
-    [ ] add smoking animation
-[x] he tells you he'll let you use the employee bathroom meet him there
-[x] he's there and the door is unlocked
-[ ] ???
-[ ] bathroom stall takes you to oasis
+[ ] meet seneca outside smoking cig
+    [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
+        Cigarette prop already attached to finger bone in `BP_Seneca`.
