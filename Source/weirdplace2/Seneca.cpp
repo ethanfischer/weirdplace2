@@ -376,7 +376,12 @@ void ASeneca::Interact_Implementation()
 		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
 		if (Inventory && Inventory->GetActiveItem() == FName("Money"))
 		{
-			Inventory->RemoveItem(FName("Money"));
+			if (!Inventory->RemoveItem(FName("Money")))
+			{
+				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to remove Money from inventory"));
+				return;
+			}
+			Inventory->ClearActiveItem();
 			CurrentState = ESenecaState::ReadyToGiveKey;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> ReadyToGiveKey (money received)"));
 			StartReadyToGiveKeyDialogue(FPCharacter);
