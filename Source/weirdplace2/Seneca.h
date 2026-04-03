@@ -240,6 +240,10 @@ private:
 	UPROPERTY()
 	AActor* PendingMoveTarget = nullptr;
 
+	// Cached skeletal mesh for computing look-at bounds target
+	UPROPERTY()
+	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
+
 	// Tracks that the player was looking at Seneca (requires look then look-away)
 	bool bWasLookingAtMe = false;
 

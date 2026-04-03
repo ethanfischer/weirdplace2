@@ -18,7 +18,7 @@
 ASeneca::ASeneca()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 	// Components are created in Blueprint to preserve MetaHuman setup
 }
 
@@ -76,6 +76,13 @@ void ASeneca::BeginPlay()
 	if (!CigaretteComp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
+	}
+
+	// Cache the skeletal mesh for bounds-based look-at targeting
+	CachedSkeletalMesh = FindComponentByClass<USkeletalMeshComponent>();
+	if (!CachedSkeletalMesh)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found, IsPlayerLookingAtMe will use hardcoded offset"));
 	}
 
 	if (KeyActor)
@@ -485,6 +492,21 @@ void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Billboard dialogue widget toward player camera
+	if (DialogueWidgetComponent)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			FVector CamLocation;
+			FRotator CamRotation;
+			PC->GetPlayerViewPoint(CamLocation, CamRotation);
+			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
+			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
+			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
+		}
+	}
+
 	// Waiting to appear at smoking position — teleport when player isn't looking at that spot
 	if (bWaitingToAppear && SmokingPositionTarget)
 	{
@@ -495,7 +517,6 @@ void ASeneca::Tick(float DeltaTime)
 			bWaitingToAppear = false;
 			bIsSmoking = true;
 			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
-			SetActorTickEnabled(false);
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
 		return;
@@ -521,7 +542,6 @@ void ASeneca::Tick(float DeltaTime)
 		if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
 		PendingMoveTarget = nullptr;
 		bWasLookingAtMe = false;
-		SetActorTickEnabled(false);
 
 		CurrentState = ESenecaState::AtEmployeeBathroom;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
@@ -550,7 +570,18 @@ bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 
 bool ASeneca::IsPlayerLookingAtMe() const
 {
-	const FVector SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
+	FVector SenecaCenter;
+	if (CachedSkeletalMesh)
+	{
+		FBoxSphereBounds LocalBounds = CachedSkeletalMesh->GetLocalBounds();
+		// Upper-center of mesh bounds in world space
+		const FVector LocalUpperCenter = LocalBounds.Origin + FVector(0.f, 0.f, LocalBounds.BoxExtent.Z);
+		SenecaCenter = CachedSkeletalMesh->GetComponentTransform().TransformPosition(LocalUpperCenter);
+	}
+	else
+	{
+		SenecaCenter = GetActorLocation() + FVector(0.f, 0.f, 90.f);
+	}
 	return IsPlayerLookingAt(SenecaCenter);
 }
 

@@ -10,7 +10,7 @@
 
 AHudson::AHudson()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 }
 
 UUI_Dialogue* AHudson::GetDialogueWidget() const
@@ -43,6 +43,26 @@ void AHudson::BeginPlay()
 	LoadDialogue(HudsonIdlePath, IdleLines);
 	LoadDialogue(HudsonBegPath, BegLines);
 	LoadDialogue(HudsonThankYouPath, ThankYouLines);
+}
+
+void AHudson::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Billboard dialogue widget toward player camera
+	if (DialogueWidgetComponent)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			FVector CamLocation;
+			FRotator CamRotation;
+			PC->GetPlayerViewPoint(CamLocation, CamRotation);
+			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
+			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
+			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
+		}
+	}
 }
 
 void AHudson::LoadDialogue(const FString& RelPath, TArray<FText>& OutLines)

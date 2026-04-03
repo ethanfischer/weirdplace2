@@ -38,6 +38,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
 	FString HudsonIdlePath = TEXT("Dialogue/HudsonIdle.txt");
