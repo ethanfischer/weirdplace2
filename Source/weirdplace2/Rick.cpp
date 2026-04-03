@@ -7,6 +7,7 @@
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 
@@ -42,9 +43,6 @@ void ARick::BeginPlay()
 			break;
 		}
 	}
-
-	SetActorHiddenInGame(true);
-	SetActorEnableCollision(false);
 
 	LoadDialogueFile();
 	LoadOutsideDialogue();
@@ -205,7 +203,10 @@ void ARick::AppearOutside()
 	SetActorLocation(OutsidePositionTarget->GetActorLocation());
 
 	SetActorRotation(FRotator(0.f, 180.f, 0.f));
-	SetActorHiddenInGame(false);
+	if (USceneComponent* Root = GetRootComponent())
+	{
+		Root->SetVisibility(true, true);
+	}
 	SetActorEnableCollision(true);
 
 	if (CarActor)
