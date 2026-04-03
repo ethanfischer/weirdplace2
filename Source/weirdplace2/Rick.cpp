@@ -243,10 +243,11 @@ void ARick::Interact_Implementation()
 		return;
 	}
 
-	// Bind line-shown handler so money is given on the correct line
-	FPCharacter->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
-	FPCharacter->OnDialogueLineShown.AddDynamic(this, &ARick::OnMoneyDialogueLineShown);
-
 	if (GivesMoneyLines.Num() > 0)
+	{
+		// Bind line-shown handler so money is given on the correct line
+		FPCharacter->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
+		FPCharacter->OnDialogueLineShown.AddDynamic(this, &ARick::OnMoneyDialogueLineShown);
 		FPCharacter->StartSimpleDialogueMultiSpeaker(GivesMoneyLines, this);
+	}
 }
