@@ -1,6 +1,10 @@
 # Todo / Bugs
 [ ] make NPC interaction distant same a look at player distance
-[ ] prevent interaction between walls
+[ ] cash needs inventory thumbnail
+[ ] seneca is still interactable when he disappears from cash register
+[ ] rick comes inside randomly and just repeats the same line
+[ ] "Rick: I'll meet you inside"
+[x] prevent interaction between walls
 [ ] maybe make reticle show chat bubble while in dialogue
 [ ] allow walking away mid dialogue
 [ ] improve movie pickup

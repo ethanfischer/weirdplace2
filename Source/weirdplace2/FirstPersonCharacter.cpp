@@ -386,6 +386,40 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			{
 				return;
 			}
+
+			// Line-of-sight check: prevent interaction through walls.
+			// We trace from the camera horizontally toward the interactable's
+			// XY position at camera height — not to ImpactPoint (which lands
+			// on a collider that may poke through a wall), and not to the
+			// actor origin (which is often at the feet, causing the trace to
+			// dip into the floor).
+			const FVector ActorLoc = HitActor->GetActorLocation();
+			const FVector LoSTarget(ActorLoc.X, ActorLoc.Y, Start.Z);
+			TArray<AActor*> LoSIgnore;
+			LoSIgnore.Add(HitActor);
+			for (AActor* Ignored : ActorsToIgnore)
+			{
+				LoSIgnore.Add(Ignored);
+			}
+			FHitResult LoSHit;
+			bool bLoSBlocked = UKismetSystemLibrary::LineTraceSingle(
+				this,
+				Start,
+				LoSTarget,
+				UEngineTypes::ConvertToTraceType(ECC_Visibility),
+				false,
+				LoSIgnore,
+				EDrawDebugTrace::None,
+				LoSHit,
+				true,
+				FLinearColor::Red,
+				FLinearColor::Green,
+				0.0f);
+			if (bLoSBlocked)
+			{
+				return;
+			}
+
 			OutHitActor = HitActor;
 			bDidHitInteractable = true;
 		}
