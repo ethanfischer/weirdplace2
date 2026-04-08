@@ -10,6 +10,7 @@
 #include "Seneca.h"
 #include "Rick.h"
 #include "Hudson.h"
+#include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "InventoryUI.h"
 #include "Inventory.h"
@@ -418,6 +419,18 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			if (bLoSBlocked)
 			{
 				return;
+			}
+
+			// If the hit actor is an NPC (has a ULookAtPlayerComponent),
+			// require the player to be inside its look-at sphere. This keeps
+			// interaction distance consistent with the per-instance look-at
+			// radius set on the NPC in the editor.
+			if (ULookAtPlayerComponent* LookAtComp = HitActor->FindComponentByClass<ULookAtPlayerComponent>())
+			{
+				if (!LookAtComp->IsOverlappingActor(this))
+				{
+					return;
+				}
 			}
 
 			OutHitActor = HitActor;
