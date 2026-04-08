@@ -1,5 +1,5 @@
 # Todo / Bugs
-[ ] make NPC interaction distant same a look at player distance
+[ ] make NPC interaction distance same a look at player distance
 [ ] cash needs inventory thumbnail
 [ ] seneca is still interactable when he disappears from cash register
 [ ] rick comes inside randomly and just repeats the same line
