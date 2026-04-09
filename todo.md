@@ -1,20 +1,15 @@
 # Todo / Bugs
-[x] make NPC interaction distance same a look at player distance
 [ ] key selection trigger too small
 [ ] seneca unlock employee bathroom animation
 [ ] employee bathroom can't be opened?
 [ ] cash needs inventory thumbnail
-[ ] seneca is still interactable when he disappears from cash register
 [ ] rick comes inside randomly and just repeats the same line
 [ ] "Rick: I'll meet you inside"
-[x] prevent interaction between walls
-[ ] maybe make reticle show chat bubble while in dialogue
 [ ] allow walking away mid dialogue
 [ ] improve movie pickup
     [ ] don't have to turn to take
     [ ] tell player what button to put back
 [ ] fix key dialogue key given on wrong beat
-[ ] fix text not childed to npc heads
 [ ] gas station door animation
 [ ] buy 3 movies
     [ ] movies should stack on the counter

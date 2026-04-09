@@ -118,42 +118,50 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// Update crosshair based on context:
+	// - In dialogue: show chat-bubble reticle (dialogue suppresses interaction).
 	// - Inventory open: only react to filled inventory slots.
 	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		bool bShouldShowInteractable = false;
-
-		if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+		if (IsInAnyDialogue())
 		{
-			if (InventoryUIComp->IsInventoryOpen())
-			{
-				if (InventoryUIComp->IsReticleOverGrid())
-				{
-					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
-					{
-						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
-						const TArray<FName> Items = InventoryComp->GetItems();
-						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
-					}
-				}
-			}
-			else
-			{
-				AActor* HitActor = nullptr;
-				bool bDidHitInteractable = false;
-				RaycastInteractableCheck(HitActor, bDidHitInteractable);
-				bShouldShowInteractable = bDidHitInteractable;
-			}
-		}
-
-		if (bShouldShowInteractable)
-		{
-			CrosshairWidget->ShowInteractableCrosshair();
+			CrosshairWidget->ShowDialogueCrosshair();
 		}
 		else
 		{
-			CrosshairWidget->ShowNormalCrosshair();
+			bool bShouldShowInteractable = false;
+
+			if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+			{
+				if (InventoryUIComp->IsInventoryOpen())
+				{
+					if (InventoryUIComp->IsReticleOverGrid())
+					{
+						if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+						{
+							const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+							const TArray<FName> Items = InventoryComp->GetItems();
+							bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+						}
+					}
+				}
+				else
+				{
+					AActor* HitActor = nullptr;
+					bool bDidHitInteractable = false;
+					RaycastInteractableCheck(HitActor, bDidHitInteractable);
+					bShouldShowInteractable = bDidHitInteractable;
+				}
+			}
+
+			if (bShouldShowInteractable)
+			{
+				CrosshairWidget->ShowInteractableCrosshair();
+			}
+			else
+			{
+				CrosshairWidget->ShowNormalCrosshair();
+			}
 		}
 	}
 }
