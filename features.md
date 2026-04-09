@@ -89,6 +89,30 @@ Feature: Bladder Urgency Vignette Pulse
 Feature: Player Activity State Machine
 - `EPlayerActivityState` enum on `AMyCharacter` (FreeRoaming, Interacting, InSimpleDialogue, InMultiSpeakerDialogue, InDlgDialogue) replaces the three scattered bools (`IsInDialogue`, `bIsSimpleDialogue`, `bIsMultiSpeakerDialogue`) and gates inventory Tab in both `HandleShowInventory()` and `OnToggleInventory()`.
 
+Feature: End-to-End Gameplay Tests
+- Purpose: Automated tests that mimic player behavior through the real game systems (not unit tests). Each test loads the FirstPersonMap in Play-In-Editor, drives the real AFirstPersonCharacter / inventory / interaction systems, and asserts observable game state.
+- Key files: Source/weirdplace2/Tests/E2EGameplayTests.cpp (all tests + latent commands live in this single file; compiled into the main weirdplace2 module and stripped from shipping via `#if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR`).
+- Tests (run under the `Weirdplace2.E2E` category):
+  - `MapLoadsWithPlayer` — verifies FirstPersonMap loads, player pawn spawns, and AMyCharacter has Inventory/InventoryUI/HeldItem components with the default FreeRoaming activity state.
+  - `PlayerCanMove` — drives the character forward for 1 second via `AddMovementInput` and asserts the horizontal position delta > 10cm (exercises CharacterMovementComponent end-to-end).
+  - `InventoryAddAndQuery` — calls `UInventoryComponent::AddItem`/`HasItem`/`RemoveItem`/`GetItemCount` on the live player inventory and checks counts and membership.
+  - `MovieBoxInteraction` — calls `UnlockInventory()` to bypass the Seneca dialogue gate, finds a MovieBox placed/spawned in the level, teleports the player to it, invokes `IInteractable::Execute_Interact`, and asserts the player transitions to `Interacting` and back to `FreeRoaming` after `StopInspection`.
+- Shared infrastructure:
+  - `FWeirdplace2WaitForPlayerPawn` — latent command that polls the PIE world contexts until a possessed player pawn exists or a timeout elapses (map load takes a variable number of ticks).
+  - `FWeirdplace2RunCheck` — latent command that runs a one-shot TFunction lambda against the PIE world so tests can inline assertions without writing a bespoke class per step.
+  - `FWeirdplace2DriveMovement` — latent command that holds a movement direction across ticks so CharacterMovement integrates velocity naturally.
+  - `Weirdplace2E2E::GetPIEWorld()` / `GetPlayerCharacter()` — helpers that look up the active PIE world and its player character via GEngine world contexts and the first PlayerController.
+- Running from the command line (headless, unattended, matches the CLAUDE.md pattern):
+  ```
+  "C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" ^
+    "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" ^
+    -ExecCmds="Automation RunTests Weirdplace2.E2E; Quit" ^
+    -unattended -nopause -nosplash
+  ```
+  Or from the editor: Tools -> Session Frontend -> Automation -> filter `Weirdplace2.E2E`.
+- Extending: New tests go in the same file using `IMPLEMENT_SIMPLE_AUTOMATION_TEST` with the `WEIRDPLACE2_E2E_TEST_FLAGS` macro (defined at top of file) and the existing latent-command helpers. A new C++ class is NOT required unless you need cross-tick state; prefer the `FWeirdplace2RunCheck` lambda pattern and capture shared state via `TSharedRef<T>`.
+- Notes: Requires a full editor rebuild the first time (new .cpp file, new subfolder `Source/weirdplace2/Tests/`). Live Coding handles subsequent `.cpp`-only edits.
+
 Feature: Car Ride Sequence
 - Key files: Source/weirdplace2/CarRideComponent.h/.cpp; Source/weirdplace2/Rick.h/.cpp; Content/Dialogue/CarRide.txt.
 - Behavior: Scripted opening sequence where scenery scrolls past while Rick drives the player to the store, plays multi-speaker dialogue loaded from CarRide.txt, fires a single bladder urgency pulse mid-dialogue at a configurable line index, then fades to black and teleports the player to the store entrance.
