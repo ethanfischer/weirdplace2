@@ -295,7 +295,10 @@ void ASeneca::OnDialogueEnded()
 void ASeneca::OnKeyDropped()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Hiding, will appear at smoking position in %.0f seconds"), SmokingAppearDelay);
-	SetActorHiddenInGame(true);
+	// Teleport far below the world instead of toggling visibility — visibility
+	// cycling on a MetaHuman puts the groom hair into a bad state on re-show.
+	SetActorLocation(FVector(0.0, 0.0, -100000.0));
+	SetActorEnableCollision(false);
 	CurrentState = ESenecaState::Smoking;
 
 	if (KeyBrokenThumbnail)
@@ -513,7 +516,7 @@ void ASeneca::Tick(float DeltaTime)
 		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
 		{
 			MoveToTarget(SmokingPositionTarget);
-			SetActorHiddenInGame(false);
+			SetActorEnableCollision(true);
 			bWaitingToAppear = false;
 			bIsSmoking = true;
 			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);

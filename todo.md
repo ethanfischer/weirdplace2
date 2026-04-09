@@ -1,5 +1,8 @@
 # Todo / Bugs
 [x] make NPC interaction distance same a look at player distance
+[ ] key selection trigger too small
+[ ] seneca unlock employee bathroom animation
+[ ] employee bathroom can't be opened?
 [ ] cash needs inventory thumbnail
 [ ] seneca is still interactable when he disappears from cash register
 [ ] rick comes inside randomly and just repeats the same line
