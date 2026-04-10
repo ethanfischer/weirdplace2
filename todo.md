@@ -1,15 +1,14 @@
 # Todo / Bugs
+[ ] fix key dialogue key given on wrong beat
 [ ] key selection trigger too small
 [ ] seneca unlock employee bathroom animation
 [ ] employee bathroom can't be opened?
 [ ] cash needs inventory thumbnail
 [ ] rick comes inside randomly and just repeats the same line
 [ ] "Rick: I'll meet you inside"
-[ ] allow walking away mid dialogue
 [ ] improve movie pickup
     [ ] don't have to turn to take
     [ ] tell player what button to put back
-[ ] fix key dialogue key given on wrong beat
 [ ] gas station door animation
 [ ] buy 3 movies
     [ ] movies should stack on the counter
@@ -24,3 +23,4 @@
     [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
         Cigarette prop already attached to finger bone in `BP_Seneca`.
 [ ] replace llm responses to movies
+[ ] allow walking away mid dialogue

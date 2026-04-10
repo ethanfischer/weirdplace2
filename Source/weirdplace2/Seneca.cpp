@@ -167,12 +167,30 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 	if (FFileHelper::LoadFileToStringArray(Lines, *FullPath))
 	{
 		TArray<FText>& TextLines = DialogueLines.Add(State);
-		for (const FString& Line : Lines)
+		TMap<int32, FString>& Actions = LineActions.Add(State);
+		for (const FString& Raw : Lines)
 		{
-			if (!Line.IsEmpty())
+			FString Line = Raw;
+			Line.TrimStartAndEndInline();
+			if (Line.IsEmpty())
 			{
-				TextLines.Add(FText::FromString(Line));
+				continue;
 			}
+
+			// `[Action Name]` lines mark a cue tied to the immediately preceding display line.
+			if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+			{
+				if (TextLines.Num() == 0)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Seneca - Action cue '%s' in %s has no preceding dialogue line; ignoring"), *Line, *FullPath);
+					continue;
+				}
+				FString ActionName = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd();
+				Actions.Add(TextLines.Num() - 1, ActionName);
+				continue;
+			}
+
+			TextLines.Add(FText::FromString(Line));
 		}
 
 		if (State == ESenecaState::WaitingForMovies)
@@ -704,7 +722,8 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 
 void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 {
-	if (LineIndex != KeyBeatLineIndex)
+	const FString Action = GetActionForLine(ESenecaState::ReadyToGiveKey, LineIndex);
+	if (Action.IsEmpty())
 	{
 		return;
 	}
@@ -724,51 +743,81 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 	if (!bKeyBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
-		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - First broadcast (LineIndex=%d), arming beat"), LineIndex);
+		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Arming '%s' beat at LineIndex=%d"), *Action, LineIndex);
 		bKeyBeatArmed = true;
 		FPChar->bBlockNextMultiSpeakerAdvance = true;
 		return;
 	}
 
-	// Second broadcast: show the key, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Second broadcast, binding lambda. KeyActor=%s"),
-		KeyActor ? *KeyActor->GetName() : TEXT("NULL"));
+	// Second broadcast: execute the action.
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Executing '%s'"), *Action);
 	bKeyBeatArmed = false;
 
-	if (!KeyActor)
+	if (Action == TEXT("Give movies"))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
+		UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
+		if (!Inventory)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
+			FPChar->AdvanceMultiSpeakerDialogue();
+			return;
+		}
+
+		if (TakenMovies.Num() == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Seneca::OnKeyDialogueLineShown - 'Give movies' fired but TakenMovies is empty"));
+		}
+
+		for (const FInventoryItemData& MovieData : TakenMovies)
+		{
+			Inventory->AddItemWithData(MovieData);
+		}
+		TakenMovies.Reset();
+
+		FPChar->AdvanceMultiSpeakerDialogue();
 		return;
 	}
 
-	KeyActor->MeshComponent->SetVisibility(true, true);
-	KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-	TWeakObjectPtr<APropActor> WeakProp(KeyActor);
-	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-	TWeakObjectPtr<ASeneca> WeakSeneca(this);
-
-	KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
+	if (Action == TEXT("Give key"))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
-		if (APropActor* P = WeakProp.Get())
+		if (!KeyActor)
 		{
-			P->MeshComponent->SetVisibility(false, true);
-			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			P->OnInteracted.Clear();
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
+			return;
 		}
-		if (ASeneca* S = WeakSeneca.Get())
+
+		KeyActor->MeshComponent->SetVisibility(true, true);
+		KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+		FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
+
+		TWeakObjectPtr<APropActor> WeakProp(KeyActor);
+		TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
+		TWeakObjectPtr<ASeneca> WeakSeneca(this);
+
+		KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
 		{
-			S->GiveKey();
-		}
-		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-		{
-			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
-			FPC->AdvanceMultiSpeakerDialogue();
-		}
-	});
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
+			if (APropActor* P = WeakProp.Get())
+			{
+				P->MeshComponent->SetVisibility(false, true);
+				P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				P->OnInteracted.Clear();
+			}
+			if (ASeneca* S = WeakSeneca.Get())
+			{
+				S->GiveKey();
+			}
+			if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
+			{
+				FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+				FPC->AdvanceMultiSpeakerDialogue();
+			}
+		});
+		return;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - Unknown action '%s'"), *Action);
 }
 
 // --- Movie Purchase Beat ---
@@ -810,10 +859,24 @@ void ASeneca::LoadMovieComments()
 	UE_LOG(LogTemp, Log, TEXT("Seneca::LoadMovieComments - Loaded %d comments (+fallback)"), MovieComments.Num());
 }
 
+FString ASeneca::GetActionForLine(ESenecaState State, int32 LineIndex) const
+{
+	const TMap<int32, FString>* Actions = LineActions.Find(State);
+	if (!Actions)
+	{
+		return FString();
+	}
+	const FString* Found = Actions->Find(LineIndex);
+	return Found ? *Found : FString();
+}
+
 void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID)
 {
 	const FText* Found = MovieComments.Find(MovieID);
 	FText Comment = Found ? *Found : FallbackMovieComment;
+
+	// Capture full item data so we can return the rented movies to the player later.
+	TakenMovies.Add(Inventory->GetItemData(MovieID));
 
 	Inventory->RemoveItem(MovieID);
 	Inventory->ClearActiveItem();

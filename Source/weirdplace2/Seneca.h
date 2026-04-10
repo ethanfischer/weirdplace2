@@ -6,6 +6,7 @@ class APropActor;
 #include "DialogueWidgetProvider.h"
 #include "DlgSystem/DlgDialogueParticipant.h"
 #include "GameFramework/Actor.h"
+#include "Inventory.h"
 #include "Seneca.generated.h"
 
 class UWidgetComponent;
@@ -162,9 +163,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	int32 KeyBeatLineIndex = 0;
-
 	// --- Quest Config ---
 
 	// Number of movies required before Seneca gives the key
@@ -218,6 +216,17 @@ private:
 
 	// Loaded dialogue lines per state
 	TMap<ESenecaState, TArray<FText>> DialogueLines;
+
+	// Per-state action cues parsed from `[ActionName]` lines in dialogue files.
+	// Key = display line index that the action follows; Value = action name.
+	TMap<ESenecaState, TMap<int32, FString>> LineActions;
+
+	// Returns the action name for a given line index in the current state, or empty string.
+	FString GetActionForLine(ESenecaState State, int32 LineIndex) const;
+
+	// Movies captured during WaitingForMoviePurchase so they can be returned in ReadyToGiveKey.
+	UPROPERTY()
+	TArray<FInventoryItemData> TakenMovies;
 
 	// Reminder lines for re-interactions within a state
 	TArray<FText> WaitingForMoviesReminderLines;
