@@ -8,10 +8,20 @@
 #include "Seneca.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
+
+// Post-step delay applied after every FTD_Base command finishes. Set to 0 for
+// fastest possible runs, or increase to slow the test down for visual review.
+// Configurable at runtime via `e2e.StepDelay <seconds>` console command.
+static TAutoConsoleVariable<float> CVarE2EStepDelay(
+	TEXT("e2e.StepDelay"),
+	0.5f,
+	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay."),
+	ECVF_Default);
 
 // =======================================================================
 // Helpers
@@ -69,7 +79,25 @@ public:
 			}
 			bStatusEmitted = true;
 		}
-		return UpdateStep();
+
+		if (!bStepDone)
+		{
+			if (!UpdateStep())
+			{
+				return false;
+			}
+			bStepDone = true;
+			StepDoneTime = FPlatformTime::Seconds();
+		}
+
+		// Hold for the globally configured post-step delay so tests can be
+		// slowed down for visual review. Skip the wait entirely when 0.
+		const float Delay = CVarE2EStepDelay.GetValueOnGameThread();
+		if (Delay <= 0.f)
+		{
+			return true;
+		}
+		return (FPlatformTime::Seconds() - StepDoneTime) >= Delay;
 	}
 
 protected:
@@ -80,6 +108,8 @@ protected:
 
 private:
 	bool bStatusEmitted = false;
+	bool bStepDone = false;
+	double StepDoneTime = 0.0;
 };
 
 // =======================================================================
@@ -849,18 +879,11 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
 
 	// --- Step 1: Initial dialogue with Seneca (basket beat) ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_01_AtSeneca")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // interact with Seneca
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InMultiSpeakerDialogue));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_02_SenecaDialogueStarted")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_03_BasketBeat")));
