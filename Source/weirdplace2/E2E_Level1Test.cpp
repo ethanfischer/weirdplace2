@@ -35,19 +35,24 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_03_BasketBeat")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("ShoppingBasket")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // pick up basket
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
 
-	// --- Step 2: Collect 3 movies via input ---
+	// --- Step 2: Collect 3 specific movies from the MovieShelf waypoint ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
+
+	const TCHAR* MovieLabels[] = {
+		TEXT("BP_MovieBox120"),
+		TEXT("BP_MovieBox121"),
+		TEXT("BP_MovieBox122"),
+	};
 	for (int32 i = 0; i < 3; ++i)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearAndLookAtMovie(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // enter inspection
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, MovieLabels[i]));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // E (Enhanced Input) -> enter inspection
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));       // rotate + press E to collect
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));   // rotate + legacy-E collect
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, i + 1));
 	}
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_05_ThreeMoviesCollected")));
