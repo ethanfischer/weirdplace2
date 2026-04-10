@@ -770,14 +770,14 @@ public:
 
 		// Inject mouse rotation each frame. 5.0 axis units * 2.0 deg/unit = 10 deg/frame.
 		// After ~18 frames we've rotated 180 degrees, which should cross the 0.9 dot threshold.
-		Driver->SimulateMouseX(5.0f);
+		Driver->SimulateMouseX(90.0f);
 		FrameCount++;
 
 		// After enough rotation, try pressing E to collect.
 		// Need ~155 degrees of rotation (at 10 deg/frame = ~16 frames).
 		// The "Collect Inspected Subitem" binding is only active when dot > 0.9,
 		// so early presses are harmless (no binding = no effect).
-		if (FrameCount >= 12 && !bCollectPressed)
+		if (FrameCount >= 2 && !bCollectPressed)
 		{
 			Driver->SimulateKeyPress(EKeys::E);
 			bCollectPressed = true;
