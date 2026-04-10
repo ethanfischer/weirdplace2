@@ -20,10 +20,32 @@ void AMovieBox::BeginPlay()
 {
 	Super::BeginPlay();
 
-	InteractionWidget = Cast<UWidgetComponent>(GetDefaultSubobjectByName(TEXT("InteractionText")));
+	// GetDefaultSubobjectByName doesn't reliably find Blueprint SCS-added components,
+	// so iterate the actor's component list by name like we do for CantCarryWidget below.
+	TArray<UWidgetComponent*> AllWidgets;
+	GetComponents<UWidgetComponent>(AllWidgets);
+	for (UWidgetComponent* Comp : AllWidgets)
+	{
+		if (Comp->GetFName() == TEXT("InteractionText"))
+		{
+			InteractionWidget = Comp;
+			break;
+		}
+	}
 	if (!InteractionWidget)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: InteractionText widget not found. Widgets present: %d"), *GetName(), AllWidgets.Num());
+		for (UWidgetComponent* Comp : AllWidgets)
+		{
+			UE_LOG(LogTemp, Error, TEXT("  - widget '%s'"), *Comp->GetName());
+		}
+		TArray<UActorComponent*> AllComps;
+		GetComponents(AllComps);
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: total components: %d"), *GetName(), AllComps.Num());
+		for (UActorComponent* C : AllComps)
+		{
+			UE_LOG(LogTemp, Error, TEXT("  - %s : %s"), *C->GetName(), *C->GetClass()->GetName());
+		}
 		return;
 	}
 
