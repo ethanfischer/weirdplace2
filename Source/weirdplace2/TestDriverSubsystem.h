@@ -8,6 +8,7 @@
 class AFirstPersonCharacter;
 class AMovieBox;
 class APropActor;
+class ARick;
 class ASeneca;
 class ATestWaypoint;
 class UInventoryComponent;
@@ -48,6 +49,9 @@ public:
 	// Returns the single ASeneca instance in the level, or nullptr.
 	ASeneca* FindSeneca() const;
 
+	// Returns the single ARick instance in the level, or nullptr.
+	ARick* FindRick() const;
+
 	// --- Interaction ---
 
 	// Mirrors AFirstPersonCharacter::HandleInteractTriggered: advances dialogue
@@ -68,6 +72,12 @@ public:
 
 	// Convenience: find an actor by label and fire Interact on it.
 	bool InteractWithActorByLabel(const FString& Label);
+
+	// Convenience: find Rick and fire Interact on him.
+	bool InteractWithRick();
+
+	// Fires Interact on Seneca's KeyActor (the pre-placed key prop).
+	bool InteractWithKeyActor();
 
 	// Returns the actor the interaction trace currently hits, or nullptr.
 	AActor* GetFocusedInteractable() const;

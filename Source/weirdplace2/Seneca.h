@@ -92,6 +92,9 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
 
+	// Test access: returns the pre-placed key prop actor (shown during the key beat).
+	APropActor* GetKeyActor() const { return KeyActor; }
+
 	// --- Animation ---
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Animation")

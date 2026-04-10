@@ -34,18 +34,10 @@ void AMovieBox::BeginPlay()
 	}
 	if (!InteractionWidget)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: InteractionText widget not found. Widgets present: %d"), *GetName(), AllWidgets.Num());
-		for (UWidgetComponent* Comp : AllWidgets)
-		{
-			UE_LOG(LogTemp, Error, TEXT("  - widget '%s'"), *Comp->GetName());
-		}
-		TArray<UActorComponent*> AllComps;
-		GetComponents(AllComps);
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: total components: %d"), *GetName(), AllComps.Num());
-		for (UActorComponent* C : AllComps)
-		{
-			UE_LOG(LogTemp, Error, TEXT("  - %s : %s"), *C->GetName(), *C->GetClass()->GetName());
-		}
+		// BP_Spawner1 is parented to BP_MovieBox but doesn't have an InteractionText widget —
+		// it shouldn't inherit from MovieBox at all, but until that's fixed in the editor we
+		// bail out here so the spawner doesn't run the rest of MovieBox::BeginPlay.
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: InteractionText widget not found"), *GetName());
 		return;
 	}
 
@@ -119,6 +111,11 @@ void AMovieBox::Tick(float DeltaTime)
 
 void AMovieBox::Interact_Implementation()
 {
+	if (!InteractionWidget || !EnvelopeMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: Interact called with missing components — BeginPlay failed to initialize"), *GetName());
+		return;
+	}
 	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
 	{
 		return;
@@ -180,6 +177,11 @@ void AMovieBox::Interact_Implementation()
 
 void AMovieBox::CollectInspectedSubitem()
 {
+	if (!InteractionWidget || !EnvelopeMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: CollectInspectedSubitem called with missing components"), *GetName());
+		return;
+	}
 	if (DidCollectSubitem) return;
 
 	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())

@@ -5,9 +5,11 @@
 #include "InventoryUIComponent.h"
 #include "MovieBox.h"
 #include "PropActor.h"
+#include "Rick.h"
 #include "Seneca.h"
 #include "TestWaypoint.h"
 #include "Camera/CameraComponent.h"
+#include "Components/WidgetComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -106,6 +108,21 @@ ASeneca* UTestDriverSubsystem::FindSeneca() const
 	}
 
 	for (TActorIterator<ASeneca> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+ARick* UTestDriverSubsystem::FindRick() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	for (TActorIterator<ARick> It(World); It; ++It)
 	{
 		return *It;
 	}
@@ -229,6 +246,34 @@ bool UTestDriverSubsystem::InteractWithSeneca()
 	return InteractWith(Seneca);
 }
 
+bool UTestDriverSubsystem::InteractWithRick()
+{
+	ARick* Rick = FindRick();
+	if (!Rick)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithRick - no ARick in level"));
+		return false;
+	}
+	return InteractWith(Rick);
+}
+
+bool UTestDriverSubsystem::InteractWithKeyActor()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithKeyActor - no ASeneca in level"));
+		return false;
+	}
+	APropActor* Key = Seneca->GetKeyActor();
+	if (!Key)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithKeyActor - KeyActor not assigned on Seneca"));
+		return false;
+	}
+	return InteractWith(Key);
+}
+
 bool UTestDriverSubsystem::InteractWithActorByLabel(const FString& Label)
 {
 	AActor* Found = FindActorByLabel(Label);
@@ -320,14 +365,34 @@ AMovieBox* UTestDriverSubsystem::CollectNextMovie()
 	// Pick any uncollected movie in the level. Order is iterator order, which
 	// is deterministic per run. Distance doesn't matter because we call Interact
 	// directly, bypassing the interaction trace.
+	//
+	// Skip actors without an InteractionText widget — BP_Spawner1 is incorrectly
+	// parented to BP_MovieBox, so TActorIterator<AMovieBox> picks it up even
+	// though it's a spawner, not a usable movie.
 	AMovieBox* Best = nullptr;
 	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
 	{
-		if (!CollectedMovies.Contains(*It))
+		if (CollectedMovies.Contains(*It))
 		{
-			Best = *It;
-			break;
+			continue;
 		}
+		TArray<UWidgetComponent*> Widgets;
+		It->GetComponents<UWidgetComponent>(Widgets);
+		bool bHasInteractionText = false;
+		for (UWidgetComponent* W : Widgets)
+		{
+			if (W->GetFName() == TEXT("InteractionText"))
+			{
+				bHasInteractionText = true;
+				break;
+			}
+		}
+		if (!bHasInteractionText)
+		{
+			continue;
+		}
+		Best = *It;
+		break;
 	}
 
 	if (!Best)
