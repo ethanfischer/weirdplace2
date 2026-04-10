@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InputCoreTypes.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "MyCharacter.h"
 #include "TestDriverSubsystem.generated.h"
@@ -11,13 +12,14 @@ class APropActor;
 class ARick;
 class ASeneca;
 class ATestWaypoint;
+class UInputAction;
 class UInventoryComponent;
 class UInventoryUIComponent;
 
-// Verb layer for E2E tests. Call these from latent automation commands to
-// drive the player character through scripted scenarios. Each verb maps
-// directly to the real gameplay function the player input would invoke —
-// we skip the Enhanced Input layer but not the gameplay logic underneath.
+// Verb layer for E2E tests. Provides positioning, camera aiming, input
+// simulation, and state queries. All gameplay actions go through the real
+// input pipeline via APlayerController::InputKey — we never call gameplay
+// functions directly.
 UCLASS()
 class WEIRDPLACE2_API UTestDriverSubsystem : public UWorldSubsystem
 {
@@ -31,84 +33,63 @@ public:
 
 	// --- Movement / look ---
 
-	// Teleports the player character to the waypoint's location and points
-	// the camera at the waypoint's forward vector. Returns false if not found.
 	bool TeleportPlayerToWaypoint(FName WaypointTag);
 
-	// Rotates the player controller to look at a target actor.
+	// Teleport the player near an actor (Distance units away, facing it).
+	// Avoids the need for per-actor waypoints.
+	bool TeleportNearActor(AActor* Target, float Distance = 200.f);
+
 	bool LookAt(AActor* Target);
-
-	// Finds an actor by editor label (falls back to internal name) and aims
-	// the camera at it. Returns false if not found.
 	bool LookAtActorByLabel(const FString& Label);
+	bool LookAtSeneca();
+	bool LookAtRick();
+	bool LookAtKeyActor();
 
-	// Returns the first actor whose editor label (or internal name) matches,
-	// or nullptr. No side effects.
 	AActor* FindActorByLabel(const FString& Label) const;
-
-	// Returns the single ASeneca instance in the level, or nullptr.
 	ASeneca* FindSeneca() const;
-
-	// Returns the single ARick instance in the level, or nullptr.
 	ARick* FindRick() const;
 
-	// --- Interaction ---
+	// --- Input simulation ---
 
-	// Mirrors AFirstPersonCharacter::HandleInteractTriggered: advances dialogue
-	// if in dialogue, otherwise runs the interaction trace and fires Interact
-	// on the hit actor. Going through HandleInteractTriggered directly would
-	// be ideal, but that method is private; we replicate its branching here
-	// while still calling the real gameplay APIs it calls.
-	void PressInteract();
+	// Routes a key event through APlayerController::InputKey, firing both
+	// Enhanced Input actions and legacy BindAction bindings.
+	void SimulateKeyPress(FKey Key);
+	void SimulateKeyRelease(FKey Key);
 
-	// Directly fires Interact on the given actor, bypassing the camera trace.
-	// Used by E2E tests so they don't need the player positioned/aimed
-	// correctly — the gameplay Interact_Implementation still runs. Returns
-	// false if the actor is null or doesn't implement IInteractable.
-	bool InteractWith(AActor* Actor);
+	// Injects a MouseX axis delta through the input pipeline.
+	void SimulateMouseX(float Delta);
 
-	// Convenience: find Seneca and fire Interact on him.
-	bool InteractWithSeneca();
+	// Enhanced Input injection. APlayerController::InputKey only fires legacy
+	// BindAction bindings — Enhanced Input actions need their own injection
+	// path. These call UEnhancedInputLocalPlayerSubsystem::InjectInputForAction
+	// directly so HandleInteractTriggered/HandleShowInventory etc. fire.
+	void InjectInputAction(UInputAction* Action, bool bPressed);
+	void SimulateInteractPress();
+	void SimulateInteractRelease();
+	void SimulateInventoryPress();
+	void SimulateInventoryRelease();
 
-	// Convenience: find an actor by label and fire Interact on it.
-	bool InteractWithActorByLabel(const FString& Label);
+	// --- Inventory (queries only — open/close/confirm go through input) ---
 
-	// Convenience: find Rick and fire Interact on him.
-	bool InteractWithRick();
-
-	// Fires Interact on Seneca's KeyActor (the pre-placed key prop).
-	bool InteractWithKeyActor();
-
-	// Returns the actor the interaction trace currently hits, or nullptr.
-	AActor* GetFocusedInteractable() const;
-
-	// --- Inventory ---
-
-	void OpenInventory();
-	void CloseInventory();
-
-	// True when the inventory open animation has finished.
 	bool IsInventoryFullyOpen() const;
-
-	// True when the inventory close animation has finished.
-	// Tests should wait for this after CloseInventory so CanInteract is restored
-	// before they try to PressInteract again.
 	bool IsInventoryFullyClosed() const;
 
-	// Sets the inventory selection to the given slot index and commits it
-	// (same as pressing the confirm button in the UI). Requires the inventory
-	// to be fully open.
-	bool SelectInventoryItemByIndex(int32 Index);
+	// Sets the inventory cursor to a slot index (equivalent to aiming the
+	// camera at the right spot). Confirmation still goes through E key input.
+	bool SetSelectedSlot(int32 Index);
 
-	// --- Movie collection ---
+	// --- Movie helpers ---
 
-	// Finds any uncollected AMovieBox anywhere in the level, enters inspection,
-	// and immediately collects it. Already-collected boxes are tracked
-	// internally so consecutive calls pick different movies. We don't filter
-	// by distance because this path bypasses the interaction trace — the goal
-	// is smoke-testing movie pickup flow, not level geometry. Returns the
-	// collected box, or nullptr on failure.
-	AMovieBox* CollectNextMovie();
+	// Returns the next uncollected MovieBox in the level, or nullptr.
+	// Tracks already-collected boxes internally so consecutive calls return
+	// different movies. Does NOT collect or interact — just finds the target.
+	// Also stores the result internally so MarkLastFoundMovieCollected can
+	// mark it without needing to pass the pointer between latent commands.
+	AMovieBox* FindNextUncollectedMovie();
+
+	// Marks the movie most recently returned by FindNextUncollectedMovie as
+	// collected, so subsequent calls skip it.
+	void MarkLastFoundMovieCollected();
 
 	// --- State queries ---
 
@@ -118,12 +99,17 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// --- Test status overlay ---
+
+	// Pins a status line on screen via GEngine->AddOnScreenDebugMessage with a
+	// fixed key so each call replaces the previous line. Use to show the
+	// current test step when running in editor.
+	void SetTestStatus(const FString& Step);
+
 private:
 	UInventoryComponent* GetInventoryComponent() const;
 	UInventoryUIComponent* GetInventoryUIComponent() const;
 
-	// Movies the test has already collected this session. Used to skip them
-	// when CollectNextMovie is called repeatedly from the same vantage point.
-	// Weak pointers don't need UPROPERTY tracking.
 	TSet<TWeakObjectPtr<AMovieBox>> CollectedMovies;
+	TWeakObjectPtr<AMovieBox> LastFoundMovie;
 };

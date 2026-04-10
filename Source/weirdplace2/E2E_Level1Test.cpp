@@ -3,14 +3,18 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "TestDriverSubsystem.h"
+#include "MovieBox.h"
+#include "Rick.h"
+#include "Seneca.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "InputCoreTypes.h"
 #include "Tests/AutomationCommon.h"
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 
 // =======================================================================
-// Helpers for getting at the PIE world and the TestDriver subsystem.
+// Helpers
 // =======================================================================
 
 namespace
@@ -39,23 +43,64 @@ namespace
 }
 
 // =======================================================================
-// Latent command: wait for PIE world + player to be initialized.
+// FTD_Base — common base for all latent commands. Auto-emits a status line
+// via the TestDriver on the first tick using GetStatusText(), then delegates
+// to UpdateStep(). Subclasses override GetStatusText() to describe what they
+// do; the status pins on the viewport until the next command updates it.
+// Returning an empty string skips the status update (useful for Delay).
 // =======================================================================
 
-class FTD_WaitForPlayerReady : public IAutomationLatentCommand
+class FTD_Base : public IAutomationLatentCommand
+{
+public:
+	FTD_Base(FAutomationTestBase* InTest = nullptr) : Test(InTest) {}
+
+	virtual bool Update() override final
+	{
+		if (!bStatusEmitted)
+		{
+			const FString Status = GetStatusText();
+			if (!Status.IsEmpty())
+			{
+				if (UTestDriverSubsystem* Driver = GetDriver())
+				{
+					Driver->SetTestStatus(Status);
+				}
+			}
+			bStatusEmitted = true;
+		}
+		return UpdateStep();
+	}
+
+protected:
+	virtual FString GetStatusText() const { return FString(); }
+	virtual bool UpdateStep() = 0;
+
+	FAutomationTestBase* Test = nullptr;
+
+private:
+	bool bStatusEmitted = false;
+};
+
+// =======================================================================
+// FTD_WaitForPlayerReady
+// =======================================================================
+
+class FTD_WaitForPlayerReady : public FTD_Base
 {
 public:
 	FTD_WaitForPlayerReady(FAutomationTestBase* InTest, double InTimeoutSeconds = 15.0)
-		: Test(InTest), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds) {}
+		: FTD_Base(InTest), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds) {}
 
-	virtual bool Update() override
+	virtual FString GetStatusText() const override { return TEXT("Waiting for player to spawn"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (Driver && Driver->IsPlayerReady())
 		{
 			return true;
 		}
-
 		if (FPlatformTime::Seconds() - StartTime > Timeout)
 		{
 			Test->AddError(TEXT("FTD_WaitForPlayerReady: player never became ready (timeout)"));
@@ -65,27 +110,51 @@ public:
 	}
 
 private:
-	FAutomationTestBase* Test;
 	double StartTime;
 	double Timeout;
 };
 
 // =======================================================================
-// Simple "fire once then done" latent commands (parameterized)
+// FTD_Delay — wait N seconds for visual pacing. Intentionally leaves the
+// current status line alone (GetStatusText returns empty).
 // =======================================================================
 
-class FTD_TeleportTo : public IAutomationLatentCommand
+class FTD_Delay : public FTD_Base
 {
 public:
-	FTD_TeleportTo(FAutomationTestBase* InTest, FName InTag) : Test(InTest), Tag(InTag) {}
-	virtual bool Update() override
+	FTD_Delay(float InSeconds) : Seconds(InSeconds), StartTime(0.0) {}
+
+	virtual bool UpdateStep() override
+	{
+		if (StartTime == 0.0)
+		{
+			StartTime = FPlatformTime::Seconds();
+		}
+		return FPlatformTime::Seconds() - StartTime >= Seconds;
+	}
+private:
+	float Seconds;
+	double StartTime;
+};
+
+// =======================================================================
+// FTD_TeleportTo — teleport to a named waypoint
+// =======================================================================
+
+class FTD_TeleportTo : public FTD_Base
+{
+public:
+	FTD_TeleportTo(FAutomationTestBase* InTest, FName InTag) : FTD_Base(InTest), Tag(InTag) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting to waypoint '%s'"), *Tag.ToString());
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver)
-		{
-			Test->AddError(TEXT("FTD_TeleportTo: no TestDriverSubsystem"));
-			return true;
-		}
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportTo: no driver")); return true; }
 		if (!Driver->TeleportPlayerToWaypoint(Tag))
 		{
 			Test->AddError(FString::Printf(TEXT("FTD_TeleportTo: waypoint '%s' not found"), *Tag.ToString()));
@@ -93,15 +162,24 @@ public:
 		return true;
 	}
 private:
-	FAutomationTestBase* Test;
 	FName Tag;
 };
 
-class FTD_LookAtActorByLabel : public IAutomationLatentCommand
+// =======================================================================
+// FTD_LookAt* — aim the camera at targets
+// =======================================================================
+
+class FTD_LookAtActorByLabel : public FTD_Base
 {
 public:
-	FTD_LookAtActorByLabel(FAutomationTestBase* InTest, FString InLabel) : Test(InTest), Label(MoveTemp(InLabel)) {}
-	virtual bool Update() override
+	FTD_LookAtActorByLabel(FAutomationTestBase* InTest, FString InLabel) : FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Looking at '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("FTD_LookAtActorByLabel: no driver")); return true; }
@@ -112,170 +190,225 @@ public:
 		return true;
 	}
 private:
-	FAutomationTestBase* Test;
 	FString Label;
 };
 
-class FTD_PressInteract : public IAutomationLatentCommand
+class FTD_LookAtSeneca : public FTD_Base
 {
 public:
-	FTD_PressInteract(FAutomationTestBase* InTest) : Test(InTest) {}
-	virtual bool Update() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_PressInteract: no driver")); return true; }
-		Driver->PressInteract();
-		return true;
-	}
-private:
-	FAutomationTestBase* Test;
-};
+	FTD_LookAtSeneca(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
 
-class FTD_InteractWithSeneca : public IAutomationLatentCommand
-{
-public:
-	FTD_InteractWithSeneca(FAutomationTestBase* InTest) : Test(InTest) {}
-	virtual bool Update() override
+	virtual FString GetStatusText() const override { return TEXT("Looking at Seneca"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_InteractWithSeneca: no driver")); return true; }
-		if (!Driver->InteractWithSeneca())
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtSeneca: no driver")); return true; }
+		if (!Driver->LookAtSeneca())
 		{
-			Test->AddError(TEXT("FTD_InteractWithSeneca: failed"));
+			Test->AddError(TEXT("FTD_LookAtSeneca: failed"));
 		}
 		return true;
 	}
-private:
-	FAutomationTestBase* Test;
 };
 
-class FTD_InteractWithRick : public IAutomationLatentCommand
+// Teleport directly to a position 200 units in front of Seneca, facing her.
+// More reliable than the SenecaApproach waypoint, which was placed too far
+// away (>500 unit InteractionDistance) for the interact trace to hit.
+class FTD_TeleportNearSeneca : public FTD_Base
 {
 public:
-	FTD_InteractWithRick(FAutomationTestBase* InTest) : Test(InTest) {}
-	virtual bool Update() override
+	FTD_TeleportNearSeneca(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting near Seneca"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_InteractWithRick: no driver")); return true; }
-		if (!Driver->InteractWithRick())
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearSeneca: no driver")); return true; }
+		ASeneca* Seneca = Driver->FindSeneca();
+		if (!Seneca) { Test->AddError(TEXT("FTD_TeleportNearSeneca: no Seneca")); return true; }
+		if (!Driver->TeleportNearActor(Seneca, 200.f))
 		{
-			Test->AddError(TEXT("FTD_InteractWithRick: failed"));
+			Test->AddError(TEXT("FTD_TeleportNearSeneca: teleport failed"));
 		}
 		return true;
 	}
-private:
-	FAutomationTestBase* Test;
 };
 
-class FTD_InteractWithKeyActor : public IAutomationLatentCommand
+class FTD_TeleportNearRick : public FTD_Base
 {
 public:
-	FTD_InteractWithKeyActor(FAutomationTestBase* InTest) : Test(InTest) {}
-	virtual bool Update() override
+	FTD_TeleportNearRick(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting near Rick"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_InteractWithKeyActor: no driver")); return true; }
-		if (!Driver->InteractWithKeyActor())
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearRick: no driver")); return true; }
+		ARick* Rick = Driver->FindRick();
+		if (!Rick) { Test->AddError(TEXT("FTD_TeleportNearRick: no Rick")); return true; }
+		if (!Driver->TeleportNearActor(Rick, 200.f))
 		{
-			Test->AddError(TEXT("FTD_InteractWithKeyActor: failed"));
+			Test->AddError(TEXT("FTD_TeleportNearRick: teleport failed"));
 		}
 		return true;
 	}
-private:
-	FAutomationTestBase* Test;
 };
 
-class FTD_InteractWithActorByLabel : public IAutomationLatentCommand
+class FTD_LookAtRick : public FTD_Base
 {
 public:
-	FTD_InteractWithActorByLabel(FAutomationTestBase* InTest, FString InLabel)
-		: Test(InTest), Label(MoveTemp(InLabel)) {}
-	virtual bool Update() override
+	FTD_LookAtRick(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at Rick"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_InteractWithActorByLabel: no driver")); return true; }
-		if (!Driver->InteractWithActorByLabel(Label))
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtRick: no driver")); return true; }
+		if (!Driver->LookAtRick())
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_InteractWithActorByLabel: failed for '%s'"), *Label));
+			Test->AddError(TEXT("FTD_LookAtRick: failed"));
 		}
 		return true;
 	}
-private:
-	FAutomationTestBase* Test;
-	FString Label;
+};
+
+class FTD_LookAtKeyActor : public FTD_Base
+{
+public:
+	FTD_LookAtKeyActor(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at the key"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtKeyActor: no driver")); return true; }
+		if (!Driver->LookAtKeyActor())
+		{
+			Test->AddError(TEXT("FTD_LookAtKeyActor: failed"));
+		}
+		return true;
+	}
 };
 
 // =======================================================================
-// Dialogue-advance loop. Keeps pressing interact while the player is in
-// a Simple or MultiSpeaker dialogue state, until either:
-//   (a) the activity state becomes `Target` (usually FreeRoaming or
-//       WaitingForItemInteractionInDialogue for a beat), or
-//   (b) the timeout fires.
-// Any other state during the loop is treated as an error.
+// FTD_SimulateKeyPress — press+release a key with a 1-frame gap.
+// Uses APlayerController::InputKey, which only fires LEGACY input bindings.
+// For Enhanced Input actions, use FTD_SimulateInteractAction /
+// FTD_SimulateInventoryAction below.
 // =======================================================================
 
-class FTD_AdvanceDialogueUntilState : public IAutomationLatentCommand
+class FTD_SimulateKeyPress : public FTD_Base
 {
 public:
-	FTD_AdvanceDialogueUntilState(FAutomationTestBase* InTest, EPlayerActivityState InTarget, double InTimeoutSeconds = 10.0)
-		: Test(InTest), Target(InTarget), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds), LastLoggedState((EPlayerActivityState)-1) {}
+	FTD_SimulateKeyPress(FAutomationTestBase* InTest, FKey InKey)
+		: FTD_Base(InTest), Key(InKey), bPressed(false) {}
 
-	virtual bool Update() override
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Pressing %s"), *Key.GetDisplayName().ToString());
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateKeyPress: no driver")); return true; }
 
-		const EPlayerActivityState State = Driver->GetActivityState();
-		if (State != LastLoggedState)
+		if (!bPressed)
 		{
-			UE_LOG(LogTemp, Log, TEXT("FTD_AdvanceDialogueUntilState: state=%d target=%d"), (int32)State, (int32)Target);
-			LastLoggedState = State;
-		}
-		if (State == Target)
-		{
-			return true;
+			Driver->SimulateKeyPress(Key);
+			bPressed = true;
+			return false; // wait one frame
 		}
 
-		const bool bInDialogue =
-			State == EPlayerActivityState::InSimpleDialogue ||
-			State == EPlayerActivityState::InMultiSpeakerDialogue;
-
-		if (!bInDialogue)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AdvanceDialogueUntilState: unexpected activity state %d (expected dialogue or target %d)"),
-				(int32)State, (int32)Target));
-			return true;
-		}
-
-		if (FPlatformTime::Seconds() - StartTime > Timeout)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AdvanceDialogueUntilState: timed out in state %d"), (int32)State));
-			return true;
-		}
-
-		Driver->PressInteract(); // advances one line (dispatches on state)
-		return false;
+		Driver->SimulateKeyRelease(Key);
+		return true;
 	}
 private:
-	FAutomationTestBase* Test;
-	EPlayerActivityState Target;
-	double StartTime;
-	double Timeout;
-	EPlayerActivityState LastLoggedState;
+	FKey Key;
+	bool bPressed;
 };
 
 // =======================================================================
-// Wait until activity state matches expected (with timeout).
+// FTD_SimulateInteractAction — inject the InteractAction (E key) through
+// Enhanced Input. Press → 1 frame gap → Release so the do-once gate resets.
 // =======================================================================
 
-class FTD_WaitForActivityState : public IAutomationLatentCommand
+class FTD_SimulateInteractAction : public FTD_Base
+{
+public:
+	FTD_SimulateInteractAction(FAutomationTestBase* InTest) : FTD_Base(InTest), bPressed(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Pressing E to interact"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateInteractAction: no driver")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->SimulateInteractPress();
+			bPressed = true;
+			return false;
+		}
+		Driver->SimulateInteractRelease();
+		return true;
+	}
+private:
+	bool bPressed;
+};
+
+// =======================================================================
+// FTD_SimulateInventoryAction — inject the InventoryAction (Tab) via
+// Enhanced Input.
+// =======================================================================
+
+class FTD_SimulateInventoryAction : public FTD_Base
+{
+public:
+	FTD_SimulateInventoryAction(FAutomationTestBase* InTest) : FTD_Base(InTest), bPressed(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Pressing Tab for inventory"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateInventoryAction: no driver")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->SimulateInventoryPress();
+			bPressed = true;
+			return false;
+		}
+		Driver->SimulateInventoryRelease();
+		return true;
+	}
+private:
+	bool bPressed;
+};
+
+// =======================================================================
+// FTD_WaitForActivityState
+// =======================================================================
+
+class FTD_WaitForActivityState : public FTD_Base
 {
 public:
 	FTD_WaitForActivityState(FAutomationTestBase* InTest, EPlayerActivityState InExpected, double InTimeoutSeconds = 5.0)
-		: Test(InTest), Expected(InExpected), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds) {}
+		: FTD_Base(InTest), Expected(InExpected), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds) {}
 
-	virtual bool Update() override
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for activity state %d"), (int32)Expected);
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
@@ -294,113 +427,340 @@ public:
 		return false;
 	}
 private:
-	FAutomationTestBase* Test;
 	EPlayerActivityState Expected;
 	double StartTime;
 	double Timeout;
 };
 
 // =======================================================================
-// Inventory UI helpers.
+// FTD_AdvanceDialogueViaInput — press E repeatedly to advance dialogue
+// until target activity state is reached, with inter-line delay.
 // =======================================================================
 
-class FTD_OpenInventory : public IAutomationLatentCommand
+class FTD_AdvanceDialogueViaInput : public FTD_Base
 {
 public:
-	FTD_OpenInventory(FAutomationTestBase* InTest) : Test(InTest), bIssued(false) {}
-	virtual bool Update() override
+	FTD_AdvanceDialogueViaInput(FAutomationTestBase* InTest, EPlayerActivityState InTarget,
+		double InLineDelay = 1.0, double InTimeoutSeconds = 30.0)
+		: FTD_Base(InTest), Target(InTarget), LineDelay(InLineDelay)
+		, StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds)
+		, LastPressTime(0.0), bWaitingForRelease(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Advancing dialogue with E"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 
-		if (!bIssued)
+		const EPlayerActivityState State = Driver->GetActivityState();
+
+		if (State == Target)
 		{
-			Driver->OpenInventory();
-			bIssued = true;
+			return true;
 		}
 
-		// Wait until the open animation finishes so ConfirmSelection will work.
-		return Driver->IsInventoryFullyOpen();
+		if (FPlatformTime::Seconds() - StartTime > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AdvanceDialogueViaInput: timed out in state %d"), (int32)State));
+			return true;
+		}
+
+		const bool bInDialogue =
+			State == EPlayerActivityState::InSimpleDialogue ||
+			State == EPlayerActivityState::InMultiSpeakerDialogue;
+
+		if (!bInDialogue)
+		{
+			// Not yet in dialogue and not at target — wait for dialogue to start.
+			return false;
+		}
+
+		// Handle press/release cycle with inter-line delay.
+		const double Now = FPlatformTime::Seconds();
+
+		if (bWaitingForRelease)
+		{
+			Driver->SimulateInteractRelease();
+			bWaitingForRelease = false;
+			LastPressTime = Now;
+			return false;
+		}
+
+		if (Now - LastPressTime < LineDelay)
+		{
+			return false; // wait for inter-line delay
+		}
+
+		Driver->SimulateInteractPress();
+		bWaitingForRelease = true;
+		return false;
 	}
 private:
-	FAutomationTestBase* Test;
-	bool bIssued;
+	EPlayerActivityState Target;
+	double LineDelay;
+	double StartTime;
+	double Timeout;
+	double LastPressTime;
+	bool bWaitingForRelease;
 };
 
-class FTD_CloseInventory : public IAutomationLatentCommand
+// =======================================================================
+// FTD_OpenInventoryViaInput — press Tab, wait for fully open
+// =======================================================================
+
+class FTD_OpenInventoryViaInput : public FTD_Base
 {
 public:
-	FTD_CloseInventory(FAutomationTestBase* InTest) : Test(InTest), bIssued(false) {}
-	virtual bool Update() override
+	FTD_OpenInventoryViaInput(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds)
+		, bPressed(false), bReleased(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Opening inventory (Tab)"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 
-		if (!bIssued)
+		if (!bPressed)
 		{
-			Driver->CloseInventory();
-			bIssued = true;
+			Driver->SimulateInventoryPress();
+			bPressed = true;
+			return false;
+		}
+		if (!bReleased)
+		{
+			Driver->SimulateInventoryRelease();
+			bReleased = true;
+			return false;
 		}
 
-		// Wait until the close animation finishes so CanInteract is restored
-		// before the next PressInteract runs.
-		return Driver->IsInventoryFullyClosed();
+		if (Driver->IsInventoryFullyOpen())
+		{
+			return true;
+		}
+		if (FPlatformTime::Seconds() - StartTime > Timeout)
+		{
+			Test->AddError(TEXT("FTD_OpenInventoryViaInput: timed out waiting for inventory to open"));
+			return true;
+		}
+		return false;
 	}
 private:
-	FAutomationTestBase* Test;
-	bool bIssued;
+	double StartTime;
+	double Timeout;
+	bool bPressed;
+	bool bReleased;
 };
 
-class FTD_SelectInventoryItemByIndex : public IAutomationLatentCommand
+// =======================================================================
+// FTD_CloseInventoryViaInput — press Tab, wait for fully closed
+// =======================================================================
+
+class FTD_CloseInventoryViaInput : public FTD_Base
 {
 public:
-	FTD_SelectInventoryItemByIndex(FAutomationTestBase* InTest, int32 InIndex) : Test(InTest), Index(InIndex) {}
-	virtual bool Update() override
+	FTD_CloseInventoryViaInput(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds)
+		, bPressed(false), bReleased(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Closing inventory (Tab)"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		if (!Driver->SelectInventoryItemByIndex(Index))
+
+		if (!bPressed)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_SelectInventoryItemByIndex: failed to select slot %d"), Index));
+			Driver->SimulateInventoryPress();
+			bPressed = true;
+			return false;
 		}
-		return true;
+		if (!bReleased)
+		{
+			Driver->SimulateInventoryRelease();
+			bReleased = true;
+			return false;
+		}
+
+		if (Driver->IsInventoryFullyClosed())
+		{
+			return true;
+		}
+		if (FPlatformTime::Seconds() - StartTime > Timeout)
+		{
+			Test->AddError(TEXT("FTD_CloseInventoryViaInput: timed out waiting for inventory to close"));
+			return true;
+		}
+		return false;
 	}
 private:
-	FAutomationTestBase* Test;
+	double StartTime;
+	double Timeout;
+	bool bPressed;
+	bool bReleased;
+};
+
+// =======================================================================
+// FTD_SelectAndConfirmSlot — set cursor to slot N, press E to confirm
+// =======================================================================
+
+class FTD_SelectAndConfirmSlot : public FTD_Base
+{
+public:
+	FTD_SelectAndConfirmSlot(FAutomationTestBase* InTest, int32 InIndex)
+		: FTD_Base(InTest), Index(InIndex), Phase(0) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Selecting inventory slot %d, pressing E"), Index);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		switch (Phase)
+		{
+		case 0: // Set the cursor position
+			if (!Driver->SetSelectedSlot(Index))
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_SelectAndConfirmSlot: failed to set slot %d"), Index));
+				return true;
+			}
+			Phase = 1;
+			return false;
+		case 1: // Press E — fires legacy "InventoryConfirmSelection" via InputKey
+			Driver->SimulateKeyPress(EKeys::E);
+			Phase = 2;
+			return false;
+		case 2: // Release E
+			Driver->SimulateKeyRelease(EKeys::E);
+			return true;
+		default:
+			return true;
+		}
+	}
+private:
 	int32 Index;
+	int32 Phase;
 };
 
 // =======================================================================
-// Movie collection (enter inspection + collect atomically).
+// FTD_TeleportNearAndLookAtMovie — find next uncollected movie,
+// teleport near it, and aim the camera at it.
 // =======================================================================
 
-class FTD_CollectNextMovie : public IAutomationLatentCommand
+class FTD_TeleportNearAndLookAtMovie : public FTD_Base
 {
 public:
-	FTD_CollectNextMovie(FAutomationTestBase* InTest) : Test(InTest) {}
-	virtual bool Update() override
+	FTD_TeleportNearAndLookAtMovie(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting to next movie"); }
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		if (!Driver->CollectNextMovie())
+
+		AMovieBox* Movie = Driver->FindNextUncollectedMovie();
+		if (!Movie)
 		{
-			Test->AddError(TEXT("FTD_CollectNextMovie: failed to collect"));
+			Test->AddError(TEXT("FTD_TeleportNearAndLookAtMovie: no uncollected movie"));
+			return true;
 		}
+
+		if (!Driver->TeleportNearActor(Movie, 200.f))
+		{
+			Test->AddError(TEXT("FTD_TeleportNearAndLookAtMovie: teleport failed"));
+			return true;
+		}
+
+		Driver->LookAt(Movie);
 		return true;
 	}
+};
+
+// =======================================================================
+// FTD_RotateAndCollectMovie — inject MouseX to rotate the inspected
+// movie box until it's collected (activity state returns to FreeRoaming).
+// =======================================================================
+
+class FTD_RotateAndCollectMovie : public FTD_Base
+{
+public:
+	FTD_RotateAndCollectMovie(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), StartTime(FPlatformTime::Seconds()), Timeout(InTimeoutSeconds)
+		, FrameCount(0), bCollectPressed(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Rotating movie and pressing E to collect"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		if (Driver->GetActivityState() == EPlayerActivityState::FreeRoaming)
+		{
+			// Collection completed — StopInspection set us back to FreeRoaming.
+			Driver->MarkLastFoundMovieCollected();
+			return true;
+		}
+
+		if (FPlatformTime::Seconds() - StartTime > Timeout)
+		{
+			Test->AddError(TEXT("FTD_RotateAndCollectMovie: timed out"));
+			return true;
+		}
+
+		// Inject mouse rotation each frame. 5.0 axis units * 2.0 deg/unit = 10 deg/frame.
+		// After ~18 frames we've rotated 180 degrees, which should cross the 0.9 dot threshold.
+		Driver->SimulateMouseX(5.0f);
+		FrameCount++;
+
+		// After enough rotation, try pressing E to collect.
+		// Need ~155 degrees of rotation (at 10 deg/frame = ~16 frames).
+		// The "Collect Inspected Subitem" binding is only active when dot > 0.9,
+		// so early presses are harmless (no binding = no effect).
+		if (FrameCount >= 12 && !bCollectPressed)
+		{
+			Driver->SimulateKeyPress(EKeys::E);
+			bCollectPressed = true;
+		}
+		else if (bCollectPressed)
+		{
+			Driver->SimulateKeyRelease(EKeys::E);
+			bCollectPressed = false; // allow retry next frame
+		}
+
+		return false;
+	}
 private:
-	FAutomationTestBase* Test;
+	double StartTime;
+	double Timeout;
+	int32 FrameCount;
+	bool bCollectPressed;
 };
 
 // =======================================================================
 // Screenshots.
 // =======================================================================
 
-class FTD_TakeScreenshot : public IAutomationLatentCommand
+class FTD_TakeScreenshot : public FTD_Base
 {
 public:
-	FTD_TakeScreenshot(const FString& InName) : Name(InName), bRequested(false) {}
-	virtual bool Update() override
+	FTD_TakeScreenshot(const FString& InName)
+		: Name(InName), bRequested(false) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Taking screenshot '%s'"), *Name);
+	}
+
+	virtual bool UpdateStep() override
 	{
 		if (!bRequested)
 		{
@@ -419,11 +779,17 @@ private:
 // Assertions.
 // =======================================================================
 
-class FTD_AssertInventoryCount : public IAutomationLatentCommand
+class FTD_AssertInventoryCount : public FTD_Base
 {
 public:
-	FTD_AssertInventoryCount(FAutomationTestBase* InTest, int32 InExpected) : Test(InTest), Expected(InExpected) {}
-	virtual bool Update() override
+	FTD_AssertInventoryCount(FAutomationTestBase* InTest, int32 InExpected) : FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inventory count == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
@@ -435,15 +801,20 @@ public:
 		return true;
 	}
 private:
-	FAutomationTestBase* Test;
 	int32 Expected;
 };
 
-class FTD_AssertHasItem : public IAutomationLatentCommand
+class FTD_AssertHasItem : public FTD_Base
 {
 public:
-	FTD_AssertHasItem(FAutomationTestBase* InTest, FName InItemId) : Test(InTest), ItemId(InItemId) {}
-	virtual bool Update() override
+	FTD_AssertHasItem(FAutomationTestBase* InTest, FName InItemId) : FTD_Base(InTest), ItemId(InItemId) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting player has item '%s'"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
@@ -454,7 +825,6 @@ public:
 		return true;
 	}
 private:
-	FAutomationTestBase* Test;
 	FName ItemId;
 };
 
@@ -469,91 +839,96 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 
 bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 {
-	// Suppress pre-existing errors that are unrelated to the test but would
-	// cause the automation framework to mark the run as failed.
+	// Suppress pre-existing errors unrelated to the test.
 	AddExpectedError(TEXT("JPEG Decompress Error"), EAutomationExpectedErrorFlags::Contains, 0);
 	AddExpectedError(TEXT("TryDecompressData failed"), EAutomationExpectedErrorFlags::Contains, 0);
 	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0);
 	AddExpectedError(TEXT("Unable to get texture source data"), EAutomationExpectedErrorFlags::Contains, 0);
 
-	// Load the first-person map and start PIE. These helpers are Epic's
-	// standard pattern for editor-context automation tests.
 	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap"));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
 
-	// --- Step 1: Initial dialogue with Seneca, including the basket beat ---
+	// --- Step 1: Initial dialogue with Seneca (basket beat) ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_01_AtSeneca")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // interact with Seneca
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InMultiSpeakerDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_02_SenecaDialogueStarted")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_03_BasketBeat")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithActorByLabel(this, TEXT("ShoppingBasket")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("ShoppingBasket")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // pick up basket
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
 
-	// --- Step 2: Collect 3 movies ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectNextMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectNextMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectNextMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
+	// --- Step 2: Collect 3 movies via input ---
+	for (int32 i = 0; i < 3; ++i)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearAndLookAtMovie(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // enter inspection
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));       // rotate + press E to collect
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, i + 1));
+	}
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_05_ThreeMoviesCollected")));
 
 	// --- Step 3: Give each movie to Seneca ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
 
-	// Movie 1
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectInventoryItemByIndex(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_07_GaveMovie1")));
-
-	// Movie 2
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectInventoryItemByIndex(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_08_GaveMovie2")));
-
-	// Movie 3 — after this one Seneca transitions to WaitingForMoney internally.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectInventoryItemByIndex(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_09_GaveMovie3_WaitingForMoney")));
+	for (int32 i = 0; i < 3; ++i)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+		if (i == 0) ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // give movie to Seneca
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_%02d_GaveMovie%d"), 7 + i, i + 1)));
+	}
 
 	// --- Step 4: Get money from Rick ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithRick(this));
+	// TODO: replace with FTD_TeleportTo("RickApproach") once the waypoint is placed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // talk to Rick
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_10_TalkingToRick")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11_GotMoney")));
 
-	// --- Step 5: Give money to Seneca ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventory(this));
+	// --- Step 5: Give money to Seneca + key beat ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_12_InventoryWithMoney")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectInventoryItemByIndex(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventory(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // give money
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::WaitingForItemInteractionInDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_KeyBeat")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InteractWithKeyActor(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtKeyActor(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // pick up key
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
 
-	// --- Final assertion: player received the key ---
+	// --- Final assertion ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("Key")));
 
-	// Stop PIE at the end of the test.
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-
 	return true;
 }
 

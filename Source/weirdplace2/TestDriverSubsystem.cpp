@@ -1,6 +1,5 @@
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
-#include "Interactable.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "MovieBox.h"
@@ -9,10 +8,17 @@
 #include "Seneca.h"
 #include "TestWaypoint.h"
 #include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
+#include "EnhancedInputSubsystems.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
+#include "InputAction.h"
+#include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
 
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
@@ -46,19 +52,109 @@ bool UTestDriverSubsystem::TeleportPlayerToWaypoint(FName WaypointTag)
 		return false;
 	}
 
-	const FVector Target = Waypoint->GetActorLocation();
+	const FVector RawTarget = Waypoint->GetActorLocation();
+	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Target = RawTarget + FVector(0.f, 0.f, HalfHeight);
 	const FRotator TargetRot = Waypoint->GetActorRotation();
 
 	Player->SetActorLocation(Target, false, nullptr, ETeleportType::TeleportPhysics);
 
-	// Set the controller's rotation so the camera follows; the first-person
-	// camera uses bUsePawnControlRotation, so the controller drives view angle.
 	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
 	{
 		PC->SetControlRotation(TargetRot);
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportPlayerToWaypoint - '%s' at %s"), *WaypointTag.ToString(), *Target.ToString());
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportPlayerToWaypoint - '%s' raw=%s snapped=%s"),
+		*WaypointTag.ToString(), *RawTarget.ToString(), *Target.ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
+{
+	if (!Target)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportNearActor - null target"));
+		return false;
+	}
+
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportNearActor - no player"));
+		return false;
+	}
+
+	const FVector TargetLoc = Target->GetActorLocation();
+	const FVector PlayerLoc = Player->GetActorLocation();
+
+	// Direction from target to player (we'll place the player along this line).
+	FVector Dir = (PlayerLoc - TargetLoc).GetSafeNormal2D();
+	if (Dir.IsNearlyZero())
+	{
+		Dir = FVector::ForwardVector;
+	}
+
+	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector NewLoc = TargetLoc + Dir * Distance + FVector(0.f, 0.f, HalfHeight);
+	Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+
+	// Face the target.
+	const FRotator LookRot = (TargetLoc - NewLoc).Rotation();
+	if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+	{
+		PC->SetControlRotation(LookRot);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportNearActor - near %s at %s"), *Target->GetName(), *NewLoc.ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::LookAt(AActor* Target)
+{
+	if (!Target)
+	{
+		return false;
+	}
+
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		return false;
+	}
+
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC)
+	{
+		return false;
+	}
+
+	UCameraComponent* Camera = Player->GetFirstPersonCamera();
+	if (!Camera)
+	{
+		return false;
+	}
+
+	// For MetaHuman NPCs the actor root sits at world Z=0, so aim at the
+	// "Body" skeletal mesh component which reflects the rendered position.
+	// Falls back to the full bounds for non-MetaHumans (props, MovieBoxes).
+	FVector AimPoint;
+	if (USkeletalMeshComponent* Face = Cast<USkeletalMeshComponent>(Target->GetDefaultSubobjectByName(TEXT("Face"))))
+	{
+		AimPoint = Face->Bounds.Origin;
+	}
+	else
+	{
+		AimPoint = Target->GetComponentsBoundingBox(/*bNonColliding*/ true).GetCenter();
+	}
+
+	const FVector CamLoc = Camera->GetComponentLocation();
+	const FVector Dir = (AimPoint - CamLoc).GetSafeNormal();
+	const FRotator NewRot = Dir.Rotation();
+
+	PC->SetControlRotation(NewRot);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAt - %s cam=%s aim=%s rot=%s dist=%.1f"),
+		*Target->GetName(), *CamLoc.ToString(), *AimPoint.ToString(),
+		*NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
 	return true;
 }
 
@@ -71,6 +167,45 @@ bool UTestDriverSubsystem::LookAtActorByLabel(const FString& Label)
 
 	UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorByLabel - no actor with label '%s'"), *Label);
 	return false;
+}
+
+bool UTestDriverSubsystem::LookAtSeneca()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtSeneca - no ASeneca in level"));
+		return false;
+	}
+	return LookAt(Seneca);
+}
+
+bool UTestDriverSubsystem::LookAtRick()
+{
+	ARick* Rick = FindRick();
+	if (!Rick)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtRick - no ARick in level"));
+		return false;
+	}
+	return LookAt(Rick);
+}
+
+bool UTestDriverSubsystem::LookAtKeyActor()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtKeyActor - no ASeneca in level"));
+		return false;
+	}
+	APropActor* Key = Seneca->GetKeyActor();
+	if (!Key)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtKeyActor - KeyActor not assigned on Seneca"));
+		return false;
+	}
+	return LookAt(Key);
 }
 
 AActor* UTestDriverSubsystem::FindActorByLabel(const FString& Label) const
@@ -129,196 +264,113 @@ ARick* UTestDriverSubsystem::FindRick() const
 	return nullptr;
 }
 
-bool UTestDriverSubsystem::LookAt(AActor* Target)
+// --- Input simulation ---
+
+void UTestDriverSubsystem::SimulateKeyPress(FKey Key)
 {
-	if (!Target)
-	{
-		return false;
-	}
-
-	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
-	{
-		return false;
-	}
-
-	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC)
 	{
-		return false;
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyPress - no PlayerController"));
+		return;
 	}
-
-	UCameraComponent* Camera = Player->GetFirstPersonCamera();
-	if (!Camera)
-	{
-		return false;
-	}
-
-	// Aim at the target's center height from the camera. This mirrors how
-	// the interaction trace runs (from camera forward at camera height).
-	const FVector CamLoc = Camera->GetComponentLocation();
-	const FVector TargetLoc = Target->GetActorLocation();
-	const FVector Dir = (TargetLoc - CamLoc).GetSafeNormal();
-	const FRotator NewRot = Dir.Rotation();
-
-	PC->SetControlRotation(NewRot);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAt - %s"), *Target->GetName());
-	return true;
+	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Pressed, FVector::ZeroVector));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SimulateKeyPress - %s"), *Key.ToString());
 }
 
-void UTestDriverSubsystem::PressInteract()
+void UTestDriverSubsystem::SimulateKeyRelease(FKey Key)
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyRelease - no PlayerController"));
+		return;
+	}
+	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Released, FVector::ZeroVector));
+}
+
+void UTestDriverSubsystem::SimulateMouseX(float Delta)
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateMouseX - no PlayerController"));
+		return;
+	}
+	// Axis key: use the constructor that takes (Key, Delta, DeltaTime, NumSamples).
+	PC->InputKey(FInputKeyParams(EKeys::MouseX, (double)Delta, GetWorld()->GetDeltaSeconds(), 1));
+}
+
+// --- Enhanced Input injection ---
+//
+// APlayerController::InputKey only fires legacy BindAction bindings; Enhanced
+// Input actions (HandleInteractTriggered, HandleShowInventory, etc.) need
+// their own injection through UEnhancedInputLocalPlayerSubsystem.
+
+void UTestDriverSubsystem::InjectInputAction(UInputAction* Action, bool bPressed)
+{
+	if (!Action)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectInputAction - null action"));
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectInputAction - no PlayerController"));
+		return;
+	}
+
+	ULocalPlayer* LP = PC->GetLocalPlayer();
+	if (!LP)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectInputAction - no LocalPlayer"));
+		return;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* EIS = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	if (!EIS)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectInputAction - no EnhancedInputLocalPlayerSubsystem"));
+		return;
+	}
+
+	const FInputActionValue Value(bPressed);
+	EIS->InjectInputForAction(Action, Value, {}, {});
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::InjectInputAction - %s %s"),
+		*Action->GetName(), bPressed ? TEXT("PRESSED") : TEXT("RELEASED"));
+}
+
+void UTestDriverSubsystem::SimulateInteractPress()
 {
 	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::PressInteract - no player"));
-		return;
-	}
-
-	// Replicate HandleInteractTriggered's branching. That method is private,
-	// so we can't call it directly — but every branch here resolves to a
-	// public gameplay API.
-	const EPlayerActivityState State = Player->GetActivityState();
-	if (State == EPlayerActivityState::InSimpleDialogue)
-	{
-		Player->AdvanceSimpleDialogue();
-		return;
-	}
-	if (State == EPlayerActivityState::InMultiSpeakerDialogue)
-	{
-		Player->AdvanceMultiSpeakerDialogue();
-		return;
-	}
-	if (State == EPlayerActivityState::InDlgDialogue)
-	{
-		Player->SelectDialogueOption(0);
-		return;
-	}
-
-	if (!Player->GetCanInteract())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("TestDriver::PressInteract - player cannot interact (state=%d)"), (int32)State);
-		return;
-	}
-
-	AActor* HitActor = nullptr;
-	bool bDidHitInteractable = false;
-	Player->RaycastInteractableCheck(HitActor, bDidHitInteractable);
-
-	if (!bDidHitInteractable || !HitActor)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("TestDriver::PressInteract - no interactable hit"));
-		return;
-	}
-
-	if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-	{
-		IInteractable::Execute_Interact(HitActor);
-		UE_LOG(LogTemp, Log, TEXT("TestDriver::PressInteract - fired Interact on %s"), *HitActor->GetName());
-	}
+	if (!Player) { UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateInteractPress - no player")); return; }
+	InjectInputAction(Player->GetInteractAction(), true);
 }
 
-bool UTestDriverSubsystem::InteractWith(AActor* Actor)
-{
-	if (!Actor)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWith - null actor"));
-		return false;
-	}
-	if (!Actor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWith - actor %s does not implement IInteractable"), *Actor->GetName());
-		return false;
-	}
-	IInteractable::Execute_Interact(Actor);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::InteractWith - fired Interact on %s"), *Actor->GetName());
-	return true;
-}
-
-bool UTestDriverSubsystem::InteractWithSeneca()
-{
-	ASeneca* Seneca = FindSeneca();
-	if (!Seneca)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithSeneca - no ASeneca in level"));
-		return false;
-	}
-	return InteractWith(Seneca);
-}
-
-bool UTestDriverSubsystem::InteractWithRick()
-{
-	ARick* Rick = FindRick();
-	if (!Rick)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithRick - no ARick in level"));
-		return false;
-	}
-	return InteractWith(Rick);
-}
-
-bool UTestDriverSubsystem::InteractWithKeyActor()
-{
-	ASeneca* Seneca = FindSeneca();
-	if (!Seneca)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithKeyActor - no ASeneca in level"));
-		return false;
-	}
-	APropActor* Key = Seneca->GetKeyActor();
-	if (!Key)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithKeyActor - KeyActor not assigned on Seneca"));
-		return false;
-	}
-	return InteractWith(Key);
-}
-
-bool UTestDriverSubsystem::InteractWithActorByLabel(const FString& Label)
-{
-	AActor* Found = FindActorByLabel(Label);
-	if (!Found)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::InteractWithActorByLabel - no actor '%s'"), *Label);
-		return false;
-	}
-	return InteractWith(Found);
-}
-
-AActor* UTestDriverSubsystem::GetFocusedInteractable() const
+void UTestDriverSubsystem::SimulateInteractRelease()
 {
 	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
-	{
-		return nullptr;
-	}
-
-	AActor* HitActor = nullptr;
-	bool bDidHitInteractable = false;
-	Player->RaycastInteractableCheck(HitActor, bDidHitInteractable);
-	return bDidHitInteractable ? HitActor : nullptr;
+	if (!Player) { return; }
+	InjectInputAction(Player->GetInteractAction(), false);
 }
 
-void UTestDriverSubsystem::OpenInventory()
+void UTestDriverSubsystem::SimulateInventoryPress()
 {
-	UInventoryUIComponent* UI = GetInventoryUIComponent();
-	if (!UI)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::OpenInventory - no InventoryUIComponent"));
-		return;
-	}
-	UI->OpenInventoryUI();
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateInventoryPress - no player")); return; }
+	InjectInputAction(Player->GetInventoryAction(), true);
 }
 
-void UTestDriverSubsystem::CloseInventory()
+void UTestDriverSubsystem::SimulateInventoryRelease()
 {
-	UInventoryUIComponent* UI = GetInventoryUIComponent();
-	if (!UI)
-	{
-		return;
-	}
-	UI->CloseInventoryUI();
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { return; }
+	InjectInputAction(Player->GetInventoryAction(), false);
 }
+
+// --- Inventory queries ---
 
 bool UTestDriverSubsystem::IsInventoryFullyOpen() const
 {
@@ -332,28 +384,30 @@ bool UTestDriverSubsystem::IsInventoryFullyClosed() const
 	return UI && UI->IsInventoryFullyClosed();
 }
 
-bool UTestDriverSubsystem::SelectInventoryItemByIndex(int32 Index)
+bool UTestDriverSubsystem::SetSelectedSlot(int32 Index)
 {
 	UInventoryUIComponent* UI = GetInventoryUIComponent();
 	if (!UI)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::SelectInventoryItemByIndex - no UI component"));
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetSelectedSlot - no UI component"));
 		return false;
 	}
 	if (!UI->IsInventoryFullyOpen())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("TestDriver::SelectInventoryItemByIndex - inventory not fully open"));
+		UE_LOG(LogTemp, Warning, TEXT("TestDriver::SetSelectedSlot - inventory not fully open"));
 		return false;
 	}
 
 	UI->SetSelectedIndexForTest(Index);
-	UI->ConfirmSelection();
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SetSelectedSlot - index %d"), Index);
 	return true;
 }
 
-AMovieBox* UTestDriverSubsystem::CollectNextMovie()
+// --- Movie helpers ---
+
+AMovieBox* UTestDriverSubsystem::FindNextUncollectedMovie()
 {
-	// Drop any stale weak refs so the set doesn't grow unbounded.
+	// Drop stale weak refs.
 	for (auto It = CollectedMovies.CreateIterator(); It; ++It)
 	{
 		if (!It->IsValid())
@@ -362,20 +416,13 @@ AMovieBox* UTestDriverSubsystem::CollectNextMovie()
 		}
 	}
 
-	// Pick any uncollected movie in the level. Order is iterator order, which
-	// is deterministic per run. Distance doesn't matter because we call Interact
-	// directly, bypassing the interaction trace.
-	//
-	// Skip actors without an InteractionText widget — BP_Spawner1 is incorrectly
-	// parented to BP_MovieBox, so TActorIterator<AMovieBox> picks it up even
-	// though it's a spawner, not a usable movie.
-	AMovieBox* Best = nullptr;
 	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
 	{
 		if (CollectedMovies.Contains(*It))
 		{
 			continue;
 		}
+		// Skip actors without an InteractionText widget (e.g. BP_Spawner1).
 		TArray<UWidgetComponent*> Widgets;
 		It->GetComponents<UWidgetComponent>(Widgets);
 		bool bHasInteractionText = false;
@@ -391,35 +438,25 @@ AMovieBox* UTestDriverSubsystem::CollectNextMovie()
 		{
 			continue;
 		}
-		Best = *It;
-		break;
+		LastFoundMovie = *It;
+		return *It;
 	}
 
-	if (!Best)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::CollectNextMovie - no uncollected MovieBox in level"));
-		return nullptr;
-	}
-
-	// Interact enters inspection mode (sets activity state + moves box in front
-	// of camera). CollectInspectedSubitem adds the item to inventory and exits
-	// inspection. We call both directly to bypass the reticle/rotation gate
-	// that the real input binding uses.
-	const int32 CountBefore = GetInventoryCount();
-	IInteractable::Execute_Interact(Best);
-	Best->CollectInspectedSubitem();
-	const int32 CountAfter = GetInventoryCount();
-
-	if (CountAfter != CountBefore + 1)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::CollectNextMovie - inventory did not grow (%d -> %d)"), CountBefore, CountAfter);
-		return nullptr;
-	}
-
-	CollectedMovies.Add(Best);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::CollectNextMovie - collected %s"), *Best->GetName());
-	return Best;
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::FindNextUncollectedMovie - no uncollected MovieBox in level"));
+	return nullptr;
 }
+
+void UTestDriverSubsystem::MarkLastFoundMovieCollected()
+{
+	if (LastFoundMovie.IsValid())
+	{
+		CollectedMovies.Add(LastFoundMovie.Get());
+		UE_LOG(LogTemp, Log, TEXT("TestDriver::MarkLastFoundMovieCollected - %s"), *LastFoundMovie->GetName());
+		LastFoundMovie.Reset();
+	}
+}
+
+// --- State queries ---
 
 EPlayerActivityState UTestDriverSubsystem::GetActivityState() const
 {
@@ -448,6 +485,23 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+void UTestDriverSubsystem::SetTestStatus(const FString& Step)
+{
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::Status - %s"), *Step);
+	if (GEngine)
+	{
+		// Fixed key so each call replaces the previous line. Large lifetime
+		// keeps it pinned until the next update or end of test.
+		GEngine->AddOnScreenDebugMessage(
+			/*Key*/ 987654,
+			/*TimeToDisplay*/ 9999.f,
+			FColor::Yellow,
+			FString::Printf(TEXT("[E2E] %s"), *Step),
+			/*bNewerOnTop*/ false,
+			/*TextScale*/ FVector2D(1.4f, 1.4f));
+	}
 }
 
 UInventoryComponent* UTestDriverSubsystem::GetInventoryComponent() const

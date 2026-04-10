@@ -120,6 +120,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 
+	// Accessors for E2E test input injection.
+	UInputAction* GetInteractAction() const { return InteractAction; }
+	UInputAction* GetInventoryAction() const { return InventoryAction; }
+
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);
 
