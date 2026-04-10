@@ -3,13 +3,14 @@
 #include "CoreMinimal.h"
 class APropActor;
 #include "Interactable.h"
+#include "DialogueWidgetProvider.h"
 #include "DlgSystem/DlgDialogueParticipant.h"
 #include "GameFramework/Actor.h"
+#include "Inventory.h"
 #include "Seneca.generated.h"
 
-class USkeletalMeshComponent;
-class USphereComponent;
 class UWidgetComponent;
+class UUI_Dialogue;
 class UDlgContext;
 class UStaticMesh;
 class UTexture2D;
@@ -33,7 +34,7 @@ enum class ESenecaState : uint8
 };
 
 UCLASS()
-class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant
+class WEIRDPLACE2_API ASeneca : public AActor, public IInteractable, public IDlgDialogueParticipant, public IDialogueWidgetProvider
 {
 	GENERATED_BODY()
 
@@ -47,6 +48,9 @@ protected:
 public:
 	// IInteractable implementation
 	virtual void Interact_Implementation() override;
+
+	// IDialogueWidgetProvider implementation
+	virtual UUI_Dialogue* GetDialogueWidget() const override;
 
 	// IDlgDialogueParticipant implementation
 	virtual FName GetParticipantName_Implementation() const override;
@@ -97,22 +101,7 @@ public:
 	bool bIsSmoking = false;
 
 protected:
-	// Sphere overlap callbacks
-	UFUNCTION()
-	void OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
-
-	UFUNCTION()
-	void OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-		UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
-
 	// --- Components (assigned in Blueprint) ---
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
-	USkeletalMeshComponent* BodyMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca")
-	USphereComponent* TriggerSphere;
 
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
 	UChildActorComponent* CigaretteComp;
@@ -146,9 +135,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString EmployeeBathroomDialoguePath = TEXT("Dialogue/EmployeeBathroom.txt");
 
-	// Radius of the dialogue trigger sphere
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Dialogue")
-	float DialogueTriggerRadius = 200.0f;
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviesReminderPath = TEXT("Dialogue/WaitingForMoviesReminder.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviePurchaseReminderPath = TEXT("Dialogue/WaitingForMoviePurchaseReminder.txt");
 
 	// --- Key ---
 
@@ -171,9 +162,6 @@ protected:
 	// Pre-placed key actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	int32 KeyBeatLineIndex = 0;
 
 	// --- Quest Config ---
 
@@ -229,6 +217,21 @@ private:
 	// Loaded dialogue lines per state
 	TMap<ESenecaState, TArray<FText>> DialogueLines;
 
+	// Per-state action cues parsed from `[ActionName]` lines in dialogue files.
+	// Key = display line index that the action follows; Value = action name.
+	TMap<ESenecaState, TMap<int32, FString>> LineActions;
+
+	// Returns the action name for a given line index in the current state, or empty string.
+	FString GetActionForLine(ESenecaState State, int32 LineIndex) const;
+
+	// Movies captured during WaitingForMoviePurchase so they can be returned in ReadyToGiveKey.
+	UPROPERTY()
+	TArray<FInventoryItemData> TakenMovies;
+
+	// Reminder lines for re-interactions within a state
+	TArray<FText> WaitingForMoviesReminderLines;
+	TArray<FText> WaitingForMoviePurchaseReminderLines;
+
 	// Helper to load a single dialogue file
 	void LoadDialogueFile(ESenecaState State, const FString& RelativePath);
 
@@ -245,6 +248,10 @@ private:
 	// Deferred move: target to teleport to once player looks away
 	UPROPERTY()
 	AActor* PendingMoveTarget = nullptr;
+
+	// Cached skeletal mesh for computing look-at bounds target
+	UPROPERTY()
+	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
 
 	// Tracks that the player was looking at Seneca (requires look then look-away)
 	bool bWasLookingAtMe = false;

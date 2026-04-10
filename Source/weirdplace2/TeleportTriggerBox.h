@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TriggerBox.h"
+#include "Engine/TargetPoint.h"
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -20,9 +21,9 @@ protected:
 
 	// --- Properties ---
 
-	// Transform to teleport the actor to
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
-	FTransform TeleportTransform;
+	// Required target point actor to teleport to (set on the level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	ATargetPoint* TeleportTarget;
 
 	// Whether to destroy Ultra Dynamic Sky actors on teleport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")

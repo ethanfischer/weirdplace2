@@ -3,11 +3,9 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
-#include "BPFL_Utilities.h"
 #include "Door.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "Components/SphereComponent.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -20,8 +18,17 @@
 ASeneca::ASeneca()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 	// Components are created in Blueprint to preserve MetaHuman setup
+}
+
+UUI_Dialogue* ASeneca::GetDialogueWidget() const
+{
+	if (!DialogueWidgetComponent)
+	{
+		return nullptr;
+	}
+	return Cast<UUI_Dialogue>(DialogueWidgetComponent->GetUserWidgetObject());
 }
 
 void ASeneca::BeginPlay()
@@ -55,13 +62,6 @@ void ASeneca::BeginPlay()
 		}
 	}
 
-	if (TriggerSphere)
-	{
-		TriggerSphere->SetSphereRadius(DialogueTriggerRadius);
-		TriggerSphere->OnComponentBeginOverlap.AddDynamic(this, &ASeneca::OnSphereBeginOverlap);
-		TriggerSphere->OnComponentEndOverlap.AddDynamic(this, &ASeneca::OnSphereEndOverlap);
-	}
-
 	// Find the Cigarette ChildActorComponent by name
 	TArray<UChildActorComponent*> ChildActorComps;
 	GetComponents<UChildActorComponent>(ChildActorComps);
@@ -76,6 +76,13 @@ void ASeneca::BeginPlay()
 	if (!CigaretteComp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
+	}
+
+	// Cache the skeletal mesh for bounds-based look-at targeting
+	CachedSkeletalMesh = FindComponentByClass<USkeletalMeshComponent>();
+	if (!CachedSkeletalMesh)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found, IsPlayerLookingAtMe will use hardcoded offset"));
 	}
 
 	if (KeyActor)
@@ -117,6 +124,32 @@ void ASeneca::BeginPlay()
 	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
 	LoadDialogueFile(ESenecaState::AtEmployeeBathroom, EmployeeBathroomDialoguePath);
+
+	// Load reminder lines (not keyed by state)
+	{
+		auto LoadReminderFile = [](const FString& RelativePath, TArray<FText>& OutLines)
+		{
+			FString FullPath = FPaths::ProjectContentDir() / RelativePath;
+			TArray<FString> Raw;
+			if (FFileHelper::LoadFileToStringArray(Raw, *FullPath))
+			{
+				for (const FString& Line : Raw)
+				{
+					if (!Line.IsEmpty())
+					{
+						OutLines.Add(FText::FromString(Line));
+					}
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load reminder file: %s"), *FullPath);
+			}
+		};
+		LoadReminderFile(WaitingForMoviesReminderPath, WaitingForMoviesReminderLines);
+		LoadReminderFile(WaitingForMoviePurchaseReminderPath, WaitingForMoviePurchaseReminderLines);
+	}
+
 	LoadMovieComments();
 }
 
@@ -134,12 +167,30 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 	if (FFileHelper::LoadFileToStringArray(Lines, *FullPath))
 	{
 		TArray<FText>& TextLines = DialogueLines.Add(State);
-		for (const FString& Line : Lines)
+		TMap<int32, FString>& Actions = LineActions.Add(State);
+		for (const FString& Raw : Lines)
 		{
-			if (!Line.IsEmpty())
+			FString Line = Raw;
+			Line.TrimStartAndEndInline();
+			if (Line.IsEmpty())
 			{
-				TextLines.Add(FText::FromString(Line));
+				continue;
 			}
+
+			// `[Action Name]` lines mark a cue tied to the immediately preceding display line.
+			if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+			{
+				if (TextLines.Num() == 0)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Seneca - Action cue '%s' in %s has no preceding dialogue line; ignoring"), *Line, *FullPath);
+					continue;
+				}
+				FString ActionName = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd();
+				Actions.Add(TextLines.Num() - 1, ActionName);
+				continue;
+			}
+
+			TextLines.Add(FText::FromString(Line));
 		}
 
 		if (State == ESenecaState::WaitingForMovies)
@@ -262,11 +313,10 @@ void ASeneca::OnDialogueEnded()
 void ASeneca::OnKeyDropped()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Hiding, will appear at smoking position in %.0f seconds"), SmokingAppearDelay);
-	SetActorHiddenInGame(true);
-	if (TriggerSphere)
-	{
-		TriggerSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	}
+	// Teleport far below the world instead of toggling visibility — visibility
+	// cycling on a MetaHuman puts the groom hair into a bad state on re-show.
+	SetActorLocation(FVector(0.0, 0.0, -100000.0));
+	SetActorEnableCollision(false);
 	CurrentState = ESenecaState::Smoking;
 
 	if (KeyBrokenThumbnail)
@@ -321,8 +371,7 @@ void ASeneca::Interact_Implementation()
 		}
 		else
 		{
-			TArray<FText> ReminderLines = { FText::FromString(TEXT("You need to rent 3 movies.")) };
-			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForMoviesReminderLines, this);
 		}
 		return;
 	}
@@ -340,12 +389,38 @@ void ASeneca::Interact_Implementation()
 		FName ActiveItem = Inventory->GetActiveItem();
 		if (ActiveItem.IsNone() || ActiveItem == FName("Key") || ActiveItem == FName("BrokenKey"))
 		{
-			TArray<FText> ReminderLines = { FText::FromString(TEXT("Grab one of those movies from your bag and hold it up.")) };
-			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), ReminderLines, this);
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForMoviePurchaseReminderLines, this);
 		}
 		else
 		{
 			HandleMovieGive(FPCharacter, Inventory, ActiveItem);
+		}
+		return;
+	}
+
+	if (CurrentState == ESenecaState::WaitingForMoney)
+	{
+		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		if (Inventory && Inventory->GetActiveItem() == FName("Money"))
+		{
+			if (!Inventory->RemoveItem(FName("Money")))
+			{
+				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to remove Money from inventory"));
+				return;
+			}
+			Inventory->ClearActiveItem();
+			CurrentState = ESenecaState::ReadyToGiveKey;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> ReadyToGiveKey (money received)"));
+			StartReadyToGiveKeyDialogue(FPCharacter);
+		}
+		else
+		{
+			const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::WaitingForMoney);
+			if (Lines && Lines->Num() > 0)
+			{
+				FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+			}
 		}
 		return;
 	}
@@ -364,50 +439,6 @@ void ASeneca::Interact_Implementation()
 	}
 
 	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
-}
-
-void ASeneca::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	if (BodyMesh)
-	{
-		UBPFL_Utilities::SetShouldLookAtPlayer(true, OtherActor, BodyMesh);
-	}
-
-	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(OtherActor);
-	if (!FPCharacter)
-	{
-		return;
-	}
-
-	if (CurrentState == ESenecaState::WaitingForMovies)
-	{
-		if (!bIntroDialoguePlayed)
-			StartWaitingForMoviesDialogue(FPCharacter);
-		return;
-	}
-
-	if (CurrentState == ESenecaState::ReadyToGiveKey)
-	{
-		StartReadyToGiveKeyDialogue(FPCharacter);
-		return;
-	}
-
-	// WaitingForMoviePurchase and WaitingForMoney fall through to default: play loaded txt lines
-	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
-	if (Lines && Lines->Num() > 0)
-	{
-		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
-	}
-}
-
-void ASeneca::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
-	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
-{
-	if (BodyMesh)
-	{
-		UBPFL_Utilities::SetShouldLookAtPlayer(false, OtherActor, BodyMesh);
-	}
 }
 
 // --- Key ---
@@ -482,21 +513,31 @@ void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Billboard dialogue widget toward player camera
+	if (DialogueWidgetComponent)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC)
+		{
+			FVector CamLocation;
+			FRotator CamRotation;
+			PC->GetPlayerViewPoint(CamLocation, CamRotation);
+			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
+			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
+			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
+		}
+	}
+
 	// Waiting to appear at smoking position — teleport when player isn't looking at that spot
 	if (bWaitingToAppear && SmokingPositionTarget)
 	{
 		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
 		{
 			MoveToTarget(SmokingPositionTarget);
-			SetActorHiddenInGame(false);
-			if (TriggerSphere)
-			{
-				TriggerSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-			}
+			SetActorEnableCollision(true);
 			bWaitingToAppear = false;
 			bIsSmoking = true;
 			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
-			SetActorTickEnabled(false);
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
 		return;
@@ -522,7 +563,6 @@ void ASeneca::Tick(float DeltaTime)
 		if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
 		PendingMoveTarget = nullptr;
 		bWasLookingAtMe = false;
-		SetActorTickEnabled(false);
 
 		CurrentState = ESenecaState::AtEmployeeBathroom;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
@@ -552,13 +592,16 @@ bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 bool ASeneca::IsPlayerLookingAtMe() const
 {
 	FVector SenecaCenter;
-	if (BodyMesh)
+	if (CachedSkeletalMesh)
 	{
-		SenecaCenter = BodyMesh->Bounds.Origin;
+		FBoxSphereBounds LocalBounds = CachedSkeletalMesh->GetLocalBounds();
+		// Upper-center of mesh bounds in world space
+		const FVector LocalUpperCenter = LocalBounds.Origin + FVector(0.f, 0.f, LocalBounds.BoxExtent.Z);
+		SenecaCenter = CachedSkeletalMesh->GetComponentTransform().TransformPosition(LocalUpperCenter);
 	}
 	else
 	{
-		SenecaCenter = GetActorLocation() + FVector(0, 0, 90.f);
+		SenecaCenter = GetActorLocation() + FVector(0.f, 0.f, 90.f);
 	}
 	return IsPlayerLookingAt(SenecaCenter);
 }
@@ -679,7 +722,8 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 
 void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 {
-	if (LineIndex != KeyBeatLineIndex)
+	const FString Action = GetActionForLine(ESenecaState::ReadyToGiveKey, LineIndex);
+	if (Action.IsEmpty())
 	{
 		return;
 	}
@@ -699,51 +743,81 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 	if (!bKeyBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
-		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - First broadcast (LineIndex=%d), arming beat"), LineIndex);
+		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Arming '%s' beat at LineIndex=%d"), *Action, LineIndex);
 		bKeyBeatArmed = true;
 		FPChar->bBlockNextMultiSpeakerAdvance = true;
 		return;
 	}
 
-	// Second broadcast: show the key, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Second broadcast, binding lambda. KeyActor=%s"),
-		KeyActor ? *KeyActor->GetName() : TEXT("NULL"));
+	// Second broadcast: execute the action.
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Executing '%s'"), *Action);
 	bKeyBeatArmed = false;
 
-	if (!KeyActor)
+	if (Action == TEXT("Give movies"))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
+		UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
+		if (!Inventory)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
+			FPChar->AdvanceMultiSpeakerDialogue();
+			return;
+		}
+
+		if (TakenMovies.Num() == 0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Seneca::OnKeyDialogueLineShown - 'Give movies' fired but TakenMovies is empty"));
+		}
+
+		for (const FInventoryItemData& MovieData : TakenMovies)
+		{
+			Inventory->AddItemWithData(MovieData);
+		}
+		TakenMovies.Reset();
+
+		FPChar->AdvanceMultiSpeakerDialogue();
 		return;
 	}
 
-	KeyActor->MeshComponent->SetVisibility(true, true);
-	KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-	TWeakObjectPtr<APropActor> WeakProp(KeyActor);
-	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-	TWeakObjectPtr<ASeneca> WeakSeneca(this);
-
-	KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
+	if (Action == TEXT("Give key"))
 	{
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
-		if (APropActor* P = WeakProp.Get())
+		if (!KeyActor)
 		{
-			P->MeshComponent->SetVisibility(false, true);
-			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			P->OnInteracted.Clear();
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
+			return;
 		}
-		if (ASeneca* S = WeakSeneca.Get())
+
+		KeyActor->MeshComponent->SetVisibility(true, true);
+		KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+
+		FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
+
+		TWeakObjectPtr<APropActor> WeakProp(KeyActor);
+		TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
+		TWeakObjectPtr<ASeneca> WeakSeneca(this);
+
+		KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
 		{
-			S->GiveKey();
-		}
-		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-		{
-			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
-			FPC->AdvanceMultiSpeakerDialogue();
-		}
-	});
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
+			if (APropActor* P = WeakProp.Get())
+			{
+				P->MeshComponent->SetVisibility(false, true);
+				P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				P->OnInteracted.Clear();
+			}
+			if (ASeneca* S = WeakSeneca.Get())
+			{
+				S->GiveKey();
+			}
+			if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
+			{
+				FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+				FPC->AdvanceMultiSpeakerDialogue();
+			}
+		});
+		return;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - Unknown action '%s'"), *Action);
 }
 
 // --- Movie Purchase Beat ---
@@ -785,10 +859,24 @@ void ASeneca::LoadMovieComments()
 	UE_LOG(LogTemp, Log, TEXT("Seneca::LoadMovieComments - Loaded %d comments (+fallback)"), MovieComments.Num());
 }
 
+FString ASeneca::GetActionForLine(ESenecaState State, int32 LineIndex) const
+{
+	const TMap<int32, FString>* Actions = LineActions.Find(State);
+	if (!Actions)
+	{
+		return FString();
+	}
+	const FString* Found = Actions->Find(LineIndex);
+	return Found ? *Found : FString();
+}
+
 void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID)
 {
 	const FText* Found = MovieComments.Find(MovieID);
 	FText Comment = Found ? *Found : FallbackMovieComment;
+
+	// Capture full item data so we can return the rented movies to the player later.
+	TakenMovies.Add(Inventory->GetItemData(MovieID));
 
 	Inventory->RemoveItem(MovieID);
 	Inventory->ClearActiveItem();

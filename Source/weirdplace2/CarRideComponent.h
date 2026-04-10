@@ -74,12 +74,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 
-	// Dialogue line index that triggers a single bladder pulse (0-based)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	int32 BladderPulseLineIndex = 3;
-
 private:
 	void StartRide();
+	void SkipRide();
 	void StartDialogue();
 	void EndRide();
 	void OnFadeOutComplete();
@@ -94,6 +91,10 @@ private:
 
 	bool bSceneryMoving = false;
 	bool bBladderPulseArmed = false;
+
+	// Cached widget actor relative transform before car-ride overwrites it
+	FVector CachedWidgetRelativeLocation = FVector::ZeroVector;
+	FRotator CachedWidgetRelativeRotation = FRotator::ZeroRotator;
 
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;

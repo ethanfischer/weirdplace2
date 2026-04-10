@@ -82,11 +82,11 @@ protected:
 
 	// Number of columns in the grid
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
-	int32 GridColumns = 4;
+	int32 GridColumns = 3;
 
 	// Number of rows in the grid
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
-	int32 GridRows = 3;
+	int32 GridRows = 1;
 
 	// Sound to play when opening the inventory
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")

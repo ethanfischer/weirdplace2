@@ -1,4 +1,4 @@
 You need the bathroom?
-You'll have to buy 3 movies first
+You'll have to rent 3 movies first
 Here, take this
 Press [[InventoryButton]] to use it

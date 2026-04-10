@@ -185,6 +185,7 @@ void UUI_Dialogue::ClearOptionsText()
 			if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
 			{
 				Option->ClearText();
+				Option->SetVisibility(ESlateVisibility::Collapsed);
 			}
 		}
 	}

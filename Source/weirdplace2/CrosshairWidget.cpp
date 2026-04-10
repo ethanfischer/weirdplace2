@@ -11,6 +11,10 @@ void UCrosshairWidget::ShowNormalCrosshair()
 	{
 		InteractableImage->SetVisibility(ESlateVisibility::Hidden);
 	}
+	if (DialogueImage)
+	{
+		DialogueImage->SetVisibility(ESlateVisibility::Hidden);
+	}
 }
 
 void UCrosshairWidget::ShowInteractableCrosshair()
@@ -22,5 +26,25 @@ void UCrosshairWidget::ShowInteractableCrosshair()
 	if (InteractableImage)
 	{
 		InteractableImage->SetVisibility(ESlateVisibility::Visible);
+	}
+	if (DialogueImage)
+	{
+		DialogueImage->SetVisibility(ESlateVisibility::Hidden);
+	}
+}
+
+void UCrosshairWidget::ShowDialogueCrosshair()
+{
+	if (CrosshairImage)
+	{
+		CrosshairImage->SetVisibility(ESlateVisibility::Hidden);
+	}
+	if (InteractableImage)
+	{
+		InteractableImage->SetVisibility(ESlateVisibility::Hidden);
+	}
+	if (DialogueImage)
+	{
+		DialogueImage->SetVisibility(ESlateVisibility::Visible);
 	}
 }
