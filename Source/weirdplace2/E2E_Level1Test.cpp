@@ -75,7 +75,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 	// --- Step 4: Get money from Rick ---
 	// TODO: replace with FTD_TeleportTo("RickApproach") once the waypoint is placed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // talk to Rick
