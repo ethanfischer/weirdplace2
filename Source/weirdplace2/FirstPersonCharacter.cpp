@@ -2,7 +2,6 @@
 #include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
-#include "Components/WidgetComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
@@ -12,7 +11,6 @@
 #include "Hudson.h"
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
-#include "InventoryUI.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -84,16 +82,6 @@ void AFirstPersonCharacter::BeginPlay()
 			{
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 			}
-		}
-	}
-
-	// Close inventory UI on start
-	if (InventoryUIWidgetComponent)
-	{
-		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
-		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
-		{
-			IInventoryUI::Execute_CloseUI(UserWidget);
 		}
 	}
 
@@ -301,13 +289,9 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 
-	if (InventoryUIWidgetComponent)
+	if (UInventoryUIComponent* UI = GetInventoryUIComponent())
 	{
-		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
-		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
-		{
-			IInventoryUI::Execute_OpenUI(UserWidget);
-		}
+		UI->ToggleInventoryUI();
 	}
 }
 

@@ -10,7 +10,6 @@ class UCrosshairWidget;
 class UUI_Dialogue;
 class UDlgDialogue;
 class UDlgContext;
-class UWidgetComponent;
 class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
@@ -61,11 +60,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "UI")
 	UCrosshairWidget* CrosshairWidget;
-
-	// --- Inventory UI Widget Component (set in Blueprint) ---
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	UWidgetComponent* InventoryUIWidgetComponent;
 
 	// --- Dialogue ---
 
