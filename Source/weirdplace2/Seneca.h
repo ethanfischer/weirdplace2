@@ -77,6 +77,10 @@ public:
 	// Called by OutsideBathroomDoor when the key is dropped
 	void OnKeyDropped();
 
+	// Test-only: clear the SmokingAppearDelay timer and jump straight to
+	// OnSmokingDelayComplete so E2E tests don't have to wait 60 seconds.
+	void FastForwardSmokingAppear();
+
 	// Called by FirstPersonCharacter when dialogue with Seneca ends
 	void OnDialogueEnded();
 

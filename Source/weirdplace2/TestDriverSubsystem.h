@@ -41,6 +41,10 @@ public:
 
 	bool LookAt(AActor* Target);
 	bool LookAtActorByLabel(const FString& Label);
+	// Aim the camera at the world-space location of a named scene component on
+	// an actor found by editor label. Used to target sub-features like
+	// BP_OutsideBathroomDoor's "KeyLockSocket".
+	bool LookAtActorComponentByName(const FString& ActorLabel, const FString& ComponentName);
 	bool LookAtSeneca();
 	bool LookAtRick();
 	bool LookAtKeyActor();
@@ -48,6 +52,15 @@ public:
 	AActor* FindActorByLabel(const FString& Label) const;
 	ASeneca* FindSeneca() const;
 	ARick* FindRick() const;
+
+	// --- Seneca test helpers ---
+
+	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.
+	void FastForwardSenecaSmoking();
+
+	// True once Seneca has been re-teleported out of the hidden "below world"
+	// position back to the smoking spot (i.e., Z > -50000).
+	bool HasSenecaAppearedAtSmokingPos() const;
 
 	// --- Input simulation ---
 

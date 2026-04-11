@@ -169,6 +169,50 @@ bool UTestDriverSubsystem::LookAtActorByLabel(const FString& Label)
 	return false;
 }
 
+bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel, const FString& ComponentName)
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no actor '%s'"), *ActorLabel);
+		return false;
+	}
+
+	USceneComponent* Found = nullptr;
+	TArray<USceneComponent*> SceneComps;
+	Actor->GetComponents<USceneComponent>(SceneComps);
+	for (USceneComponent* Comp : SceneComps)
+	{
+		if (Comp && Comp->GetName() == ComponentName)
+		{
+			Found = Comp;
+			break;
+		}
+	}
+	if (!Found)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no component '%s' on actor '%s'"),
+			*ComponentName, *ActorLabel);
+		return false;
+	}
+
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { return false; }
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC) { return false; }
+	UCameraComponent* Camera = Player->GetFirstPersonCamera();
+	if (!Camera) { return false; }
+
+	const FVector AimPoint = Found->GetComponentLocation();
+	const FVector CamLoc = Camera->GetComponentLocation();
+	const FRotator NewRot = (AimPoint - CamLoc).GetSafeNormal().Rotation();
+	PC->SetControlRotation(NewRot);
+
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtActorComponentByName - %s.%s aim=%s rot=%s dist=%.1f"),
+		*ActorLabel, *ComponentName, *AimPoint.ToString(), *NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
+	return true;
+}
+
 bool UTestDriverSubsystem::LookAtSeneca()
 {
 	ASeneca* Seneca = FindSeneca();
@@ -262,6 +306,27 @@ ARick* UTestDriverSubsystem::FindRick() const
 		return *It;
 	}
 	return nullptr;
+}
+
+// --- Seneca test helpers ---
+
+void UTestDriverSubsystem::FastForwardSenecaSmoking()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::FastForwardSenecaSmoking - no Seneca"));
+		return;
+	}
+	Seneca->FastForwardSmokingAppear();
+}
+
+bool UTestDriverSubsystem::HasSenecaAppearedAtSmokingPos() const
+{
+	ASeneca* Seneca = const_cast<UTestDriverSubsystem*>(this)->FindSeneca();
+	// OnKeyDropped teleports Seneca to Z=-100000; "appeared" means she's been
+	// re-teleported by Tick back to SmokingPositionTarget (above ground).
+	return Seneca && Seneca->GetActorLocation().Z > -50000.0;
 }
 
 // --- Input simulation ---

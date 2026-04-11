@@ -346,6 +346,16 @@ void ASeneca::OnSmokingDelayComplete()
 	SetActorTickEnabled(true);
 }
 
+void ASeneca::FastForwardSmokingAppear()
+{
+	UE_LOG(LogTemp, Log, TEXT("Seneca::FastForwardSmokingAppear - skipping SmokingAppearDelay"));
+	if (GetWorldTimerManager().IsTimerActive(SmokingAppearTimerHandle))
+	{
+		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
+	}
+	OnSmokingDelayComplete();
+}
+
 // --- Interaction ---
 
 void ASeneca::Interact_Implementation()

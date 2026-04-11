@@ -11,6 +11,7 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "TestDriverSubsystem.h"
+#include "Door.h"
 #include "MovieBox.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -247,6 +248,36 @@ public:
 	}
 private:
 	FString Label;
+};
+
+// Aim the camera at the world-space position of a named scene component on an
+// actor. Needed when the interact-trace target is a sub-component (e.g.
+// BP_OutsideBathroomDoor's KeyLockSocket), not the actor's pivot.
+class FTD_LookAtActorComponentByName : public FTD_Base
+{
+public:
+	FTD_LookAtActorComponentByName(FAutomationTestBase* InTest, FString InActorLabel, FString InComponentName)
+		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), ComponentName(MoveTemp(InComponentName)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Looking at %s.%s"), *ActorLabel, *ComponentName);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtActorComponentByName: no driver")); return true; }
+		if (!Driver->LookAtActorComponentByName(ActorLabel, ComponentName))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_LookAtActorComponentByName: failed on %s.%s"),
+				*ActorLabel, *ComponentName));
+		}
+		return true;
+	}
+private:
+	FString ActorLabel;
+	FString ComponentName;
 };
 
 class FTD_LookAtSeneca : public FTD_Base
@@ -877,6 +908,206 @@ public:
 	}
 private:
 	FName ItemId;
+};
+
+class FTD_AssertNotHasItem : public FTD_Base
+{
+public:
+	FTD_AssertNotHasItem(FAutomationTestBase* InTest, FName InItemId) : FTD_Base(InTest), ItemId(InItemId) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting player does NOT have item '%s'"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		if (Driver->HasItem(ItemId))
+		{
+			Test->AddError(FString::Printf(TEXT("AssertNotHasItem: '%s' should NOT be in inventory"), *ItemId.ToString()));
+		}
+		return true;
+	}
+private:
+	FName ItemId;
+};
+
+// =======================================================================
+// FTD_WaitForItemAdded — poll HasItem(Id) until it returns true.
+// Useful for waiting on async item grants (e.g. the key-break timeline
+// chain adds "BrokenKey" a few seconds after interact).
+// =======================================================================
+
+class FTD_WaitForItemAdded : public FTD_Base
+{
+public:
+	FTD_WaitForItemAdded(FAutomationTestBase* InTest, FName InItemId, double InTimeoutSeconds = 8.0)
+		: FTD_Base(InTest), ItemId(InItemId), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for item '%s' to be added"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		if (Driver->HasItem(ItemId))
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_WaitForItemAdded: timed out waiting for '%s'"), *ItemId.ToString()));
+			return true;
+		}
+		return false;
+	}
+private:
+	FName ItemId;
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_FastForwardSenecaSmoking — skip Seneca's 60s SmokingAppearDelay
+// timer. One-shot.
+// =======================================================================
+
+class FTD_FastForwardSenecaSmoking : public FTD_Base
+{
+public:
+	FTD_FastForwardSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Fast-forwarding Seneca smoking delay"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		Driver->FastForwardSenecaSmoking();
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_WaitForSenecaAppearedAtSmoking — poll until Seneca has been
+// re-teleported out of the hidden below-world position back to the
+// smoking spot. Depends on the SenecaSmoking waypoint being placed so
+// its default facing does NOT look at SmokingPositionTarget.
+// =======================================================================
+
+class FTD_WaitForSenecaAppearedAtSmoking : public FTD_Base
+{
+public:
+	FTD_WaitForSenecaAppearedAtSmoking(FAutomationTestBase* InTest, double InTimeoutSeconds = 3.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Waiting for Seneca to appear at smoking spot"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		if (Driver->HasSenecaAppearedAtSmokingPos())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForSenecaAppearedAtSmoking: timed out (check SenecaSmoking waypoint facing)"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_WaitForSenecaState — poll Seneca->CurrentState until it matches
+// the expected ESenecaState value.
+// =======================================================================
+
+class FTD_WaitForSenecaState : public FTD_Base
+{
+public:
+	FTD_WaitForSenecaState(FAutomationTestBase* InTest, ESenecaState InExpected, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), Expected(InExpected), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for Seneca state %d"), (int32)Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		ASeneca* Seneca = Driver->FindSeneca();
+		if (!Seneca) { Test->AddError(TEXT("FTD_WaitForSenecaState: no Seneca")); return true; }
+		if (Seneca->CurrentState == Expected)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_WaitForSenecaState: timed out waiting for %d (current %d)"),
+				(int32)Expected, (int32)Seneca->CurrentState));
+			return true;
+		}
+		return false;
+	}
+private:
+	ESenecaState Expected;
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_WaitForDoorOpen — find a door by editor label and poll IsOpen()
+// until the door timeline finishes.
+// =======================================================================
+
+class FTD_WaitForDoorOpen : public FTD_Base
+{
+public:
+	FTD_WaitForDoorOpen(FAutomationTestBase* InTest, FString InLabel, double InTimeoutSeconds = 3.0)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for door '%s' to open"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		AActor* Actor = Driver->FindActorByLabel(Label);
+		ADoor* Door = Cast<ADoor>(Actor);
+		if (!Door)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForDoorOpen: no ADoor with label '%s'"), *Label));
+			return true;
+		}
+		if (Door->IsOpen())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForDoorOpen: '%s' never opened"), *Label));
+			return true;
+		}
+		return false;
+	}
+private:
+	FString Label;
+	double Timeout;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

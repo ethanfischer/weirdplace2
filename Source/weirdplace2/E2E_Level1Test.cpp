@@ -99,9 +99,64 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));  // pick up key
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
+	
+	// --- Step 6: Use key on outside door ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15_InventoryWithKey")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 3));  // Key is 4th item
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	// Aim at the KeyLockSocket scene component — the interact trace needs to
+	// hit the keyhole, not the door actor's pivot.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(
+		this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(this, FName("BrokenKey"), 8.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Key")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16_KeyBroken")));
+
+	// --- Step 7: Skip Seneca's 60s smoking-appear delay ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(this));
+
+	// --- Step 8: Find Seneca smoking and finish her dialogue ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	// Seneca's Tick moves her once the player teleports away (stops looking at her).
+
+	// --- Step 9: Find Seneca at employee bathroom and finish her dialogue ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(this, ESenecaState::AtEmployeeBathroom));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(this, ESenecaState::Done));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_SenecaDone")));
+
+	// --- Step 10: Open Bathroom door and enter ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
+
+	// --- Step 11: Walk into bathroom stall (placeholder — no stall logic yet) ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("ApproachStall")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
+	// TODO: lerp toward BP_TeleportTriggerBox_ToOasis once stall-entry logic lands.
+
+	// --- Step 12: Exit bathroom (placeholder — no exit door wired up yet) ---
+	// TODO: replace with look-at + interact on the exit door once it exists.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_21_Done")));
 
 	// --- Final assertion ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("Key")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BrokenKey")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
