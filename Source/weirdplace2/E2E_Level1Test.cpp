@@ -17,10 +17,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	UE_LOG(LogTemp, Warning, TEXT("=== E2E TEST START === %s"), *FDateTime::Now().ToString());
 
 	// Suppress pre-existing errors unrelated to the test.
-	AddExpectedError(TEXT("JPEG Decompress Error"), EAutomationExpectedErrorFlags::Contains, 0);
-	AddExpectedError(TEXT("TryDecompressData failed"), EAutomationExpectedErrorFlags::Contains, 0);
 	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0);
-	AddExpectedError(TEXT("Unable to get texture source data"), EAutomationExpectedErrorFlags::Contains, 0);
 
 	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap"));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
@@ -130,7 +127,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	// Seneca's Tick moves her once the player teleports away (stops looking at her).
 
 	// --- Step 9: Find Seneca at employee bathroom and finish her dialogue ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaHallway")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(this, ESenecaState::AtEmployeeBathroom));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
@@ -140,6 +137,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_SenecaDone")));
 
 	// --- Step 10: Open Bathroom door and enter ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
