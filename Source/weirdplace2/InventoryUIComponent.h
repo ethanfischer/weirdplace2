@@ -41,6 +41,15 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryOpen() const;
 
+	// Check if inventory UI has finished opening (fully open, animation complete)
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
+	bool IsInventoryFullyOpen() const { return CurrentState == EInventoryUIState::Open; }
+
+	// Check if inventory UI has finished closing (fully closed, animation complete).
+	// Useful for tests that need to know when CanInteract has been restored.
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
+	bool IsInventoryFullyClosed() const { return CurrentState == EInventoryUIState::Closed; }
+
 	// Confirm selection (E key / click)
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
 	void ConfirmSelection();
@@ -52,6 +61,11 @@ public:
 	// True when the center reticle ray is currently over the inventory grid bounds
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsReticleOverGrid() const { return bReticleOverGrid; }
+
+	// Test-only: force the selected inventory slot, bypassing reticle-driven selection.
+	// Used by the E2E TestDriver so tests can deterministically pick a slot without
+	// having to aim the camera at the world-space inventory UI.
+	void SetSelectedIndexForTest(int32 Index);
 
 protected:
 	virtual void BeginPlay() override;
@@ -82,11 +96,11 @@ protected:
 
 	// Number of columns in the grid
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
-	int32 GridColumns = 4;
+	int32 GridColumns = 3;
 
 	// Number of rows in the grid
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
-	int32 GridRows = 3;
+	int32 GridRows = 1;
 
 	// Sound to play when opening the inventory
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")

@@ -32,6 +32,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Door")
 	void SetLocked(bool bLocked) { IsLocked = bLocked; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
+	bool IsOpen() const { return Opened; }
+
 protected:
 	// Timeline update function - called each tick of the door animation
 	UFUNCTION()

@@ -10,7 +10,6 @@ class UCrosshairWidget;
 class UUI_Dialogue;
 class UDlgDialogue;
 class UDlgContext;
-class UWidgetComponent;
 class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
@@ -61,11 +60,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "UI")
 	UCrosshairWidget* CrosshairWidget;
-
-	// --- Inventory UI Widget Component (set in Blueprint) ---
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
-	UWidgetComponent* InventoryUIWidgetComponent;
 
 	// --- Dialogue ---
 
@@ -119,6 +113,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
+
+	// Accessors for E2E test input injection.
+	UInputAction* GetInteractAction() const { return InteractAction; }
+	UInputAction* GetInventoryAction() const { return InventoryAction; }
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);

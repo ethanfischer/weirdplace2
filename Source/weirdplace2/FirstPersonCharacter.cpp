@@ -2,14 +2,15 @@
 #include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
-#include "Components/WidgetComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
 #include "MovieBox.h"
 #include "Seneca.h"
 #include "Rick.h"
-#include "InventoryUI.h"
+#include "Hudson.h"
+#include "LookAtPlayerComponent.h"
+#include "DialogueWidgetProvider.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
@@ -22,6 +23,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
 #include "InputMappingContext.h"
+#include "Engine/GameViewportClient.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -41,6 +43,14 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Sprite icons (trigger boxes, empty actors, etc.) are editor-only but leak into PIE
+	// when the viewport show flags get reset by Blueprint recompiles. Suppress them here
+	// so rebuilds can't re-enable them.
+	if (UGameViewportClient* GVC = GetWorld()->GetGameViewport())
+	{
+		GVC->EngineShowFlags.SetBillboardSprites(false);
+	}
 
 	// Prefer a Blueprint-authored RectLight component (commonly named "RectLight")
 	// so designers can tune it directly in BP and have inventory logic use that light.
@@ -75,16 +85,6 @@ void AFirstPersonCharacter::BeginPlay()
 		}
 	}
 
-	// Close inventory UI on start
-	if (InventoryUIWidgetComponent)
-	{
-		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
-		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
-		{
-			IInventoryUI::Execute_CloseUI(UserWidget);
-		}
-	}
-
 	// Create crosshair widget
 	if (CrosshairWidgetClass)
 	{
@@ -106,42 +106,50 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// Update crosshair based on context:
+	// - In dialogue: show chat-bubble reticle (dialogue suppresses interaction).
 	// - Inventory open: only react to filled inventory slots.
 	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		bool bShouldShowInteractable = false;
-
-		if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+		if (IsInAnyDialogue())
 		{
-			if (InventoryUIComp->IsInventoryOpen())
-			{
-				if (InventoryUIComp->IsReticleOverGrid())
-				{
-					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
-					{
-						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
-						const TArray<FName> Items = InventoryComp->GetItems();
-						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
-					}
-				}
-			}
-			else
-			{
-				AActor* HitActor = nullptr;
-				bool bDidHitInteractable = false;
-				RaycastInteractableCheck(HitActor, bDidHitInteractable);
-				bShouldShowInteractable = bDidHitInteractable;
-			}
-		}
-
-		if (bShouldShowInteractable)
-		{
-			CrosshairWidget->ShowInteractableCrosshair();
+			CrosshairWidget->ShowDialogueCrosshair();
 		}
 		else
 		{
-			CrosshairWidget->ShowNormalCrosshair();
+			bool bShouldShowInteractable = false;
+
+			if (UInventoryUIComponent* InventoryUIComp = GetInventoryUIComponent())
+			{
+				if (InventoryUIComp->IsInventoryOpen())
+				{
+					if (InventoryUIComp->IsReticleOverGrid())
+					{
+						if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+						{
+							const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+							const TArray<FName> Items = InventoryComp->GetItems();
+							bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+						}
+					}
+				}
+				else
+				{
+					AActor* HitActor = nullptr;
+					bool bDidHitInteractable = false;
+					RaycastInteractableCheck(HitActor, bDidHitInteractable);
+					bShouldShowInteractable = bDidHitInteractable;
+				}
+			}
+
+			if (bShouldShowInteractable)
+			{
+				CrosshairWidget->ShowInteractableCrosshair();
+			}
+			else
+			{
+				CrosshairWidget->ShowNormalCrosshair();
+			}
 		}
 	}
 }
@@ -281,13 +289,9 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 
-	if (InventoryUIWidgetComponent)
+	if (UInventoryUIComponent* UI = GetInventoryUIComponent())
 	{
-		UUserWidget* UserWidget = InventoryUIWidgetComponent->GetUserWidgetObject();
-		if (UserWidget && UserWidget->GetClass()->ImplementsInterface(UInventoryUI::StaticClass()))
-		{
-			IInventoryUI::Execute_OpenUI(UserWidget);
-		}
+		UI->ToggleInventoryUI();
 	}
 }
 
@@ -345,6 +349,13 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6)); // Custom channel
 
 	TArray<AActor*> ActorsToIgnore;
+	if (GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+	{
+		if (AActor* NPCActor = Cast<AActor>(CurrentDialogueNPC))
+		{
+			ActorsToIgnore.Add(NPCActor);
+		}
+	}
 	FHitResult HitResult;
 
 	bool bHit = UKismetSystemLibrary::LineTraceSingleForObjects(
@@ -368,10 +379,52 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			{
 				return;
 			}
-			if (HitActor->IsA<ASeneca>() && GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
+
+			// Line-of-sight check: prevent interaction through walls.
+			// We trace from the camera horizontally toward the interactable's
+			// XY position at camera height — not to ImpactPoint (which lands
+			// on a collider that may poke through a wall), and not to the
+			// actor origin (which is often at the feet, causing the trace to
+			// dip into the floor).
+			const FVector ActorLoc = HitActor->GetActorLocation();
+			const FVector LoSTarget(ActorLoc.X, ActorLoc.Y, Start.Z);
+			TArray<AActor*> LoSIgnore;
+			LoSIgnore.Add(HitActor);
+			for (AActor* Ignored : ActorsToIgnore)
+			{
+				LoSIgnore.Add(Ignored);
+			}
+			FHitResult LoSHit;
+			bool bLoSBlocked = UKismetSystemLibrary::LineTraceSingle(
+				this,
+				Start,
+				LoSTarget,
+				UEngineTypes::ConvertToTraceType(ECC_Visibility),
+				false,
+				LoSIgnore,
+				EDrawDebugTrace::None,
+				LoSHit,
+				true,
+				FLinearColor::Red,
+				FLinearColor::Green,
+				0.0f);
+			if (bLoSBlocked)
 			{
 				return;
 			}
+
+			// If the hit actor is an NPC (has a ULookAtPlayerComponent),
+			// require the player to be inside its look-at sphere. This keeps
+			// interaction distance consistent with the per-instance look-at
+			// radius set on the NPC in the editor.
+			if (ULookAtPlayerComponent* LookAtComp = HitActor->FindComponentByClass<ULookAtPlayerComponent>())
+			{
+				if (!LookAtComp->IsOverlappingActor(this))
+				{
+					return;
+				}
+			}
+
 			OutHitActor = HitActor;
 			bDidHitInteractable = true;
 		}
@@ -464,6 +517,7 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		// Notify the NPC that dialogue ended
@@ -472,6 +526,10 @@ void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
 		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
+		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
 		}
 	}
 }
@@ -484,14 +542,15 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 		return;
 	}
 
-	// Get UI_Dialogue from NPC's widget component
-	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	UI_Dialogue = nullptr;
+	if (IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(NPC))
 	{
-		if (Seneca->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UI_Dialogue = Provider->GetDialogueWidget();
+	}
+	if (!UI_Dialogue)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StartSimpleDialogue - NPC does not provide a dialogue widget"));
+		return;
 	}
 
 	SimpleDialogueLines = Lines;
@@ -500,10 +559,7 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 	SetActivityState(EPlayerActivityState::InSimpleDialogue);
 	CurrentDialogueNPC = NPC;
 
-	if (UI_Dialogue)
-	{
-		UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
-	}
+	UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[0]);
 }
 
 void AFirstPersonCharacter::AdvanceSimpleDialogue()
@@ -527,6 +583,7 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		UObject* EndedNPC = CurrentDialogueNPC;
@@ -534,6 +591,10 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
 		{
 			Seneca->OnDialogueEnded();
+		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
 		}
 	}
 }
@@ -546,22 +607,15 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 		return;
 	}
 
-	// Get UI_Dialogue from NPC's widget component
-	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
+	UI_Dialogue = nullptr;
+	if (IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(NPC))
 	{
-		if (Seneca->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UI_Dialogue = Provider->GetDialogueWidget();
 	}
-	else if (ARick* Rick = Cast<ARick>(NPC))
+	if (!UI_Dialogue)
 	{
-		if (Rick->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Rick->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
+		UE_LOG(LogTemp, Error, TEXT("StartSimpleDialogueMultiSpeaker - NPC does not provide a dialogue widget"));
+		return;
 	}
 
 	MultiSpeakerLines = Lines;
@@ -569,10 +623,7 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 	SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
 	CurrentDialogueNPC = NPC;
 
-	if (UI_Dialogue)
-	{
-		UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
-	}
+	UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
 
 	OnDialogueLineShown.Broadcast(0);
 }
@@ -616,6 +667,7 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
+			UI_Dialogue = nullptr;
 		}
 
 		UObject* EndedNPC = CurrentDialogueNPC;
@@ -627,6 +679,10 @@ void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
 		else if (ARick* Rick = Cast<ARick>(EndedNPC))
 		{
 			Rick->OnDialogueEnded();
+		}
+		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+		{
+			Hudson->OnDialogueEnded();
 		}
 	}
 }

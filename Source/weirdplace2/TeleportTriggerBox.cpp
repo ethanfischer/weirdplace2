@@ -1,5 +1,6 @@
 #include "TeleportTriggerBox.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
 
@@ -18,14 +19,42 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
+	if (!TeleportTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set"), *GetName());
+		return;
+	}
+
 	// Optionally destroy Ultra Dynamic Sky actors
 	if (bDestroyUltraDynamicActors)
 	{
 		DestroyUltraDynamicActors();
 	}
 
-	// Teleport the actor
-	OtherActor->SetActorTransform(TeleportTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	// Compute rotation delta between trigger and target
+	FQuat RotationDelta = FQuat(TeleportTarget->GetActorRotation()) * FQuat(GetActorRotation()).Inverse();
+
+	// 1. Preserve relative position offset
+	FVector Offset = OtherActor->GetActorLocation() - GetActorLocation();
+	FVector RotatedOffset = RotationDelta.RotateVector(Offset);
+	OtherActor->SetActorLocation(TeleportTarget->GetActorLocation() + RotatedOffset);
+
+	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
+	{
+		// 2. Preserve camera direction (rotated by the delta)
+		if (AController* Controller = Character->GetController())
+		{
+			FRotator NewViewRot = (RotationDelta * FQuat(Controller->GetControlRotation())).Rotator();
+			Controller->SetControlRotation(NewViewRot);
+			Character->SetActorRotation(FRotator(0, NewViewRot.Yaw, 0));
+		}
+
+		// 3. Preserve movement velocity (rotated by the delta)
+		if (UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
+		{
+			MoveComp->Velocity = RotationDelta.RotateVector(MoveComp->Velocity);
+		}
+	}
 }
 
 void ATeleportTriggerBox::DestroyUltraDynamicActors()

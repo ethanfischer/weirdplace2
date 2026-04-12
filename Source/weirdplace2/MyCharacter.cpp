@@ -29,37 +29,6 @@ void AMyCharacter::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-void AMyCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	// Bind to "ToggleInventory" action (defined in DefaultInput.ini with Tab + Gamepad_Special_Left)
-	PlayerInputComponent->BindAction("ToggleInventory", IE_Pressed, this, &AMyCharacter::OnToggleInventory);
-}
-
-void AMyCharacter::OnToggleInventory()
-{
-	if (!bInventoryUnlocked)
-	{
-		UE_LOG(LogTemp, Log, TEXT("OnToggleInventory - inventory not yet unlocked (talk to Seneca first)"));
-		return;
-	}
-
-	if (ActivityState != EPlayerActivityState::FreeRoaming)
-	{
-		return;
-	}
-
-	if (InventoryUIComponent)
-	{
-		InventoryUIComponent->ToggleInventoryUI();
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent is null!"));
-	}
-}
-
 void AMyCharacter::LockMovieCollection()
 {
 	bMovieCollectionLocked = true;
