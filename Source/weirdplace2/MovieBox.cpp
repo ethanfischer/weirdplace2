@@ -220,7 +220,6 @@ void AMovieBox::CollectInspectedSubitem()
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
-	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
 
 	// Get cover name from actor name (strip suffix)
 	FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
