@@ -172,4 +172,9 @@ private:
 	// Multi-speaker dialogue state
 	TArray<FSimpleDialogueLine> MultiSpeakerLines;
 	int32 MultiSpeakerLineIndex = 0;
+
+	// --- Interaction helpers (used by RaycastInteractableCheck) ---
+
+	bool IsLineOfSightClearToActor(const FVector& CameraLocation, AActor* Target, const TArray<AActor*>& AdditionalIgnoreActors) const;
+	bool IsWithinNPCInteractionRange(AActor* Target) const;
 };

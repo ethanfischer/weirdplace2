@@ -5,8 +5,8 @@
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
-#include "MovieBox.h"
 #include "Seneca.h"
+#include "Components/WidgetComponent.h"
 #include "Rick.h"
 #include "Hudson.h"
 #include "LookAtPlayerComponent.h"
@@ -339,14 +339,12 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 	}
 
 	FVector Start = FirstPersonCamera->GetComponentLocation();
-	FVector ForwardVector = FirstPersonCamera->GetForwardVector();
-	FVector End = Start + (ForwardVector * InteractionDistance);
+	FVector End = Start + (FirstPersonCamera->GetForwardVector() * InteractionDistance);
 
-	// Setup object types to trace
 	TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldStatic));
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_WorldDynamic));
-	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6)); // Custom channel
+	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6));
 
 	TArray<AActor*> ActorsToIgnore;
 	if (GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
@@ -356,79 +354,70 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			ActorsToIgnore.Add(NPCActor);
 		}
 	}
+
 	FHitResult HitResult;
-
 	bool bHit = UKismetSystemLibrary::LineTraceSingleForObjects(
-		this,
-		Start,
-		End,
-		ObjectTypes,
-		false, // bTraceComplex
-		ActorsToIgnore,
-		EDrawDebugTrace::None,
-		HitResult,
-		true // bIgnoreSelf
-	);
+		this, Start, End, ObjectTypes,
+		false, ActorsToIgnore, EDrawDebugTrace::None, HitResult, true);
 
-	if (bHit && HitResult.bBlockingHit)
+	if (!bHit || !HitResult.bBlockingHit)
 	{
-		AActor* HitActor = HitResult.GetActor();
-		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
-		{
-			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked()) //TODO: hacky
-			{
-				return;
-			}
-
-			// Line-of-sight check: prevent interaction through walls.
-			// We trace from the camera horizontally toward the interactable's
-			// XY position at camera height — not to ImpactPoint (which lands
-			// on a collider that may poke through a wall), and not to the
-			// actor origin (which is often at the feet, causing the trace to
-			// dip into the floor).
-			const FVector ActorLoc = HitActor->GetActorLocation();
-			const FVector LoSTarget(ActorLoc.X, ActorLoc.Y, Start.Z);
-			TArray<AActor*> LoSIgnore;
-			LoSIgnore.Add(HitActor);
-			for (AActor* Ignored : ActorsToIgnore)
-			{
-				LoSIgnore.Add(Ignored);
-			}
-			FHitResult LoSHit;
-			bool bLoSBlocked = UKismetSystemLibrary::LineTraceSingle(
-				this,
-				Start,
-				LoSTarget,
-				UEngineTypes::ConvertToTraceType(ECC_Visibility),
-				false,
-				LoSIgnore,
-				EDrawDebugTrace::None,
-				LoSHit,
-				true,
-				FLinearColor::Red,
-				FLinearColor::Green,
-				0.0f);
-			if (bLoSBlocked)
-			{
-				return;
-			}
-
-			// If the hit actor is an NPC (has a ULookAtPlayerComponent),
-			// require the player to be inside its look-at sphere. This keeps
-			// interaction distance consistent with the per-instance look-at
-			// radius set on the NPC in the editor.
-			if (ULookAtPlayerComponent* LookAtComp = HitActor->FindComponentByClass<ULookAtPlayerComponent>())
-			{
-				if (!LookAtComp->IsOverlappingActor(this))
-				{
-					return;
-				}
-			}
-
-			OutHitActor = HitActor;
-			bDidHitInteractable = true;
-		}
+		return;
 	}
+
+	AActor* HitActor = HitResult.GetActor();
+	if (!HitActor || !HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+	{
+		return;
+	}
+
+	if (IInteractable* Interactable = Cast<IInteractable>(HitActor);
+		Interactable && !Interactable->CanInteract())
+	{
+		return;
+	}
+	if (!IsLineOfSightClearToActor(Start, HitActor, ActorsToIgnore))
+	{
+		return;
+	}
+	if (!IsWithinNPCInteractionRange(HitActor))
+	{
+		return;
+	}
+
+	OutHitActor = HitActor;
+	bDidHitInteractable = true;
+}
+
+bool AFirstPersonCharacter::IsLineOfSightClearToActor(const FVector& CameraLocation, AActor* Target, const TArray<AActor*>& AdditionalIgnoreActors) const
+{
+	// Trace toward the target's XY position at camera height — not to ImpactPoint
+	// (collider may poke through a wall) or actor origin (often at feet, dips into floor).
+	const FVector ActorLoc = Target->GetActorLocation();
+	const FVector LoSTarget(ActorLoc.X, ActorLoc.Y, CameraLocation.Z);
+
+	TArray<AActor*> IgnoreActors = AdditionalIgnoreActors;
+	IgnoreActors.Add(Target);
+
+	FHitResult LoSHit;
+	bool bBlocked = UKismetSystemLibrary::LineTraceSingle(
+		GetWorld(), CameraLocation, LoSTarget,
+		UEngineTypes::ConvertToTraceType(ECC_Visibility),
+		false, IgnoreActors, EDrawDebugTrace::None, LoSHit, true,
+		FLinearColor::Red, FLinearColor::Green, 0.0f);
+
+	return !bBlocked;
+}
+
+bool AFirstPersonCharacter::IsWithinNPCInteractionRange(AActor* Target) const
+{
+	// If the actor has a LookAtPlayerComponent, require the player to be inside
+	// its sphere. Actors without this component are always in range.
+	if (ULookAtPlayerComponent* LookAtComp = Target->FindComponentByClass<ULookAtPlayerComponent>())
+	{
+		return LookAtComp->IsOverlappingActor(this);
+	}
+	return true;
 }
 
 void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject* NPC)

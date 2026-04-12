@@ -109,6 +109,11 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
+bool AMovieBox::CanInteract()
+{
+	return MyCharacter && MyCharacter->IsInventoryUnlocked();
+}
+
 void AMovieBox::Interact_Implementation()
 {
 	if (!InteractionWidget || !EnvelopeMesh)

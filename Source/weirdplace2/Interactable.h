@@ -17,4 +17,8 @@ class WEIRDPLACE2_API IInteractable
 public:
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interaction")
 	void Interact();
+
+	// Return false to suppress interaction (e.g. locked, not yet available).
+	// Default returns true.
+	virtual bool CanInteract() { return true; }
 };
