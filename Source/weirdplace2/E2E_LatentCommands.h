@@ -323,6 +323,40 @@ public:
 	}
 };
 
+// Teleport to `Distance` units in front of an actor found by editor label,
+// facing it. Handy when a waypoint is too far away for the interact trace.
+class FTD_TeleportNearActorByLabel : public FTD_Base
+{
+public:
+	FTD_TeleportNearActorByLabel(FAutomationTestBase* InTest, FString InLabel, float InDistance = 200.f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting near '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearActorByLabel: no driver")); return true; }
+		AActor* Target = Driver->FindActorByLabel(Label);
+		if (!Target)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportNearActorByLabel: no actor '%s'"), *Label));
+			return true;
+		}
+		if (!Driver->TeleportNearActor(Target, Distance))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportNearActorByLabel: teleport to '%s' failed"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Distance;
+};
+
 class FTD_TeleportNearRick : public FTD_Base
 {
 public:
@@ -989,6 +1023,35 @@ public:
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 		Driver->FastForwardSenecaSmoking();
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_DumpInteractableTraceDiagnostic — one-shot call into the driver's
+// interactable-trace diagnostic dumper. Logs what the object-query trace
+// hits from the camera and enumerates every primitive component on the
+// named actor. Used by BathroomDoorTraceRepro to pinpoint why a door that
+// "looks" correctly set up is invisible to the reticle trace.
+// =======================================================================
+
+class FTD_DumpInteractableTraceDiagnostic : public FTD_Base
+{
+	FString Label;
+public:
+	FTD_DumpInteractableTraceDiagnostic(FAutomationTestBase* InTest, FString InLabel)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Dumping interact trace diagnostic for '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_DumpInteractableTraceDiagnostic: no driver")); return true; }
+		Driver->DumpInteractableTraceDiagnostic(Label);
 		return true;
 	}
 };

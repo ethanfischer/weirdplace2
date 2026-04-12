@@ -162,4 +162,45 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	return true;
 }
 
+// ===========================================================================
+// BathroomDoorTraceRepro — minimal isolation test for the beat-10 bug where
+// BathroomDoor's reticle never lights up. Skips the entire dialogue chain;
+// just teleports in front of the door, dumps a trace diagnostic, and fires
+// an interact press. Fast (< 10s) so we can iterate the fix without running
+// the full HappyPath.
+// ===========================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BathroomDoorTraceRepro,
+	"Weirdplace2.E2E.Level1.BathroomDoorTraceRepro",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== E2E TEST START === BathroomDoorTraceRepro %s"), *FDateTime::Now().ToString());
+
+	AddExpectedError(TEXT("JPEG Decompress Error"), EAutomationExpectedErrorFlags::Contains, 0);
+	AddExpectedError(TEXT("TryDecompressData failed"), EAutomationExpectedErrorFlags::Contains, 0);
+	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0);
+	AddExpectedError(TEXT("Unable to get texture source data"), EAutomationExpectedErrorFlags::Contains, 0);
+
+	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap"));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
+
+	// Skip the entire Seneca dialogue chain — we're exercising the interact
+	// trace in RaycastInteractableCheck, which does not care about IsLocked.
+	// Teleport 250u in front of the door, aim at it, dump the diagnostic, then
+	// press E so HandleInteractTriggered's existing log also fires.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BathroomDoor"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_DumpInteractableTraceDiagnostic(this, TEXT("BathroomDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Repro_BathroomDoorAim")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
