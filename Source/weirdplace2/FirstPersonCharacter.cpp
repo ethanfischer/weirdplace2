@@ -375,7 +375,7 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		AActor* HitActor = HitResult.GetActor();
 		if (HitActor && HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
-			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked())
+			if (HitActor->IsA<AMovieBox>() && !IsInventoryUnlocked()) //TODO: hacky
 			{
 				return;
 			}
