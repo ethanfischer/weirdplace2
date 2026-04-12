@@ -355,38 +355,59 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		}
 	}
 
-	FHitResult HitResult;
-	bool bHit = UKismetSystemLibrary::LineTraceSingleForObjects(
+	TArray<FHitResult> HitResults;
+	bool bHit = UKismetSystemLibrary::LineTraceMultiForObjects(
 		this, Start, End, ObjectTypes,
-		false, ActorsToIgnore, EDrawDebugTrace::None, HitResult, true);
+		false, ActorsToIgnore, EDrawDebugTrace::None, HitResults, true);
 
-	if (!bHit || !HitResult.bBlockingHit)
-	{
-		return;
-	}
-
-	AActor* HitActor = HitResult.GetActor();
-	if (!HitActor || !HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+	if (!bHit)
 	{
 		return;
 	}
 
-	if (IInteractable* Interactable = Cast<IInteractable>(HitActor);
-		Interactable && !Interactable->CanInteract())
+	for (const FHitResult& HitResult : HitResults)
 	{
-		return;
-	}
-	if (!IsLineOfSightClearToActor(Start, HitActor, ActorsToIgnore))
-	{
-		return;
-	}
-	if (!IsWithinNPCInteractionRange(HitActor))
-	{
-		return;
-	}
+		if (!HitResult.bBlockingHit)
+		{
+			continue;
+		}
 
-	OutHitActor = HitActor;
-	bDidHitInteractable = true;
+		AActor* HitActor = HitResult.GetActor();
+		if (!HitActor)
+		{
+			continue;
+		}
+
+		if (!HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
+		{
+			// Non-interactable solid geometry (wall, furniture) — stop searching.
+			return;
+		}
+
+		if (IInteractable* Interactable = Cast<IInteractable>(HitActor);
+			Interactable && !Interactable->CanInteract())
+		{
+			continue;
+		}
+		// NPC-specific checks: LoS (prevents through-wall capsule interaction)
+		// and range (LookAtPlayerComponent sphere). Only apply to actors that
+		// have a LookAtPlayerComponent — doors/props don't need these.
+		if (HitActor->FindComponentByClass<ULookAtPlayerComponent>())
+		{
+			if (!IsLineOfSightClearToActor(Start, HitActor, ActorsToIgnore))
+			{
+				continue;
+			}
+			if (!IsWithinNPCInteractionRange(HitActor))
+			{
+				continue;
+			}
+		}
+
+		OutHitActor = HitActor;
+		bDidHitInteractable = true;
+		return;
+	}
 }
 
 bool AFirstPersonCharacter::IsLineOfSightClearToActor(const FVector& CameraLocation, AActor* Target, const TArray<AActor*>& AdditionalIgnoreActors) const
