@@ -139,18 +139,23 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	// --- Step 10: Open Bathroom door and enter ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 
-	// --- Step 11: Walk into bathroom stall (placeholder — no stall logic yet) ---
+	// --- Step 11: Walk into bathroom stall ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("ApproachStall")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
-	// TODO: lerp toward BP_TeleportTriggerBox_ToOasis once stall-entry logic lands.
 
-	// --- Step 12: Exit bathroom (placeholder — no exit door wired up yet) ---
-	// TODO: replace with look-at + interact on the exit door once it exists.
+	// --- Step 12: Exit bathroom 
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("OasisDoor"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_BathroomDoorOpen")));
+	
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_21_Done")));
 
 	// --- Final assertion ---
@@ -195,6 +200,45 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Repro_BathroomDoorAim")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// ===========================================================================
+// BathroomLerp — isolated test for steps 11-12 (lerp into stall, exit
+// bathroom). Teleports to EmployeeBathroom, opens the door, then runs
+// the stall/oasis lerp sequence.
+// ===========================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BathroomLerp,
+	"Weirdplace2.E2E.Level1.BathroomLerp",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BathroomLerp::RunTest(const FString& Parameters)
+{
+	UE_LOG(LogTemp, Warning, TEXT("=== E2E TEST START === BathroomLerp %s"), *FDateTime::Now().ToString());
+
+	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0);
+
+	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap"));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
+
+	// --- Step 11: Walk into bathroom stall ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("ApproachStall")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_AtStall")));
+
+	// --- Step 12: Exit bathroom ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("OasisDoor"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_BathroomDoorOpen")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_Done")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
