@@ -194,7 +194,6 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BathroomDoor"), 250.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_DumpInteractableTraceDiagnostic(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Repro_BathroomDoorAim")));

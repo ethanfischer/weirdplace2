@@ -1028,35 +1028,6 @@ public:
 };
 
 // =======================================================================
-// FTD_DumpInteractableTraceDiagnostic — one-shot call into the driver's
-// interactable-trace diagnostic dumper. Logs what the object-query trace
-// hits from the camera and enumerates every primitive component on the
-// named actor. Used by BathroomDoorTraceRepro to pinpoint why a door that
-// "looks" correctly set up is invisible to the reticle trace.
-// =======================================================================
-
-class FTD_DumpInteractableTraceDiagnostic : public FTD_Base
-{
-	FString Label;
-public:
-	FTD_DumpInteractableTraceDiagnostic(FAutomationTestBase* InTest, FString InLabel)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Dumping interact trace diagnostic for '%s'"), *Label);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_DumpInteractableTraceDiagnostic: no driver")); return true; }
-		Driver->DumpInteractableTraceDiagnostic(Label);
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_WaitForSenecaAppearedAtSmoking — poll until Seneca has been
 // re-teleported out of the hidden below-world position back to the
 // smoking spot. Depends on the SenecaSmoking waypoint being placed so
