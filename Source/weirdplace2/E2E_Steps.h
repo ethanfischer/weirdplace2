@@ -10,7 +10,7 @@
 
 namespace E2ESteps
 {
-	void Step1_SenecaIntro(FAutomationTestBase* T)
+	void SenecaIntro(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
@@ -26,7 +26,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
 	}
 
-	void Step2_CollectMovies(FAutomationTestBase* T)
+	void CollectMovies(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("MovieShelf")));
 
@@ -46,7 +46,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_05_ThreeMoviesCollected")));
 	}
 
-	void Step3_GiveMovies(FAutomationTestBase* T)
+	void GiveMoviesToSeneca(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 
@@ -65,7 +65,7 @@ namespace E2ESteps
 		}
 	}
 
-	void Step4_GetMoney(FAutomationTestBase* T)
+	void GetMoneyFromRick(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(T));
@@ -76,7 +76,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11_GotMoney")));
 	}
 
-	void Step5_GiveMoneyGetKey(FAutomationTestBase* T)
+	void GiveMoneyGetKey(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
@@ -95,7 +95,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
 	}
 
-	void Step6_UseKey(FAutomationTestBase* T)
+	void UseKeyOnDoor(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("OutsideBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
@@ -109,12 +109,12 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16_KeyBroken")));
 	}
 
-	void Step7_FastForwardSmoking(FAutomationTestBase* T)
+	void FastForwardSenecaSmoking(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 	}
 
-	void Step8_SenecaSmoking(FAutomationTestBase* T)
+	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
@@ -124,7 +124,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
-	void Step9_SenecaHallway(FAutomationTestBase* T)
+	void SenecaHallwayDialogue(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaHallway")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(T, ESenecaState::AtEmployeeBathroom));
@@ -135,7 +135,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_SenecaDone")));
 	}
 
-	void Step10_OpenBathroomDoor(FAutomationTestBase* T)
+	void OpenBathroomDoor(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
@@ -144,14 +144,14 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 	}
 
-	void Step11_EnterStall(FAutomationTestBase* T)
+	void EnterStall(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("ApproachStall")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("Teleporter"), 2.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
 	}
 
-	void Step12_ExitBathroom(FAutomationTestBase* T)
+	void ExitBathroom(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("OasisDoor"), 2.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BathroomDoor2"), TEXT("DoorHandle")));
