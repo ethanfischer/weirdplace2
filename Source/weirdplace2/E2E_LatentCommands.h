@@ -229,6 +229,32 @@ private:
 // FTD_LookAt* — aim the camera at targets
 // =======================================================================
 
+class FTD_LookAtWaypoint : public FTD_Base
+{
+public:
+	FTD_LookAtWaypoint(FAutomationTestBase* InTest, FName InTag) : FTD_Base(InTest), Tag(InTag) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Looking at waypoint '%s'"), *Tag.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtWaypoint: no driver")); return true; }
+		ATestWaypoint* Waypoint = ATestWaypoint::FindByTag(Driver, Tag);
+		if (!Waypoint)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_LookAtWaypoint: no waypoint '%s'"), *Tag.ToString()));
+			return true;
+		}
+		return Driver->LookAt(Waypoint);
+	}
+private:
+	FName Tag;
+};
+
 class FTD_LookAtActorByLabel : public FTD_Base
 {
 public:

@@ -232,7 +232,7 @@ bool FE2E_Level1_BathroomLerp::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BathroomDoor2"), TEXT("DoorHandle")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor2")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_BathroomDoorOpen")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWaypoint(this, TEXT("OasisCenter")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_Done")));
 
