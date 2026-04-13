@@ -203,13 +203,14 @@ bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel,
 	UCameraComponent* Camera = Player->GetFirstPersonCamera();
 	if (!Camera) { return false; }
 
-	const FVector AimPoint = Found->GetComponentLocation();
+	const FVector AimPoint = Found->Bounds.Origin;
 	const FVector CamLoc = Camera->GetComponentLocation();
 	const FRotator NewRot = (AimPoint - CamLoc).GetSafeNormal().Rotation();
 	PC->SetControlRotation(NewRot);
 
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtActorComponentByName - %s.%s aim=%s rot=%s dist=%.1f"),
-		*ActorLabel, *ComponentName, *AimPoint.ToString(), *NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtActorComponentByName - %s.%s aim=%s (loc=%s) rot=%s dist=%.1f"),
+		*ActorLabel, *ComponentName, *AimPoint.ToString(), *Found->GetComponentLocation().ToString(),
+		*NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
 	return true;
 }
 

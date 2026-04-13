@@ -12,6 +12,8 @@
 
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "TestWaypoint.h"
 #include "Door.h"
 #include "MovieBox.h"
 #include "Rick.h"
@@ -1146,44 +1148,46 @@ private:
 };
 
 // =======================================================================
-// FTD_LerpToActorByLabel — smoothly noclip the player from their current
-// position to an actor's position over a given duration. Collision is
-// disabled for the move so the player passes through walls.
+// FTD_LerpTo — smoothly noclip the player from their current position
+// to a waypoint over a given duration. Collision and the movement
+// component are disabled for the move so the player passes through walls.
 // =======================================================================
 
-class FTD_LerpToActorByLabel : public FTD_Base
+class FTD_LerpTo : public FTD_Base
 {
 public:
-	FTD_LerpToActorByLabel(FAutomationTestBase* InTest, FString InLabel, float InDuration)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Duration(InDuration)
+	FTD_LerpTo(FAutomationTestBase* InTest, FName InTag, float InDuration)
+		: FTD_Base(InTest), Tag(InTag), Duration(InDuration)
 		, bInitialized(false) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Lerping to '%s' over %.1fs"), *Label, Duration);
+		return FString::Printf(TEXT("Lerping to waypoint '%s' over %.1fs"), *Tag.ToString(), Duration);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_LerpToActorByLabel: no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_LerpTo: no driver")); return true; }
 
 		AFirstPersonCharacter* Player = Driver->GetPlayer();
-		if (!Player) { Test->AddError(TEXT("FTD_LerpToActorByLabel: no player")); return true; }
+		if (!Player) { Test->AddError(TEXT("FTD_LerpTo: no player")); return true; }
 
 		if (!bInitialized)
 		{
-			AActor* Target = Driver->FindActorByLabel(Label);
-			if (!Target)
+			ATestWaypoint* Waypoint = ATestWaypoint::FindByTag(Player, Tag);
+			if (!Waypoint)
 			{
-				Test->AddError(FString::Printf(TEXT("FTD_LerpToActorByLabel: no actor '%s'"), *Label));
+				Test->AddError(FString::Printf(TEXT("FTD_LerpTo: no waypoint '%s'"), *Tag.ToString()));
 				return true;
 			}
 			StartPos = Player->GetActorLocation();
-			EndPos = Target->GetActorLocation();
+			EndPos = Waypoint->GetActorLocation();
 			// Keep player at their current Z so we walk flat, not float up/down
 			EndPos.Z = StartPos.Z;
 			Player->SetActorEnableCollision(false);
+			// Stop the movement component so it doesn't fight our position updates
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_None);
 			bInitialized = true;
 		}
 
@@ -1194,13 +1198,14 @@ public:
 		if (Alpha >= 1.f)
 		{
 			Player->SetActorEnableCollision(true);
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			return true;
 		}
 		return false;
 	}
 
 private:
-	FString Label;
+	FName Tag;
 	float Duration;
 	bool bInitialized;
 	FVector StartPos;

@@ -107,7 +107,6 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	// hit the keyhole, not the door actor's pivot.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(
 		this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(this, FName("BrokenKey"), 8.0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Key")));
@@ -120,7 +119,6 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
@@ -130,7 +128,6 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaHallway")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(this, ESenecaState::AtEmployeeBathroom));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(this, ESenecaState::Done));
@@ -145,13 +142,13 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 	// --- Step 11: Walk into bathroom stall ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("ApproachStall")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("Teleporter"), 5.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
 
 	// --- Step 12: Exit bathroom 
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("OasisDoor"), 5.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("OasisDoor"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BathroomDoor2"), TEXT("DoorHandle")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor2")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_BathroomDoorOpen")));
@@ -227,13 +224,12 @@ bool FE2E_Level1_BathroomLerp::RunTest(const FString& Parameters)
 
 	// --- Step 11: Walk into bathroom stall ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("ApproachStall")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("Teleporter"), 5.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_AtStall")));
 
 	// --- Step 12: Exit bathroom ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("OasisDoor"), 5.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpToActorByLabel(this, TEXT("Teleporter"), 5.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("OasisDoor"), 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BathroomDoor2"), TEXT("DoorHandle")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor2")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BL_BathroomDoorOpen")));
