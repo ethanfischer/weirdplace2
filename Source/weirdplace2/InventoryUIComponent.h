@@ -65,7 +65,7 @@ public:
 	// Test-only: force the selected inventory slot, bypassing reticle-driven selection.
 	// Used by the E2E TestDriver so tests can deterministically pick a slot without
 	// having to aim the camera at the world-space inventory UI.
-	void SetSelectedIndexForTest(int32 Index);
+	bool SetSelectedIndexForTest(int32 Index);
 
 protected:
 	virtual void BeginPlay() override;

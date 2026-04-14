@@ -190,8 +190,6 @@ private:
 	// Update the background panel size
 	void UpdateBackgroundSize();
 
-	// Update item counter text
-
 	// Calculate position for slot at index
 	FVector CalculateSlotPosition(int32 Index) const;
 

@@ -825,7 +825,11 @@ public:
 			return true;
 		}
 
-		Driver->LookAt(Movie);
+		if (!Driver->LookAt(Movie))
+		{
+			Test->AddError(TEXT("FTD_TeleportNearAndLookAtMovie: LookAt failed"));
+			return true;
+		}
 		return true;
 	}
 };
@@ -1215,6 +1219,14 @@ public:
 			// Stop the movement component so it doesn't fight our position updates
 			Player->GetCharacterMovement()->SetMovementMode(MOVE_None);
 			bInitialized = true;
+
+			if (Duration <= 0.f)
+			{
+				Player->SetActorLocation(EndPos, false, nullptr, ETeleportType::TeleportPhysics);
+				Player->SetActorEnableCollision(true);
+				Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+				return true;
+			}
 		}
 
 		const float Alpha = FMath::Clamp(static_cast<float>(GetElapsedSinceFirstTick()) / Duration, 0.f, 1.f);

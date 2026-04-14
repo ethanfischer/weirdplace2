@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "InputCoreTypes.h"
 #include "Subsystems/WorldSubsystem.h"
-#include "MyCharacter.h"
+enum class EPlayerActivityState : uint8;
 #include "TestDriverSubsystem.generated.h"
 
 class AFirstPersonCharacter;

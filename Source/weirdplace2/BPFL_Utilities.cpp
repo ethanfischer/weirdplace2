@@ -29,7 +29,7 @@ void UBPFL_Utilities::SetShouldLookAtPlayer(bool bValue, UObject* Player, USkele
 	if (BoolProp)
 	{
 		BoolProp->SetPropertyValue_InContainer(AnimInstance, bValue);
-		UE_LOG(LogTemp, Log, TEXT("SetShouldLookAtPlayer: set to %d on '%s'"), bValue, *Mesh->GetOwner()->GetName());
+		UE_LOG(LogTemp, Log, TEXT("SetShouldLookAtPlayer: set to %d on '%s'"), bValue, Mesh->GetOwner() ? *Mesh->GetOwner()->GetName() : TEXT("null"));
 	}
 	else
 	{

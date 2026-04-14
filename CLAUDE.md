@@ -1,7 +1,7 @@
 # CLAUDE.md
 ## Project Overview
 
-Weirdplace2 is an Unreal Engine 5.4 first-person exploration game, eventually hoping to run in VR 
+Weirdplace2 is an Unreal Engine 5.4 first-person exploration game targeting VR 
 
 ## Build Commands
 

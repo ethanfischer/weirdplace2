@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TriggerBox.h"
-#include "Engine/TargetPoint.h"
+class ATargetPoint;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()

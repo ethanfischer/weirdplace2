@@ -324,7 +324,7 @@ void UTestDriverSubsystem::FastForwardSenecaSmoking()
 
 bool UTestDriverSubsystem::HasSenecaAppearedAtSmokingPos() const
 {
-	ASeneca* Seneca = const_cast<UTestDriverSubsystem*>(this)->FindSeneca();
+	ASeneca* Seneca = FindSeneca();
 	// OnKeyDropped teleports Seneca to Z=-100000; "appeared" means she's been
 	// re-teleported by Tick back to SmokingPositionTarget (above ground).
 	return Seneca && Seneca->GetActorLocation().Z > -50000.0;
@@ -464,7 +464,11 @@ bool UTestDriverSubsystem::SetSelectedSlot(int32 Index)
 		return false;
 	}
 
-	UI->SetSelectedIndexForTest(Index);
+	if (!UI->SetSelectedIndexForTest(Index))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TestDriver::SetSelectedSlot - index %d out of range"), Index);
+		return false;
+	}
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::SetSelectedSlot - index %d"), Index);
 	return true;
 }

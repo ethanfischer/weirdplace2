@@ -1,4 +1,5 @@
 #include "TeleportTriggerBox.h"
+#include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
