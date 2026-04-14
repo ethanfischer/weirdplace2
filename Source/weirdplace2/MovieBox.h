@@ -26,8 +26,9 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	// IBPI_Interactable implementation
+	// IInteractable implementation
 	virtual void Interact_Implementation() override;
+	virtual bool CanInteract() override;
 
 	void CollectInspectedSubitem();
 	void RotateInspectedActor(float AxisValue);

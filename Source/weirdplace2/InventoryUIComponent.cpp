@@ -404,6 +404,24 @@ void UInventoryUIComponent::UnfreezePlayerMovement()
 	}
 }
 
+bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
+{
+	const int32 TotalSlots = GridColumns * GridRows;
+	if (Index < 0 || Index >= TotalSlots)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SetSelectedIndexForTest - index %d out of range [0, %d)"), Index, TotalSlots);
+		return false;
+	}
+
+	SelectedIndex = Index;
+	bReticleOverGrid = true;
+	if (InventoryUIActor)
+	{
+		InventoryUIActor->SetSelectedIndex(SelectedIndex);
+	}
+	return true;
+}
+
 void UInventoryUIComponent::UpdateReticleSelection()
 {
 	int32 NewIndex = CalculateSlotFromReticle();

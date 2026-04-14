@@ -34,35 +34,16 @@ AInventoryUIActor::AInventoryUIActor()
 	BackgroundPanel->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, 0.0f)); // Slightly behind everything
 
-	// Create item name text
-	ItemNameText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemNameText"));
-	ItemNameText->SetupAttachment(RootSceneComponent);
-	ItemNameText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
-	ItemNameText->SetWorldSize(3.0f);
-	ItemNameText->SetTextRenderColor(FColor::White);
-	ItemNameText->SetHorizontalAlignment(EHTA_Left);
-	ItemNameText->SetVerticalAlignment(EVRTA_TextCenter);
-	ItemNameText->SetText(FText::GetEmpty());
-
 	// Create top item name text (same content as bottom label)
 	ItemNameTextTop = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemNameTextTop"));
 	ItemNameTextTop->SetupAttachment(RootSceneComponent);
 	ItemNameTextTop->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	ItemNameTextTop->SetWorldSize(3.0f);
 	ItemNameTextTop->SetTextRenderColor(FColor::White);
-	ItemNameTextTop->SetHorizontalAlignment(EHTA_Left);
+	ItemNameTextTop->SetHorizontalAlignment(EHTA_Center);
 	ItemNameTextTop->SetVerticalAlignment(EVRTA_TextCenter);
 	ItemNameTextTop->SetText(FText::GetEmpty());
 
-	// Create item counter text
-	ItemCounterText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ItemCounterText"));
-	ItemCounterText->SetupAttachment(RootSceneComponent);
-	ItemCounterText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
-	ItemCounterText->SetWorldSize(2.5f);
-	ItemCounterText->SetTextRenderColor(FColor(180, 180, 180));
-	ItemCounterText->SetHorizontalAlignment(EHTA_Right);
-	ItemCounterText->SetVerticalAlignment(EVRTA_TextCenter);
-	ItemCounterText->SetText(FText::GetEmpty());
 }
 
 void AInventoryUIActor::BeginPlay()
@@ -125,7 +106,6 @@ void AInventoryUIActor::RefreshDisplay()
 	CreateThumbnails();
 	UpdateBackgroundSize();
 	UpdateSelectionHighlight();
-	UpdateItemCounter();
 }
 
 void AInventoryUIActor::SetOpacity(float Opacity)
@@ -172,13 +152,6 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 	}
 
 	// Update text opacity
-	if (ItemNameText)
-	{
-		FColor TextColor = FColor::White;
-		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
-		ItemNameText->SetTextRenderColor(TextColor);
-	}
-
 	if (ItemNameTextTop)
 	{
 		FColor TextColor = FColor::White;
@@ -186,12 +159,6 @@ void AInventoryUIActor::SetOpacity(float Opacity)
 		ItemNameTextTop->SetTextRenderColor(TextColor);
 	}
 
-	if (ItemCounterText)
-	{
-		FColor TextColor = FColor(180, 180, 180);
-		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
-		ItemCounterText->SetTextRenderColor(TextColor);
-	}
 }
 
 void AInventoryUIActor::CreateSlots()
@@ -485,14 +452,34 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 		ActiveItemText = FText::FromString(ItemName);
 	}
 
-	// Update both bottom and top labels
-	if (ItemNameText)
-	{
-		ItemNameText->SetText(ActiveItemText);
-	}
 	if (ItemNameTextTop)
 	{
-		ItemNameTextTop->SetText(ActiveItemText);
+		// Word-wrap long titles to fit above the grid
+		const int32 MaxLineLength = 20;
+		FString RawText = ActiveItemText.ToString();
+		FString WrappedText;
+		int32 CurrentLineLength = 0;
+
+		TArray<FString> Words;
+		RawText.ParseIntoArray(Words, TEXT(" "), true);
+
+		for (int32 i = 0; i < Words.Num(); i++)
+		{
+			if (CurrentLineLength > 0 && CurrentLineLength + 1 + Words[i].Len() > MaxLineLength)
+			{
+				WrappedText += TEXT("\n");
+				CurrentLineLength = 0;
+			}
+			else if (CurrentLineLength > 0)
+			{
+				WrappedText += TEXT(" ");
+				CurrentLineLength += 1;
+			}
+			WrappedText += Words[i];
+			CurrentLineLength += Words[i].Len();
+		}
+
+		ItemNameTextTop->SetText(FText::FromString(WrappedText));
 	}
 
 	// Update active item border
@@ -550,32 +537,13 @@ void AInventoryUIActor::UpdateBackgroundSize()
 	float TextY = -GridW * 0.5f + 2.0f;
 	float TextZ = -GridH * 0.5f - BackgroundPadding - 2.0f;
 
-	if (ItemNameText)
-	{
-		ItemNameText->SetRelativeLocation(FVector(0.0f, TextY, TextZ));
-	}
-
 	if (ItemNameTextTop)
 	{
 		const float TopTextZ = GridH * 0.5f + BackgroundPadding + 2.0f;
-		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, TextY, TopTextZ));
+		ItemNameTextTop->SetHorizontalAlignment(EHTA_Center);
+		ItemNameTextTop->SetRelativeLocation(FVector(0.0f, 0.0f, TopTextZ));
 	}
 
-	if (ItemCounterText)
-	{
-		ItemCounterText->SetRelativeLocation(FVector(0.0f, -TextY, TextZ));
-	}
-}
-
-void AInventoryUIActor::UpdateItemCounter()
-{
-	if (!ItemCounterText) return;
-
-	int32 CollectedCount = InventoryComponent ? InventoryComponent->GetItemCount() : 0;
-	int32 TotalSlots = GetTotalSlots();
-
-	FString CounterText = FString::Printf(TEXT("%d/%d"), CollectedCount, TotalSlots);
-	ItemCounterText->SetText(FText::FromString(CounterText));
 }
 
 FVector AInventoryUIActor::CalculateSlotPosition(int32 Index) const

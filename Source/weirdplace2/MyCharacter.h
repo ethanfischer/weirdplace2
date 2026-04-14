@@ -35,7 +35,6 @@ protected:
 
 public:
 	virtual void Tick(float DeltaTime) override;
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
@@ -90,7 +89,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UHeldItemComponent* HeldItemComponent;
-
-	// Input callback for Tab key - toggle inventory UI
-	void OnToggleInventory();
 };

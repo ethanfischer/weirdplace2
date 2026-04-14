@@ -18,10 +18,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Crosshair")
 	void ShowInteractableCrosshair();
 
+	UFUNCTION(BlueprintCallable, Category = "Crosshair")
+	void ShowDialogueCrosshair();
+
 protected:
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UImage* CrosshairImage;
 
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UImage* InteractableImage;
+
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidgetOptional))
+	UImage* DialogueImage;
 };

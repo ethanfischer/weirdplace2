@@ -10,6 +10,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
+#if WITH_EDITOR
+#include "Settings/LevelEditorPlaySettings.h"
+#endif
+
 UCarRideComponent::UCarRideComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
@@ -20,15 +24,30 @@ void UCarRideComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Poll until the player pawn is the right type, then start the ride
+	bool bSkipRide = false;
+#if WITH_EDITOR
+	if (const ULevelEditorPlaySettings* PlaySettings = GetDefault<ULevelEditorPlaySettings>())
+	{
+		bSkipRide = PlaySettings->LastExecutedPlayModeLocation == PlayLocation_CurrentCameraLocation;
+	}
+#endif
+
+	// Poll until the player pawn is the right type, then start (or skip) the ride
 	GetWorld()->GetTimerManager().SetTimer(
 		DialogueStartTimerHandle,
-		FTimerDelegate::CreateWeakLambda(this, [this]()
+		FTimerDelegate::CreateWeakLambda(this, [this, bSkipRide]()
 		{
 			APlayerController* PC = GetWorld()->GetFirstPlayerController();
 			if (PC && Cast<AFirstPersonCharacter>(PC->GetPawn()))
 			{
-				StartRide();
+				if (bSkipRide)
+				{
+					SkipRide();
+				}
+				else
+				{
+					StartRide();
+				}
 			}
 		}),
 		0.1f,
@@ -124,6 +143,34 @@ void UCarRideComponent::StartRide()
 
 }
 
+void UCarRideComponent::SkipRide()
+{
+	GetWorld()->GetTimerManager().ClearTimer(DialogueStartTimerHandle);
+	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: Skipping car ride (Spawn At Camera Location)"));
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipRide - No player"));
+		return;
+	}
+
+	if (UBladderUrgencyComponent* BladderComp = Player->FindComponentByClass<UBladderUrgencyComponent>())
+	{
+		BladderComp->StartUrgency();
+	}
+
+	if (Rick)
+	{
+		Rick->AppearOutside();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipRide - Rick is null"));
+	}
+}
+
 void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -159,12 +206,15 @@ void UCarRideComponent::StartDialogue()
 	// Rick may be a child of GasStationRoot and was hidden with it — make him visible now
 	Rick->SetActorHiddenInGame(false);
 
-	// Move dialogue widget to windshield target so player can see it from passenger seat
+	// Move dialogue widget to windshield target so player can see it from passenger seat.
+	// Cache the original relative transform so we can restore it after the ride ends.
 	if (DialogueWidgetTarget && Rick->DialogueWidgetComponent)
 	{
 		AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();
-		if (WidgetActor)
+		if (WidgetActor && WidgetActor->GetRootComponent())
 		{
+			CachedWidgetRelativeLocation = WidgetActor->GetRootComponent()->GetRelativeLocation();
+			CachedWidgetRelativeRotation = WidgetActor->GetRootComponent()->GetRelativeRotation();
 			WidgetActor->SetActorLocationAndRotation(
 				DialogueWidgetTarget->GetActorLocation(),
 				DialogueWidgetTarget->GetActorRotation()
@@ -195,6 +245,9 @@ void UCarRideComponent::StartDialogue()
 
 void UCarRideComponent::OnDialogueEnded()
 {
+	// Unbind so future Rick dialogues (money, idle) don't re-trigger the car-ride end sequence
+	Rick->OnRickDialogueEnded.RemoveDynamic(this, &UCarRideComponent::OnDialogueEnded);
+
 	// Disable interaction again during post-dialogue ride
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC)
@@ -223,7 +276,7 @@ void UCarRideComponent::OnDialogueEnded()
 
 void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
 {
-	if (LineIndex != BladderPulseLineIndex)
+	if (!Rick || Rick->BladderPulseLineIndex == INDEX_NONE || LineIndex != Rick->BladderPulseLineIndex)
 	{
 		return;
 	}
@@ -396,4 +449,22 @@ void UCarRideComponent::OnFadeOutComplete()
 		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeDuration, FLinearColor::Black, false, false);
 	}
 
+	if (Rick)
+	{
+		// Restore widget to its original relative position and ensure it's closed
+		if (Rick->DialogueWidgetComponent)
+		{
+			AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();
+			if (WidgetActor && WidgetActor->GetRootComponent())
+			{
+				WidgetActor->GetRootComponent()->SetRelativeLocation(CachedWidgetRelativeLocation);
+				WidgetActor->GetRootComponent()->SetRelativeRotation(CachedWidgetRelativeRotation);
+			}
+			if (UUI_Dialogue* DialogueWidget = Cast<UUI_Dialogue>(Rick->DialogueWidgetComponent->GetWidget()))
+			{
+				DialogueWidget->Close();
+			}
+		}
+		Rick->AppearOutside();
+	}
 }

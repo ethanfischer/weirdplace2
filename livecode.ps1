@@ -1,6 +1,9 @@
 Add-Type -AssemblyName System.Windows.Forms
 $proc = Get-Process UnrealEditor -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $proc) { Write-Host 'UnrealEditor not running'; exit 1 }
+# Clean up rotated log backups from prior sessions — the active log is held
+# open by UnrealEditor and can't be truncated while the editor is running.
+Remove-Item "$PSScriptRoot\Saved\Logs\weirdplace2-backup-*.log" -ErrorAction SilentlyContinue
 Add-Type @'
 using System;
 using System.Runtime.InteropServices;

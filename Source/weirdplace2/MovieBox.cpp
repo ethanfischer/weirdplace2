@@ -20,10 +20,24 @@ void AMovieBox::BeginPlay()
 {
 	Super::BeginPlay();
 
-	InteractionWidget = Cast<UWidgetComponent>(GetDefaultSubobjectByName(TEXT("InteractionText")));
+	// GetDefaultSubobjectByName doesn't reliably find Blueprint SCS-added components,
+	// so iterate the actor's component list by name like we do for CantCarryWidget below.
+	TArray<UWidgetComponent*> AllWidgets;
+	GetComponents<UWidgetComponent>(AllWidgets);
+	for (UWidgetComponent* Comp : AllWidgets)
+	{
+		if (Comp->GetFName() == TEXT("InteractionText"))
+		{
+			InteractionWidget = Comp;
+			break;
+		}
+	}
 	if (!InteractionWidget)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Interaction Widget component not found!"));
+		// BP_Spawner1 is parented to BP_MovieBox but doesn't have an InteractionText widget —
+		// it shouldn't inherit from MovieBox at all, but until that's fixed in the editor we
+		// bail out here so the spawner doesn't run the rest of MovieBox::BeginPlay.
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: InteractionText widget not found"), *GetName());
 		return;
 	}
 
@@ -95,8 +109,18 @@ void AMovieBox::Tick(float DeltaTime)
 
 }
 
+bool AMovieBox::CanInteract()
+{
+	return MyCharacter && MyCharacter->IsInventoryUnlocked();
+}
+
 void AMovieBox::Interact_Implementation()
 {
+	if (!InteractionWidget || !EnvelopeMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: Interact called with missing components — BeginPlay failed to initialize"), *GetName());
+		return;
+	}
 	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
 	{
 		return;
@@ -158,6 +182,11 @@ void AMovieBox::Interact_Implementation()
 
 void AMovieBox::CollectInspectedSubitem()
 {
+	if (!InteractionWidget || !EnvelopeMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: CollectInspectedSubitem called with missing components"), *GetName());
+		return;
+	}
 	if (DidCollectSubitem) return;
 
 	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
@@ -191,7 +220,6 @@ void AMovieBox::CollectInspectedSubitem()
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectSubitem = true;
-	GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Red, FString::Printf(TEXT("Collected subitem")));
 
 	// Get cover name from actor name (strip suffix)
 	FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();

@@ -6,24 +6,34 @@ void UBPFL_Utilities::SetShouldLookAtPlayer(bool bValue, UObject* Player, USkele
 {
 	if (!Mesh)
 	{
+		UE_LOG(LogTemp, Error, TEXT("SetShouldLookAtPlayer: Mesh is null"));
 		return;
 	}
 
 	UAnimInstance* AnimInstance = Mesh->GetAnimInstance();
 	if (!AnimInstance)
 	{
+		UE_LOG(LogTemp, Error, TEXT("SetShouldLookAtPlayer: No AnimInstance on mesh '%s' (owner: '%s')"),
+			*Mesh->GetName(), Mesh->GetOwner() ? *Mesh->GetOwner()->GetName() : TEXT("null"));
 		return;
 	}
 
-	// Set the boolean property on the animation blueprint
-	// The property name "ShouldLookAtPlayer" should match what's defined in the anim BP
 	UClass* AnimClass = AnimInstance->GetClass();
-	if (AnimClass)
+	if (!AnimClass)
 	{
-		FBoolProperty* BoolProp = FindFProperty<FBoolProperty>(AnimClass, TEXT("ShouldLookAtPlayer"));
-		if (BoolProp)
-		{
-			BoolProp->SetPropertyValue_InContainer(AnimInstance, bValue);
-		}
+		UE_LOG(LogTemp, Error, TEXT("SetShouldLookAtPlayer: AnimClass is null"));
+		return;
+	}
+
+	FBoolProperty* BoolProp = FindFProperty<FBoolProperty>(AnimClass, TEXT("ShouldLookAtPlayer"));
+	if (BoolProp)
+	{
+		BoolProp->SetPropertyValue_InContainer(AnimInstance, bValue);
+		UE_LOG(LogTemp, Log, TEXT("SetShouldLookAtPlayer: set to %d on '%s'"), bValue, Mesh->GetOwner() ? *Mesh->GetOwner()->GetName() : TEXT("null"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found on anim class '%s' (mesh owner: '%s')"),
+			*AnimClass->GetName(), Mesh->GetOwner() ? *Mesh->GetOwner()->GetName() : TEXT("null"));
 	}
 }

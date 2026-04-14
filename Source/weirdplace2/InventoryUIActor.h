@@ -54,17 +54,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* BackgroundPanel;
 
-	// Text component for item name
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UTextRenderComponent* ItemNameText;
-
 	// Text component for item name (top label)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UTextRenderComponent* ItemNameTextTop;
-
-	// Text component for item counter (e.g., "3/12")
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UTextRenderComponent* ItemCounterText;
 
 	// Size of each thumbnail
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
@@ -132,8 +124,8 @@ private:
 
 	int32 SelectedIndex = 0;
 	int32 PreviousSelectedIndex = -1;
-	int32 GridColumns = 4;
-	int32 GridRows = 3;
+	int32 GridColumns = 3;
+	int32 GridRows = 1;
 	float CurrentOpacity = 1.0f;
 
 	// Hover animation progress (0 = not hovered, 1 = fully hovered)
@@ -197,9 +189,6 @@ private:
 
 	// Update the background panel size
 	void UpdateBackgroundSize();
-
-	// Update item counter text
-	void UpdateItemCounter();
 
 	// Calculate position for slot at index
 	FVector CalculateSlotPosition(int32 Index) const;

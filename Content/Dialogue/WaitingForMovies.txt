@@ -1,4 +1,4 @@
 You need the bathroom?
-You'll have to buy 3 movies first
-Here, take this
+You'll have to rent 3 *Rhetoric Bricks* first
+Here, use this to hold on to them
 Press [[InventoryButton]] to use it

@@ -27,7 +27,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = TimedTeleport)
 	FRotator TeleportRotation;
 private:
-	float Timer;
+	float Timer = 0.f;
 
 public:	
 	// Called every frame
