@@ -196,6 +196,20 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Door")
 	ADoor* EmployeeBathroomDoor;
 
+	// --- Counter Stack ---
+
+	// Position marker for where the first movie goes on the counter (assign on level instance)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Counter")
+	AActor* CounterStackPosition;
+
+	// Vertical offset per stacked movie (Unreal units, applied along marker's up vector)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Counter")
+	float MovieStackHeight = 4.0f;
+
+	// Relative rotation applied to each spawned movie mesh (use to correct authoring-axis mismatch)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Counter")
+	FRotator MovieRelativeRotation = FRotator::ZeroRotator;
+
 	// --- Basket Beat Config ---
 
 	// Pre-placed ShoppingBasket actor in the level — shown on beat, hidden on next E press
@@ -234,6 +248,13 @@ private:
 	// Movies captured during WaitingForMoviePurchase so they can be returned in ReadyToGiveKey.
 	UPROPERTY()
 	TArray<FInventoryItemData> TakenMovies;
+
+	// Spawned visual props for movies stacked on the counter
+	UPROPERTY()
+	TArray<AActor*> CounterMovieActors;
+
+	void PlaceMovieOnCounter(const FInventoryItemData& MovieData);
+	void ClearCounterMovies();
 
 	// Reminder lines for re-interactions within a state
 	TArray<FText> WaitingForMoviesReminderLines;
