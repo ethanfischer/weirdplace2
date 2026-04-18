@@ -4,6 +4,7 @@
 #include "InventoryUIComponent.h"
 #include "MovieBox.h"
 #include "PropActor.h"
+#include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
 #include "TestWaypoint.h"
@@ -307,6 +308,32 @@ ARick* UTestDriverSubsystem::FindRick() const
 		return *It;
 	}
 	return nullptr;
+}
+
+AHudson* UTestDriverSubsystem::FindHudson() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	for (TActorIterator<AHudson> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::LookAtHudson()
+{
+	AHudson* Hudson = FindHudson();
+	if (!Hudson)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtHudson - no AHudson in level"));
+		return false;
+	}
+	return LookAt(Hudson);
 }
 
 // --- Seneca test helpers ---

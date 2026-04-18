@@ -65,4 +65,48 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// DialogueCooldown — verify the 2-second post-dialogue interaction
+// cooldown prevents re-triggering dialogue when spamming E, and that
+// interaction works again after the cooldown expires.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_DialogueCooldown,
+	"Weirdplace2.E2E.Level1.DialogueCooldown",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_DialogueCooldown::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("DialogueCooldown")
+
+	// Approach Hudson and start his idle dialogue
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearHudson(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtHudson(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+
+	// Advance dialogue to completion
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	// Immediately try to interact again — cooldown should block it
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActivityState(this, EPlayerActivityState::FreeRoaming));
+
+	// Wait for the 2-second cooldown to expire
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f));
+
+	// Now interaction should work again
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtHudson(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+
+	// Cleanup — finish the dialogue
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

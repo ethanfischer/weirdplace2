@@ -16,6 +16,7 @@
 #include "TestWaypoint.h"
 #include "Door.h"
 #include "MovieBox.h"
+#include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
 #include "Engine/Engine.h"
@@ -1248,6 +1249,88 @@ private:
 	bool bInitialized;
 	FVector StartPos;
 	FVector EndPos;
+};
+
+// =======================================================================
+// FTD_TeleportNearHudson
+// =======================================================================
+
+class FTD_TeleportNearHudson : public FTD_Base
+{
+public:
+	FTD_TeleportNearHudson(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting near Hudson"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearHudson: no driver")); return true; }
+		AHudson* Hudson = Driver->FindHudson();
+		if (!Hudson) { Test->AddError(TEXT("FTD_TeleportNearHudson: no Hudson")); return true; }
+		if (!Driver->TeleportNearActor(Hudson, 200.f))
+		{
+			Test->AddError(TEXT("FTD_TeleportNearHudson: teleport failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_LookAtHudson
+// =======================================================================
+
+class FTD_LookAtHudson : public FTD_Base
+{
+public:
+	FTD_LookAtHudson(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at Hudson"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtHudson: no driver")); return true; }
+		if (!Driver->LookAtHudson())
+		{
+			Test->AddError(TEXT("FTD_LookAtHudson: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AssertActivityState — instant assertion (NOT a wait). Fails the
+// test if the current state doesn't match Expected.
+// =======================================================================
+
+class FTD_AssertActivityState : public FTD_Base
+{
+public:
+	FTD_AssertActivityState(FAutomationTestBase* InTest, EPlayerActivityState InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting activity state == %d"), (int32)Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActivityState: no driver")); return true; }
+
+		EPlayerActivityState Actual = Driver->GetActivityState();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertActivityState: expected state %d but got %d"),
+				(int32)Expected, (int32)Actual));
+		}
+		return true;
+	}
+private:
+	EPlayerActivityState Expected;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

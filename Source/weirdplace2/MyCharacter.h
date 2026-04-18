@@ -42,6 +42,7 @@ public:
 	void SetActivityState(EPlayerActivityState NewState);
 	EPlayerActivityState GetActivityState() const { return ActivityState; }
 	bool IsInAnyDialogue() const;
+	bool IsDialogueCooldownActive() const;
 
 	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
@@ -77,6 +78,8 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", meta = (AllowPrivateAccess = "true"))
 	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
+
+	double LastDialogueEndTime = 0.0;
 
 	bool bInventoryUnlocked = false;
 	bool bMovieCollectionLocked = false;

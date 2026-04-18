@@ -52,7 +52,16 @@ void AMyCharacter::SetCanInteract(bool value)
 
 void AMyCharacter::SetActivityState(EPlayerActivityState NewState)
 {
+	if (IsInAnyDialogue() && NewState == EPlayerActivityState::FreeRoaming)
+	{
+		LastDialogueEndTime = GetWorld()->GetTimeSeconds();
+	}
 	ActivityState = NewState;
+}
+
+bool AMyCharacter::IsDialogueCooldownActive() const
+{
+	return GetWorld()->GetTimeSeconds() - LastDialogueEndTime < 1.0;
 }
 
 bool AMyCharacter::IsInAnyDialogue() const

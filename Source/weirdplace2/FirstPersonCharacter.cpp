@@ -115,6 +115,12 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 		{
 			CrosshairWidget->ShowDialogueCrosshair();
 		}
+		else if (IsDialogueCooldownActive())
+		{
+			// Suppress interactable reticle during post-dialogue cooldown so the
+			// player isn't misled into thinking another E press will do anything.
+			CrosshairWidget->ShowNormalCrosshair();
+		}
 		else
 		{
 			bool bShouldShowInteractable = false;
@@ -241,7 +247,7 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 
 	// Check if we can interact
-	if (!GetCanInteract())
+	if (!GetCanInteract() || IsDialogueCooldownActive())
 	{
 		return;
 	}
