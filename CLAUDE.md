@@ -86,6 +86,23 @@ Use `grep` to search for relevant lines:
 grep -n "MyKeyword\|OtherKeyword" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/weirdplace2.log" | tail -80
 ```
 
+## E2E Testing
+
+Run E2E tests with `run_e2e.ps1` (uses a separate log file so it works while the editor is open):
+```bash
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1              # runs HappyPath
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName DialogueCooldown
+```
+
+Output is concise: `PASS` or `FAIL` + any errors. Run with `run_in_background` since tests take 2-5 minutes.
+
+The test log is at `Saved/Logs/E2ETest.log`. To dig into failures:
+```bash
+grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/E2ETest.log" | tail -40
+```
+
+Available tests: `HappyPath`, `BathroomDoorTraceRepro`, `DialogueCooldown`
+
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
