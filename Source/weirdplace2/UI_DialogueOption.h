@@ -4,7 +4,6 @@
 #include "Blueprint/UserWidget.h"
 #include "UI_DialogueOption.generated.h"
 
-class UDlgContext;
 class UTextBlock;
 
 UCLASS()
@@ -13,9 +12,6 @@ class WEIRDPLACE2_API UUI_DialogueOption : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "Dialogue")
-	void Update(UDlgContext* Context);
-
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void Highlight(UTextBlock* TextBlock);
 

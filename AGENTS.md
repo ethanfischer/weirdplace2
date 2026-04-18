@@ -4,12 +4,6 @@ This file provides guidance to Agents when working with code in this repository.
 
 Weirdplace2 is an Unreal Engine 5.4 first-person exploration game centered around collecting randomized VHS boxes with procedurally-generated cover art. Windows is the primary platform.
 
-**Required Plugin Setup:** Clone DlgSystem into Plugins folder before opening:
-```
-cd Plugins
-git clone -b UpgradeTo5.1 https://github.com/NotYetGames/DlgSystem.git
-```
-
 ## Build Commands
 
 **Live Coding (Ctrl+Alt+F11 in UE Editor)** - use for:

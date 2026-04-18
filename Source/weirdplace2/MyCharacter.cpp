@@ -67,8 +67,7 @@ bool AMyCharacter::IsDialogueCooldownActive() const
 bool AMyCharacter::IsInAnyDialogue() const
 {
 	return ActivityState == EPlayerActivityState::InSimpleDialogue
-		|| ActivityState == EPlayerActivityState::InMultiSpeakerDialogue
-		|| ActivityState == EPlayerActivityState::InDlgDialogue;
+		|| ActivityState == EPlayerActivityState::InDialogue;
 }
 
 void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)

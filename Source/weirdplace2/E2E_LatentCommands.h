@@ -618,7 +618,7 @@ public:
 
 		const bool bInDialogue =
 			State == EPlayerActivityState::InSimpleDialogue ||
-			State == EPlayerActivityState::InMultiSpeakerDialogue;
+			State == EPlayerActivityState::InDialogue;
 
 		if (!bInDialogue)
 		{

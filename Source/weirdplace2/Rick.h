@@ -30,7 +30,7 @@ public:
 	// Start the car ride dialogue on the player character
 	void StartDialogue();
 
-	// Called by FirstPersonCharacter when multi-speaker dialogue ends
+	// Called by FirstPersonCharacter when dialogue ends
 	void OnDialogueEnded();
 
 	// IInteractable

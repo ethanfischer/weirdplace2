@@ -4,6 +4,7 @@
 [ ] cash needs inventory thumbnail
 [ ] rick comes inside randomly and just repeats the same line
 [ ] "Rick: I'll meet you inside"
+[ ] remove dlgsystem and multispeaker
 [ ] improve movie pickup
     [ ] don't have to turn to take
     [ ] tell player what button to put back

@@ -18,9 +18,8 @@ enum class EPlayerActivityState : uint8
 	FreeRoaming            UMETA(DisplayName = "Free Roaming"),
 	Interacting            UMETA(DisplayName = "Interacting"),
 	InSimpleDialogue       UMETA(DisplayName = "In Simple Dialogue"),
-	InMultiSpeakerDialogue                  UMETA(DisplayName = "In Multi-Speaker Dialogue"),
-	WaitingForItemInteractionInDialogue     UMETA(DisplayName = "Waiting For Item Interaction In Dialogue"),
-	InDlgDialogue                           UMETA(DisplayName = "In Dlg Dialogue")
+	InDialogue                              UMETA(DisplayName = "In Dialogue"),
+	WaitingForItemInteractionInDialogue     UMETA(DisplayName = "Waiting For Item Interaction In Dialogue")
 };
 
 UCLASS()

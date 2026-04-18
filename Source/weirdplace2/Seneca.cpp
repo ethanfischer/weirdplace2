@@ -9,7 +9,6 @@
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "DlgSystem/DlgContext.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Misc/FileHelper.h"
@@ -36,7 +35,7 @@ void ASeneca::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UE_LOG(LogTemp, Log, TEXT("Seneca::BeginPlay - Participant name: '%s'"), *GetParticipantName_Implementation().ToString());
+	UE_LOG(LogTemp, Log, TEXT("Seneca::BeginPlay"));
 
 	// Find the dialogue widget component - it's inside a Child Actor Component
 	TArray<UChildActorComponent*> ChildActorComponents;
@@ -639,7 +638,7 @@ void ASeneca::StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar)
 
 	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnBasketDialogueLineShown);
 	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnBasketDialogueLineShown);
-	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
+	FPChar->StartDialogue(MultiLines, this);
 }
 
 void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
@@ -665,7 +664,7 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
 		bBasketBeatArmed = true;
-		FPChar->bBlockNextMultiSpeakerAdvance = true;
+		FPChar->bBlockNextDialogueAdvance = true;
 		return;
 	}
 
@@ -700,8 +699,8 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 			{
 				UGameplayStatics::PlaySound2D(FPC->GetWorld(), Inv->CollectSound);
 			}
-			FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
-			FPC->AdvanceMultiSpeakerDialogue();
+			FPC->SetActivityState(EPlayerActivityState::InDialogue);
+			FPC->AdvanceDialogue();
 		}
 	});
 }
@@ -728,7 +727,7 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 
 	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
 	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnKeyDialogueLineShown);
-	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
+	FPChar->StartDialogue(MultiLines, this);
 }
 
 void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
@@ -756,7 +755,7 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		// First broadcast: arm the block so the next E press triggers the beat
 		UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Arming '%s' beat at LineIndex=%d"), *Action, LineIndex);
 		bKeyBeatArmed = true;
-		FPChar->bBlockNextMultiSpeakerAdvance = true;
+		FPChar->bBlockNextDialogueAdvance = true;
 		return;
 	}
 
@@ -770,7 +769,7 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
-			FPChar->AdvanceMultiSpeakerDialogue();
+			FPChar->AdvanceDialogue();
 			return;
 		}
 
@@ -786,7 +785,7 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		TakenMovies.Reset();
 		ClearCounterMovies();
 
-		FPChar->AdvanceMultiSpeakerDialogue();
+		FPChar->AdvanceDialogue();
 		return;
 	}
 
@@ -822,8 +821,8 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 			}
 			if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
 			{
-				FPC->SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
-				FPC->AdvanceMultiSpeakerDialogue();
+				FPC->SetActivityState(EPlayerActivityState::InDialogue);
+				FPC->AdvanceDialogue();
 			}
 		});
 		return;
@@ -995,77 +994,6 @@ void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
 		MultiLines.Add(Line);
 	}
 
-	FPChar->StartSimpleDialogueMultiSpeaker(MultiLines, this);
+	FPChar->StartDialogue(MultiLines, this);
 }
 
-// --- IDlgDialogueParticipant (minimal stubs - logic lives in C++ state machine) ---
-
-FName ASeneca::GetParticipantName_Implementation() const
-{
-	return FName("Seneca");
-}
-
-FText ASeneca::GetParticipantDisplayName_Implementation(FName ActiveSpeaker) const
-{
-	return FText::FromString("Seneca");
-}
-
-ETextGender ASeneca::GetParticipantGender_Implementation() const
-{
-	return ETextGender::Masculine;
-}
-
-UTexture2D* ASeneca::GetParticipantIcon_Implementation(FName ActiveSpeaker, FName ActiveSpeakerState) const
-{
-	return nullptr;
-}
-
-bool ASeneca::CheckCondition_Implementation(const UDlgContext* Context, FName ConditionName) const
-{
-	return false;
-}
-
-float ASeneca::GetFloatValue_Implementation(FName ValueName) const
-{
-	return 0.0f;
-}
-
-int32 ASeneca::GetIntValue_Implementation(FName ValueName) const
-{
-	return 0;
-}
-
-bool ASeneca::GetBoolValue_Implementation(FName ValueName) const
-{
-	return false;
-}
-
-FName ASeneca::GetNameValue_Implementation(FName ValueName) const
-{
-	return NAME_None;
-}
-
-bool ASeneca::OnDialogueEvent_Implementation(UDlgContext* Context, FName EventName)
-{
-	return false;
-}
-
-bool ASeneca::ModifyFloatValue_Implementation(FName ValueName, bool bDelta, float Value)
-{
-	return false;
-}
-
-bool ASeneca::ModifyIntValue_Implementation(FName ValueName, bool bDelta, int32 Value)
-{
-	return false;
-}
-
-bool ASeneca::ModifyBoolValue_Implementation(FName ValueName, bool bNewValue)
-{
-	return false;
-}
-
-bool ASeneca::ModifyNameValue_Implementation(FName ValueName, FName NameValue)
-{
-	return false;
-}

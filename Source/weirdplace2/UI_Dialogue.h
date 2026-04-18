@@ -5,7 +5,6 @@
 #include "UI_DialogueOption.h"
 #include "UI_Dialogue.generated.h"
 
-class UDlgContext;
 class UTextBlock;
 class UPanelWidget;
 class UAudioComponent;
@@ -17,15 +16,8 @@ class WEIRDPLACE2_API UUI_Dialogue : public UUserWidget
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
-	void Open(UDlgContext* Context);
-
-	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void Close();
 
-	UFUNCTION(BlueprintCallable, Category = "Dialogue")
-	void Update(UDlgContext* InActiveContext);
-
-	// Show dialogue with raw text (no DlgContext needed)
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void OpenWithText(const FText& Speaker, const FText& DialogueLine);
 
@@ -66,9 +58,6 @@ private:
 	void ClearOptionsText();
 	void ClearSpeakerText();
 	void UnhighlightAllOptions();
-
-	UPROPERTY()
-	UDlgContext* ActiveContext;
 
 	UPROPERTY()
 	UAudioComponent* SpawnedSound;

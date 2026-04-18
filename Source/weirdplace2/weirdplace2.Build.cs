@@ -16,7 +16,7 @@ public class weirdplace2 : ModuleRules
 			"InputCore",
 			"UMG",
 			"EnhancedInput",
-			"DlgSystem",
+
 			"HeadMountedDisplay"
 		});
 
