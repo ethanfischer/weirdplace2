@@ -9,6 +9,7 @@ enum class EPlayerActivityState : uint8;
 class AFirstPersonCharacter;
 class AMovieBox;
 class APropActor;
+class AHudson;
 class ARick;
 class ASeneca;
 class ATestWaypoint;
@@ -52,6 +53,8 @@ public:
 	AActor* FindActorByLabel(const FString& Label) const;
 	ASeneca* FindSeneca() const;
 	ARick* FindRick() const;
+	AHudson* FindHudson() const;
+	bool LookAtHudson();
 
 	// --- Seneca test helpers ---
 

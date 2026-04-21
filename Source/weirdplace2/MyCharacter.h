@@ -18,9 +18,8 @@ enum class EPlayerActivityState : uint8
 	FreeRoaming            UMETA(DisplayName = "Free Roaming"),
 	Interacting            UMETA(DisplayName = "Interacting"),
 	InSimpleDialogue       UMETA(DisplayName = "In Simple Dialogue"),
-	InMultiSpeakerDialogue                  UMETA(DisplayName = "In Multi-Speaker Dialogue"),
-	WaitingForItemInteractionInDialogue     UMETA(DisplayName = "Waiting For Item Interaction In Dialogue"),
-	InDlgDialogue                           UMETA(DisplayName = "In Dlg Dialogue")
+	InDialogue                              UMETA(DisplayName = "In Dialogue"),
+	WaitingForItemInteractionInDialogue     UMETA(DisplayName = "Waiting For Item Interaction In Dialogue")
 };
 
 UCLASS()
@@ -42,6 +41,7 @@ public:
 	void SetActivityState(EPlayerActivityState NewState);
 	EPlayerActivityState GetActivityState() const { return ActivityState; }
 	bool IsInAnyDialogue() const;
+	bool IsDialogueCooldownActive() const;
 
 	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
@@ -77,6 +77,8 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", meta = (AllowPrivateAccess = "true"))
 	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
+
+	double LastDialogueEndTime = -TNumericLimits<double>::Max();
 
 	bool bInventoryUnlocked = false;
 	bool bMovieCollectionLocked = false;

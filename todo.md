@@ -1,8 +1,6 @@
 # Todo / Bugs
-[ ] fix key dialogue key given on wrong beat
 [ ] key selection trigger too small
 [ ] seneca unlock employee bathroom animation
-[ ] employee bathroom can't be opened?
 [ ] cash needs inventory thumbnail
 [ ] rick comes inside randomly and just repeats the same line
 [ ] "Rick: I'll meet you inside"
@@ -11,7 +9,7 @@
     [ ] tell player what button to put back
 [ ] gas station door animation
 [ ] buy 3 movies
-    [ ] movies should stack on the counter
+    [x] movies should stack on the counter
 [ ] get money
     [ ] money mesh
     [ ] handle homeless scenario

@@ -298,7 +298,7 @@ void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
 		// First broadcast: line was just displayed normally.
 		// Arm the block so the next E press triggers the pulse beat instead of advancing.
 		bBladderPulseArmed = true;
-		Player->bBlockNextMultiSpeakerAdvance = true;
+		Player->bBlockNextDialogueAdvance = true;
 		return;
 	}
 
@@ -345,7 +345,7 @@ void UCarRideComponent::OnBladderPulseFinished()
 	}
 
 	// Auto-advance to show the next line ("You need to pee?")
-	Player->AdvanceMultiSpeakerDialogue();
+	Player->AdvanceDialogue();
 	Player->SetCanInteract(true);
 }
 

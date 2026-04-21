@@ -8,8 +8,6 @@
 class UCameraComponent;
 class UCrosshairWidget;
 class UUI_Dialogue;
-class UDlgDialogue;
-class UDlgContext;
 class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
@@ -65,9 +63,6 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
 	UUI_Dialogue* UI_Dialogue;
-
-	UPROPERTY(BlueprintReadOnly, Category = "Dialogue")
-	UDlgContext* DialogueContext;
 
 	// --- Interaction ---
 
@@ -130,29 +125,21 @@ public:
 	// --- Dialogue System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
-	void StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject* NPC);
-
-	UFUNCTION(BlueprintCallable, Category = "Dialogue")
-	void SelectDialogueOption(int32 OptionIndex);
-
-	// Simple text-based dialogue (no DlgContext)
-	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC);
 
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void AdvanceSimpleDialogue();
 
-	// Multi-speaker dialogue (each line has its own speaker)
-	void StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
-	void AdvanceMultiSpeakerDialogue();
+	void StartDialogue(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
+	void AdvanceDialogue();
 
-	// Fires whenever a multi-speaker dialogue line is displayed, carrying the line index
+	// Fires whenever a dialogue line is displayed, carrying the line index
 	UPROPERTY(BlueprintAssignable, Category = "Dialogue")
 	FOnDialogueLineShown OnDialogueLineShown;
 
-	// When true, the next multi-speaker advance is consumed without progressing.
+	// When true, the next dialogue advance is consumed without progressing.
 	// OnDialogueLineShown broadcasts with the CURRENT index so listeners can act.
-	bool bBlockNextMultiSpeakerAdvance = false;
+	bool bBlockNextDialogueAdvance = false;
 
 private:
 	// DoOnce state tracking
@@ -169,9 +156,9 @@ private:
 	int32 SimpleDialogueLineIndex = 0;
 	FText SimpleDialogueSpeaker;
 
-	// Multi-speaker dialogue state
-	TArray<FSimpleDialogueLine> MultiSpeakerLines;
-	int32 MultiSpeakerLineIndex = 0;
+	// Dialogue state (lines with per-line speaker)
+	TArray<FSimpleDialogueLine> DialogueLines;
+	int32 DialogueLineIndex = 0;
 
 	// --- Interaction helpers (used by RaycastInteractableCheck) ---
 

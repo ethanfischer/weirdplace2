@@ -158,7 +158,7 @@ void ARick::StartDialogue()
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	if (AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter))
 	{
-		FPCharacter->StartSimpleDialogueMultiSpeaker(ParsedLines, this);
+		FPCharacter->StartDialogue(ParsedLines, this);
 	}
 }
 
@@ -269,6 +269,6 @@ void ARick::Interact_Implementation()
 		// Bind line-shown handler so money is given on the correct line
 		FPCharacter->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
 		FPCharacter->OnDialogueLineShown.AddDynamic(this, &ARick::OnMoneyDialogueLineShown);
-		FPCharacter->StartSimpleDialogueMultiSpeaker(GivesMoneyLines, this);
+		FPCharacter->StartDialogue(GivesMoneyLines, this);
 	}
 }

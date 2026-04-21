@@ -15,10 +15,6 @@
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
-#include "DlgSystem/DlgDialogue.h"
-#include "DlgSystem/DlgContext.h"
-#include "DlgSystem/DlgManager.h"
-#include "DlgSystem/DlgDialogueParticipant.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -114,6 +110,12 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 		if (IsInAnyDialogue())
 		{
 			CrosshairWidget->ShowDialogueCrosshair();
+		}
+		else if (IsDialogueCooldownActive())
+		{
+			// Suppress interactable reticle during post-dialogue cooldown so the
+			// player isn't misled into thinking another E press will do anything.
+			CrosshairWidget->ShowNormalCrosshair();
 		}
 		else
 		{
@@ -229,19 +231,14 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		AdvanceSimpleDialogue();
 		return;
 	}
-	if (State == EPlayerActivityState::InMultiSpeakerDialogue)
+	if (State == EPlayerActivityState::InDialogue)
 	{
-		AdvanceMultiSpeakerDialogue();
-		return;
-	}
-	if (State == EPlayerActivityState::InDlgDialogue)
-	{
-		SelectDialogueOption(0);
+		AdvanceDialogue();
 		return;
 	}
 
 	// Check if we can interact
-	if (!GetCanInteract())
+	if (!GetCanInteract() || IsDialogueCooldownActive())
 	{
 		return;
 	}
@@ -441,109 +438,6 @@ bool AFirstPersonCharacter::IsWithinNPCInteractionRange(AActor* Target) const
 	return true;
 }
 
-void AFirstPersonCharacter::StartDialogueWithNPC(UDlgDialogue* Dialogue, UObject* NPC)
-{
-	if (!NPC || !Dialogue)
-	{
-		return;
-	}
-
-	// Get UI_Dialogue from NPC's widget component
-	if (ASeneca* Seneca = Cast<ASeneca>(NPC))
-	{
-		if (Seneca->DialogueWidgetComponent)
-		{
-			UUserWidget* Widget = Seneca->DialogueWidgetComponent->GetUserWidgetObject();
-			UI_Dialogue = Cast<UUI_Dialogue>(Widget);
-		}
-	}
-
-	CurrentDialogueNPC = NPC;
-
-	if (IsInAnyDialogue())
-	{
-		SelectDialogueOption(0);
-	}
-	else
-	{
-		TArray<UObject*> Participants;
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-		Participants.Add(NPC);
-		Participants.Add(PlayerPawn);
-
-		// Debug: Check if NPC implements dialogue participant interface
-		bool bImplementsInterface = NPC->GetClass()->ImplementsInterface(UDlgDialogueParticipant::StaticClass());
-		UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC '%s' implements IDlgDialogueParticipant: %s"),
-			*NPC->GetName(), bImplementsInterface ? TEXT("YES") : TEXT("NO"));
-
-		if (bImplementsInterface)
-		{
-			FName ParticipantName = IDlgDialogueParticipant::Execute_GetParticipantName(NPC);
-			UE_LOG(LogTemp, Log, TEXT("StartDialogueWithNPC - NPC returns ParticipantName: '%s'"), *ParticipantName.ToString());
-		}
-
-		DialogueContext = UDlgManager::StartDialogue(Dialogue, Participants);
-
-		if (IsValid(DialogueContext))
-		{
-			if (UI_Dialogue)
-			{
-				UI_Dialogue->Open(DialogueContext);
-			}
-			SetActivityState(EPlayerActivityState::InDlgDialogue);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Start dialogue has invalid dialogue context!"));
-		}
-	}
-}
-
-void AFirstPersonCharacter::SelectDialogueOption(int32 OptionIndex)
-{
-	if (!IsValid(DialogueContext))
-	{
-		return;
-	}
-
-	if (!DialogueContext->IsValidOptionIndex(OptionIndex))
-	{
-		return;
-	}
-
-	bool bSuccess = DialogueContext->ChooseOption(OptionIndex);
-	if (bSuccess)
-	{
-		if (UI_Dialogue)
-		{
-			UI_Dialogue->Update(DialogueContext);
-		}
-	}
-	else
-	{
-		// Dialogue ended
-		DialogueContext = nullptr;
-		SetActivityState(EPlayerActivityState::FreeRoaming);
-		if (UI_Dialogue)
-		{
-			UI_Dialogue->Close();
-			UI_Dialogue = nullptr;
-		}
-
-		// Notify the NPC that dialogue ended
-		UObject* EndedNPC = CurrentDialogueNPC;
-		CurrentDialogueNPC = nullptr;
-		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
-		{
-			Seneca->OnDialogueEnded();
-		}
-		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
-		{
-			Hudson->OnDialogueEnded();
-		}
-	}
-}
-
 void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC)
 {
 	if (Lines.Num() == 0)
@@ -609,11 +503,11 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 	}
 }
 
-void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC)
+void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC)
 {
 	if (Lines.Num() == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("StartSimpleDialogueMultiSpeaker - No lines to display"));
+		UE_LOG(LogTemp, Warning, TEXT("StartDialogue - No lines to display"));
 		return;
 	}
 
@@ -624,55 +518,55 @@ void AFirstPersonCharacter::StartSimpleDialogueMultiSpeaker(const TArray<FSimple
 	}
 	if (!UI_Dialogue)
 	{
-		UE_LOG(LogTemp, Error, TEXT("StartSimpleDialogueMultiSpeaker - NPC does not provide a dialogue widget"));
+		UE_LOG(LogTemp, Error, TEXT("StartDialogue - NPC does not provide a dialogue widget"));
 		return;
 	}
 
-	MultiSpeakerLines = Lines;
-	MultiSpeakerLineIndex = 0;
-	SetActivityState(EPlayerActivityState::InMultiSpeakerDialogue);
+	DialogueLines = Lines;
+	DialogueLineIndex = 0;
+	SetActivityState(EPlayerActivityState::InDialogue);
 	CurrentDialogueNPC = NPC;
 
-	UI_Dialogue->OpenWithText(MultiSpeakerLines[0].Speaker, MultiSpeakerLines[0].Text);
+	UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
 
 	OnDialogueLineShown.Broadcast(0);
 }
 
-void AFirstPersonCharacter::AdvanceMultiSpeakerDialogue()
+void AFirstPersonCharacter::AdvanceDialogue()
 {
 	// If blocked, consume the advance: hide dialogue and broadcast the current index
 	// so external systems (e.g. CarRideComponent) can play an interstitial beat.
-	if (bBlockNextMultiSpeakerAdvance)
+	if (bBlockNextDialogueAdvance)
 	{
-		bBlockNextMultiSpeakerAdvance = false;
+		bBlockNextDialogueAdvance = false;
 
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
 		}
 
-		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
+		OnDialogueLineShown.Broadcast(DialogueLineIndex);
 		return;
 	}
 
-	MultiSpeakerLineIndex++;
+	DialogueLineIndex++;
 
-	if (MultiSpeakerLineIndex < MultiSpeakerLines.Num())
+	if (DialogueLineIndex < DialogueLines.Num())
 	{
 		if (UI_Dialogue)
 		{
-			const FSimpleDialogueLine& Line = MultiSpeakerLines[MultiSpeakerLineIndex];
-			UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
+			const FSimpleDialogueLine& Line = DialogueLines[DialogueLineIndex];
+			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
 		}
 
-		OnDialogueLineShown.Broadcast(MultiSpeakerLineIndex);
+		OnDialogueLineShown.Broadcast(DialogueLineIndex);
 	}
 	else
 	{
 		// Dialogue exhausted
 		SetActivityState(EPlayerActivityState::FreeRoaming);
-		MultiSpeakerLines.Empty();
-		MultiSpeakerLineIndex = 0;
+		DialogueLines.Empty();
+		DialogueLineIndex = 0;
 
 		if (UI_Dialogue)
 		{

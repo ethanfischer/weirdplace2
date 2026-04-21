@@ -4,8 +4,6 @@
 #include "Components/AudioComponent.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Kismet/GameplayStatics.h"
-#include "DlgSystem/DlgContext.h"
-
 void UUI_Dialogue::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -21,84 +19,12 @@ void UUI_Dialogue::Close()
 		UWidgetBlueprintLibrary::SetInputMode_GameOnly(PC, false);
 	}
 
-	ActiveContext = nullptr;
-}
-
-void UUI_Dialogue::Update(UDlgContext* InActiveContext)
-{
-	if (!IsValid(InActiveContext))
-	{
-		Close();
-		return;
-	}
-
-	ClearSpeakerText();
-	ClearOptionsText();
-
-	if (SpeakerName)
-	{
-		FText ParticipantName = InActiveContext->GetActiveNodeParticipantDisplayName();
-		SpeakerName->SetText(ParticipantName);
-
-	}
-
-	const FText& NodeText = InActiveContext->GetActiveNodeText();
-	FullText = NodeText.ToString();
-	DisplayText.Empty();
-	CurrentCharIndex = 0;
-
-	// Store context for timer use
-	ActiveContext = InActiveContext;
-
-	// Start typewriter effect after short delay (weak-bound to prevent crash if widget destroyed)
-	FTimerDelegate TimerDelegate = FTimerDelegate::CreateWeakLambda(this, [this]()
-	{
-		SetNextDisplayTextCharacter();
-
-		// Handle voice sound
-		if (VoiceSound)
-		{
-			if (!IsValid(SpawnedSound) || !SpawnedSound->IsPlaying())
-			{
-				float RandomPitch = FMath::RandRange(0.75f, 1.25f);
-				float RandomStartTime = FMath::RandRange(0.0f, 3.0f);
-				SpawnedSound = UGameplayStatics::SpawnSound2D(GetWorld(), VoiceSound, 1.0f, RandomPitch, RandomStartTime);
-			}
-		}
-
-		// Update dialogue options
-		if (Options && IsValid(ActiveContext))
-		{
-			TArray<UWidget*> AllChildren = Options->GetAllChildren();
-			for (UWidget* Child : AllChildren)
-			{
-				if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
-				{
-					Option->Update(ActiveContext);
-				}
-			}
-			CurrentOptionIndex = 0;
-		}
-	});
-	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, TimerDelegate, 0.04f, false);
-}
-
-void UUI_Dialogue::Open(UDlgContext* Context)
-{
-	UnhighlightAllOptions();
-	CurrentOptionIndex = 0;
-	ActiveContext = Context;
-	SetVisibility(ESlateVisibility::Visible);
-	Update(Context);
-
-	// Highlight first option - requires UUI_DialogueOption implementation
 }
 
 void UUI_Dialogue::OpenWithText(const FText& Speaker, const FText& DialogueLine)
 {
 	UnhighlightAllOptions();
 	CurrentOptionIndex = 0;
-	ActiveContext = nullptr;
 	SetVisibility(ESlateVisibility::Visible);
 	UpdateWithText(Speaker, DialogueLine);
 }

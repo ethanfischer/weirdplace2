@@ -52,14 +52,22 @@ void AMyCharacter::SetCanInteract(bool value)
 
 void AMyCharacter::SetActivityState(EPlayerActivityState NewState)
 {
+	if (IsInAnyDialogue() && NewState == EPlayerActivityState::FreeRoaming)
+	{
+		LastDialogueEndTime = GetWorld()->GetTimeSeconds();
+	}
 	ActivityState = NewState;
+}
+
+bool AMyCharacter::IsDialogueCooldownActive() const
+{
+	return GetWorld()->GetTimeSeconds() - LastDialogueEndTime < 1.0;
 }
 
 bool AMyCharacter::IsInAnyDialogue() const
 {
 	return ActivityState == EPlayerActivityState::InSimpleDialogue
-		|| ActivityState == EPlayerActivityState::InMultiSpeakerDialogue
-		|| ActivityState == EPlayerActivityState::InDlgDialogue;
+		|| ActivityState == EPlayerActivityState::InDialogue;
 }
 
 void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
