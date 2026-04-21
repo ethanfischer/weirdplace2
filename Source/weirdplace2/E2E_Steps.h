@@ -93,11 +93,6 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::WaitingForItemInteractionInDialogue));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_KeyBeat")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtKeyActor(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
 	}

@@ -750,6 +750,27 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
+	// "Give key" fires immediately — no beat arm needed, item is given
+	// while the dialogue line is still showing and a notification appears.
+	if (Action == TEXT("Give key"))
+	{
+		GiveKey();
+
+		FInventoryItemData KeyData;
+		KeyData.ItemID = KeyToGive;
+		KeyData.Mesh = KeyMesh;
+		KeyData.Scale = KeyScale;
+		if (KeyMesh)
+		{
+			for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
+			{
+				KeyData.Materials.Add(KeyMesh->GetMaterial(i));
+			}
+		}
+		FPChar->ShowItemNotification(KeyData);
+		return;
+	}
+
 	if (!bKeyBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
@@ -786,45 +807,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		ClearCounterMovies();
 
 		FPChar->AdvanceDialogue();
-		return;
-	}
-
-	if (Action == TEXT("Give key"))
-	{
-		if (!KeyActor)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
-			return;
-		}
-
-		KeyActor->MeshComponent->SetVisibility(true, true);
-		KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-		FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-		TWeakObjectPtr<APropActor> WeakProp(KeyActor);
-		TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-		TWeakObjectPtr<ASeneca> WeakSeneca(this);
-
-		KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
-		{
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
-			if (APropActor* P = WeakProp.Get())
-			{
-				P->MeshComponent->SetVisibility(false, true);
-				P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				P->OnInteracted.Clear();
-			}
-			if (ASeneca* S = WeakSeneca.Get())
-			{
-				S->GiveKey();
-			}
-			if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-			{
-				FPC->SetActivityState(EPlayerActivityState::InDialogue);
-				FPC->AdvanceDialogue();
-			}
-		});
 		return;
 	}
 

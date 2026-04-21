@@ -2,6 +2,7 @@
 #include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
@@ -31,6 +32,13 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	FirstPersonCamera->SetupAttachment(RootComponent);
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Eye height
 	FirstPersonCamera->bUsePawnControlRotation = true;
+
+	// Create item notification mesh (diegetic 3D item display)
+	ItemNotificationMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemNotificationMesh"));
+	ItemNotificationMesh->SetupAttachment(FirstPersonCamera);
+	ItemNotificationMesh->SetRelativeLocation(FVector(30.0f, 0.0f, -8.0f));
+	ItemNotificationMesh->SetVisibility(false);
+	ItemNotificationMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
@@ -323,6 +331,40 @@ void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height
 
 	InventoryFlashlightComponent->SetSourceWidth(FMath::Max(Width, 1.0f));
 	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
+}
+
+void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData)
+{
+	if (!ItemNotificationMesh || !ItemData.Mesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ShowItemNotification - Missing mesh component or item mesh"));
+		return;
+	}
+
+	ItemNotificationMesh->SetStaticMesh(ItemData.Mesh);
+	for (int32 i = 0; i < ItemData.Materials.Num(); i++)
+	{
+		ItemNotificationMesh->SetMaterial(i, ItemData.Materials[i]);
+	}
+
+	// Auto-scale: normalize the mesh so its longest axis fits ~8cm
+	const FBox MeshBox = ItemData.Mesh->GetBoundingBox();
+	const FVector Extents = MeshBox.GetExtent(); // half-extents
+	const float MaxExtent = FMath::Max3(Extents.X, Extents.Y, Extents.Z);
+	const float DesiredHalfSize = 4.0f; // 4cm half = 8cm total
+	const float UniformScale = (MaxExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxExtent) : 1.0f;
+	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
+
+	ItemNotificationMesh->SetVisibility(true);
+
+	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	GetWorldTimerManager().SetTimer(ItemNotificationTimerHandle, [this]()
+	{
+		if (ItemNotificationMesh)
+		{
+			ItemNotificationMesh->SetVisibility(false);
+		}
+	}, 3.0f, false);
 }
 
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)

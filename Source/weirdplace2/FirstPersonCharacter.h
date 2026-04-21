@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "MyCharacter.h"
+#include "Inventory.h"
 #include "InputActionValue.h"
 #include "FirstPersonCharacter.generated.h"
 
@@ -12,6 +13,7 @@ class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
+class UStaticMeshComponent;
 
 USTRUCT()
 struct FSimpleDialogueLine
@@ -122,6 +124,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightSize(float Width, float Height);
 
+	// --- Item Notification ---
+
+	// Shows the item's 3D mesh in front of the player camera for 3 seconds
+	void ShowItemNotification(const FInventoryItemData& ItemData);
+
 	// --- Dialogue System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
@@ -142,6 +149,13 @@ public:
 	bool bBlockNextDialogueAdvance = false;
 
 private:
+	// --- Item Notification ---
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* ItemNotificationMesh;
+
+	FTimerHandle ItemNotificationTimerHandle;
+
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
