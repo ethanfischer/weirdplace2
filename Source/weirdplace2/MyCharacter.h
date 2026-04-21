@@ -78,7 +78,7 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State", meta = (AllowPrivateAccess = "true"))
 	EPlayerActivityState ActivityState = EPlayerActivityState::FreeRoaming;
 
-	double LastDialogueEndTime = 0.0;
+	double LastDialogueEndTime = -TNumericLimits<double>::Max();
 
 	bool bInventoryUnlocked = false;
 	bool bMovieCollectionLocked = false;

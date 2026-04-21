@@ -556,7 +556,7 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		if (UI_Dialogue)
 		{
 			const FSimpleDialogueLine& Line = DialogueLines[DialogueLineIndex];
-			UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
+			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
 		}
 
 		OnDialogueLineShown.Broadcast(DialogueLineIndex);
