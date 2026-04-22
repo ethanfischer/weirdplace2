@@ -129,6 +129,8 @@ public:
 	// Shows the item's 3D mesh in front of the player camera for 3 seconds
 	void ShowItemNotification(const FInventoryItemData& ItemData);
 
+	bool IsItemNotificationVisible() const;
+
 	// --- Dialogue System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")

@@ -1,4 +1,4 @@
-#include "E2E_Steps.h"
+#include "E2E_Steps.h" // force rebuild
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 

@@ -655,6 +655,79 @@ private:
 };
 
 // =======================================================================
+// FTD_AdvanceDialogueUntilItemNotification — press E repeatedly until
+// the ItemNotificationMesh becomes visible (item was given mid-dialogue).
+// =======================================================================
+
+class FTD_AdvanceDialogueUntilItemNotification : public FTD_Base
+{
+public:
+	FTD_AdvanceDialogueUntilItemNotification(FAutomationTestBase* InTest,
+		double InLineDelay = 1.0, double InTimeoutSeconds = 30.0)
+		: FTD_Base(InTest), LineDelay(InLineDelay), Timeout(InTimeoutSeconds)
+		, LastPressTime(0.0), bWaitingForRelease(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Advancing dialogue until item notification appears"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (Player && Player->IsItemNotificationVisible())
+		{
+			if (bWaitingForRelease)
+			{
+				Driver->SimulateInteractRelease();
+				bWaitingForRelease = false;
+			}
+			return true;
+		}
+
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_AdvanceDialogueUntilItemNotification: timed out"));
+			return true;
+		}
+
+		const EPlayerActivityState State = Driver->GetActivityState();
+		const bool bInDialogue =
+			State == EPlayerActivityState::InSimpleDialogue ||
+			State == EPlayerActivityState::InDialogue;
+
+		if (!bInDialogue)
+		{
+			return false;
+		}
+
+		const double Now = FPlatformTime::Seconds();
+
+		if (bWaitingForRelease)
+		{
+			Driver->SimulateInteractRelease();
+			bWaitingForRelease = false;
+			LastPressTime = Now;
+			return false;
+		}
+
+		if (Now - LastPressTime < LineDelay)
+		{
+			return false;
+		}
+
+		Driver->SimulateInteractPress();
+		bWaitingForRelease = true;
+		return false;
+	}
+private:
+	double LineDelay;
+	double Timeout;
+	double LastPressTime;
+	bool bWaitingForRelease;
+};
+
+// =======================================================================
 // FTD_OpenInventoryViaInput — press Tab, wait for fully open
 // =======================================================================
 

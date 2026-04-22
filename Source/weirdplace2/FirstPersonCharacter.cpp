@@ -367,6 +367,11 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	}, 3.0f, false);
 }
 
+bool AFirstPersonCharacter::IsItemNotificationVisible() const
+{
+	return ItemNotificationMesh && ItemNotificationMesh->IsVisible();
+}
+
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)
 {
 	OutHitActor = nullptr;
@@ -510,6 +515,12 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 
 void AFirstPersonCharacter::AdvanceSimpleDialogue()
 {
+	if (ItemNotificationMesh)
+	{
+		ItemNotificationMesh->SetVisibility(false);
+		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	}
+
 	SimpleDialogueLineIndex++;
 
 	if (SimpleDialogueLineIndex < SimpleDialogueLines.Num())
@@ -576,6 +587,12 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 
 void AFirstPersonCharacter::AdvanceDialogue()
 {
+	if (ItemNotificationMesh)
+	{
+		ItemNotificationMesh->SetVisibility(false);
+		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	}
+
 	// If blocked, consume the advance: hide dialogue and broadcast the current index
 	// so external systems (e.g. CarRideComponent) can play an interstitial beat.
 	if (bBlockNextDialogueAdvance)
