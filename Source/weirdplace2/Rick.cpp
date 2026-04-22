@@ -128,9 +128,23 @@ void ARick::LoadOutsideDialogue()
 	TArray<FString> MoneyRaw;
 	if (FFileHelper::LoadFileToStringArray(MoneyRaw, *MoneyPath))
 	{
-		for (const FString& Line : MoneyRaw)
+		MoneyGiveLineIndex = INDEX_NONE;
+		for (const FString& Raw : MoneyRaw)
 		{
+			FString Line = Raw;
+			Line.TrimStartAndEndInline();
 			if (Line.IsEmpty()) continue;
+
+			// [Action] cue — ties to the preceding display line
+			if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+			{
+				if (GivesMoneyLines.Num() > 0)
+				{
+					MoneyGiveLineIndex = GivesMoneyLines.Num() - 1;
+				}
+				continue;
+			}
+
 			int32 ColonIndex;
 			if (Line.FindChar(TEXT(':'), ColonIndex))
 			{
@@ -140,6 +154,7 @@ void ARick::LoadOutsideDialogue()
 				GivesMoneyLines.Add(DL);
 			}
 		}
+		UE_LOG(LogTemp, Log, TEXT("Rick - Loaded %d money lines, MoneyGiveLineIndex=%d"), GivesMoneyLines.Num(), MoneyGiveLineIndex);
 	}
 	else
 	{
@@ -191,6 +206,17 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
+	if (!bMoneyBeatArmed)
+	{
+		// First broadcast: arm the beat so the next E press triggers the item display
+		UE_LOG(LogTemp, Log, TEXT("Rick::OnMoneyDialogueLineShown - Arming money beat at LineIndex=%d"), LineIndex);
+		bMoneyBeatArmed = true;
+		FPChar->bBlockNextDialogueAdvance = true;
+		return;
+	}
+
+	// Second broadcast: give money + show mesh, let next E press dismiss
+	bMoneyBeatArmed = false;
 	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
 
 	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);

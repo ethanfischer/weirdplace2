@@ -96,6 +96,7 @@ private:
 	TArray<FSimpleDialogueLine> GivesMoneyLines;
 
 	bool bGaveMoney = false;
+	bool bMoneyBeatArmed = false;
 
 	void LoadDialogueFile();
 	void LoadOutsideDialogue();

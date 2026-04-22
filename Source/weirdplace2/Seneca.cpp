@@ -750,27 +750,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	// "Give key" fires immediately — no beat arm needed, item is given
-	// while the dialogue line is still showing and a notification appears.
-	if (Action == TEXT("Give key"))
-	{
-		GiveKey();
-
-		FInventoryItemData KeyData;
-		KeyData.ItemID = KeyToGive;
-		KeyData.Mesh = KeyMesh;
-		KeyData.Scale = KeyScale;
-		if (KeyMesh)
-		{
-			for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
-			{
-				KeyData.Materials.Add(KeyMesh->GetMaterial(i));
-			}
-		}
-		FPChar->ShowItemNotification(KeyData);
-		return;
-	}
-
 	if (!bKeyBeatArmed)
 	{
 		// First broadcast: arm the block so the next E press triggers the beat
@@ -807,6 +786,25 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		ClearCounterMovies();
 
 		FPChar->AdvanceDialogue();
+		return;
+	}
+
+	if (Action == TEXT("Give key"))
+	{
+		GiveKey();
+
+		FInventoryItemData KeyData;
+		KeyData.ItemID = KeyToGive;
+		KeyData.Mesh = KeyMesh;
+		KeyData.Scale = KeyScale;
+		if (KeyMesh)
+		{
+			for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
+			{
+				KeyData.Materials.Add(KeyMesh->GetMaterial(i));
+			}
+		}
+		FPChar->ShowItemNotification(KeyData);
 		return;
 	}
 

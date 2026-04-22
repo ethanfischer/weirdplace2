@@ -1,3 +1,4 @@
 Rick: You need cash?
 Rick: No worries, man. I got you
+[Gives Cash]
 Rick: You can get me back next time
