@@ -162,6 +162,21 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 			}
 		}
 	}
+
+	// Slow spin on visible item notification meshes (Zelda-style)
+	const float SpinSpeed = 45.0f; // degrees per second
+	const FRotator SpinDelta(0.0f, SpinSpeed * DeltaTime, 0.0f);
+	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
+	{
+		ItemNotificationMesh->AddRelativeRotation(SpinDelta);
+	}
+	for (UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp && Comp->IsVisible())
+		{
+			Comp->AddRelativeRotation(SpinDelta);
+		}
+	}
 }
 
 void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -355,6 +370,7 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	const float UniformScale = (MaxExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxExtent) : 1.0f;
 	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
 
+	ItemNotificationMesh->SetRelativeRotation(FRotator::ZeroRotator);
 	ItemNotificationMesh->SetVisibility(true);
 
 	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
