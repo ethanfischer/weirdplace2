@@ -72,7 +72,7 @@ bool AMyCharacter::IsInAnyDialogue() const
 
 void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
 {
-	if (!bForce && (IsInAnyDialogue() || ActivityState == EPlayerActivityState::WaitingForItemInteractionInDialogue))
+	if (!bForce && IsInAnyDialogue())
 	{
 		return;
 	}

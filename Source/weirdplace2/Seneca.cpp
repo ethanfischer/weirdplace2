@@ -368,11 +368,6 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
-	if (FPCharacter->GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
-	{
-		return;
-	}
-
 	if (CurrentState == ESenecaState::WaitingForMovies)
 	{
 		if (!bIntroDialoguePlayed)

@@ -489,13 +489,6 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6));
 
 	TArray<AActor*> ActorsToIgnore;
-	if (GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
-	{
-		if (AActor* NPCActor = Cast<AActor>(CurrentDialogueNPC))
-		{
-			ActorsToIgnore.Add(NPCActor);
-		}
-	}
 
 	TArray<FHitResult> HitResults;
 	bool bHit = UKismetSystemLibrary::LineTraceMultiForObjects(
