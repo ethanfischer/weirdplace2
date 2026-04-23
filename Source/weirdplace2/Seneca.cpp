@@ -668,41 +668,32 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	// Second broadcast: show the basket, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
+	// Second broadcast: show the basket mesh in front of the camera
 	bBasketBeatArmed = false;
 
-	if (!ShoppingBasketActor)
+	if (!ShoppingBasketActor || !ShoppingBasketActor->MeshComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor is not assigned"));
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor or mesh not assigned"));
 		return;
 	}
 
-	ShoppingBasketActor->MeshComponent->SetVisibility(true, true);
-	ShoppingBasketActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-	TWeakObjectPtr<APropActor> WeakProp(ShoppingBasketActor);
-	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-
-	ShoppingBasketActor->OnInteracted.AddLambda([WeakProp, WeakFPChar]()
+	UStaticMesh* BasketMesh = ShoppingBasketActor->MeshComponent->GetStaticMesh();
+	if (!BasketMesh)
 	{
-		if (APropActor* P = WeakProp.Get())
-		{
-			P->MeshComponent->SetVisibility(false, true);
-			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			P->OnInteracted.Clear();
-		}
-		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-		{
-			if (UInventoryComponent* Inv = FPC->GetInventoryComponent())
-			{
-				UGameplayStatics::PlaySound2D(FPC->GetWorld(), Inv->CollectSound);
-			}
-			FPC->SetActivityState(EPlayerActivityState::InDialogue);
-			FPC->AdvanceDialogue();
-		}
-	});
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor has no static mesh"));
+		return;
+	}
+
+	FInventoryItemData BasketData;
+	BasketData.ItemID = FName("Basket");
+	BasketData.Mesh = BasketMesh;
+	BasketData.Scale = ShoppingBasketActor->MeshComponent->GetRelativeScale3D();
+	for (int32 i = 0; i < BasketMesh->GetStaticMaterials().Num(); i++)
+	{
+		BasketData.Materials.Add(BasketMesh->GetMaterial(i));
+	}
+
+	FPChar->ShowItemNotification(BasketData);
 }
 
 // --- Key Beat ---
