@@ -769,7 +769,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
-			FPChar->AdvanceDialogue();
 			return;
 		}
 
@@ -782,10 +781,11 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		{
 			Inventory->AddItemWithData(MovieData);
 		}
+
+		FPChar->ShowItemNotificationStack(TakenMovies, MovieRelativeRotation);
+
 		TakenMovies.Reset();
 		ClearCounterMovies();
-
-		FPChar->AdvanceDialogue();
 		return;
 	}
 

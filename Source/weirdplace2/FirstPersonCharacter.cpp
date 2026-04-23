@@ -367,9 +367,91 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	}, 3.0f, false);
 }
 
+void AFirstPersonCharacter::ShowItemNotificationStack(const TArray<FInventoryItemData>& Items, const FRotator& ItemRotation)
+{
+	ClearItemNotificationStack();
+
+	if (!FirstPersonCamera || Items.Num() == 0)
+	{
+		return;
+	}
+
+	const FVector BaseOffset(30.0f, 0.0f, -8.0f);
+	float CurrentZ = 0.0f;
+
+	for (const FInventoryItemData& ItemData : Items)
+	{
+		if (!ItemData.Mesh)
+		{
+			continue;
+		}
+
+		UStaticMeshComponent* MeshComp = NewObject<UStaticMeshComponent>(this);
+		MeshComp->SetupAttachment(FirstPersonCamera);
+		MeshComp->SetStaticMesh(ItemData.Mesh);
+		for (int32 i = 0; i < ItemData.Materials.Num(); i++)
+		{
+			MeshComp->SetMaterial(i, ItemData.Materials[i]);
+		}
+
+		// Use the item's own scale to preserve aspect ratio (e.g. flat VHS-case shape)
+		// then apply a uniform multiplier so the largest axis fits ~8cm
+		const FBox MeshBox = ItemData.Mesh->GetBoundingBox();
+		const FVector Extents = MeshBox.GetExtent();
+		const FVector ScaledExtents = Extents * ItemData.Scale;
+		const float MaxScaledExtent = FMath::Max3(ScaledExtents.X, ScaledExtents.Y, ScaledExtents.Z);
+		const float DesiredHalfSize = 4.0f;
+		const float SizeMultiplier = (MaxScaledExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxScaledExtent) : 1.0f;
+		const FVector FinalScale = ItemData.Scale * SizeMultiplier;
+		MeshComp->SetRelativeScale3D(FinalScale);
+
+		MeshComp->SetRelativeLocation(BaseOffset + FVector(0.0f, 0.0f, CurrentZ));
+		MeshComp->SetRelativeRotation(ItemRotation);
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComp->SetVisibility(true);
+		MeshComp->RegisterComponent();
+
+		// Compute stack height from scaled + rotated bounding box
+		const FVector FinalExtents = Extents * FinalScale;
+		const FRotationMatrix RotMatrix(ItemRotation);
+		const float RotatedHalfHeight =
+			FMath::Abs(RotMatrix.TransformVector(FVector(FinalExtents.X, 0, 0)).Z) +
+			FMath::Abs(RotMatrix.TransformVector(FVector(0, FinalExtents.Y, 0)).Z) +
+			FMath::Abs(RotMatrix.TransformVector(FVector(0, 0, FinalExtents.Z)).Z);
+		CurrentZ += RotatedHalfHeight * 2.0f;
+
+		StackNotificationMeshes.Add(MeshComp);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("ShowItemNotificationStack - Showing %d items"), StackNotificationMeshes.Num());
+}
+
+void AFirstPersonCharacter::ClearItemNotificationStack()
+{
+	for (UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp)
+		{
+			Comp->DestroyComponent();
+		}
+	}
+	StackNotificationMeshes.Empty();
+}
+
 bool AFirstPersonCharacter::IsItemNotificationVisible() const
 {
-	return ItemNotificationMesh && ItemNotificationMesh->IsVisible();
+	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
+	{
+		return true;
+	}
+	for (const UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp && Comp->IsVisible())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)
@@ -520,6 +602,7 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		ItemNotificationMesh->SetVisibility(false);
 		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
 	}
+	ClearItemNotificationStack();
 
 	SimpleDialogueLineIndex++;
 
@@ -592,6 +675,7 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		ItemNotificationMesh->SetVisibility(false);
 		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
 	}
+	ClearItemNotificationStack();
 
 	// If blocked, consume the advance: hide dialogue and broadcast the current index
 	// so external systems (e.g. CarRideComponent) can play an interstitial beat.

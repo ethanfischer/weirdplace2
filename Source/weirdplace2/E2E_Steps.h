@@ -99,10 +99,17 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// Advance until the movie stack notification appears
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_GotMovies")));
+		// Dismiss movie stack, continue dialogue
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13b_MoviesGone")));
 		// Advance until the key mesh notification appears
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
-		// Advance one more line — mesh should disappear
+		// Dismiss key, continue dialogue
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14b_KeyMeshGone")));

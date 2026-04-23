@@ -129,6 +129,9 @@ public:
 	// Shows the item's 3D mesh in front of the player camera for 3 seconds
 	void ShowItemNotification(const FInventoryItemData& ItemData);
 
+	// Shows multiple items stacked vertically in front of the camera (no auto-dismiss timer)
+	void ShowItemNotificationStack(const TArray<FInventoryItemData>& Items, const FRotator& ItemRotation = FRotator::ZeroRotator);
+
 	bool IsItemNotificationVisible() const;
 
 	// --- Dialogue System ---
@@ -155,6 +158,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ItemNotificationMesh;
+
+	// Dynamically spawned mesh components for stacked item notifications
+	UPROPERTY()
+	TArray<UStaticMeshComponent*> StackNotificationMeshes;
+
+	void ClearItemNotificationStack();
 
 	FTimerHandle ItemNotificationTimerHandle;
 
