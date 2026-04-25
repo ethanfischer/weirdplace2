@@ -95,8 +95,7 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		break;
 
 	case EInventoryUIState::Open:
-		// Update selection based on where player is looking
-		UpdateReticleSelection();
+		// Selection is now stick-driven via HandleNavigateAxis*. No tick work.
 		break;
 
 	case EInventoryUIState::Closed:
@@ -160,11 +159,13 @@ void UInventoryUIComponent::OpenInventoryUI()
 
 	// Reset selection to first slot
 	SelectedIndex = 0;
-	bReticleOverGrid = true;
+	bArmedX = true;
+	bArmedY = true;
 
 	CurrentState = EInventoryUIState::Opening;
 	FreezePlayerMovement();
 	BindConfirmInput();
+	BindNavigateInput();
 
 	// Disable interactions with environment
 	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
@@ -215,7 +216,7 @@ void UInventoryUIComponent::CloseInventoryUI()
 	}
 
 	CurrentState = EInventoryUIState::Closing;
-	bReticleOverGrid = false;
+	UnbindNavigateInput();
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
@@ -414,7 +415,6 @@ bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
 	}
 
 	SelectedIndex = Index;
-	bReticleOverGrid = true;
 	if (InventoryUIActor)
 	{
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
@@ -422,104 +422,109 @@ bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
 	return true;
 }
 
-void UInventoryUIComponent::UpdateReticleSelection()
+void UInventoryUIComponent::BindNavigateInput()
 {
-	int32 NewIndex = CalculateSlotFromReticle();
-	bReticleOverGrid = (NewIndex >= 0);
-
-	if (NewIndex != SelectedIndex && NewIndex >= 0)
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (!PC || !PC->InputComponent)
 	{
-		SelectedIndex = NewIndex;
-		if (InventoryUIActor)
+		UE_LOG(LogTemp, Error, TEXT("UInventoryUIComponent::BindNavigateInput - no PC/InputComponent"));
+		return;
+	}
+
+	PC->InputComponent->BindAxis("Move Right / Left", this, &UInventoryUIComponent::HandleNavigateAxisX);
+	PC->InputComponent->BindAxis("Move Forward / Backward", this, &UInventoryUIComponent::HandleNavigateAxisY);
+}
+
+void UInventoryUIComponent::UnbindNavigateInput()
+{
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (!PC || !PC->InputComponent)
+	{
+		return;
+	}
+	// Wholesale clear - mirrors AMovieBox::StopInspection.
+	PC->InputComponent->AxisBindings.Empty();
+}
+
+void UInventoryUIComponent::HandleNavigateAxisX(float AxisValue)
+{
+	if (CurrentState != EInventoryUIState::Open && CurrentState != EInventoryUIState::Opening)
+	{
+		return;
+	}
+
+	constexpr float FireThreshold = 0.5f;
+	constexpr float RearmThreshold = 0.2f;
+
+	const float AbsValue = FMath::Abs(AxisValue);
+	if (!bArmedX)
+	{
+		if (AbsValue < RearmThreshold)
 		{
-			InventoryUIActor->SetSelectedIndex(SelectedIndex);
+			bArmedX = true;
 		}
+		return;
+	}
+
+	if (AbsValue > FireThreshold)
+	{
+		bArmedX = false;
+		StepSelection(AxisValue > 0.0f ? 1 : -1, 0);
 	}
 }
 
-int32 UInventoryUIComponent::CalculateSlotFromReticle() const
+void UInventoryUIComponent::HandleNavigateAxisY(float AxisValue)
 {
-	if (!InventoryUIActor) return -1;
-
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC) return -1;
-
-	FVector CameraLocation;
-	FRotator CameraRotation;
-	PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
-
-	// Get the direction the player is looking
-	FVector LookDir = CameraRotation.Vector();
-
-	// Get UI actor's transform
-	FVector UILocation = InventoryUIActor->GetActorLocation();
-	FRotator UIRotation = InventoryUIActor->GetActorRotation();
-
-	// Calculate the plane of the UI (facing the original camera position)
-	FVector UIForward = UIRotation.Vector();
-	FVector UIRight = FRotationMatrix(UIRotation).GetScaledAxis(EAxis::Y);
-	FVector UIUp = FRotationMatrix(UIRotation).GetScaledAxis(EAxis::Z);
-
-	// Ray-plane intersection
-	// The UI plane has normal = UIForward, point = UILocation
-	float Denom = FVector::DotProduct(LookDir, UIForward);
-	if (FMath::Abs(Denom) < 0.0001f)
+	if (CurrentState != EInventoryUIState::Open && CurrentState != EInventoryUIState::Opening)
 	{
-		// Ray is parallel to plane
-		return -1;
+		return;
 	}
 
-	float T = FVector::DotProduct(UILocation - CameraLocation, UIForward) / Denom;
-	if (T < 0)
+	constexpr float FireThreshold = 0.5f;
+	constexpr float RearmThreshold = 0.2f;
+
+	const float AbsValue = FMath::Abs(AxisValue);
+	if (!bArmedY)
 	{
-		// Intersection is behind camera
-		return -1;
+		if (AbsValue < RearmThreshold)
+		{
+			bArmedY = true;
+		}
+		return;
 	}
 
-	// Point where look ray hits the UI plane
-	FVector HitPoint = CameraLocation + LookDir * T;
-
-	// Convert to local coordinates relative to UI center
-	FVector LocalHit = HitPoint - UILocation;
-	float LocalY = FVector::DotProduct(LocalHit, UIRight);  // Horizontal
-	float LocalZ = FVector::DotProduct(LocalHit, UIUp);     // Vertical
-
-	// Calculate grid dimensions (must match InventoryUIActor calculations)
-	float ThumbnailSize = 8.0f;  // Match default in InventoryUIActor
-	float ThumbnailSpacing = 2.0f;
-	float SlotWidth = ThumbnailSize + ThumbnailSpacing;
-	float SlotHeight = ThumbnailSize * 1.4f + ThumbnailSpacing;
-
-	float GridWidth = (GridColumns - 1) * SlotWidth;
-	float GridHeight = (GridRows - 1) * SlotHeight;
-
-	// Convert local position to grid coordinates
-	// Grid is centered, so offset by half
-	float GridY = LocalY + GridWidth * 0.5f;
-	float GridZ = -LocalZ + GridHeight * 0.5f;  // Flip Z because grid row 0 is at top
-
-	// If reticle is outside grid bounds (including half-slot padding), treat as off-inventory.
-	const float MinY = -0.5f * SlotWidth;
-	const float MaxY = GridWidth + 0.5f * SlotWidth;
-	const float MinZ = -0.5f * SlotHeight;
-	const float MaxZ = GridHeight + 0.5f * SlotHeight;
-	if (GridY < MinY || GridY > MaxY || GridZ < MinZ || GridZ > MaxZ)
+	if (AbsValue > FireThreshold)
 	{
-		return -1;
+		bArmedY = false;
+		// Forward (positive Y) navigates UP a row, which is -GridColumns in row-major linear index.
+		StepSelection(0, AxisValue > 0.0f ? -1 : 1);
+	}
+}
+
+void UInventoryUIComponent::StepSelection(int32 DeltaCol, int32 DeltaRow)
+{
+	const int32 TotalSlots = GridColumns * GridRows;
+	if (TotalSlots <= 0)
+	{
+		return;
 	}
 
-	// Calculate column and row
-	int32 Col = FMath::FloorToInt(GridY / SlotWidth + 0.5f);
-	int32 Row = FMath::FloorToInt(GridZ / SlotHeight + 0.5f);
+	const int32 CurCol = SelectedIndex % GridColumns;
+	const int32 CurRow = SelectedIndex / GridColumns;
+	const int32 NewCol = FMath::Clamp(CurCol + DeltaCol, 0, GridColumns - 1);
+	const int32 NewRow = FMath::Clamp(CurRow + DeltaRow, 0, GridRows - 1);
+	const int32 NewIndex = NewRow * GridColumns + NewCol;
 
-	// Clamp to valid range
-	Col = FMath::Clamp(Col, 0, GridColumns - 1);
-	Row = FMath::Clamp(Row, 0, GridRows - 1);
+	if (NewIndex == SelectedIndex)
+	{
+		return;
+	}
 
-	int32 SlotIndex = Row * GridColumns + Col;
-	int32 TotalSlots = GridColumns * GridRows;
-
-	return FMath::Clamp(SlotIndex, 0, TotalSlots - 1);
+	SelectedIndex = NewIndex;
+	if (InventoryUIActor)
+	{
+		InventoryUIActor->SetSelectedIndex(SelectedIndex);
+	}
 }
 
 void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems)

@@ -688,7 +688,7 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		BasketData.Materials.Add(BasketMesh->GetMaterial(i));
 	}
 
-	FPChar->ShowItemNotification(BasketData);
+	FPChar->ShowItemNotification(BasketData, BasketNotificationRotation);
 }
 
 // --- Key Beat ---
@@ -790,7 +790,7 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 				KeyData.Materials.Add(KeyMesh->GetMaterial(i));
 			}
 		}
-		FPChar->ShowItemNotification(KeyData);
+		FPChar->ShowItemNotification(KeyData, KeyNotificationRotation);
 		return;
 	}
 

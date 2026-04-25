@@ -238,7 +238,7 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 	bGaveMoney = true;
 	UE_LOG(LogTemp, Log, TEXT("Rick - Gave Money to player"));
 
-	FPChar->ShowItemNotification(ItemData);
+	FPChar->ShowItemNotification(ItemData, MoneyNotificationRotation);
 }
 
 void ARick::AppearOutside()

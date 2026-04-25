@@ -21,6 +21,10 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerInput.h"
+#include "InputCoreTypes.h"
+#include "WeirdplaceGameUserSettings.h"
+#include "SettingsUIComponent.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -42,6 +46,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
+
+	// Create the settings UI component (mirrors InventoryUIComponent on AMyCharacter)
+	SettingsUIComponent = CreateDefaultSubobject<USettingsUIComponent>(TEXT("SettingsUIComponent"));
 }
 
 void AFirstPersonCharacter::BeginPlay()
@@ -80,6 +87,7 @@ void AFirstPersonCharacter::BeginPlay()
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
+		CachedPlayerController = PlayerController;
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
 			if (DefaultMappingContext)
@@ -87,6 +95,13 @@ void AFirstPersonCharacter::BeginPlay()
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 			}
 		}
+	}
+
+	// Cache settings singleton for gamepad-aware look scaling.
+	CachedSettings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!CachedSettings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("FirstPersonCharacter::BeginPlay - GameUserSettings is not UWeirdplaceGameUserSettings; check DefaultEngine.ini GameUserSettingsClassName"));
 	}
 
 	// Create crosshair widget
@@ -133,14 +148,13 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 			{
 				if (InventoryUIComp->IsInventoryOpen())
 				{
-					if (InventoryUIComp->IsReticleOverGrid())
+					// Selection is now stick-driven, so the interactable crosshair is
+					// shown whenever the currently selected slot holds a real item.
+					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
 					{
-						if (UInventoryComponent* InventoryComp = GetInventoryComponent())
-						{
-							const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
-							const TArray<FName> Items = InventoryComp->GetItems();
-							bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
-						}
+						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+						const TArray<FName> Items = InventoryComp->GetItems();
+						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
 					}
 				}
 				else
@@ -208,14 +222,32 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowInventory);
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowInventoryCompleted);
 		}
+		if (SettingsAction)
+		{
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowSettings);
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowSettingsCompleted);
+		}
 	}
 }
 
 void AFirstPersonCharacter::HandleLookInput(const FInputActionValue& Value)
 {
-	FVector2D LookAxisVector = Value.Get<FVector2D>();
-	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(LookAxisVector.Y);
+	if (!CachedPlayerController || !CachedPlayerController->PlayerInput || !CachedSettings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HandleLookInput - missing PC/PlayerInput/Settings"));
+		return;
+	}
+
+	// Gamepad source detection: deadzone matches DefaultInput.ini Gamepad_RightX/Y AxisConfig.
+	const float GpX = CachedPlayerController->PlayerInput->GetKeyValue(EKeys::Gamepad_RightX);
+	const float GpY = CachedPlayerController->PlayerInput->GetKeyValue(EKeys::Gamepad_RightY);
+	constexpr float GamepadDeadzone = 0.25f;
+	const bool bFromGamepad = FMath::Abs(GpX) > GamepadDeadzone || FMath::Abs(GpY) > GamepadDeadzone;
+	const float Scale = bFromGamepad ? CachedSettings->GetGamepadLookSensitivity() : 1.0f;
+
+	const FVector2D LookAxisVector = Value.Get<FVector2D>();
+	AddControllerYawInput(LookAxisVector.X * Scale);
+	AddControllerPitchInput(LookAxisVector.Y * Scale);
 }
 
 void AFirstPersonCharacter::HandleMoveInput(const FInputActionValue& Value)
@@ -292,6 +324,10 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 
 void AFirstPersonCharacter::HandleShowInventory()
 {
+	if (SettingsUIComponent && SettingsUIComponent->IsSettingsOpen())
+	{
+		return;
+	}
 	if (bInventoryDoOnceCompleted)
 	{
 		return;
@@ -321,6 +357,42 @@ void AFirstPersonCharacter::HandleShowInventoryCompleted()
 	bInventoryDoOnceCompleted = false;
 }
 
+void AFirstPersonCharacter::HandleShowSettings()
+{
+	if (bSettingsDoOnceCompleted)
+	{
+		return;
+	}
+	bSettingsDoOnceCompleted = true;
+
+	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
+	{
+		if (InvUI->IsInventoryOpen())
+		{
+			return;
+		}
+	}
+
+	if (!SettingsUIComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HandleShowSettings - SettingsUIComponent is null"));
+		return;
+	}
+
+	// Allow toggle while in Interacting state (the settings UI itself sets that state).
+	if (GetActivityState() != EPlayerActivityState::FreeRoaming && !SettingsUIComponent->IsSettingsOpen())
+	{
+		return;
+	}
+
+	SettingsUIComponent->ToggleSettingsUI();
+}
+
+void AFirstPersonCharacter::HandleShowSettingsCompleted()
+{
+	bSettingsDoOnceCompleted = false;
+}
+
 void AFirstPersonCharacter::SetInventoryFlashlightEnabled(bool bEnabled)
 {
 	if (!InventoryFlashlightComponent)
@@ -348,7 +420,7 @@ void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height
 	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
 }
 
-void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData)
+void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation)
 {
 	if (!ItemNotificationMesh || !ItemData.Mesh)
 	{
@@ -370,7 +442,7 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	const float UniformScale = (MaxExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxExtent) : 1.0f;
 	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
 
-	ItemNotificationMesh->SetRelativeRotation(FRotator::ZeroRotator);
+	ItemNotificationMesh->SetRelativeRotation(InitialRotation);
 	ItemNotificationMesh->SetVisibility(true);
 
 	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);

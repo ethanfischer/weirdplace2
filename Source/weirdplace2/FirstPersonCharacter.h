@@ -14,6 +14,9 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStaticMeshComponent;
+class UWeirdplaceGameUserSettings;
+class USettingsUIComponent;
+class APlayerController;
 
 USTRUCT()
 struct FSimpleDialogueLine
@@ -91,6 +94,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	UInputAction* InventoryAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* SettingsAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Settings", meta = (AllowPrivateAccess = "true"))
+	USettingsUIComponent* SettingsUIComponent;
+
 public:
 	// --- Input Handlers ---
 
@@ -102,6 +111,11 @@ public:
 	void HandleInteractCompleted();
 	void HandleShowInventory();
 	void HandleShowInventoryCompleted();
+	void HandleShowSettings();
+	void HandleShowSettingsCompleted();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Settings")
+	USettingsUIComponent* GetSettingsUIComponent() const { return SettingsUIComponent; }
 
 	// --- Interaction System ---
 
@@ -127,7 +141,7 @@ public:
 	// --- Item Notification ---
 
 	// Shows the item's 3D mesh in front of the player camera for 3 seconds
-	void ShowItemNotification(const FInventoryItemData& ItemData);
+	void ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation = FRotator::ZeroRotator);
 
 	// Shows multiple items stacked vertically in front of the camera (no auto-dismiss timer)
 	void ShowItemNotificationStack(const TArray<FInventoryItemData>& Items, const FRotator& ItemRotation = FRotator::ZeroRotator);
@@ -170,7 +184,15 @@ private:
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
+	bool bSettingsDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
+	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.
+	UPROPERTY()
+	TObjectPtr<APlayerController> CachedPlayerController;
+
+	UPROPERTY()
+	TObjectPtr<UWeirdplaceGameUserSettings> CachedSettings;
 
 	// The NPC we're currently in dialogue with (for end-of-dialogue callbacks)
 	UPROPERTY()
