@@ -23,7 +23,12 @@ public:
 	static constexpr float MinGamepadLookSensitivity = 0.1f;
 	static constexpr float MaxGamepadLookSensitivity = 2.0f;
 	static constexpr float GamepadLookSensitivitySnap = 0.1f;
-	static constexpr float DefaultGamepadLookSensitivity = 0.5f;
+	static constexpr float DefaultGamepadLookSensitivity = 1.0f;
+
+	// User-facing sensitivity is a "feel" number; multiply by this to get the actual
+	// scale applied to AddControllerYawInput/PitchInput. Tuned so user-facing 1.0
+	// matches a comfortable baseline.
+	static constexpr float GamepadLookSensitivityScaleFactor = 0.5f;
 
 private:
 	UPROPERTY(Config)

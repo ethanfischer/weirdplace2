@@ -1377,6 +1377,136 @@ public:
 // test if the current state doesn't match Expected.
 // =======================================================================
 
+// =======================================================================
+// FTD_SetGamepadLookSensitivity — write directly to the persisted settings
+// (clamped + snapped). Used by sensitivity diagnostic tests.
+// =======================================================================
+
+class FTD_SetGamepadLookSensitivity : public FTD_Base
+{
+public:
+	FTD_SetGamepadLookSensitivity(FAutomationTestBase* InTest, float InValue)
+		: FTD_Base(InTest), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting gamepad look sensitivity to %.3f"), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetGamepadLookSensitivity: no driver")); return true; }
+		Driver->SetGamepadLookSensitivity(Value);
+		return true;
+	}
+private:
+	float Value;
+};
+
+// =======================================================================
+// FTD_CaptureYaw — record the current ControlRotation.Yaw to a caller-owned
+// float so a later FTD_AssertYawDelta can compare against it.
+// =======================================================================
+
+class FTD_CaptureYaw : public FTD_Base
+{
+public:
+	FTD_CaptureYaw(FAutomationTestBase* InTest, float* InOutYaw)
+		: FTD_Base(InTest), OutYaw(InOutYaw) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Capturing control yaw"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !OutYaw) { Test->AddError(TEXT("FTD_CaptureYaw: missing driver/yaw")); return true; }
+		*OutYaw = Driver->GetControllerYaw();
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureYaw: yaw=%.3f"), *OutYaw);
+		return true;
+	}
+private:
+	float* OutYaw;
+};
+
+// =======================================================================
+// FTD_AssertYawDelta — log the absolute yaw delta from a previously captured
+// yaw, and fail if it's outside [MinAbsDelta, MaxAbsDelta].
+// =======================================================================
+
+class FTD_AssertYawDelta : public FTD_Base
+{
+public:
+	FTD_AssertYawDelta(FAutomationTestBase* InTest, FString InLabel, float* InCapturedYaw,
+		float InMinAbsDelta, float InMaxAbsDelta)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), CapturedYaw(InCapturedYaw)
+		, MinAbsDelta(InMinAbsDelta), MaxAbsDelta(InMaxAbsDelta) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting |yaw delta| '%s' in [%.3f, %.3f]"),
+			*Label, MinAbsDelta, MaxAbsDelta);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !CapturedYaw) { Test->AddError(TEXT("FTD_AssertYawDelta: missing driver/yaw")); return true; }
+
+		const float Now = Driver->GetControllerYaw();
+		float Delta = Now - *CapturedYaw;
+		while (Delta > 180.0f) Delta -= 360.0f;
+		while (Delta < -180.0f) Delta += 360.0f;
+		const float Abs = FMath::Abs(Delta);
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("YawDelta[%s]: actual=%.4f deg (|abs|=%.4f, expected range [%.4f, %.4f])"),
+			*Label, Delta, Abs, MinAbsDelta, MaxAbsDelta);
+
+		if (Abs < MinAbsDelta || Abs > MaxAbsDelta)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("YawDelta[%s] OUT OF RANGE: |actual|=%.4f deg, expected [%.4f, %.4f]"),
+				*Label, Abs, MinAbsDelta, MaxAbsDelta));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* CapturedYaw;
+	float MinAbsDelta;
+	float MaxAbsDelta;
+};
+
+// =======================================================================
+// FTD_InjectMouseXForDuration — call SimulateMouseX(Delta) every tick for
+// DurationSeconds. Drives the LookAction through the legacy mouse-axis path
+// (which the IMC's MouseX binding picks up).
+// =======================================================================
+
+class FTD_InjectMouseXForDuration : public FTD_Base
+{
+public:
+	FTD_InjectMouseXForDuration(FAutomationTestBase* InTest, float InDelta, float InDurationSeconds)
+		: FTD_Base(InTest), Delta(InDelta), DurationSeconds(InDurationSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Injecting MouseX %.1f for %.2fs"), Delta, DurationSeconds);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_InjectMouseXForDuration: no driver")); return true; }
+		Driver->SimulateMouseX(Delta);
+		return GetElapsedSinceFirstTick() >= DurationSeconds;
+	}
+private:
+	float Delta;
+	float DurationSeconds;
+};
+
 class FTD_AssertActivityState : public FTD_Base
 {
 public:

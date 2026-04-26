@@ -101,9 +101,20 @@ protected:
 	USettingsUIComponent* SettingsUIComponent;
 
 public:
+	// Override the rotation entry points so sensitivity scaling applies to ALL
+	// callers (C++ Enhanced Input handler, the BP IA_Look event graph, plugins,
+	// future cinematics, etc.) — not just our own HandleLookInput. This is the
+	// cleanest place to apply the scale because both APawn callers funnel here.
+	virtual void AddControllerYawInput(float Val) override;
+	virtual void AddControllerPitchInput(float Val) override;
+
+private:
+	float ComputeLookSensitivityScale() const;
+
+public:
+
 	// --- Input Handlers ---
 
-	void HandleLookInput(const FInputActionValue& Value);
 	void HandleMoveInput(const FInputActionValue& Value);
 	void HandleJumpStarted();
 	void HandleJumpCompleted();
@@ -186,6 +197,7 @@ private:
 	bool bInventoryDoOnceCompleted = false;
 	bool bSettingsDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
 
 	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.
 	UPROPERTY()

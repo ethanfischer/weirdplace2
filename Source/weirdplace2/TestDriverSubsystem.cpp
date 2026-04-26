@@ -21,6 +21,7 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
+#include "WeirdplaceGameUserSettings.h"
 
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
@@ -461,6 +462,26 @@ void UTestDriverSubsystem::SimulateInventoryRelease()
 	AFirstPersonCharacter* Player = GetPlayer();
 	if (!Player) { return; }
 	InjectInputAction(Player->GetInventoryAction(), false);
+}
+
+// --- Sensitivity / look diagnostics ---
+
+void UTestDriverSubsystem::SetGamepadLookSensitivity(float Value)
+{
+	UWeirdplaceGameUserSettings* Settings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!Settings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetGamepadLookSensitivity - GameUserSettings is not UWeirdplaceGameUserSettings"));
+		return;
+	}
+	Settings->SetGamepadLookSensitivity(Value);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver: GamepadLookSensitivity now %.3f"), Settings->GetGamepadLookSensitivity());
+}
+
+float UTestDriverSubsystem::GetControllerYaw() const
+{
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	return PC ? static_cast<float>(PC->GetControlRotation().Yaw) : 0.0f;
 }
 
 // --- Inventory queries ---

@@ -199,10 +199,11 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		if (LookAction)
-		{
-			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleLookInput);
-		}
+		// Note: IA_Look has no C++ binding here on purpose. The BP event graph
+		// (BP_FirstPersonCharacter -> InputAction Look) wires it directly to
+		// AddControllerYaw/PitchInput, both of which we override below to apply
+		// the sensitivity scale. Adding a C++ binding too would double-process
+		// the input.
 		if (MoveAction)
 		{
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleMoveInput);
@@ -230,24 +231,28 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	}
 }
 
-void AFirstPersonCharacter::HandleLookInput(const FInputActionValue& Value)
+float AFirstPersonCharacter::ComputeLookSensitivityScale() const
 {
-	if (!CachedPlayerController || !CachedPlayerController->PlayerInput || !CachedSettings)
+	if (!CachedSettings)
 	{
-		UE_LOG(LogTemp, Error, TEXT("HandleLookInput - missing PC/PlayerInput/Settings"));
-		return;
+		return 1.0f;
 	}
+	// Quadratic curve. Default 1.0 maps to the comfortable 0.5x baseline
+	// (1*1*0.5). 0.1 maps to 0.005x (very slow but not frozen). 2.0 maps
+	// to 2.0x (raw 4x default).
+	const float V = CachedSettings->GetGamepadLookSensitivity();
+	return (V * V) * UWeirdplaceGameUserSettings::GamepadLookSensitivityScaleFactor;
+}
 
-	// Gamepad source detection: deadzone matches DefaultInput.ini Gamepad_RightX/Y AxisConfig.
-	const float GpX = CachedPlayerController->PlayerInput->GetKeyValue(EKeys::Gamepad_RightX);
-	const float GpY = CachedPlayerController->PlayerInput->GetKeyValue(EKeys::Gamepad_RightY);
-	constexpr float GamepadDeadzone = 0.25f;
-	const bool bFromGamepad = FMath::Abs(GpX) > GamepadDeadzone || FMath::Abs(GpY) > GamepadDeadzone;
-	const float Scale = bFromGamepad ? CachedSettings->GetGamepadLookSensitivity() : 1.0f;
+void AFirstPersonCharacter::AddControllerYawInput(float Val)
+{
+	Super::AddControllerYawInput(Val * ComputeLookSensitivityScale());
+}
 
-	const FVector2D LookAxisVector = Value.Get<FVector2D>();
-	AddControllerYawInput(LookAxisVector.X * Scale);
-	AddControllerPitchInput(LookAxisVector.Y * Scale);
+void AFirstPersonCharacter::AddControllerPitchInput(float Val)
+{
+	const float Scaled = Val * ComputeLookSensitivityScale();
+	Super::AddControllerPitchInput(Scaled);
 }
 
 void AFirstPersonCharacter::HandleMoveInput(const FInputActionValue& Value)

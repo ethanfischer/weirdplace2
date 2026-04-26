@@ -115,6 +115,14 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// --- Sensitivity / look diagnostics ---
+
+	// Directly write the gamepad look sensitivity (clamps + snaps internally).
+	void SetGamepadLookSensitivity(float Value);
+
+	// Returns the current player ControlRotation yaw in degrees.
+	float GetControllerYaw() const;
+
 	// --- Test status overlay ---
 
 	// Pins a status line on screen via GEngine->AddOnScreenDebugMessage with a
