@@ -92,10 +92,12 @@ private:
 	void UnbindNavigateInput();
 
 	void HandleNavigateAxisX(float AxisValue);
+	void HandleNavigateAxisY(float AxisValue);
 
 	void FreezePlayerMovement();
 	void UnfreezePlayerMovement();
 
-	// Flick-step state for the X axis. True when ready to fire a step on next threshold cross.
+	// Flick-step state. True when ready to fire a step on next threshold cross.
 	bool bArmedX = true;
+	bool bArmedY = true;
 };

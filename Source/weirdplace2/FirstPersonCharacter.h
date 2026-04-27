@@ -109,7 +109,9 @@ public:
 	virtual void AddControllerPitchInput(float Val) override;
 
 private:
-	float ComputeLookSensitivityScale() const;
+	float ComputeGamepadLookScale() const;
+	float ComputeMouseLookScale() const;
+	bool IsGamepadLookActive() const;
 
 public:
 

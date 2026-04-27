@@ -12,6 +12,15 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UWeirdplaceGameUserSettings;
 
+// Identifies which setting row is being interacted with.
+UENUM(BlueprintType)
+enum class ESettingsRow : uint8
+{
+	GamepadSensitivity,
+	MouseSensitivity,
+	Count UMETA(Hidden)
+};
+
 UCLASS(Blueprintable)
 class WEIRDPLACE2_API ASettingsUIActor : public AActor
 {
@@ -20,22 +29,18 @@ class WEIRDPLACE2_API ASettingsUIActor : public AActor
 public:
 	ASettingsUIActor();
 
-	// Sync visuals (selection highlight + value label) to a sensitivity value (already snapped).
-	UFUNCTION(BlueprintCallable, Category = "Settings UI")
-	void RefreshFromSettings(float SnappedSensitivityValue);
-
-	// Step the selection by Delta (typically +1 or -1), clamp, persist into Settings,
-	// and refresh visuals. Returns the snapped value now applied.
-	UFUNCTION(BlueprintCallable, Category = "Settings UI")
+	// Step the value within the focused row by Delta (+1 or -1).
+	// Persists into Settings and refreshes visuals. Returns the new snapped value.
 	float StepSelection(int32 Delta, UWeirdplaceGameUserSettings* Settings);
 
-	// Reset SelectedIndex from the current settings value (call on open).
+	// Move focus to a different row. Delta: -1 = up, +1 = down. Clamps.
+	void StepFocusedRow(int32 Delta);
+
+	// Sync all rows from the current settings values (call on open).
 	void SyncFromSettings(UWeirdplaceGameUserSettings* Settings);
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Settings UI")
-	int32 GetSelectedIndex() const { return SelectedIndex; }
+	ESettingsRow GetFocusedRow() const { return FocusedRow; }
 
-	// Mirror of AInventoryUIActor::SetOpacity for animation fade-in.
 	void SetOpacity(float Opacity);
 
 protected:
@@ -47,16 +52,6 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Settings UI", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* BackgroundPanel;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Settings UI", meta = (AllowPrivateAccess = "true"))
-	UTextRenderComponent* TitleText;
-
-	// Layout, mirroring the inventory's pattern.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings UI|Layout")
-	float SlotSize = 8.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings UI|Layout")
-	float SlotSpacing = 2.0f;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings UI|Layout")
 	float BackgroundPadding = 4.0f;
 
@@ -64,12 +59,26 @@ protected:
 	FLinearColor BackgroundColor = FLinearColor(0.02f, 0.02f, 0.05f, 0.85f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings UI|Materials")
-	FLinearColor EmptySlotColor = FLinearColor(0.1f, 0.1f, 0.12f, 0.6f);
+	FLinearColor FocusedValueColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings UI|Materials")
-	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+	FLinearColor UnfocusedValueColor = FLinearColor(0.6f, 0.6f, 0.6f, 1.0f);
 
 private:
+	// Per-row state.
+	struct FSettingsRowVisuals
+	{
+		UTextRenderComponent* LabelText = nullptr;
+		UTextRenderComponent* ValueText = nullptr;
+		int32 SelectedIndex = 0;
+		int32 SlotCount = 0;
+	};
+
+	static constexpr int32 RowCount = static_cast<int32>(ESettingsRow::Count);
+
+	FSettingsRowVisuals Rows[RowCount];
+	ESettingsRow FocusedRow = ESettingsRow::GamepadSensitivity;
+
 	UPROPERTY()
 	UStaticMesh* PlaneMesh;
 
@@ -77,31 +86,26 @@ private:
 	UMaterialInterface* SolidColorMaterial;
 
 	UPROPERTY()
-	TArray<UStaticMeshComponent*> SlotMeshes;
-
-	UPROPERTY()
-	UStaticMeshComponent* SelectionHighlight;
-
-	UPROPERTY()
 	UMaterialInstanceDynamic* BackgroundMaterial;
 
 	UPROPERTY()
-	UMaterialInstanceDynamic* SelectionMaterial;
+	UTextRenderComponent* ControllerHeaderText;
 
 	UPROPERTY()
-	TArray<UMaterialInstanceDynamic*> SlotMaterials;
+	UTextRenderComponent* MouseKBHeaderText;
 
-	int32 SelectedIndex = 0;
 	float CurrentOpacity = 1.0f;
 
-	int32 GetSlotCount() const;
-	int32 ValueToSlotIndex(float Value) const;
-	float SlotIndexToValue(int32 Index) const;
-	FVector CalculateSlotPosition(int32 Index) const;
-	float GetGridWidth() const;
-	float GetGridHeight() const;
+	// Row config helpers.
+	int32 GetSlotCountForRow(ESettingsRow Row) const;
+	int32 ValueToSlotIndex(ESettingsRow Row, float Value) const;
+	float SlotIndexToValue(ESettingsRow Row, int32 Index) const;
 
 	void BuildVisuals();
+	void BuildRow(ESettingsRow Row, float LabelZ, float ValueZ, const FString& Label);
 	void UpdateBackgroundSize();
-	void UpdateSelectionHighlight();
+	void UpdateFocusColors();
+
+	float GetSettingValue(ESettingsRow Row, UWeirdplaceGameUserSettings* Settings) const;
+	void SetSettingValue(ESettingsRow Row, float Value, UWeirdplaceGameUserSettings* Settings);
 };

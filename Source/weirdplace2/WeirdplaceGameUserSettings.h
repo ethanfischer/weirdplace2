@@ -20,6 +20,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weirdplace Settings")
 	void SetGamepadLookSensitivity(float NewValue);
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Weirdplace Settings")
+	float GetMouseLookSensitivity() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Weirdplace Settings")
+	void SetMouseLookSensitivity(float NewValue);
+
 	static constexpr float MinGamepadLookSensitivity = 0.1f;
 	static constexpr float MaxGamepadLookSensitivity = 2.0f;
 	static constexpr float GamepadLookSensitivitySnap = 0.1f;
@@ -30,9 +36,18 @@ public:
 	// matches a comfortable baseline.
 	static constexpr float GamepadLookSensitivityScaleFactor = 0.5f;
 
+	static constexpr float MinMouseLookSensitivity = 0.1f;
+	static constexpr float MaxMouseLookSensitivity = 2.0f;
+	static constexpr float MouseLookSensitivitySnap = 0.1f;
+	static constexpr float DefaultMouseLookSensitivity = 1.0f;
+	static constexpr float MouseLookSensitivityScaleFactor = 1.0f;
+
 private:
 	UPROPERTY(Config)
 	float GamepadLookSensitivity;
 
-	static float ClampAndSnap(float Value);
+	UPROPERTY(Config)
+	float MouseLookSensitivity;
+
+	static float ClampAndSnap(float Value, float Min, float Max, float Snap);
 };

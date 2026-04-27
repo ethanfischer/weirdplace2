@@ -231,28 +231,47 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 	}
 }
 
-float AFirstPersonCharacter::ComputeLookSensitivityScale() const
+bool AFirstPersonCharacter::IsGamepadLookActive() const
+{
+	if (!CachedPlayerController)
+	{
+		return false;
+	}
+	const float StickX = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightX);
+	const float StickY = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+	return FMath::Abs(StickX) > 0.01f || FMath::Abs(StickY) > 0.01f;
+}
+
+float AFirstPersonCharacter::ComputeGamepadLookScale() const
 {
 	if (!CachedSettings)
 	{
 		return 1.0f;
 	}
-	// Quadratic curve. Default 1.0 maps to the comfortable 0.5x baseline
-	// (1*1*0.5). 0.1 maps to 0.005x (very slow but not frozen). 2.0 maps
-	// to 2.0x (raw 4x default).
 	const float V = CachedSettings->GetGamepadLookSensitivity();
 	return (V * V) * UWeirdplaceGameUserSettings::GamepadLookSensitivityScaleFactor;
 }
 
+float AFirstPersonCharacter::ComputeMouseLookScale() const
+{
+	if (!CachedSettings)
+	{
+		return 1.0f;
+	}
+	const float V = CachedSettings->GetMouseLookSensitivity();
+	return V * UWeirdplaceGameUserSettings::MouseLookSensitivityScaleFactor;
+}
+
 void AFirstPersonCharacter::AddControllerYawInput(float Val)
 {
-	Super::AddControllerYawInput(Val * ComputeLookSensitivityScale());
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	Super::AddControllerYawInput(Val * Scale);
 }
 
 void AFirstPersonCharacter::AddControllerPitchInput(float Val)
 {
-	const float Scaled = Val * ComputeLookSensitivityScale();
-	Super::AddControllerPitchInput(Scaled);
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	Super::AddControllerPitchInput(Val * Scale);
 }
 
 void AFirstPersonCharacter::HandleMoveInput(const FInputActionValue& Value)

@@ -3,26 +3,38 @@
 UWeirdplaceGameUserSettings::UWeirdplaceGameUserSettings()
 {
 	GamepadLookSensitivity = DefaultGamepadLookSensitivity;
+	MouseLookSensitivity = DefaultMouseLookSensitivity;
 }
 
 void UWeirdplaceGameUserSettings::SetToDefaults()
 {
 	Super::SetToDefaults();
 	GamepadLookSensitivity = DefaultGamepadLookSensitivity;
+	MouseLookSensitivity = DefaultMouseLookSensitivity;
 }
 
 float UWeirdplaceGameUserSettings::GetGamepadLookSensitivity() const
 {
-	return ClampAndSnap(GamepadLookSensitivity);
+	return ClampAndSnap(GamepadLookSensitivity, MinGamepadLookSensitivity, MaxGamepadLookSensitivity, GamepadLookSensitivitySnap);
 }
 
 void UWeirdplaceGameUserSettings::SetGamepadLookSensitivity(float NewValue)
 {
-	GamepadLookSensitivity = ClampAndSnap(NewValue);
+	GamepadLookSensitivity = ClampAndSnap(NewValue, MinGamepadLookSensitivity, MaxGamepadLookSensitivity, GamepadLookSensitivitySnap);
 }
 
-float UWeirdplaceGameUserSettings::ClampAndSnap(float Value)
+float UWeirdplaceGameUserSettings::GetMouseLookSensitivity() const
 {
-	const float Clamped = FMath::Clamp(Value, MinGamepadLookSensitivity, MaxGamepadLookSensitivity);
-	return FMath::RoundToFloat(Clamped / GamepadLookSensitivitySnap) * GamepadLookSensitivitySnap;
+	return ClampAndSnap(MouseLookSensitivity, MinMouseLookSensitivity, MaxMouseLookSensitivity, MouseLookSensitivitySnap);
+}
+
+void UWeirdplaceGameUserSettings::SetMouseLookSensitivity(float NewValue)
+{
+	MouseLookSensitivity = ClampAndSnap(NewValue, MinMouseLookSensitivity, MaxMouseLookSensitivity, MouseLookSensitivitySnap);
+}
+
+float UWeirdplaceGameUserSettings::ClampAndSnap(float Value, float Min, float Max, float Snap)
+{
+	const float Clamped = FMath::Clamp(Value, Min, Max);
+	return FMath::RoundToFloat(Clamped / Snap) * Snap;
 }

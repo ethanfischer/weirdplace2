@@ -77,7 +77,8 @@ void USettingsUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			if (CachedSettings)
 			{
 				CachedSettings->SaveSettings();
-				UE_LOG(LogTemp, Log, TEXT("Settings persisted: GamepadLookSensitivity=%.2f"), CachedSettings->GetGamepadLookSensitivity());
+				UE_LOG(LogTemp, Log, TEXT("Settings persisted: GamepadLookSensitivity=%.2f MouseLookSensitivity=%.2f"),
+					CachedSettings->GetGamepadLookSensitivity(), CachedSettings->GetMouseLookSensitivity());
 			}
 		}
 		else
@@ -142,6 +143,7 @@ void USettingsUIComponent::OpenSettingsUI()
 
 	CurrentState = ESettingsUIState::Opening;
 	bArmedX = true;
+	bArmedY = true;
 	FreezePlayerMovement();
 	BindNavigateInput();
 
@@ -241,8 +243,8 @@ void USettingsUIComponent::BindNavigateInput()
 		return;
 	}
 
-	// Left-stick X / WASD A-D drive selection. Single row, so Y is unused for now.
 	PC->InputComponent->BindAxis("Move Right / Left", this, &USettingsUIComponent::HandleNavigateAxisX);
+	PC->InputComponent->BindAxis("Move Forward / Backward", this, &USettingsUIComponent::HandleNavigateAxisY);
 }
 
 void USettingsUIComponent::UnbindNavigateInput()
@@ -285,6 +287,39 @@ void USettingsUIComponent::HandleNavigateAxisX(float AxisValue)
 		bArmedX = false;
 		const int32 Delta = AxisValue > 0.0f ? 1 : -1;
 		SettingsUIActor->StepSelection(Delta, CachedSettings);
+	}
+}
+
+void USettingsUIComponent::HandleNavigateAxisY(float AxisValue)
+{
+	if (CurrentState != ESettingsUIState::Open && CurrentState != ESettingsUIState::Opening)
+	{
+		return;
+	}
+	if (!SettingsUIActor)
+	{
+		return;
+	}
+
+	constexpr float FireThreshold = 0.5f;
+	constexpr float RearmThreshold = 0.2f;
+
+	const float AbsValue = FMath::Abs(AxisValue);
+	if (!bArmedY)
+	{
+		if (AbsValue < RearmThreshold)
+		{
+			bArmedY = true;
+		}
+		return;
+	}
+
+	if (AbsValue > FireThreshold)
+	{
+		bArmedY = false;
+		// Positive Y = forward/up = move to previous row (Delta -1).
+		const int32 Delta = AxisValue > 0.0f ? -1 : 1;
+		SettingsUIActor->StepFocusedRow(Delta);
 	}
 }
 

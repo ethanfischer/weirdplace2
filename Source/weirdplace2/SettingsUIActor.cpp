@@ -8,6 +8,16 @@
 #include "UObject/ConstructorHelpers.h"
 #include "WeirdplaceGameUserSettings.h"
 
+// ---------------------------------------------------------------------------
+// Layout constants (Z increases upward)
+// ---------------------------------------------------------------------------
+static constexpr float kControllerHeaderZ =  18.0f;
+static constexpr float kControllerLabelZ  =  12.0f;
+static constexpr float kControllerValueZ  =   6.0f;
+static constexpr float kMouseKBHeaderZ    =  -4.0f;
+static constexpr float kMouseKBLabelZ     = -10.0f;
+static constexpr float kMouseKBValueZ     = -16.0f;
+
 ASettingsUIActor::ASettingsUIActor()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -15,14 +25,13 @@ ASettingsUIActor::ASettingsUIActor()
 	RootSceneComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 	SetRootComponent(RootSceneComponent);
 
-	// Reuse the same plane mesh the inventory uses, for visual parity.
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMeshAsset(TEXT("/Engine/BasicShapes/Plane.Plane"));
 	if (PlaneMeshAsset.Succeeded())
 	{
 		PlaneMesh = PlaneMeshAsset.Object;
 	}
 
-	// Background panel (dark translucent), exactly mirroring AInventoryUIActor.
+	// Background panel.
 	BackgroundPanel = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BackgroundPanel"));
 	BackgroundPanel->SetupAttachment(RootSceneComponent);
 	if (PlaneMesh)
@@ -33,31 +42,37 @@ ASettingsUIActor::ASettingsUIActor()
 	BackgroundPanel->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, 0.0f));
 
-	// Top label — same setup the inventory uses for ItemNameTextTop.
-	TitleText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TitleText"));
-	TitleText->SetupAttachment(RootSceneComponent);
-	TitleText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
-	TitleText->SetWorldSize(3.0f);
-	TitleText->SetTextRenderColor(FColor::White);
-	TitleText->SetHorizontalAlignment(EHTA_Center);
-	TitleText->SetVerticalAlignment(EVRTA_TextCenter);
-	TitleText->SetText(FText::FromString(TEXT("0.50x")));
+	// Section headers.
+	ControllerHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ControllerHeaderText"));
+	ControllerHeaderText->SetupAttachment(RootSceneComponent);
+	ControllerHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	ControllerHeaderText->SetWorldSize(3.5f);
+	ControllerHeaderText->SetTextRenderColor(FColor::White);
+	ControllerHeaderText->SetHorizontalAlignment(EHTA_Center);
+	ControllerHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
+	ControllerHeaderText->SetText(FText::FromString(TEXT("CONTROLLER")));
+
+	MouseKBHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("MouseKBHeaderText"));
+	MouseKBHeaderText->SetupAttachment(RootSceneComponent);
+	MouseKBHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	MouseKBHeaderText->SetWorldSize(3.5f);
+	MouseKBHeaderText->SetTextRenderColor(FColor::White);
+	MouseKBHeaderText->SetHorizontalAlignment(EHTA_Center);
+	MouseKBHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
+	MouseKBHeaderText->SetText(FText::FromString(TEXT("MOUSE / KEYBOARD")));
 }
 
 void ASettingsUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Attach the same M_SolidColor material the inventory falls back to.
 	SolidColorMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
 	if (!SolidColorMaterial)
 	{
-		UE_LOG(LogTemp, Error, TEXT("ASettingsUIActor: /Game/Materials/M_SolidColor not found. Run create_solid_color_material.py."));
+		UE_LOG(LogTemp, Error, TEXT("ASettingsUIActor: /Game/Materials/M_SolidColor not found."));
 		return;
 	}
 
-	// Background gets a dynamic material so opacity can fade with the open animation,
-	// matching the inventory's BackgroundMaterial flow.
 	if (BackgroundPanel)
 	{
 		BackgroundMaterial = UMaterialInstanceDynamic::Create(SolidColorMaterial, this);
@@ -72,70 +87,62 @@ void ASettingsUIActor::BeginPlay()
 
 	BuildVisuals();
 	UpdateBackgroundSize();
-	UpdateSelectionHighlight();
+	UpdateFocusColors();
 }
+
+// ---------------------------------------------------------------------------
+// Build visuals
+// ---------------------------------------------------------------------------
 
 void ASettingsUIActor::BuildVisuals()
 {
-	if (!PlaneMesh || !SolidColorMaterial)
+	if (ControllerHeaderText)
 	{
-		return;
+		ControllerHeaderText->SetRelativeLocation(FVector(0.0f, 0.0f, kControllerHeaderZ));
+	}
+	if (MouseKBHeaderText)
+	{
+		MouseKBHeaderText->SetRelativeLocation(FVector(0.0f, 0.0f, kMouseKBHeaderZ));
 	}
 
-	const int32 SlotCount = GetSlotCount();
-
-	// Empty-slot tiles, mirroring AInventoryUIActor::CreateSlots.
-	for (int32 i = 0; i < SlotCount; i++)
-	{
-		UStaticMeshComponent* SlotMesh = NewObject<UStaticMeshComponent>(this);
-		SlotMesh->SetStaticMesh(PlaneMesh);
-		SlotMesh->SetupAttachment(RootSceneComponent);
-		SlotMesh->RegisterComponent();
-		SlotMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-		FVector Position = CalculateSlotPosition(i);
-		Position.X += 0.3f;
-		SlotMesh->SetRelativeLocation(Position);
-		SlotMesh->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
-
-		const float Width = SlotSize * 1.05f;
-		const float Height = SlotSize * 1.4f * 1.05f;
-		SlotMesh->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
-
-		UMaterialInstanceDynamic* SlotMat = UMaterialInstanceDynamic::Create(SolidColorMaterial, this);
-		if (SlotMat)
-		{
-			SlotMat->SetVectorParameterValue(FName("Color"), EmptySlotColor);
-			SlotMat->SetVectorParameterValue(FName("BaseColor"), EmptySlotColor);
-			SlotMat->SetVectorParameterValue(FName("EmissiveColor"), EmptySlotColor);
-			SlotMesh->SetMaterial(0, SlotMat);
-			SlotMaterials.Add(SlotMat);
-		}
-
-		SlotMeshes.Add(SlotMesh);
-	}
-
-	// Selection highlight, mirroring AInventoryUIActor::CreateSlots highlight branch.
-	SelectionHighlight = NewObject<UStaticMeshComponent>(this);
-	SelectionHighlight->SetStaticMesh(PlaneMesh);
-	SelectionHighlight->SetupAttachment(RootSceneComponent);
-	SelectionHighlight->RegisterComponent();
-	SelectionHighlight->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-	const float HighlightWidth = SlotSize * 1.15f;
-	const float HighlightHeight = SlotSize * 1.4f * 1.15f;
-	SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
-	SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
-
-	SelectionMaterial = UMaterialInstanceDynamic::Create(SolidColorMaterial, this);
-	if (SelectionMaterial)
-	{
-		SelectionMaterial->SetVectorParameterValue(FName("Color"), SelectionColor);
-		SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), SelectionColor);
-		SelectionMaterial->SetVectorParameterValue(FName("EmissiveColor"), SelectionColor);
-		SelectionHighlight->SetMaterial(0, SelectionMaterial);
-	}
+	BuildRow(ESettingsRow::GamepadSensitivity, kControllerLabelZ, kControllerValueZ, TEXT("Look Sensitivity"));
+	BuildRow(ESettingsRow::MouseSensitivity,   kMouseKBLabelZ,   kMouseKBValueZ,    TEXT("Look Sensitivity"));
 }
+
+void ASettingsUIActor::BuildRow(ESettingsRow Row, float LabelZ, float ValueZ, const FString& Label)
+{
+	const int32 RowIdx = static_cast<int32>(Row);
+	FSettingsRowVisuals& R = Rows[RowIdx];
+	R.SlotCount = GetSlotCountForRow(Row);
+
+	// Label (centered).
+	R.LabelText = NewObject<UTextRenderComponent>(this);
+	R.LabelText->SetupAttachment(RootSceneComponent);
+	R.LabelText->RegisterComponent();
+	R.LabelText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	R.LabelText->SetWorldSize(2.8f);
+	R.LabelText->SetTextRenderColor(FColor(200, 200, 200));
+	R.LabelText->SetHorizontalAlignment(EHTA_Center);
+	R.LabelText->SetVerticalAlignment(EVRTA_TextCenter);
+	R.LabelText->SetRelativeLocation(FVector(0.0f, 0.0f, LabelZ));
+	R.LabelText->SetText(FText::FromString(Label));
+
+	// Value (centered, below label).
+	R.ValueText = NewObject<UTextRenderComponent>(this);
+	R.ValueText->SetupAttachment(RootSceneComponent);
+	R.ValueText->RegisterComponent();
+	R.ValueText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	R.ValueText->SetWorldSize(3.0f);
+	R.ValueText->SetTextRenderColor(FColor(200, 200, 200));
+	R.ValueText->SetHorizontalAlignment(EHTA_Center);
+	R.ValueText->SetVerticalAlignment(EVRTA_TextCenter);
+	R.ValueText->SetRelativeLocation(FVector(0.0f, 0.0f, ValueZ));
+	R.ValueText->SetText(FText::FromString(TEXT("1.00x")));
+}
+
+// ---------------------------------------------------------------------------
+// Background sizing
+// ---------------------------------------------------------------------------
 
 void ASettingsUIActor::UpdateBackgroundSize()
 {
@@ -144,43 +151,40 @@ void ASettingsUIActor::UpdateBackgroundSize()
 		return;
 	}
 
-	const float GridW = GetGridWidth();
-	const float GridH = GetGridHeight();
-	const float TotalWidth = GridW + BackgroundPadding * 2.0f;
-	const float TotalHeight = GridH + BackgroundPadding * 2.0f + 16.0f; // headroom for top text
+	const float TotalWidth  = 50.0f + BackgroundPadding * 2.0f;
+	const float TopZ        = kControllerHeaderZ + 6.0f;
+	const float BottomZ     = kMouseKBValueZ - 6.0f;
+	const float TotalHeight = (TopZ - BottomZ) + BackgroundPadding * 2.0f;
+	const float CenterZ     = (TopZ + BottomZ) * 0.5f;
 
 	BackgroundPanel->SetRelativeScale3D(FVector(TotalHeight * 0.01f, TotalWidth * 0.01f, 1.0f));
-
-	if (TitleText)
-	{
-		const float TopTextZ = GridH * 0.5f + BackgroundPadding + 2.0f;
-		TitleText->SetRelativeLocation(FVector(0.0f, 0.0f, TopTextZ));
-	}
+	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, CenterZ));
 }
 
-void ASettingsUIActor::UpdateSelectionHighlight()
+// ---------------------------------------------------------------------------
+// Focus colors — focused row value is yellow, unfocused is gray
+// ---------------------------------------------------------------------------
+
+void ASettingsUIActor::UpdateFocusColors()
 {
-	if (!SelectionHighlight)
+	const FColor Focused   = FocusedValueColor.ToFColor(true);
+	const FColor Unfocused = UnfocusedValueColor.ToFColor(true);
+
+	for (int32 i = 0; i < RowCount; i++)
 	{
-		return;
-	}
-
-	FVector Position = CalculateSlotPosition(SelectedIndex);
-	Position.X += 0.5f; // Behind the slot, like the inventory's highlight
-	SelectionHighlight->SetRelativeLocation(Position);
-	SelectionHighlight->SetVisibility(true);
-}
-
-void ASettingsUIActor::RefreshFromSettings(float SnappedSensitivityValue)
-{
-	SelectedIndex = ValueToSlotIndex(SnappedSensitivityValue);
-	UpdateSelectionHighlight();
-
-	if (TitleText)
-	{
-		TitleText->SetText(FText::FromString(FString::Printf(TEXT("%.2fx"), SnappedSensitivityValue)));
+		FSettingsRowVisuals& R = Rows[i];
+		if (!R.ValueText)
+		{
+			continue;
+		}
+		const bool bFocused = (static_cast<ESettingsRow>(i) == FocusedRow);
+		R.ValueText->SetTextRenderColor(bFocused ? Focused : Unfocused);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 void ASettingsUIActor::SyncFromSettings(UWeirdplaceGameUserSettings* Settings)
 {
@@ -189,7 +193,17 @@ void ASettingsUIActor::SyncFromSettings(UWeirdplaceGameUserSettings* Settings)
 		UE_LOG(LogTemp, Error, TEXT("ASettingsUIActor::SyncFromSettings - null Settings"));
 		return;
 	}
-	RefreshFromSettings(Settings->GetGamepadLookSensitivity());
+	for (int32 i = 0; i < RowCount; i++)
+	{
+		const ESettingsRow Row = static_cast<ESettingsRow>(i);
+		const float Value = GetSettingValue(Row, Settings);
+		Rows[i].SelectedIndex = ValueToSlotIndex(Row, Value);
+		if (Rows[i].ValueText)
+		{
+			Rows[i].ValueText->SetText(FText::FromString(FString::Printf(TEXT("%.2fx"), Value)));
+		}
+	}
+	UpdateFocusColors();
 }
 
 float ASettingsUIActor::StepSelection(int32 Delta, UWeirdplaceGameUserSettings* Settings)
@@ -200,23 +214,31 @@ float ASettingsUIActor::StepSelection(int32 Delta, UWeirdplaceGameUserSettings* 
 		return 0.0f;
 	}
 
-	const int32 NewIndex = FMath::Clamp(SelectedIndex + Delta, 0, GetSlotCount() - 1);
-	if (NewIndex == SelectedIndex)
+	const int32 RowIdx = static_cast<int32>(FocusedRow);
+	FSettingsRowVisuals& R = Rows[RowIdx];
+
+	const int32 NewIndex = FMath::Clamp(R.SelectedIndex + Delta, 0, R.SlotCount - 1);
+	if (NewIndex == R.SelectedIndex)
 	{
-		return SlotIndexToValue(SelectedIndex);
+		return SlotIndexToValue(FocusedRow, R.SelectedIndex);
 	}
 
-	SelectedIndex = NewIndex;
-	const float NewValue = SlotIndexToValue(SelectedIndex);
-	Settings->SetGamepadLookSensitivity(NewValue);
-	const float Snapped = Settings->GetGamepadLookSensitivity();
-	// Update visuals from the persisted (snapped) value so display matches truth.
-	UpdateSelectionHighlight();
-	if (TitleText)
+	R.SelectedIndex = NewIndex;
+	const float NewValue = SlotIndexToValue(FocusedRow, R.SelectedIndex);
+	SetSettingValue(FocusedRow, NewValue, Settings);
+	const float Snapped = GetSettingValue(FocusedRow, Settings);
+	if (R.ValueText)
 	{
-		TitleText->SetText(FText::FromString(FString::Printf(TEXT("%.2fx"), Snapped)));
+		R.ValueText->SetText(FText::FromString(FString::Printf(TEXT("%.2fx"), Snapped)));
 	}
 	return Snapped;
+}
+
+void ASettingsUIActor::StepFocusedRow(int32 Delta)
+{
+	const int32 NewIdx = FMath::Clamp(static_cast<int32>(FocusedRow) + Delta, 0, RowCount - 1);
+	FocusedRow = static_cast<ESettingsRow>(NewIdx);
+	UpdateFocusColors();
 }
 
 void ASettingsUIActor::SetOpacity(float Opacity)
@@ -230,59 +252,111 @@ void ASettingsUIActor::SetOpacity(float Opacity)
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), Adjusted);
 	}
 
-	if (SelectionMaterial)
-	{
-		SelectionMaterial->SetScalarParameterValue(FName("Opacity"), Opacity);
-	}
+	const uint8 Alpha = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
+	const FColor HeaderColor(255, 255, 255, Alpha);
+	const FColor DimColor(200, 200, 200, Alpha);
 
-	if (TitleText)
+	if (ControllerHeaderText) ControllerHeaderText->SetTextRenderColor(HeaderColor);
+	if (MouseKBHeaderText)    MouseKBHeaderText->SetTextRenderColor(HeaderColor);
+
+	for (int32 i = 0; i < RowCount; i++)
 	{
-		FColor TextColor = FColor::White;
-		TextColor.A = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
-		TitleText->SetTextRenderColor(TextColor);
+		FSettingsRowVisuals& R = Rows[i];
+		if (R.LabelText) R.LabelText->SetTextRenderColor(DimColor);
+		if (R.ValueText)
+		{
+			const bool bFocused = (static_cast<ESettingsRow>(i) == FocusedRow);
+			FColor ValColor = bFocused ? FocusedValueColor.ToFColor(true) : UnfocusedValueColor.ToFColor(true);
+			ValColor.A = Alpha;
+			R.ValueText->SetTextRenderColor(ValColor);
+		}
 	}
 }
 
-int32 ASettingsUIActor::GetSlotCount() const
+// ---------------------------------------------------------------------------
+// Settings read/write
+// ---------------------------------------------------------------------------
+
+float ASettingsUIActor::GetSettingValue(ESettingsRow Row, UWeirdplaceGameUserSettings* Settings) const
 {
-	const float Min = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
-	const float Max = UWeirdplaceGameUserSettings::MaxGamepadLookSensitivity;
-	const float Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+	switch (Row)
+	{
+	case ESettingsRow::GamepadSensitivity: return Settings->GetGamepadLookSensitivity();
+	case ESettingsRow::MouseSensitivity:   return Settings->GetMouseLookSensitivity();
+	default: return 1.0f;
+	}
+}
+
+void ASettingsUIActor::SetSettingValue(ESettingsRow Row, float Value, UWeirdplaceGameUserSettings* Settings)
+{
+	switch (Row)
+	{
+	case ESettingsRow::GamepadSensitivity: Settings->SetGamepadLookSensitivity(Value); break;
+	case ESettingsRow::MouseSensitivity:   Settings->SetMouseLookSensitivity(Value);   break;
+	default: break;
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Value ↔ index math (still needed to step in discrete increments)
+// ---------------------------------------------------------------------------
+
+int32 ASettingsUIActor::GetSlotCountForRow(ESettingsRow Row) const
+{
+	float Min, Max, Snap;
+	switch (Row)
+	{
+	case ESettingsRow::GamepadSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
+		Max  = UWeirdplaceGameUserSettings::MaxGamepadLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+		break;
+	case ESettingsRow::MouseSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinMouseLookSensitivity;
+		Max  = UWeirdplaceGameUserSettings::MaxMouseLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::MouseLookSensitivitySnap;
+		break;
+	default:
+		return 1;
+	}
 	return FMath::RoundToInt((Max - Min) / Snap) + 1;
 }
 
-int32 ASettingsUIActor::ValueToSlotIndex(float Value) const
+int32 ASettingsUIActor::ValueToSlotIndex(ESettingsRow Row, float Value) const
 {
-	const float Min = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
-	const float Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+	float Min, Snap;
+	switch (Row)
+	{
+	case ESettingsRow::GamepadSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+		break;
+	case ESettingsRow::MouseSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinMouseLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::MouseLookSensitivitySnap;
+		break;
+	default:
+		return 0;
+	}
 	const int32 Index = FMath::RoundToInt((Value - Min) / Snap);
-	return FMath::Clamp(Index, 0, GetSlotCount() - 1);
+	return FMath::Clamp(Index, 0, GetSlotCountForRow(Row) - 1);
 }
 
-float ASettingsUIActor::SlotIndexToValue(int32 Index) const
+float ASettingsUIActor::SlotIndexToValue(ESettingsRow Row, int32 Index) const
 {
-	const float Min = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
-	const float Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+	float Min, Snap;
+	switch (Row)
+	{
+	case ESettingsRow::GamepadSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinGamepadLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::GamepadLookSensitivitySnap;
+		break;
+	case ESettingsRow::MouseSensitivity:
+		Min  = UWeirdplaceGameUserSettings::MinMouseLookSensitivity;
+		Snap = UWeirdplaceGameUserSettings::MouseLookSensitivitySnap;
+		break;
+	default:
+		return 1.0f;
+	}
 	return Min + Index * Snap;
-}
-
-FVector ASettingsUIActor::CalculateSlotPosition(int32 Index) const
-{
-	// Single horizontal row.
-	const int32 SlotCount = GetSlotCount();
-	const float SlotPitch = SlotSize + SlotSpacing;
-	const float TotalWidth = (SlotCount - 1) * SlotPitch;
-	const float Y = -TotalWidth * 0.5f + Index * SlotPitch;
-	return FVector(0.0f, Y, 0.0f);
-}
-
-float ASettingsUIActor::GetGridWidth() const
-{
-	const int32 SlotCount = GetSlotCount();
-	return SlotCount * SlotSize + (SlotCount - 1) * SlotSpacing;
-}
-
-float ASettingsUIActor::GetGridHeight() const
-{
-	return SlotSize * 1.4f;
 }
