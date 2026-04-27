@@ -84,6 +84,12 @@ public:
 	void SimulateInteractRelease();
 	void SimulateInventoryPress();
 	void SimulateInventoryRelease();
+	void SimulateSettingsPress();
+	void SimulateSettingsRelease();
+
+	// Pulse a legacy axis input for one frame at the given value. Used to fire
+	// a single flick-step on the menu's Move axis bindings.
+	void SimulateLegacyAxis(FName AxisName, float Value);
 
 	// --- Inventory (queries only — open/close/confirm go through input) ---
 

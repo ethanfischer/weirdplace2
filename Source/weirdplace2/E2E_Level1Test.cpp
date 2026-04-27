@@ -185,4 +185,54 @@ bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// PauseMenu — verify the pause menu wraps the settings page: pressing the
+// settings key opens the Pause page, navigating to "Settings" + confirm
+// swaps to the Settings page in place, "Back" returns, and pressing the
+// settings key again closes the menu entirely.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_PauseMenu,
+	"Weirdplace2.E2E.Level1.PauseMenu",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("PauseMenu")
+
+	// Open the menu — Pause page should appear.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Pause));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_01_PauseOpen")));
+
+	// Navigate down once (Resume → Settings) and confirm to swap to Settings page.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Settings));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_02_SettingsAfterSwap")));
+
+	// Settings page: Gamepad → Mouse → Back, then confirm Back.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Pause));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_03_BackToPause")));
+
+	// Press the settings key again — menu should close entirely.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_04_Closed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

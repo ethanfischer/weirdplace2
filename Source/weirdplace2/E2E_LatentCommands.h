@@ -19,6 +19,8 @@
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
+#include "MenuUIComponent.h"
+#include "MenuUIActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -1505,6 +1507,119 @@ public:
 private:
 	float Delta;
 	float DurationSeconds;
+};
+
+// =======================================================================
+// FTD_SimulateSettingsPress — inject IA_Settings via Enhanced Input.
+// Press → 1 frame gap → Release (mirrors FTD_SimulateInventoryAction).
+// =======================================================================
+
+class FTD_SimulateSettingsPress : public FTD_Base
+{
+public:
+	FTD_SimulateSettingsPress(FAutomationTestBase* InTest) : FTD_Base(InTest), bPressed(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Pressing settings key"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateSettingsPress: no driver")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->SimulateSettingsPress();
+			bPressed = true;
+			return false;
+		}
+		Driver->SimulateSettingsRelease();
+		return true;
+	}
+private:
+	bool bPressed;
+};
+
+// =======================================================================
+// FTD_SimulateMoveAxisFlick — fire one flick on a legacy move axis.
+// Pulses Value for one frame, then 0 the next frame so the menu's
+// HandleNavigateAxis* re-arms for a subsequent flick.
+// =======================================================================
+
+class FTD_SimulateMoveAxisFlick : public FTD_Base
+{
+public:
+	FTD_SimulateMoveAxisFlick(FAutomationTestBase* InTest, FName InAxisName, float InValue)
+		: FTD_Base(InTest), AxisName(InAxisName), Value(InValue), Phase(0) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Flicking axis '%s' = %.2f"), *AxisName.ToString(), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMoveAxisFlick: no driver")); return true; }
+
+		switch (Phase)
+		{
+		case 0:
+			Driver->SimulateLegacyAxis(AxisName, Value);
+			Phase = 1;
+			return false;
+		case 1:
+			Driver->SimulateLegacyAxis(AxisName, 0.0f);
+			return true;
+		default:
+			return true;
+		}
+	}
+private:
+	FName AxisName;
+	float Value;
+	int32 Phase;
+};
+
+// =======================================================================
+// FTD_AssertMenuPage — verify the menu actor's current page.
+// =======================================================================
+
+class FTD_AssertMenuPage : public FTD_Base
+{
+public:
+	FTD_AssertMenuPage(FAutomationTestBase* InTest, EMenuPage InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting menu page == %d"), (int32)Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMenuPage: no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_AssertMenuPage: no player")); return true; }
+
+		UMenuUIComponent* Menu = Player->GetMenuUIComponent();
+		if (!Menu) { Test->AddError(TEXT("FTD_AssertMenuPage: no MenuUIComponent")); return true; }
+
+		AMenuUIActor* Actor = Menu->GetMenuActor();
+		if (!Actor) { Test->AddError(TEXT("FTD_AssertMenuPage: no MenuUIActor")); return true; }
+
+		const EMenuPage Actual = Actor->GetCurrentPage();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertMenuPage: expected %d but got %d"),
+				(int32)Expected, (int32)Actual));
+		}
+		return true;
+	}
+private:
+	EMenuPage Expected;
 };
 
 class FTD_AssertActivityState : public FTD_Base

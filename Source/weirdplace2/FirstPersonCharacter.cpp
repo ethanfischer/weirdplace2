@@ -24,7 +24,7 @@
 #include "GameFramework/PlayerInput.h"
 #include "InputCoreTypes.h"
 #include "WeirdplaceGameUserSettings.h"
-#include "SettingsUIComponent.h"
+#include "MenuUIComponent.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -47,8 +47,8 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
 
-	// Create the settings UI component (mirrors InventoryUIComponent on AMyCharacter)
-	SettingsUIComponent = CreateDefaultSubobject<USettingsUIComponent>(TEXT("SettingsUIComponent"));
+	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
+	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
 }
 
 void AFirstPersonCharacter::BeginPlay()
@@ -225,8 +225,8 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		}
 		if (SettingsAction)
 		{
-			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowSettings);
-			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowSettingsCompleted);
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowMenu);
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowMenuCompleted);
 		}
 	}
 }
@@ -303,6 +303,14 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	bInteractDoOnceCompleted = true;
 
+	// While the menu is open, the Interact action is the menu's confirm button.
+	// Suppress raycasting/dialogue advance so a single press doesn't double-fire.
+	if (MenuUIComponent && MenuUIComponent->IsOpen())
+	{
+		MenuUIComponent->HandleConfirm();
+		return;
+	}
+
 	// If in dialogue, advance it instead of raycasting
 	EPlayerActivityState State = GetActivityState();
 	if (State == EPlayerActivityState::InSimpleDialogue)
@@ -348,7 +356,7 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 
 void AFirstPersonCharacter::HandleShowInventory()
 {
-	if (SettingsUIComponent && SettingsUIComponent->IsSettingsOpen())
+	if (MenuUIComponent && MenuUIComponent->IsOpen())
 	{
 		return;
 	}
@@ -381,13 +389,13 @@ void AFirstPersonCharacter::HandleShowInventoryCompleted()
 	bInventoryDoOnceCompleted = false;
 }
 
-void AFirstPersonCharacter::HandleShowSettings()
+void AFirstPersonCharacter::HandleShowMenu()
 {
-	if (bSettingsDoOnceCompleted)
+	if (bMenuDoOnceCompleted)
 	{
 		return;
 	}
-	bSettingsDoOnceCompleted = true;
+	bMenuDoOnceCompleted = true;
 
 	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
 	{
@@ -397,24 +405,24 @@ void AFirstPersonCharacter::HandleShowSettings()
 		}
 	}
 
-	if (!SettingsUIComponent)
+	if (!MenuUIComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("HandleShowSettings - SettingsUIComponent is null"));
+		UE_LOG(LogTemp, Error, TEXT("HandleShowMenu - MenuUIComponent is null"));
 		return;
 	}
 
-	// Allow toggle while in Interacting state (the settings UI itself sets that state).
-	if (GetActivityState() != EPlayerActivityState::FreeRoaming && !SettingsUIComponent->IsSettingsOpen())
+	// Allow toggle while in Interacting state (the menu UI itself sets that state).
+	if (GetActivityState() != EPlayerActivityState::FreeRoaming && !MenuUIComponent->IsOpen())
 	{
 		return;
 	}
 
-	SettingsUIComponent->ToggleSettingsUI();
+	MenuUIComponent->ToggleMenu();
 }
 
-void AFirstPersonCharacter::HandleShowSettingsCompleted()
+void AFirstPersonCharacter::HandleShowMenuCompleted()
 {
-	bSettingsDoOnceCompleted = false;
+	bMenuDoOnceCompleted = false;
 }
 
 void AFirstPersonCharacter::SetInventoryFlashlightEnabled(bool bEnabled)

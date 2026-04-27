@@ -15,7 +15,7 @@ class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStaticMeshComponent;
 class UWeirdplaceGameUserSettings;
-class USettingsUIComponent;
+class UMenuUIComponent;
 class APlayerController;
 
 USTRUCT()
@@ -97,8 +97,8 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	UInputAction* SettingsAction;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Settings", meta = (AllowPrivateAccess = "true"))
-	USettingsUIComponent* SettingsUIComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu", meta = (AllowPrivateAccess = "true"))
+	UMenuUIComponent* MenuUIComponent;
 
 public:
 	// Override the rotation entry points so sensitivity scaling applies to ALL
@@ -124,11 +124,11 @@ public:
 	void HandleInteractCompleted();
 	void HandleShowInventory();
 	void HandleShowInventoryCompleted();
-	void HandleShowSettings();
-	void HandleShowSettingsCompleted();
+	void HandleShowMenu();
+	void HandleShowMenuCompleted();
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Settings")
-	USettingsUIComponent* GetSettingsUIComponent() const { return SettingsUIComponent; }
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
+	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
 
 	// --- Interaction System ---
 
@@ -141,6 +141,7 @@ public:
 	// Accessors for E2E test input injection.
 	UInputAction* GetInteractAction() const { return InteractAction; }
 	UInputAction* GetInventoryAction() const { return InventoryAction; }
+	UInputAction* GetSettingsAction() const { return SettingsAction; }
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);
@@ -197,7 +198,7 @@ private:
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
-	bool bSettingsDoOnceCompleted = false;
+	bool bMenuDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
 
 
