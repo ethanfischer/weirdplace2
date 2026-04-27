@@ -478,6 +478,26 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	InjectInputAction(Player->GetSettingsAction(), false);
 }
 
+void UTestDriverSubsystem::InjectMoveValue(FVector2D Value)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectMoveValue - no player")); return; }
+
+	UInputAction* MoveAction = Player->GetMoveAction();
+	if (!MoveAction) { UE_LOG(LogTemp, Error, TEXT("TestDriver::InjectMoveValue - no MoveAction")); return; }
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC) { return; }
+	ULocalPlayer* LP = PC->GetLocalPlayer();
+	if (!LP) { return; }
+	UEnhancedInputLocalPlayerSubsystem* EIS = LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
+	if (!EIS) { return; }
+
+	const FInputActionValue InjectedValue(FVector3d(Value.X, Value.Y, 0.0));
+	EIS->InjectInputForAction(MoveAction, InjectedValue, {}, {});
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::InjectMoveValue - (%.2f, %.2f)"), Value.X, Value.Y);
+}
+
 void UTestDriverSubsystem::SimulateLegacyAxis(FName AxisName, float Value)
 {
 	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
