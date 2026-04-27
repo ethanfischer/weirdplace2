@@ -1540,47 +1540,44 @@ private:
 };
 
 // =======================================================================
-// FTD_SimulateMenuFlick — fire one flick on the player's MoveAction
-// (Enhanced Input Vector2D). Holds Value for several frames so the menu's
-// PollMenuNavigation gets a chance to read it, then sends zero to re-arm.
+// FTD_SimulateMoveAxisFlick — fire one flick on a legacy move axis.
+// Pulses Value for one frame, then 0 the next frame so the menu's
+// HandleNavigateAxis* re-arms for a subsequent flick.
 // =======================================================================
 
-class FTD_SimulateMenuFlick : public FTD_Base
+class FTD_SimulateMoveAxisFlick : public FTD_Base
 {
 public:
-	FTD_SimulateMenuFlick(FAutomationTestBase* InTest, FVector2D InValue)
-		: FTD_Base(InTest), Value(InValue), HoldTicks(0), bReleased(false) {}
+	FTD_SimulateMoveAxisFlick(FAutomationTestBase* InTest, FName InAxisName, float InValue)
+		: FTD_Base(InTest), AxisName(InAxisName), Value(InValue), Phase(0) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Flicking move (%.2f, %.2f)"), Value.X, Value.Y);
+		return FString::Printf(TEXT("Flicking axis '%s' = %.2f"), *AxisName.ToString(), Value);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMenuFlick: no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMoveAxisFlick: no driver")); return true; }
 
-		if (HoldTicks < 3)
+		switch (Phase)
 		{
-			Driver->InjectMoveValue(Value);
-			HoldTicks++;
+		case 0:
+			Driver->SimulateLegacyAxis(AxisName, Value);
+			Phase = 1;
 			return false;
+		case 1:
+			Driver->SimulateLegacyAxis(AxisName, 0.0f);
+			return true;
+		default:
+			return true;
 		}
-		if (!bReleased)
-		{
-			Driver->InjectMoveValue(FVector2D::ZeroVector);
-			bReleased = true;
-			return false;
-		}
-		// One more tick at zero so the menu re-arms before the next flick.
-		Driver->InjectMoveValue(FVector2D::ZeroVector);
-		return true;
 	}
 private:
-	FVector2D Value;
-	int32 HoldTicks;
-	bool bReleased;
+	FName AxisName;
+	float Value;
+	int32 Phase;
 };
 
 // =======================================================================

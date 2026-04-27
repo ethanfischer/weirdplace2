@@ -91,11 +91,6 @@ public:
 	// a single flick-step on the menu's Move axis bindings.
 	void SimulateLegacyAxis(FName AxisName, float Value);
 
-	// Inject a Vector2D value into the player's MoveAction (Enhanced Input).
-	// The menu polls this each tick while open; pulse a non-zero value then
-	// 0 to fire one flick and re-arm.
-	void InjectMoveValue(FVector2D Value);
-
 	// --- Inventory (queries only — open/close/confirm go through input) ---
 
 	bool IsInventoryFullyOpen() const;

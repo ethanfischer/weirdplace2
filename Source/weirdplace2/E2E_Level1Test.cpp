@@ -209,7 +209,7 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_01_PauseOpen")));
 
 	// Navigate down once (Resume → Settings) and confirm to swap to Settings page.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMenuFlick(this, FVector2D(0.0f, -1.0f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
@@ -217,9 +217,9 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_02_SettingsAfterSwap")));
 
 	// Settings page: Gamepad → Mouse → Back, then confirm Back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMenuFlick(this, FVector2D(0.0f, -1.0f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMenuFlick(this, FVector2D(0.0f, -1.0f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
