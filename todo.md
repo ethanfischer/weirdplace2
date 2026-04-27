@@ -1,8 +1,8 @@
 # Todo / Bugs
-[ ] key selection trigger too small
-[ ] Inventory UI navigation grid instead of cursor based
+[x] key selection trigger too small
+[x] Inventory UI navigation grid instead of cursor based
 [ ] Inventory default selection improvement
-[ ] improve gamepad sensitivity
+[x] improve gamepad sensitivity
 [ ] seneca unlock employee bathroom animation
 [ ] cash needs inventory thumbnail
 [ ] rick comes inside randomly and just repeats the same line
@@ -11,6 +11,7 @@
     [ ] don't have to turn to take
     [ ] tell player what button to put back
 [ ] gas station door animation
+[ ] gas station windows reflection probes?
 [ ] get money
     [ ] money mesh
     [ ] handle homeless scenario
