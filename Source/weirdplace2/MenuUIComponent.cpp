@@ -3,6 +3,7 @@
 #include "WeirdplaceGameUserSettings.h"
 #include "Components/SceneComponent.h"
 #include "Components/InputComponent.h"
+#include "FirstPersonCharacter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -11,6 +12,11 @@
 #include "Sound/SoundBase.h"
 #include "Engine/World.h"
 #include "MyCharacter.h"
+
+// Panel dimensions match AMenuUIActor::UpdateBackgroundSize:
+// width = 50 + padding*2, height = (kControllerHeaderZ+6) - (kSettingsBackZ-6) + padding*2.
+static constexpr float kMenuLightWidth  = 58.0f;
+static constexpr float kMenuLightHeight = 62.0f;
 
 UMenuUIComponent::UMenuUIComponent()
 {
@@ -55,6 +61,11 @@ void UMenuUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EMenuUIState::Open;
+
+			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+			{
+				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
+			}
 		}
 		UpdateMenuPosition();
 		break;
@@ -146,6 +157,11 @@ void UMenuUIComponent::OpenMenu()
 		}
 	}
 
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		FirstPersonCharacter->SetInventoryFlashlightSize(kMenuLightWidth, kMenuLightHeight);
+	}
+
 	CurrentState = EMenuUIState::Opening;
 	bArmedX = true;
 	bArmedY = true;
@@ -174,6 +190,12 @@ void UMenuUIComponent::CloseMenu()
 	}
 
 	CurrentState = EMenuUIState::Closing;
+
+	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
+	{
+		FirstPersonCharacter->SetInventoryFlashlightEnabled(false);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("Closing Menu UI"));
 }
 

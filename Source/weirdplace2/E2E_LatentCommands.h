@@ -1651,4 +1651,42 @@ private:
 	EPlayerActivityState Expected;
 };
 
+// =======================================================================
+// FTD_AssertInventoryFlashlight — verify the player's RectLight (used by
+// both inventory and pause menu) is enabled/disabled.
+// =======================================================================
+
+class FTD_AssertInventoryFlashlight : public FTD_Base
+{
+public:
+	FTD_AssertInventoryFlashlight(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inventory flashlight == %s"), Expected ? TEXT("ON") : TEXT("OFF"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertInventoryFlashlight: no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_AssertInventoryFlashlight: no player")); return true; }
+
+		const bool Actual = Player->IsInventoryFlashlightEnabled();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertInventoryFlashlight: expected %s but got %s"),
+				Expected ? TEXT("ON") : TEXT("OFF"),
+				Actual   ? TEXT("ON") : TEXT("OFF")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

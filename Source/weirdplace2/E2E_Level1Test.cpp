@@ -235,4 +235,41 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// PauseMenuLight — verify the player's RectLight (the same one the
+// inventory uses) is enabled while the pause menu is open and disabled
+// after it closes.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_PauseMenuLight,
+	"Weirdplace2.E2E.Level1.PauseMenuLight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("PauseMenuLight")
+
+	// Baseline: light off before any UI is opened.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_01_Before")));
+
+	// Open the menu and wait past the open animation so the light has flipped on.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_02_MenuOpenLightOn")));
+
+	// Close the menu — light should disable immediately on close.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_03_AfterClose")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
