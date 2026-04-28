@@ -84,3 +84,4 @@ nul
 
 # Rider user-specific settings (absolute/local paths)
 *.DotSettings.user
+.claude/scheduled_tasks.lock
