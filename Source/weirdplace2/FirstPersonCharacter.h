@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "MyCharacter.h"
+#include "Inventory.h"
 #include "InputActionValue.h"
 #include "FirstPersonCharacter.generated.h"
 
@@ -12,6 +13,10 @@ class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
+class UStaticMeshComponent;
+class UWeirdplaceGameUserSettings;
+class UMenuUIComponent;
+class APlayerController;
 
 USTRUCT()
 struct FSimpleDialogueLine
@@ -89,10 +94,29 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	UInputAction* InventoryAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* SettingsAction;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu", meta = (AllowPrivateAccess = "true"))
+	UMenuUIComponent* MenuUIComponent;
+
 public:
+	// Override the rotation entry points so sensitivity scaling applies to ALL
+	// callers (C++ Enhanced Input handler, the BP IA_Look event graph, plugins,
+	// future cinematics, etc.) — not just our own HandleLookInput. This is the
+	// cleanest place to apply the scale because both APawn callers funnel here.
+	virtual void AddControllerYawInput(float Val) override;
+	virtual void AddControllerPitchInput(float Val) override;
+
+private:
+	float ComputeGamepadLookScale() const;
+	float ComputeMouseLookScale() const;
+	bool IsGamepadLookActive() const;
+
+public:
+
 	// --- Input Handlers ---
 
-	void HandleLookInput(const FInputActionValue& Value);
 	void HandleMoveInput(const FInputActionValue& Value);
 	void HandleJumpStarted();
 	void HandleJumpCompleted();
@@ -100,6 +124,11 @@ public:
 	void HandleInteractCompleted();
 	void HandleShowInventory();
 	void HandleShowInventoryCompleted();
+	void HandleShowMenu();
+	void HandleShowMenuCompleted();
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
+	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
 
 	// --- Interaction System ---
 
@@ -112,6 +141,7 @@ public:
 	// Accessors for E2E test input injection.
 	UInputAction* GetInteractAction() const { return InteractAction; }
 	UInputAction* GetInventoryAction() const { return InventoryAction; }
+	UInputAction* GetSettingsAction() const { return SettingsAction; }
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);
@@ -121,6 +151,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightSize(float Width, float Height);
+
+	// --- Item Notification ---
+
+	// Shows the item's 3D mesh in front of the player camera for 3 seconds
+	void ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation = FRotator::ZeroRotator);
+
+	// Shows multiple items stacked vertically in front of the camera (no auto-dismiss timer)
+	void ShowItemNotificationStack(const TArray<FInventoryItemData>& Items, const FRotator& ItemRotation = FRotator::ZeroRotator);
+
+	bool IsItemNotificationVisible() const;
 
 	// --- Dialogue System ---
 
@@ -142,10 +182,32 @@ public:
 	bool bBlockNextDialogueAdvance = false;
 
 private:
+	// --- Item Notification ---
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* ItemNotificationMesh;
+
+	// Dynamically spawned mesh components for stacked item notifications
+	UPROPERTY()
+	TArray<UStaticMeshComponent*> StackNotificationMeshes;
+
+	void ClearItemNotificationStack();
+
+	FTimerHandle ItemNotificationTimerHandle;
+
 	// DoOnce state tracking
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
+	bool bMenuDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
+
+	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.
+	UPROPERTY()
+	TObjectPtr<APlayerController> CachedPlayerController;
+
+	UPROPERTY()
+	TObjectPtr<UWeirdplaceGameUserSettings> CachedSettings;
 
 	// The NPC we're currently in dialogue with (for end-of-dialogue callbacks)
 	UPROPERTY()

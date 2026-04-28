@@ -64,6 +64,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
 	FVector MoneyScale = FVector(1.f, 1.f, 1.f);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
+	FRotator MoneyNotificationRotation = FRotator::ZeroRotator;
+
 	// Line index in GivesMoneyLines at which money is added to inventory (0-based)
 	UPROPERTY(EditAnywhere, Category = "Rick|Money")
 	int32 MoneyGiveLineIndex = 1;
@@ -96,6 +99,7 @@ private:
 	TArray<FSimpleDialogueLine> GivesMoneyLines;
 
 	bool bGaveMoney = false;
+	bool bMoneyBeatArmed = false;
 
 	void LoadDialogueFile();
 	void LoadOutsideDialogue();

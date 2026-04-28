@@ -2,6 +2,7 @@
 #include "BladderUrgencyComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "CrosshairWidget.h"
 #include "UI_Dialogue.h"
 #include "Interactable.h"
@@ -20,6 +21,10 @@
 #include "InputAction.h"
 #include "InputMappingContext.h"
 #include "Engine/GameViewportClient.h"
+#include "GameFramework/PlayerInput.h"
+#include "InputCoreTypes.h"
+#include "WeirdplaceGameUserSettings.h"
+#include "MenuUIComponent.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -32,8 +37,18 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	FirstPersonCamera->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f)); // Eye height
 	FirstPersonCamera->bUsePawnControlRotation = true;
 
+	// Create item notification mesh (diegetic 3D item display)
+	ItemNotificationMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ItemNotificationMesh"));
+	ItemNotificationMesh->SetupAttachment(FirstPersonCamera);
+	ItemNotificationMesh->SetRelativeLocation(FVector(30.0f, 0.0f, -8.0f));
+	ItemNotificationMesh->SetVisibility(false);
+	ItemNotificationMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
+
+	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
+	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
 }
 
 void AFirstPersonCharacter::BeginPlay()
@@ -72,6 +87,7 @@ void AFirstPersonCharacter::BeginPlay()
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
 	{
+		CachedPlayerController = PlayerController;
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
 		{
 			if (DefaultMappingContext)
@@ -79,6 +95,13 @@ void AFirstPersonCharacter::BeginPlay()
 				Subsystem->AddMappingContext(DefaultMappingContext, 0);
 			}
 		}
+	}
+
+	// Cache settings singleton for gamepad-aware look scaling.
+	CachedSettings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!CachedSettings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("FirstPersonCharacter::BeginPlay - GameUserSettings is not UWeirdplaceGameUserSettings; check DefaultEngine.ini GameUserSettingsClassName"));
 	}
 
 	// Create crosshair widget
@@ -125,14 +148,13 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 			{
 				if (InventoryUIComp->IsInventoryOpen())
 				{
-					if (InventoryUIComp->IsReticleOverGrid())
+					// Selection is now stick-driven, so the interactable crosshair is
+					// shown whenever the currently selected slot holds a real item.
+					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
 					{
-						if (UInventoryComponent* InventoryComp = GetInventoryComponent())
-						{
-							const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
-							const TArray<FName> Items = InventoryComp->GetItems();
-							bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
-						}
+						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
+						const TArray<FName> Items = InventoryComp->GetItems();
+						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
 					}
 				}
 				else
@@ -154,6 +176,21 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 			}
 		}
 	}
+
+	// Slow spin on visible item notification meshes (Zelda-style)
+	const float SpinSpeed = 45.0f; // degrees per second
+	const FRotator SpinDelta(0.0f, SpinSpeed * DeltaTime, 0.0f);
+	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
+	{
+		ItemNotificationMesh->AddRelativeRotation(SpinDelta);
+	}
+	for (UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp && Comp->IsVisible())
+		{
+			Comp->AddRelativeRotation(SpinDelta);
+		}
+	}
 }
 
 void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -162,10 +199,11 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 
 	if (UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		if (LookAction)
-		{
-			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleLookInput);
-		}
+		// Note: IA_Look has no C++ binding here on purpose. The BP event graph
+		// (BP_FirstPersonCharacter -> InputAction Look) wires it directly to
+		// AddControllerYaw/PitchInput, both of which we override below to apply
+		// the sensitivity scale. Adding a C++ binding too would double-process
+		// the input.
 		if (MoveAction)
 		{
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleMoveInput);
@@ -185,14 +223,67 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowInventory);
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowInventoryCompleted);
 		}
+		if (SettingsAction)
+		{
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowMenu);
+			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowMenuCompleted);
+		}
 	}
 }
 
-void AFirstPersonCharacter::HandleLookInput(const FInputActionValue& Value)
+bool AFirstPersonCharacter::IsGamepadLookActive() const
 {
-	FVector2D LookAxisVector = Value.Get<FVector2D>();
-	AddControllerYawInput(LookAxisVector.X);
-	AddControllerPitchInput(LookAxisVector.Y);
+	if (!CachedPlayerController)
+	{
+		return false;
+	}
+	// Mouse delta this frame is the authoritative signal: if the mouse moved,
+	// the look input came from the mouse regardless of any stick reading.
+	// (The previous stick-only check tripped on controller drift and applied
+	// the gamepad scale curve to mouse-driven look.)
+	float MouseX = 0.f, MouseY = 0.f;
+	CachedPlayerController->GetInputMouseDelta(MouseX, MouseY);
+	if (FMath::Abs(MouseX) > KINDA_SMALL_NUMBER || FMath::Abs(MouseY) > KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+	// No mouse motion this frame — fall through to a deflection check above
+	// the typical drift band (~0.05–0.10 on most pads).
+	const float StickX = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightX);
+	const float StickY = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
+	return FMath::Abs(StickX) > 0.15f || FMath::Abs(StickY) > 0.15f;
+}
+
+float AFirstPersonCharacter::ComputeGamepadLookScale() const
+{
+	if (!CachedSettings)
+	{
+		return 1.0f;
+	}
+	const float V = CachedSettings->GetGamepadLookSensitivity();
+	return (V * V) * UWeirdplaceGameUserSettings::GamepadLookSensitivityScaleFactor;
+}
+
+float AFirstPersonCharacter::ComputeMouseLookScale() const
+{
+	if (!CachedSettings)
+	{
+		return 1.0f;
+	}
+	const float V = CachedSettings->GetMouseLookSensitivity();
+	return V * UWeirdplaceGameUserSettings::MouseLookSensitivityScaleFactor;
+}
+
+void AFirstPersonCharacter::AddControllerYawInput(float Val)
+{
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	Super::AddControllerYawInput(Val * Scale);
+}
+
+void AFirstPersonCharacter::AddControllerPitchInput(float Val)
+{
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	Super::AddControllerPitchInput(Val * Scale);
 }
 
 void AFirstPersonCharacter::HandleMoveInput(const FInputActionValue& Value)
@@ -223,6 +314,14 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		return;
 	}
 	bInteractDoOnceCompleted = true;
+
+	// While the menu is open, the Interact action is the menu's confirm button.
+	// Suppress raycasting/dialogue advance so a single press doesn't double-fire.
+	if (MenuUIComponent && MenuUIComponent->IsOpen())
+	{
+		MenuUIComponent->HandleConfirm();
+		return;
+	}
 
 	// If in dialogue, advance it instead of raycasting
 	EPlayerActivityState State = GetActivityState();
@@ -269,6 +368,10 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 
 void AFirstPersonCharacter::HandleShowInventory()
 {
+	if (MenuUIComponent && MenuUIComponent->IsOpen())
+	{
+		return;
+	}
 	if (bInventoryDoOnceCompleted)
 	{
 		return;
@@ -298,6 +401,42 @@ void AFirstPersonCharacter::HandleShowInventoryCompleted()
 	bInventoryDoOnceCompleted = false;
 }
 
+void AFirstPersonCharacter::HandleShowMenu()
+{
+	if (bMenuDoOnceCompleted)
+	{
+		return;
+	}
+	bMenuDoOnceCompleted = true;
+
+	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
+	{
+		if (InvUI->IsInventoryOpen())
+		{
+			return;
+		}
+	}
+
+	if (!MenuUIComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HandleShowMenu - MenuUIComponent is null"));
+		return;
+	}
+
+	// Allow toggle while in Interacting state (the menu UI itself sets that state).
+	if (GetActivityState() != EPlayerActivityState::FreeRoaming && !MenuUIComponent->IsOpen())
+	{
+		return;
+	}
+
+	MenuUIComponent->ToggleMenu();
+}
+
+void AFirstPersonCharacter::HandleShowMenuCompleted()
+{
+	bMenuDoOnceCompleted = false;
+}
+
 void AFirstPersonCharacter::SetInventoryFlashlightEnabled(bool bEnabled)
 {
 	if (!InventoryFlashlightComponent)
@@ -325,6 +464,128 @@ void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height
 	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
 }
 
+void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation)
+{
+	if (!ItemNotificationMesh || !ItemData.Mesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ShowItemNotification - Missing mesh component or item mesh"));
+		return;
+	}
+
+	ItemNotificationMesh->SetStaticMesh(ItemData.Mesh);
+	for (int32 i = 0; i < ItemData.Materials.Num(); i++)
+	{
+		ItemNotificationMesh->SetMaterial(i, ItemData.Materials[i]);
+	}
+
+	// Auto-scale: normalize the mesh so its longest axis fits ~8cm
+	const FBox MeshBox = ItemData.Mesh->GetBoundingBox();
+	const FVector Extents = MeshBox.GetExtent(); // half-extents
+	const float MaxExtent = FMath::Max3(Extents.X, Extents.Y, Extents.Z);
+	const float DesiredHalfSize = 4.0f; // 4cm half = 8cm total
+	const float UniformScale = (MaxExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxExtent) : 1.0f;
+	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
+
+	ItemNotificationMesh->SetRelativeRotation(InitialRotation);
+	ItemNotificationMesh->SetVisibility(true);
+
+	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	GetWorldTimerManager().SetTimer(ItemNotificationTimerHandle, [this]()
+	{
+		if (ItemNotificationMesh)
+		{
+			ItemNotificationMesh->SetVisibility(false);
+		}
+	}, 3.0f, false);
+}
+
+void AFirstPersonCharacter::ShowItemNotificationStack(const TArray<FInventoryItemData>& Items, const FRotator& ItemRotation)
+{
+	ClearItemNotificationStack();
+
+	if (!FirstPersonCamera || Items.Num() == 0)
+	{
+		return;
+	}
+
+	const FVector BaseOffset(30.0f, 0.0f, -8.0f);
+	float CurrentZ = 0.0f;
+
+	for (const FInventoryItemData& ItemData : Items)
+	{
+		if (!ItemData.Mesh)
+		{
+			continue;
+		}
+
+		UStaticMeshComponent* MeshComp = NewObject<UStaticMeshComponent>(this);
+		MeshComp->SetupAttachment(FirstPersonCamera);
+		MeshComp->SetStaticMesh(ItemData.Mesh);
+		for (int32 i = 0; i < ItemData.Materials.Num(); i++)
+		{
+			MeshComp->SetMaterial(i, ItemData.Materials[i]);
+		}
+
+		// Use the item's own scale to preserve aspect ratio (e.g. flat VHS-case shape)
+		// then apply a uniform multiplier so the largest axis fits ~8cm
+		const FBox MeshBox = ItemData.Mesh->GetBoundingBox();
+		const FVector Extents = MeshBox.GetExtent();
+		const FVector ScaledExtents = Extents * ItemData.Scale;
+		const float MaxScaledExtent = FMath::Max3(ScaledExtents.X, ScaledExtents.Y, ScaledExtents.Z);
+		const float DesiredHalfSize = 4.0f;
+		const float SizeMultiplier = (MaxScaledExtent > KINDA_SMALL_NUMBER) ? (DesiredHalfSize / MaxScaledExtent) : 1.0f;
+		const FVector FinalScale = ItemData.Scale * SizeMultiplier;
+		MeshComp->SetRelativeScale3D(FinalScale);
+
+		MeshComp->SetRelativeLocation(BaseOffset + FVector(0.0f, 0.0f, CurrentZ));
+		MeshComp->SetRelativeRotation(ItemRotation);
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComp->SetVisibility(true);
+		MeshComp->RegisterComponent();
+
+		// Compute stack height from scaled + rotated bounding box
+		const FVector FinalExtents = Extents * FinalScale;
+		const FRotationMatrix RotMatrix(ItemRotation);
+		const float RotatedHalfHeight =
+			FMath::Abs(RotMatrix.TransformVector(FVector(FinalExtents.X, 0, 0)).Z) +
+			FMath::Abs(RotMatrix.TransformVector(FVector(0, FinalExtents.Y, 0)).Z) +
+			FMath::Abs(RotMatrix.TransformVector(FVector(0, 0, FinalExtents.Z)).Z);
+		CurrentZ += RotatedHalfHeight * 2.0f;
+
+		StackNotificationMeshes.Add(MeshComp);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("ShowItemNotificationStack - Showing %d items"), StackNotificationMeshes.Num());
+}
+
+void AFirstPersonCharacter::ClearItemNotificationStack()
+{
+	for (UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp)
+		{
+			Comp->DestroyComponent();
+		}
+	}
+	StackNotificationMeshes.Empty();
+}
+
+bool AFirstPersonCharacter::IsItemNotificationVisible() const
+{
+	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
+	{
+		return true;
+	}
+	for (const UStaticMeshComponent* Comp : StackNotificationMeshes)
+	{
+		if (Comp && Comp->IsVisible())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable)
 {
 	OutHitActor = nullptr;
@@ -344,13 +605,6 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 	ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_GameTraceChannel6));
 
 	TArray<AActor*> ActorsToIgnore;
-	if (GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
-	{
-		if (AActor* NPCActor = Cast<AActor>(CurrentDialogueNPC))
-		{
-			ActorsToIgnore.Add(NPCActor);
-		}
-	}
 
 	TArray<FHitResult> HitResults;
 	bool bHit = UKismetSystemLibrary::LineTraceMultiForObjects(
@@ -468,6 +722,13 @@ void AFirstPersonCharacter::StartSimpleDialogue(const FText& SpeakerName, const 
 
 void AFirstPersonCharacter::AdvanceSimpleDialogue()
 {
+	if (ItemNotificationMesh)
+	{
+		ItemNotificationMesh->SetVisibility(false);
+		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	}
+	ClearItemNotificationStack();
+
 	SimpleDialogueLineIndex++;
 
 	if (SimpleDialogueLineIndex < SimpleDialogueLines.Num())
@@ -534,6 +795,13 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 
 void AFirstPersonCharacter::AdvanceDialogue()
 {
+	if (ItemNotificationMesh)
+	{
+		ItemNotificationMesh->SetVisibility(false);
+		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	}
+	ClearItemNotificationStack();
+
 	// If blocked, consume the advance: hide dialogue and broadcast the current index
 	// so external systems (e.g. CarRideComponent) can play an interstitial beat.
 	if (bBlockNextDialogueAdvance)
@@ -556,7 +824,7 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		if (UI_Dialogue)
 		{
 			const FSimpleDialogueLine& Line = DialogueLines[DialogueLineIndex];
-			UI_Dialogue->UpdateWithText(Line.Speaker, Line.Text);
+			UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
 		}
 
 		OnDialogueLineShown.Broadcast(DialogueLineIndex);

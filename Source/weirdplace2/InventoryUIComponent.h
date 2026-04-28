@@ -58,10 +58,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
 
-	// True when the center reticle ray is currently over the inventory grid bounds
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
-	bool IsReticleOverGrid() const { return bReticleOverGrid; }
-
 	// Test-only: force the selected inventory slot, bypassing reticle-driven selection.
 	// Used by the E2E TestDriver so tests can deterministically pick a slot without
 	// having to aim the camera at the world-space inventory UI.
@@ -125,9 +121,6 @@ private:
 	// Currently selected grid index
 	int32 SelectedIndex = 0;
 
-	// Whether reticle is currently over any inventory slot area
-	bool bReticleOverGrid = false;
-
 	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
 	FVector StoredUIPosition;
 	FRotator StoredUIRotation;
@@ -157,11 +150,19 @@ private:
 	void FreezePlayerMovement();
 	void UnfreezePlayerMovement();
 
-	// Update selection based on where player is looking (reticle)
-	void UpdateReticleSelection();
+	// Bind/unbind left-stick + WASD navigation axes for stepping selection.
+	void BindNavigateInput();
+	void UnbindNavigateInput();
 
-	// Calculate which grid slot the reticle is pointing at
-	int32 CalculateSlotFromReticle() const;
+	void HandleNavigateAxisX(float AxisValue);
+	void HandleNavigateAxisY(float AxisValue);
+
+	// Step the selected slot by (DeltaCol, DeltaRow), clamped.
+	void StepSelection(int32 DeltaCol, int32 DeltaRow);
+
+	// Flick-step armed state per axis. True when ready to fire on next threshold cross.
+	bool bArmedX = true;
+	bool bArmedY = true;
 
 	// Handle inventory changes (refresh UI)
 	UFUNCTION()

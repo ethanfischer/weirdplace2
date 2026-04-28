@@ -19,6 +19,8 @@
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
+#include "MenuUIComponent.h"
+#include "MenuUIActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
@@ -648,6 +650,79 @@ public:
 	}
 private:
 	EPlayerActivityState Target;
+	double LineDelay;
+	double Timeout;
+	double LastPressTime;
+	bool bWaitingForRelease;
+};
+
+// =======================================================================
+// FTD_AdvanceDialogueUntilItemNotification — press E repeatedly until
+// the ItemNotificationMesh becomes visible (item was given mid-dialogue).
+// =======================================================================
+
+class FTD_AdvanceDialogueUntilItemNotification : public FTD_Base
+{
+public:
+	FTD_AdvanceDialogueUntilItemNotification(FAutomationTestBase* InTest,
+		double InLineDelay = 1.0, double InTimeoutSeconds = 30.0)
+		: FTD_Base(InTest), LineDelay(InLineDelay), Timeout(InTimeoutSeconds)
+		, LastPressTime(0.0), bWaitingForRelease(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Advancing dialogue until item notification appears"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (Player && Player->IsItemNotificationVisible())
+		{
+			if (bWaitingForRelease)
+			{
+				Driver->SimulateInteractRelease();
+				bWaitingForRelease = false;
+			}
+			return true;
+		}
+
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_AdvanceDialogueUntilItemNotification: timed out"));
+			return true;
+		}
+
+		const EPlayerActivityState State = Driver->GetActivityState();
+		const bool bInDialogue =
+			State == EPlayerActivityState::InSimpleDialogue ||
+			State == EPlayerActivityState::InDialogue;
+
+		if (!bInDialogue)
+		{
+			return false;
+		}
+
+		const double Now = FPlatformTime::Seconds();
+
+		if (bWaitingForRelease)
+		{
+			Driver->SimulateInteractRelease();
+			bWaitingForRelease = false;
+			LastPressTime = Now;
+			return false;
+		}
+
+		if (Now - LastPressTime < LineDelay)
+		{
+			return false;
+		}
+
+		Driver->SimulateInteractPress();
+		bWaitingForRelease = true;
+		return false;
+	}
+private:
 	double LineDelay;
 	double Timeout;
 	double LastPressTime;
@@ -1304,6 +1379,277 @@ public:
 // test if the current state doesn't match Expected.
 // =======================================================================
 
+// =======================================================================
+// FTD_SetGamepadLookSensitivity — write directly to the persisted settings
+// (clamped + snapped). Used by sensitivity diagnostic tests.
+// =======================================================================
+
+class FTD_SetGamepadLookSensitivity : public FTD_Base
+{
+public:
+	FTD_SetGamepadLookSensitivity(FAutomationTestBase* InTest, float InValue)
+		: FTD_Base(InTest), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting gamepad look sensitivity to %.3f"), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetGamepadLookSensitivity: no driver")); return true; }
+		Driver->SetGamepadLookSensitivity(Value);
+		return true;
+	}
+private:
+	float Value;
+};
+
+// =======================================================================
+// FTD_SetMouseLookSensitivity — write directly to the persisted settings
+// (clamped + snapped). Used by sensitivity diagnostic tests that drive the
+// mouse look path via FTD_InjectMouseXForDuration.
+// =======================================================================
+
+class FTD_SetMouseLookSensitivity : public FTD_Base
+{
+public:
+	FTD_SetMouseLookSensitivity(FAutomationTestBase* InTest, float InValue)
+		: FTD_Base(InTest), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting mouse look sensitivity to %.3f"), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetMouseLookSensitivity: no driver")); return true; }
+		Driver->SetMouseLookSensitivity(Value);
+		return true;
+	}
+private:
+	float Value;
+};
+
+// =======================================================================
+// FTD_CaptureYaw — record the current ControlRotation.Yaw to a caller-owned
+// float so a later FTD_AssertYawDelta can compare against it.
+// =======================================================================
+
+class FTD_CaptureYaw : public FTD_Base
+{
+public:
+	FTD_CaptureYaw(FAutomationTestBase* InTest, float* InOutYaw)
+		: FTD_Base(InTest), OutYaw(InOutYaw) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Capturing control yaw"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !OutYaw) { Test->AddError(TEXT("FTD_CaptureYaw: missing driver/yaw")); return true; }
+		*OutYaw = Driver->GetControllerYaw();
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureYaw: yaw=%.3f"), *OutYaw);
+		return true;
+	}
+private:
+	float* OutYaw;
+};
+
+// =======================================================================
+// FTD_AssertYawDelta — log the absolute yaw delta from a previously captured
+// yaw, and fail if it's outside [MinAbsDelta, MaxAbsDelta].
+// =======================================================================
+
+class FTD_AssertYawDelta : public FTD_Base
+{
+public:
+	FTD_AssertYawDelta(FAutomationTestBase* InTest, FString InLabel, float* InCapturedYaw,
+		float InMinAbsDelta, float InMaxAbsDelta)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), CapturedYaw(InCapturedYaw)
+		, MinAbsDelta(InMinAbsDelta), MaxAbsDelta(InMaxAbsDelta) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting |yaw delta| '%s' in [%.3f, %.3f]"),
+			*Label, MinAbsDelta, MaxAbsDelta);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !CapturedYaw) { Test->AddError(TEXT("FTD_AssertYawDelta: missing driver/yaw")); return true; }
+
+		const float Now = Driver->GetControllerYaw();
+		float Delta = Now - *CapturedYaw;
+		while (Delta > 180.0f) Delta -= 360.0f;
+		while (Delta < -180.0f) Delta += 360.0f;
+		const float Abs = FMath::Abs(Delta);
+
+		UE_LOG(LogTemp, Warning,
+			TEXT("YawDelta[%s]: actual=%.4f deg (|abs|=%.4f, expected range [%.4f, %.4f])"),
+			*Label, Delta, Abs, MinAbsDelta, MaxAbsDelta);
+
+		if (Abs < MinAbsDelta || Abs > MaxAbsDelta)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("YawDelta[%s] OUT OF RANGE: |actual|=%.4f deg, expected [%.4f, %.4f]"),
+				*Label, Abs, MinAbsDelta, MaxAbsDelta));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* CapturedYaw;
+	float MinAbsDelta;
+	float MaxAbsDelta;
+};
+
+// =======================================================================
+// FTD_InjectMouseXForDuration — call SimulateMouseX(Delta) every tick for
+// DurationSeconds. Drives the LookAction through the legacy mouse-axis path
+// (which the IMC's MouseX binding picks up).
+// =======================================================================
+
+class FTD_InjectMouseXForDuration : public FTD_Base
+{
+public:
+	FTD_InjectMouseXForDuration(FAutomationTestBase* InTest, float InDelta, float InDurationSeconds)
+		: FTD_Base(InTest), Delta(InDelta), DurationSeconds(InDurationSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Injecting MouseX %.1f for %.2fs"), Delta, DurationSeconds);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_InjectMouseXForDuration: no driver")); return true; }
+		Driver->SimulateMouseX(Delta);
+		return GetElapsedSinceFirstTick() >= DurationSeconds;
+	}
+private:
+	float Delta;
+	float DurationSeconds;
+};
+
+// =======================================================================
+// FTD_SimulateSettingsPress — inject IA_Settings via Enhanced Input.
+// Press → 1 frame gap → Release (mirrors FTD_SimulateInventoryAction).
+// =======================================================================
+
+class FTD_SimulateSettingsPress : public FTD_Base
+{
+public:
+	FTD_SimulateSettingsPress(FAutomationTestBase* InTest) : FTD_Base(InTest), bPressed(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Pressing settings key"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateSettingsPress: no driver")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->SimulateSettingsPress();
+			bPressed = true;
+			return false;
+		}
+		Driver->SimulateSettingsRelease();
+		return true;
+	}
+private:
+	bool bPressed;
+};
+
+// =======================================================================
+// FTD_SimulateMoveAxisFlick — fire one flick on a legacy move axis.
+// Pulses Value for one frame, then 0 the next frame so the menu's
+// HandleNavigateAxis* re-arms for a subsequent flick.
+// =======================================================================
+
+class FTD_SimulateMoveAxisFlick : public FTD_Base
+{
+public:
+	FTD_SimulateMoveAxisFlick(FAutomationTestBase* InTest, FName InAxisName, float InValue)
+		: FTD_Base(InTest), AxisName(InAxisName), Value(InValue), Phase(0) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Flicking axis '%s' = %.2f"), *AxisName.ToString(), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMoveAxisFlick: no driver")); return true; }
+
+		switch (Phase)
+		{
+		case 0:
+			Driver->SimulateLegacyAxis(AxisName, Value);
+			Phase = 1;
+			return false;
+		case 1:
+			Driver->SimulateLegacyAxis(AxisName, 0.0f);
+			return true;
+		default:
+			return true;
+		}
+	}
+private:
+	FName AxisName;
+	float Value;
+	int32 Phase;
+};
+
+// =======================================================================
+// FTD_AssertMenuPage — verify the menu actor's current page.
+// =======================================================================
+
+class FTD_AssertMenuPage : public FTD_Base
+{
+public:
+	FTD_AssertMenuPage(FAutomationTestBase* InTest, EMenuPage InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting menu page == %d"), (int32)Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMenuPage: no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_AssertMenuPage: no player")); return true; }
+
+		UMenuUIComponent* Menu = Player->GetMenuUIComponent();
+		if (!Menu) { Test->AddError(TEXT("FTD_AssertMenuPage: no MenuUIComponent")); return true; }
+
+		AMenuUIActor* Actor = Menu->GetMenuActor();
+		if (!Actor) { Test->AddError(TEXT("FTD_AssertMenuPage: no MenuUIActor")); return true; }
+
+		const EMenuPage Actual = Actor->GetCurrentPage();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertMenuPage: expected %d but got %d"),
+				(int32)Expected, (int32)Actual));
+		}
+		return true;
+	}
+private:
+	EMenuPage Expected;
+};
+
 class FTD_AssertActivityState : public FTD_Base
 {
 public:
@@ -1331,6 +1677,44 @@ public:
 	}
 private:
 	EPlayerActivityState Expected;
+};
+
+// =======================================================================
+// FTD_AssertInventoryFlashlight — verify the player's RectLight (used by
+// both inventory and pause menu) is enabled/disabled.
+// =======================================================================
+
+class FTD_AssertInventoryFlashlight : public FTD_Base
+{
+public:
+	FTD_AssertInventoryFlashlight(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inventory flashlight == %s"), Expected ? TEXT("ON") : TEXT("OFF"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertInventoryFlashlight: no driver")); return true; }
+
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_AssertInventoryFlashlight: no player")); return true; }
+
+		const bool Actual = Player->IsInventoryFlashlightEnabled();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertInventoryFlashlight: expected %s but got %s"),
+				Expected ? TEXT("ON") : TEXT("OFF"),
+				Actual   ? TEXT("ON") : TEXT("OFF")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

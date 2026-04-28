@@ -144,6 +144,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	FVector KeyScale = FVector(0.001f, 0.001f, 0.001f);
 
+	// Rotation for the key in the item notification display
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	FRotator KeyNotificationRotation = FRotator::ZeroRotator;
+
 	// Thumbnail shown in inventory after the key is dropped (broken key)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	UTexture2D* KeyBrokenThumbnail;
@@ -201,12 +205,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
 	int32 BasketBeatLineIndex = 2;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
+	FRotator BasketNotificationRotation = FRotator::ZeroRotator;
+
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString InventoryButtonDisplayName = TEXT("Tab");
 
 private:
-	// Gives the key to the player
-	void GiveKey();
+	// Gives the key to the player and shows the item notification on success.
+	// Skips the notification (logs + bails) on any failure path.
+	void GiveKey(class AFirstPersonCharacter* FPChar);
 
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);

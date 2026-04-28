@@ -25,9 +25,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::InDialogue));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_02_SenecaDialogueStarted")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::WaitingForItemInteractionInDialogue));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_03_BasketBeat")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("ShoppingBasket")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
@@ -79,8 +78,14 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_10_TalkingToRick")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Advance until the money mesh notification appears
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11_GotMoney")));
+		// Advance one more line — mesh should disappear
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11b_MoneyMeshGone")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
 	void GiveMoneyGetKey(FAutomationTestBase* T)
@@ -93,13 +98,21 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::WaitingForItemInteractionInDialogue));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_KeyBeat")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtKeyActor(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		// Advance until the movie stack notification appears
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_GotMovies")));
+		// Dismiss movie stack, continue dialogue
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13b_MoviesGone")));
+		// Advance until the key mesh notification appears
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
+		// Dismiss key, continue dialogue
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14b_KeyMeshGone")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
 	void UseKeyOnDoor(FAutomationTestBase* T)

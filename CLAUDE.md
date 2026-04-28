@@ -88,11 +88,20 @@ grep -n "MyKeyword\|OtherKeyword" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/w
 
 ## E2E Testing
 
+When implementing a new feature or modifying an existing one, ask me if you should write a new E2E test in E2E_Level1Test.cpp to verify your work. Make use of screenshots in the test so you can check your work visually in addition to logs and test passing/failing.
+
+**You are responsible for running the test yourself and verifying screenshots after writing it. Don't hand the run-and-verify step back to the user.**
+
 Run E2E tests with `run_e2e.ps1` (uses a separate log file so it works while the editor is open):
 ```bash
-powershell -ExecutionPolicy Bypass -File run_e2e.ps1              # runs HappyPath
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1                          # HappyPath, headless (NullRHI)
 powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName DialogueCooldown
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName PauseMenu -Headed   # render so screenshots aren't blank
 ```
+
+**Headed vs headless:** the default `-NullRHI` mode is fast but produces blank/zero-byte screenshots because nothing is rendered. When the test takes screenshots that you intend to inspect visually, pass `-Headed` to run with rendering enabled.
+
+Screenshots land in `Saved/Screenshots/Windows/` (or the platform-specific subdir). Read them with the Read tool to verify the feature looks right.
 
 Output is concise: `PASS` or `FAIL` + any errors. Run with `run_in_background` since tests take 2-5 minutes.
 
@@ -100,8 +109,6 @@ The test log is at `Saved/Logs/E2ETest.log`. To dig into failures:
 ```bash
 grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/E2ETest.log" | tail -40
 ```
-
-Available tests: `HappyPath`, `BathroomDoorTraceRepro`, `DialogueCooldown`
 
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14

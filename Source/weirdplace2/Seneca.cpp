@@ -368,11 +368,6 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
-	if (FPCharacter->GetActivityState() == EPlayerActivityState::WaitingForItemInteractionInDialogue)
-	{
-		return;
-	}
-
 	if (CurrentState == ESenecaState::WaitingForMovies)
 	{
 		if (!bIntroDialoguePlayed)
@@ -453,25 +448,17 @@ void ASeneca::Interact_Implementation()
 
 // --- Key ---
 
-void ASeneca::GiveKey()
+void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey called"));
 
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (!PlayerCharacter)
+	if (!FPChar)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Failed to get player character"));
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - FPChar is null"));
 		return;
 	}
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	if (!MyCharacter)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Player is not AMyCharacter"));
-		return;
-	}
-
-	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
+	UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
 	if (!Inventory)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Player has no InventoryComponent"));
@@ -501,6 +488,7 @@ void ASeneca::GiveKey()
 	}
 
 	Inventory->AddItemWithData(ItemData);
+	FPChar->ShowItemNotification(ItemData, KeyNotificationRotation);
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyToGive.ToString());
 }
 
@@ -668,41 +656,32 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 		return;
 	}
 
-	// Second broadcast: show the basket, switch to WaitingForItemInteractionInDialogue so the interaction system handles dismissal
+	// Second broadcast: show the basket mesh in front of the camera
 	bBasketBeatArmed = false;
 
-	if (!ShoppingBasketActor)
+	if (!ShoppingBasketActor || !ShoppingBasketActor->MeshComponent)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor is not assigned"));
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor or mesh not assigned"));
 		return;
 	}
 
-	ShoppingBasketActor->MeshComponent->SetVisibility(true, true);
-	ShoppingBasketActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-	FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-	TWeakObjectPtr<APropActor> WeakProp(ShoppingBasketActor);
-	TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-
-	ShoppingBasketActor->OnInteracted.AddLambda([WeakProp, WeakFPChar]()
+	UStaticMesh* BasketMesh = ShoppingBasketActor->MeshComponent->GetStaticMesh();
+	if (!BasketMesh)
 	{
-		if (APropActor* P = WeakProp.Get())
-		{
-			P->MeshComponent->SetVisibility(false, true);
-			P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			P->OnInteracted.Clear();
-		}
-		if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-		{
-			if (UInventoryComponent* Inv = FPC->GetInventoryComponent())
-			{
-				UGameplayStatics::PlaySound2D(FPC->GetWorld(), Inv->CollectSound);
-			}
-			FPC->SetActivityState(EPlayerActivityState::InDialogue);
-			FPC->AdvanceDialogue();
-		}
-	});
+		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor has no static mesh"));
+		return;
+	}
+
+	FInventoryItemData BasketData;
+	BasketData.ItemID = FName("Basket");
+	BasketData.Mesh = BasketMesh;
+	BasketData.Scale = ShoppingBasketActor->MeshComponent->GetRelativeScale3D();
+	for (int32 i = 0; i < BasketMesh->GetStaticMaterials().Num(); i++)
+	{
+		BasketData.Materials.Add(BasketMesh->GetMaterial(i));
+	}
+
+	FPChar->ShowItemNotification(BasketData, BasketNotificationRotation);
 }
 
 // --- Key Beat ---
@@ -769,7 +748,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
-			FPChar->AdvanceDialogue();
 			return;
 		}
 
@@ -782,49 +760,17 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 		{
 			Inventory->AddItemWithData(MovieData);
 		}
+
+		FPChar->ShowItemNotificationStack(TakenMovies, MovieRelativeRotation);
+
 		TakenMovies.Reset();
 		ClearCounterMovies();
-
-		FPChar->AdvanceDialogue();
 		return;
 	}
 
 	if (Action == TEXT("Give key"))
 	{
-		if (!KeyActor)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - KeyActor is not assigned"));
-			return;
-		}
-
-		KeyActor->MeshComponent->SetVisibility(true, true);
-		KeyActor->MeshComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-
-		FPChar->SetActivityState(EPlayerActivityState::WaitingForItemInteractionInDialogue);
-
-		TWeakObjectPtr<APropActor> WeakProp(KeyActor);
-		TWeakObjectPtr<AFirstPersonCharacter> WeakFPChar(FPChar);
-		TWeakObjectPtr<ASeneca> WeakSeneca(this);
-
-		KeyActor->OnInteracted.AddLambda([WeakProp, WeakFPChar, WeakSeneca]()
-		{
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Key OnInteracted lambda fired"));
-			if (APropActor* P = WeakProp.Get())
-			{
-				P->MeshComponent->SetVisibility(false, true);
-				P->MeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-				P->OnInteracted.Clear();
-			}
-			if (ASeneca* S = WeakSeneca.Get())
-			{
-				S->GiveKey();
-			}
-			if (AFirstPersonCharacter* FPC = WeakFPChar.Get())
-			{
-				FPC->SetActivityState(EPlayerActivityState::InDialogue);
-				FPC->AdvanceDialogue();
-			}
-		});
+		GiveKey(FPChar);
 		return;
 	}
 

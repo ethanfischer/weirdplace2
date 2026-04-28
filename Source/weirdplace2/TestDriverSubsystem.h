@@ -84,6 +84,12 @@ public:
 	void SimulateInteractRelease();
 	void SimulateInventoryPress();
 	void SimulateInventoryRelease();
+	void SimulateSettingsPress();
+	void SimulateSettingsRelease();
+
+	// Pulse a legacy axis input for one frame at the given value. Used to fire
+	// a single flick-step on the menu's Move axis bindings.
+	void SimulateLegacyAxis(FName AxisName, float Value);
 
 	// --- Inventory (queries only — open/close/confirm go through input) ---
 
@@ -114,6 +120,17 @@ public:
 	bool IsInAnyDialogue() const;
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
+
+	// --- Sensitivity / look diagnostics ---
+
+	// Directly write the gamepad look sensitivity (clamps + snaps internally).
+	void SetGamepadLookSensitivity(float Value);
+
+	// Directly write the mouse look sensitivity (clamps + snaps internally).
+	void SetMouseLookSensitivity(float Value);
+
+	// Returns the current player ControlRotation yaw in degrees.
+	float GetControllerYaw() const;
 
 	// --- Test status overlay ---
 

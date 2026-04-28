@@ -1,5 +1,6 @@
 param(
-    [string]$TestName = "HappyPath"
+    [string]$TestName = "HappyPath",
+    [switch]$Headed
 )
 
 $ProjectRoot = $PSScriptRoot
@@ -18,15 +19,20 @@ Write-Host "Log: $LogFile"
 Write-Host ""
 
 $stdoutLog = "$ProjectRoot\Saved\Logs\E2ETest_stdout.log"
-$proc = Start-Process -FilePath $UECmd -ArgumentList @(
+$argList = @(
     "`"$UProject`""
     "-ExecCmds=`"Automation RunTests $TestPath; Quit`""
     "-unattended"
     "-nopause"
     "-nosplash"
-    "-NullRHI"
     "-abslog=`"$LogFile`""
-) -RedirectStandardOutput $stdoutLog -RedirectStandardError "$ProjectRoot\Saved\Logs\E2ETest_stderr.log" -PassThru -Wait
+)
+# Default: NullRHI for fast headless runs. Pass -Headed to render so screenshots
+# are captured (NullRHI produces blank/zero-byte screenshots).
+if (-not $Headed) {
+    $argList += "-NullRHI"
+}
+$proc = Start-Process -FilePath $UECmd -ArgumentList $argList -RedirectStandardOutput $stdoutLog -RedirectStandardError "$ProjectRoot\Saved\Logs\E2ETest_stderr.log" -PassThru -Wait
 
 if (-not (Test-Path $LogFile)) {
     Write-Host "FAIL - No log file produced"

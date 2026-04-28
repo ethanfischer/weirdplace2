@@ -21,6 +21,7 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
+#include "WeirdplaceGameUserSettings.h"
 
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
@@ -461,6 +462,74 @@ void UTestDriverSubsystem::SimulateInventoryRelease()
 	AFirstPersonCharacter* Player = GetPlayer();
 	if (!Player) { return; }
 	InjectInputAction(Player->GetInventoryAction(), false);
+}
+
+void UTestDriverSubsystem::SimulateSettingsPress()
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateSettingsPress - no player")); return; }
+	InjectInputAction(Player->GetSettingsAction(), true);
+}
+
+void UTestDriverSubsystem::SimulateSettingsRelease()
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { return; }
+	InjectInputAction(Player->GetSettingsAction(), false);
+}
+
+void UTestDriverSubsystem::SimulateLegacyAxis(FName AxisName, float Value)
+{
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	if (!PC || !PC->InputComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateLegacyAxis - no PC/InputComponent"));
+		return;
+	}
+
+	// Drive each matching axis binding directly. The menu's HandleNavigateAxis*
+	// handlers re-arm after a sub-rearm-threshold value, so the test should
+	// pulse a high value once then a zero pulse to re-arm.
+	for (FInputAxisBinding& Binding : PC->InputComponent->AxisBindings)
+	{
+		if (Binding.AxisName == AxisName)
+		{
+			Binding.AxisValue = Value;
+			Binding.AxisDelegate.Execute(Value);
+		}
+	}
+}
+
+// --- Sensitivity / look diagnostics ---
+
+void UTestDriverSubsystem::SetGamepadLookSensitivity(float Value)
+{
+	UWeirdplaceGameUserSettings* Settings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!Settings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetGamepadLookSensitivity - GameUserSettings is not UWeirdplaceGameUserSettings"));
+		return;
+	}
+	Settings->SetGamepadLookSensitivity(Value);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver: GamepadLookSensitivity now %.3f"), Settings->GetGamepadLookSensitivity());
+}
+
+void UTestDriverSubsystem::SetMouseLookSensitivity(float Value)
+{
+	UWeirdplaceGameUserSettings* Settings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!Settings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetMouseLookSensitivity - GameUserSettings is not UWeirdplaceGameUserSettings"));
+		return;
+	}
+	Settings->SetMouseLookSensitivity(Value);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver: MouseLookSensitivity now %.3f"), Settings->GetMouseLookSensitivity());
+}
+
+float UTestDriverSubsystem::GetControllerYaw() const
+{
+	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
+	return PC ? static_cast<float>(PC->GetControlRotation().Yaw) : 0.0f;
 }
 
 // --- Inventory queries ---
