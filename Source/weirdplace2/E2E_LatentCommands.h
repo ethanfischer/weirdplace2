@@ -1407,6 +1407,34 @@ private:
 };
 
 // =======================================================================
+// FTD_SetMouseLookSensitivity — write directly to the persisted settings
+// (clamped + snapped). Used by sensitivity diagnostic tests that drive the
+// mouse look path via FTD_InjectMouseXForDuration.
+// =======================================================================
+
+class FTD_SetMouseLookSensitivity : public FTD_Base
+{
+public:
+	FTD_SetMouseLookSensitivity(FAutomationTestBase* InTest, float InValue)
+		: FTD_Base(InTest), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting mouse look sensitivity to %.3f"), Value);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetMouseLookSensitivity: no driver")); return true; }
+		Driver->SetMouseLookSensitivity(Value);
+		return true;
+	}
+private:
+	float Value;
+};
+
+// =======================================================================
 // FTD_CaptureYaw — record the current ControlRotation.Yaw to a caller-owned
 // float so a later FTD_AssertYawDelta can compare against it.
 // =======================================================================

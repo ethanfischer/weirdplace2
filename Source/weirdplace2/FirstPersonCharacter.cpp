@@ -237,9 +237,21 @@ bool AFirstPersonCharacter::IsGamepadLookActive() const
 	{
 		return false;
 	}
+	// Mouse delta this frame is the authoritative signal: if the mouse moved,
+	// the look input came from the mouse regardless of any stick reading.
+	// (The previous stick-only check tripped on controller drift and applied
+	// the gamepad scale curve to mouse-driven look.)
+	float MouseX = 0.f, MouseY = 0.f;
+	CachedPlayerController->GetInputMouseDelta(MouseX, MouseY);
+	if (FMath::Abs(MouseX) > KINDA_SMALL_NUMBER || FMath::Abs(MouseY) > KINDA_SMALL_NUMBER)
+	{
+		return false;
+	}
+	// No mouse motion this frame — fall through to a deflection check above
+	// the typical drift band (~0.05–0.10 on most pads).
 	const float StickX = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightX);
 	const float StickY = CachedPlayerController->GetInputAnalogKeyState(EKeys::Gamepad_RightY);
-	return FMath::Abs(StickX) > 0.01f || FMath::Abs(StickY) > 0.01f;
+	return FMath::Abs(StickX) > 0.15f || FMath::Abs(StickY) > 0.15f;
 }
 
 float AFirstPersonCharacter::ComputeGamepadLookScale() const

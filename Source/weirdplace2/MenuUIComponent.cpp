@@ -230,6 +230,12 @@ void UMenuUIComponent::HandleConfirm()
 			}
 			break;
 		case EPauseMenuItem::Quit:
+			if (CachedSettings)
+			{
+				CachedSettings->SaveSettings();
+				UE_LOG(LogTemp, Log, TEXT("Settings persisted on Quit: GamepadLookSensitivity=%.2f MouseLookSensitivity=%.2f"),
+					CachedSettings->GetGamepadLookSensitivity(), CachedSettings->GetMouseLookSensitivity());
+			}
 			if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
 			{
 				UKismetSystemLibrary::QuitGame(GetWorld(), PC, EQuitPreference::Quit, false);
@@ -329,8 +335,13 @@ void UMenuUIComponent::UnbindMenuInput()
 	{
 		return;
 	}
-	// Mirrors AMovieBox::StopInspection - clears legacy axis bindings wholesale.
-	PC->InputComponent->AxisBindings.Empty();
+	// Remove only the axes registered in BindMenuInput so other systems'
+	// legacy axis bindings on the PC stay intact.
+	PC->InputComponent->AxisBindings.RemoveAll([](const FInputAxisBinding& Binding)
+	{
+		return Binding.AxisName == TEXT("Move Right / Left")
+			|| Binding.AxisName == TEXT("Move Forward / Backward");
+	});
 }
 
 void UMenuUIComponent::HandleNavigateAxisX(float AxisValue)

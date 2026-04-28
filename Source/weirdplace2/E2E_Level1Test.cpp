@@ -152,25 +152,25 @@ bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 
 	// --- Phase 1: high sensitivity, expect noticeable rotation ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetGamepadLookSensitivity(this, 1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetMouseLookSensitivity(this, 1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.25f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureYaw(this, &CapturedYaw_High));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 50.0f, 1.0f));
 	// Generous range: just verify mouse injection produced meaningful rotation.
 	// Tight upper bound would be brittle under different IMC modifier configs.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertYawDelta(this, TEXT("HighSlider1.0"),
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertYawDelta(this, TEXT("HighSlider1.0_Mouse"),
 		&CapturedYaw_High, /*Min=*/1.0f, /*Max=*/1000.0f));
 
-	// --- Phase 2: low sensitivity, expect near-zero rotation ---
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetGamepadLookSensitivity(this, 0.1f));
+	// --- Phase 2: low sensitivity, expect ~10x smaller rotation ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetMouseLookSensitivity(this, 0.1f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.25f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureYaw(this, &CapturedYaw_Low));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 50.0f, 1.0f));
-	// Quadratic curve: scale is 0.005 here (V*V*0.5). With identical injection
-	// to phase 1, the actual delta should be ~100x smaller. If this fails, the
-	// slider math is not being applied through the rotation overrides.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertYawDelta(this, TEXT("LowSlider0.1"),
-		&CapturedYaw_Low, /*Min=*/0.0f, /*Max=*/10.0f));
+	// Mouse curve is linear (V * 1.0): with identical injection to phase 1, the
+	// actual delta should be ~10x smaller. Max=150 catches "slider not applied"
+	// (which would reproduce phase-1 magnitudes well above this bound).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertYawDelta(this, TEXT("LowSlider0.1_Mouse"),
+		&CapturedYaw_Low, /*Min=*/0.0f, /*Max=*/150.0f));
 
 	// --- Phase 3: idle drift check (the smoking-gun test) ---
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.25f));

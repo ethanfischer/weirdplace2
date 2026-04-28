@@ -448,25 +448,17 @@ void ASeneca::Interact_Implementation()
 
 // --- Key ---
 
-void ASeneca::GiveKey()
+void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey called"));
 
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (!PlayerCharacter)
+	if (!FPChar)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Failed to get player character"));
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - FPChar is null"));
 		return;
 	}
 
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	if (!MyCharacter)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Player is not AMyCharacter"));
-		return;
-	}
-
-	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
+	UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
 	if (!Inventory)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - Player has no InventoryComponent"));
@@ -496,6 +488,7 @@ void ASeneca::GiveKey()
 	}
 
 	Inventory->AddItemWithData(ItemData);
+	FPChar->ShowItemNotification(ItemData, KeyNotificationRotation);
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyToGive.ToString());
 }
 
@@ -777,20 +770,7 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 
 	if (Action == TEXT("Give key"))
 	{
-		GiveKey();
-
-		FInventoryItemData KeyData;
-		KeyData.ItemID = KeyToGive;
-		KeyData.Mesh = KeyMesh;
-		KeyData.Scale = KeyScale;
-		if (KeyMesh)
-		{
-			for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
-			{
-				KeyData.Materials.Add(KeyMesh->GetMaterial(i));
-			}
-		}
-		FPChar->ShowItemNotification(KeyData, KeyNotificationRotation);
+		GiveKey(FPChar);
 		return;
 	}
 

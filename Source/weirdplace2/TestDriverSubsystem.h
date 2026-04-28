@@ -126,6 +126,9 @@ public:
 	// Directly write the gamepad look sensitivity (clamps + snaps internally).
 	void SetGamepadLookSensitivity(float Value);
 
+	// Directly write the mouse look sensitivity (clamps + snaps internally).
+	void SetMouseLookSensitivity(float Value);
+
 	// Returns the current player ControlRotation yaw in degrees.
 	float GetControllerYaw() const;
 

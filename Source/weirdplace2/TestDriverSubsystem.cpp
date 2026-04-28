@@ -514,6 +514,18 @@ void UTestDriverSubsystem::SetGamepadLookSensitivity(float Value)
 	UE_LOG(LogTemp, Log, TEXT("TestDriver: GamepadLookSensitivity now %.3f"), Settings->GetGamepadLookSensitivity());
 }
 
+void UTestDriverSubsystem::SetMouseLookSensitivity(float Value)
+{
+	UWeirdplaceGameUserSettings* Settings = Cast<UWeirdplaceGameUserSettings>(UGameUserSettings::GetGameUserSettings());
+	if (!Settings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetMouseLookSensitivity - GameUserSettings is not UWeirdplaceGameUserSettings"));
+		return;
+	}
+	Settings->SetMouseLookSensitivity(Value);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver: MouseLookSensitivity now %.3f"), Settings->GetMouseLookSensitivity());
+}
+
 float UTestDriverSubsystem::GetControllerYaw() const
 {
 	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;

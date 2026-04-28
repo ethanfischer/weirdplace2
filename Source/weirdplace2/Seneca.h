@@ -212,8 +212,9 @@ protected:
 	FString InventoryButtonDisplayName = TEXT("Tab");
 
 private:
-	// Gives the key to the player
-	void GiveKey();
+	// Gives the key to the player and shows the item notification on success.
+	// Skips the notification (logs + bails) on any failure path.
+	void GiveKey(class AFirstPersonCharacter* FPChar);
 
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);
