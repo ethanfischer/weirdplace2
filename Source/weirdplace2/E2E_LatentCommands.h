@@ -949,7 +949,7 @@ public:
 
 		// After enough rotation, try pressing E to collect.
 		// Need ~155 degrees of rotation (at 10 deg/frame = ~16 frames).
-		// The "Collect Inspected Subitem" binding is only active when dot > 0.9,
+		// The "Collect Inspected Movie" binding is only active when dot > 0.9,
 		// so early presses are harmless (no binding = no effect).
 		if (FrameCount >= 2 && !bCollectPressed)
 		{

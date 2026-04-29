@@ -81,7 +81,7 @@ py "C:/Users/ethan/repos/weirdplace2/Content/Python/script_name.py"
 
 - `Interact` (E) - Interact with objects
 - `Exit Interaction` (Q) - Exit inspection mode
-- `Collect Inspected Subitem` (E/SpaceBar) - Collect from inspected box
+- `Collect Inspected Movie` (E/SpaceBar) - Collect from inspected box
 - `ToggleInventory` (Tab) - Toggle inventory room
 - `Turn Right / Left Mouse/Gamepad` - Rotate inspected actor
 

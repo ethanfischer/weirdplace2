@@ -174,20 +174,35 @@ void AMovieBox::Interact_Implementation()
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
 
-	// Bind Q key to exit inspection
+	// Defer the collect binding by one tick so the in-flight E IE_Pressed event
+	// that opened inspection doesn't immediately trigger collect.
+	GetWorld()->GetTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			if (PlayerController && PlayerController->InputComponent)
+			{
+				PlayerController->InputComponent->BindAction(
+					"Collect Inspected Movie", IE_Pressed,
+					this, &AMovieBox::CollectInspectedMovie);
+			}
+		}));
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
-	// Allow interact key (E) to also exit while inspecting
-	PlayerController->InputComponent->BindAction(InteractActionName, IE_Pressed, this, &AMovieBox::StopInspection);
+
+	// Show the collect prompt for the entire inspection if collection is allowed
+	const bool bCanCollect = MyCharacter
+		&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
+		&& !MyCharacter->IsMovieCollectionLocked();
+	InteractionWidget->SetVisibility(bCanCollect);
 }
 
-void AMovieBox::CollectInspectedSubitem()
+void AMovieBox::CollectInspectedMovie()
 {
 	if (!InteractionWidget || !EnvelopeMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: CollectInspectedSubitem called with missing components"), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: CollectInspectedMovie called with missing components"), *GetName());
 		return;
 	}
-	if (DidCollectSubitem) return;
+	if (DidCollectMovie) return;
 
 	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
 	{
@@ -219,7 +234,7 @@ void AMovieBox::CollectInspectedSubitem()
 
 	EnvelopeMesh->SetHiddenInGame(true);
 	InteractionWidget->SetVisibility(false);
-	DidCollectSubitem = true;
+	DidCollectMovie = true;
 
 	// Get cover name from actor name (strip suffix)
 	FString CoverName = InspectedActor ? InspectedActor->GetName() : GetName();
@@ -244,49 +259,9 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 {
 	if (!InspectedActor)
 		return;
-	double DotProduct = FVector::DotProduct(CameraRotation.Vector(), InspectedActor->GetActorForwardVector());
-	//Use dot product to determine if movie box and player camera are facing the same world direction
-	if (DotProduct > 0.9f)
-	{
-		if (!DidCollectSubitem)
-		{
-			bool bCanCollect = MyCharacter
-			&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
-			&& !MyCharacter->IsMovieCollectionLocked();
-			InteractionWidget->SetVisibility(bCanCollect);
-		}
 
-		// Only bind if not already bound (prevent duplicate bindings)
-		if (!bCollectSubitemBound)
-		{
-			PlayerController->InputComponent->BindAction("Collect Inspected Subitem", IE_Pressed, this, &AMovieBox::CollectInspectedSubitem);
-			bCollectSubitemBound = true;
-		}
-	}
-	else
-	{
-		InteractionWidget->SetVisibility(false);
-		if (CantCarryWidget)
-		{
-			GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
-			CantCarryWidget->SetVisibility(false);
-		}
-
-		// Only unbind if currently bound
-		if (bCollectSubitemBound)
-		{
-			PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
-			bCollectSubitemBound = false;
-		}
-	}
-
-	// Get the local up vector of the actor
 	FVector LocalUpVector = InspectedActor->GetActorUpVector();
-
-	// Create a rotation around the local up axis
-	FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f)); // Adjust sensitivity
-
-	// Apply the rotation in local space
+	FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f));
 	InspectedActor->AddActorWorldRotation(DeltaRotation);
 }
 
@@ -309,17 +284,14 @@ void AMovieBox::StopInspection()
 
 	// Unbind input actions
 	PlayerController->InputComponent->AxisBindings.Empty(); //TODO: really?
-	RemoveInteractBinding();
+	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
+	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
+
+	// Hide the collect prompt
+	if (InteractionWidget) InteractionWidget->SetVisibility(false);
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
-
-	// Reset binding flag
-	if (bCollectSubitemBound)
-	{
-		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Subitem", IE_Pressed);
-		bCollectSubitemBound = false;
-	}
 
 	GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
 	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
@@ -328,13 +300,3 @@ void AMovieBox::StopInspection()
 	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
 }
 
-void AMovieBox::RemoveInteractBinding()
-{
-	if (!PlayerController || !PlayerController->InputComponent)
-	{
-		return;
-	}
-
-	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
-	PlayerController->InputComponent->RemoveActionBinding(InteractActionName, IE_Pressed);
-}

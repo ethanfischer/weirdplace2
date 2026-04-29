@@ -8,8 +8,8 @@ Feature: VHS Cover Pipeline and Texture Optimization
 
 Feature: MovieBox interaction/inspection
 - Purpose: let the player inspect/rotate a MovieBox, reveal the back, and collect a hidden item into inventory.
-- Key files: Source/weirdplace2/MovieBox.cpp (Interact_Implementation, RotateInspectedActor, CollectInspectedSubitem, StopInspection); MovieBox.h; Interactable.h; input mappings in project settings/DefaultInput.ini.
-- Input flow: Interact action (E) calls Interact_Implementation to start inspection; rotation uses axes "Turn Right / Left Mouse" and "Turn Right / Left Gamepad"; collect uses action "Collect Inspected Subitem" (bind to E or your chosen key); exit uses action "Exit Interaction" (Q by default).
+- Key files: Source/weirdplace2/MovieBox.cpp (Interact_Implementation, RotateInspectedActor, CollectInspectedMovie, StopInspection); MovieBox.h; Interactable.h; input mappings in project settings/DefaultInput.ini.
+- Input flow: Interact action (E) calls Interact_Implementation to start inspection; rotation uses axes "Turn Right / Left Mouse" and "Turn Right / Left Gamepad"; collect uses action "Collect Inspected Movie" (bind to E or your chosen key); exit uses action "Exit Interaction" (Q by default).
 - Behavior: On interact, the box is moved in front of the camera, player look/move is disabled, rotation axes are bound. While rotating, when the box back faces the camera (dot > 0.9), the widget shows and the collect action is bound; turning away hides it and unbinds. Collect hides the mesh, marks collected, calls AddItemToInventoryWithMesh() with the cover FName and mesh data, and auto-exits inspection. Interact (E) now also exits while inspecting (in addition to the Exit Interaction action). Exit restores the original transform, re-enables input, and clears bindings.
 - Notes: ensure input mappings exist for the three actions/axes; no BP override needed—BP_MovieBox just calls the C++ interface implementation. No rebuild needed unless you change headers or UPROPERTY/UFUNCTIONs.
 
@@ -52,7 +52,7 @@ Feature: Active Item Selection
 - Purpose: Allow player to select an item from inventory to be their "active" item.
 - Key files: Source/weirdplace2/Inventory.h/.cpp (FInventoryItemData struct, SetActiveItem, GetActiveItem, OnActiveItemChanged delegate).
 - Behavior: When player confirms selection in inventory UI (E key), that item becomes the active item. The inventory stores visual data (mesh, materials, scale, rotation) captured when items are collected via AddItemToInventoryWithMesh().
-- Data flow: MovieBox::CollectInspectedSubitem() calls MyCharacter::AddItemToInventoryWithMesh() which captures FInventoryItemData from the mesh component and stores it in InventoryComponent's ItemDataMap.
+- Data flow: MovieBox::CollectInspectedMovie() calls MyCharacter::AddItemToInventoryWithMesh() which captures FInventoryItemData from the mesh component and stores it in InventoryComponent's ItemDataMap.
 
 Feature: Held Item Display
 - Purpose: Show the active/selected item in the player's view (as if held in hand).

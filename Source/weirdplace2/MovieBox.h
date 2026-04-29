@@ -30,7 +30,7 @@ public:
 	virtual void Interact_Implementation() override;
 	virtual bool CanInteract() override;
 
-	void CollectInspectedSubitem();
+	void CollectInspectedMovie();
 	void RotateInspectedActor(float AxisValue);
 	void StopInspection();
 
@@ -46,9 +46,7 @@ private:
 	FRotator   CameraRotation;
 	APlayerController* PlayerController;
 	AMyCharacter* MyCharacter;
-	bool DidCollectSubitem = false;
-	bool bCollectSubitemBound = false;
-	FName InteractActionName = FName("Interact");
+	bool DidCollectMovie = false;
 	FTimerHandle CantCarryTimerHandle;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
@@ -59,6 +57,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh", meta=(AllowPrivateAccess="true"))
 	UStaticMeshComponent* EnvelopeMesh;
-
-	void RemoveInteractBinding();
 };
