@@ -327,6 +327,11 @@ void AInventoryUIActor::CreateThumbnails()
 	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
 	{
 		const FName& ItemID = Items[i];
+		// Sparse storage: empty slots stay in the array as NAME_None to preserve grid positions.
+		if (ItemID.IsNone())
+		{
+			continue;
+		}
 
 		UStaticMeshComponent* Thumbnail = NewObject<UStaticMeshComponent>(this);
 		Thumbnail->SetStaticMesh(PlaneMesh);

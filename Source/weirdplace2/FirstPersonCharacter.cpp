@@ -150,11 +150,12 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 				{
 					// Selection is now stick-driven, so the interactable crosshair is
 					// shown whenever the currently selected slot holds a real item.
+					// Items is sparse — empty slots are NAME_None and shouldn't show the reticle.
 					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
 					{
 						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
 						const TArray<FName> Items = InventoryComp->GetItems();
-						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex);
+						bShouldShowInteractable = Items.IsValidIndex(SelectedIndex) && !Items[SelectedIndex].IsNone();
 					}
 				}
 				else

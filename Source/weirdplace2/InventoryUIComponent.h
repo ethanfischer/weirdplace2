@@ -50,10 +50,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryFullyClosed() const { return CurrentState == EInventoryUIState::Closed; }
 
-	// Confirm selection (E key / click)
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void ConfirmSelection();
-
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
@@ -142,9 +138,9 @@ private:
 	// Update inventory actor position based on camera and animation
 	void UpdateInventoryPosition();
 
-	// Bind/unbind confirm input
-	void BindConfirmInput();
-	void UnbindConfirmInput();
+	// Bind/unbind close input (Q / B button)
+	void BindCloseInput();
+	void UnbindCloseInput();
 
 	// Freeze/unfreeze player movement
 	void FreezePlayerMovement();
@@ -159,6 +155,10 @@ private:
 
 	// Step the selected slot by (DeltaCol, DeltaRow), clamped.
 	void StepSelection(int32 DeltaCol, int32 DeltaRow);
+
+	// Push SelectedIndex to the UI and update the active item to whatever lives at that slot
+	// (NAME_None for empty). Single source of truth for navigation-driven selection.
+	void UpdateSelectedSlot();
 
 	// Flick-step armed state per axis. True when ready to fire on next threshold cross.
 	bool bArmedX = true;

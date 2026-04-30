@@ -826,18 +826,19 @@ private:
 };
 
 // =======================================================================
-// FTD_SelectAndConfirmSlot — set cursor to slot N, press E to confirm
+// FTD_SelectAndConfirmSlot — set cursor to slot N. Active item now follows
+// navigation, so just moving the cursor assigns the item — no key press needed.
 // =======================================================================
 
 class FTD_SelectAndConfirmSlot : public FTD_Base
 {
 public:
 	FTD_SelectAndConfirmSlot(FAutomationTestBase* InTest, int32 InIndex)
-		: FTD_Base(InTest), Index(InIndex), Phase(0) {}
+		: FTD_Base(InTest), Index(InIndex) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Selecting inventory slot %d, pressing E"), Index);
+		return FString::Printf(TEXT("Selecting inventory slot %d"), Index);
 	}
 
 	virtual bool UpdateStep() override
@@ -845,30 +846,14 @@ public:
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 
-		switch (Phase)
+		if (!Driver->SetSelectedSlot(Index))
 		{
-		case 0: // Set the cursor position
-			if (!Driver->SetSelectedSlot(Index))
-			{
-				Test->AddError(FString::Printf(TEXT("FTD_SelectAndConfirmSlot: failed to set slot %d"), Index));
-				return true;
-			}
-			Phase = 1;
-			return false;
-		case 1: // Press E — fires legacy "InventoryConfirmSelection" via InputKey
-			Driver->SimulateKeyPress(EKeys::E);
-			Phase = 2;
-			return false;
-		case 2: // Release E
-			Driver->SimulateKeyRelease(EKeys::E);
-			return true;
-		default:
-			return true;
+			Test->AddError(FString::Printf(TEXT("FTD_SelectAndConfirmSlot: failed to set slot %d"), Index));
 		}
+		return true;
 	}
 private:
 	int32 Index;
-	int32 Phase;
 };
 
 // =======================================================================

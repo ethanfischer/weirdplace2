@@ -74,7 +74,7 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			AnimationProgress = 0.0f;
 			CurrentState = EInventoryUIState::Closed;
 			DestroyInventoryUIActor();
-			UnbindConfirmInput();
+			UnbindCloseInput();
 			UnfreezePlayerMovement();
 
 			// Re-enable interactions with environment
@@ -157,14 +157,26 @@ void UInventoryUIComponent::OpenInventoryUI()
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}
 
-	// Reset selection to first slot
+	// Land the cursor on the currently active item so navigation starts there.
 	SelectedIndex = 0;
+	if (InventoryComponent)
+	{
+		const FName ActiveItem = InventoryComponent->GetActiveItem();
+		if (!ActiveItem.IsNone())
+		{
+			const int32 ActiveSlot = InventoryComponent->GetItems().IndexOfByKey(ActiveItem);
+			if (ActiveSlot != INDEX_NONE)
+			{
+				SelectedIndex = ActiveSlot;
+			}
+		}
+	}
 	bArmedX = true;
 	bArmedY = true;
 
 	CurrentState = EInventoryUIState::Opening;
 	FreezePlayerMovement();
-	BindConfirmInput();
+	BindCloseInput();
 	BindNavigateInput();
 
 	// Disable interactions with environment
@@ -176,8 +188,6 @@ void UInventoryUIComponent::OpenInventoryUI()
 	// Update UI with current selection and active item
 	if (InventoryUIActor)
 	{
-		InventoryUIActor->SetSelectedIndex(SelectedIndex);
-
 		// Only refresh display if inventory changed since last open
 		if (bInventoryNeedsRefresh)
 		{
@@ -185,18 +195,8 @@ void UInventoryUIComponent::OpenInventoryUI()
 			bInventoryNeedsRefresh = false;
 		}
 
-		// Show current active item and border (if any)
-		if (InventoryComponent)
-		{
-			FName ActiveItem = InventoryComponent->GetActiveItem();
-			int32 ActiveIndex = -1;
-			if (!ActiveItem.IsNone())
-			{
-				TArray<FName> Items = InventoryComponent->GetItems();
-				ActiveIndex = Items.IndexOfByKey(ActiveItem);
-			}
-			InventoryUIActor->SetActiveItem(ActiveItem, ActiveIndex);
-		}
+		// Sync selection highlight + active item border to the current SelectedIndex.
+		UpdateSelectedSlot();
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("Opening Inventory UI"));
@@ -229,41 +229,6 @@ void UInventoryUIComponent::CloseInventoryUI()
 bool UInventoryUIComponent::IsInventoryOpen() const
 {
 	return CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening;
-}
-
-void UInventoryUIComponent::ConfirmSelection()
-{
-	if (CurrentState != EInventoryUIState::Open) return;
-
-	if (InventoryComponent)
-	{
-		TArray<FName> Items = InventoryComponent->GetItems();
-		if (Items.IsValidIndex(SelectedIndex))
-		{
-			FName SelectedItem = Items[SelectedIndex];
-			InventoryComponent->SetActiveItem(SelectedItem);
-
-			// Play item selected sound
-			if (MenuItemSelectedSound)
-			{
-				UGameplayStatics::PlaySound2D(this, MenuItemSelectedSound);
-			}
-
-			// Update the UI to show the confirmed item name and border
-			if (InventoryUIActor)
-			{
-				InventoryUIActor->SetActiveItem(SelectedItem, SelectedIndex);
-			}
-
-			UE_LOG(LogTemp, Log, TEXT("Confirmed selection: %s"), *SelectedItem.ToString());
-		}
-		else
-		{
-			UE_LOG(LogTemp, Log, TEXT("Selected empty slot %d - no action"), SelectedIndex);
-		}
-	}
-
-	// Don't close inventory - user must press Tab or Exit to close
 }
 
 void UInventoryUIComponent::SpawnInventoryUIActor()
@@ -350,24 +315,21 @@ void UInventoryUIComponent::UpdateInventoryPosition()
 	InventoryUIActor->SetOpacity(EasedProgress);
 }
 
-void UInventoryUIComponent::BindConfirmInput()
+void UInventoryUIComponent::BindCloseInput()
 {
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC || !PC->InputComponent) return;
 
-	// Bind confirm (E / A button) - selects item but doesn't close
-	PC->InputComponent->BindAction("InventoryConfirmSelection", IE_Pressed, this, &UInventoryUIComponent::ConfirmSelection);
-
-	// Bind close (Q / B button) - closes inventory
+	// Bind close (Q / B button) - closes inventory.
+	// Active-item assignment is now driven by navigation, so there is no separate confirm action.
 	PC->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &UInventoryUIComponent::CloseInventoryUI);
 }
 
-void UInventoryUIComponent::UnbindConfirmInput()
+void UInventoryUIComponent::UnbindCloseInput()
 {
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (!PC || !PC->InputComponent) return;
 
-	PC->InputComponent->RemoveActionBinding("InventoryConfirmSelection", IE_Pressed);
 	PC->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 }
 
@@ -415,10 +377,7 @@ bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
 	}
 
 	SelectedIndex = Index;
-	if (InventoryUIActor)
-	{
-		InventoryUIActor->SetSelectedIndex(SelectedIndex);
-	}
+	UpdateSelectedSlot();
 	return true;
 }
 
@@ -521,9 +480,37 @@ void UInventoryUIComponent::StepSelection(int32 DeltaCol, int32 DeltaRow)
 	}
 
 	SelectedIndex = NewIndex;
+	UpdateSelectedSlot();
+}
+
+void UInventoryUIComponent::UpdateSelectedSlot()
+{
+	// Move the hover highlight, then set the active item to whatever lives at this slot
+	// (NAME_None for empty slots clears the active item via SetActiveItem).
 	if (InventoryUIActor)
 	{
 		InventoryUIActor->SetSelectedIndex(SelectedIndex);
+	}
+
+	if (!InventoryComponent)
+	{
+		return;
+	}
+
+	const TArray<FName> Items = InventoryComponent->GetItems();
+	const FName ItemAtSlot = Items.IsValidIndex(SelectedIndex) ? Items[SelectedIndex] : NAME_None;
+
+	const bool bChanged = InventoryComponent->GetActiveItem() != ItemAtSlot;
+	InventoryComponent->SetActiveItem(ItemAtSlot);
+
+	if (InventoryUIActor)
+	{
+		InventoryUIActor->SetActiveItem(ItemAtSlot, ItemAtSlot.IsNone() ? -1 : SelectedIndex);
+	}
+
+	if (bChanged && !ItemAtSlot.IsNone() && MenuItemSelectedSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuItemSelectedSound);
 	}
 }
 
@@ -536,9 +523,9 @@ void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems
 	if (InventoryUIActor && IsInventoryOpen())
 	{
 		ClampSelectedIndex();
-		InventoryUIActor->SetSelectedIndex(SelectedIndex);
 		InventoryUIActor->RefreshDisplay();
 		bInventoryNeedsRefresh = false;
+		UpdateSelectedSlot();
 	}
 }
 

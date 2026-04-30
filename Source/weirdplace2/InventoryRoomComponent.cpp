@@ -208,6 +208,10 @@ void UInventoryRoomComponent::SpawnInventoryDisplayActors()
 	for (int32 i = 0; i < Items.Num(); i++)
 	{
 		const FName& ItemID = Items[i];
+		if (ItemID.IsNone())
+		{
+			continue;
+		}
 
 		// Check if there's a custom display mapping for this item
 		const FInventoryItemDisplayInfo* DisplayInfo = GetDisplayInfo(ItemID);
