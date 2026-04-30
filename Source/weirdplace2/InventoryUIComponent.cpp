@@ -157,20 +157,9 @@ void UInventoryUIComponent::OpenInventoryUI()
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}
 
-	// Land the cursor on the currently active item so navigation starts there.
-	SelectedIndex = 0;
-	if (InventoryComponent)
-	{
-		const FName ActiveItem = InventoryComponent->GetActiveItem();
-		if (!ActiveItem.IsNone())
-		{
-			const int32 ActiveSlot = InventoryComponent->GetItems().IndexOfByKey(ActiveItem);
-			if (ActiveSlot != INDEX_NONE)
-			{
-				SelectedIndex = ActiveSlot;
-			}
-		}
-	}
+	// Persist the cursor position across opens — including when the previously-
+	// selected item was just given to an NPC, so the player reopens onto the now-empty slot.
+	ClampSelectedIndex();
 	bArmedX = true;
 	bArmedY = true;
 
