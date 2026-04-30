@@ -448,7 +448,7 @@ void AInventoryUIActor::UpdateSelectionHighlight()
 
 void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 {
-	FText ActiveItemText = FText::FromString(TEXT("No Item Selected"));
+	FText ActiveItemText = FText::FromString(TEXT(""));
 	if (!ItemID.IsNone())
 	{
 		FString ItemName = ItemID.ToString();
