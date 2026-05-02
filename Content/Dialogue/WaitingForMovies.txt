@@ -1,4 +1,4 @@
 You need the bathroom?
-You'll have to rent 3 *Rhetoric Bricks* first
-Here, use this to hold on to them
+You'll have to rent some videos first
+Here, use this
 Press [[InventoryButton]] to use it
