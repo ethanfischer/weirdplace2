@@ -1,5 +1,4 @@
 # Todo / Bugs
-[ ] Inventory default selection improvement
 [ ] seneca unlock employee bathroom animation
 [ ] cash needs inventory thumbnail
 [ ] "Rick: I'll meet you inside"
