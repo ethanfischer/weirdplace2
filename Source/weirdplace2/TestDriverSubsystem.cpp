@@ -1,5 +1,6 @@
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "MovieBox.h"
@@ -15,6 +16,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerInput.h"
@@ -651,6 +653,39 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+bool UTestDriverSubsystem::UnlockInventoryForTest()
+{
+	AMyCharacter* MyChar = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	if (!MyChar) { return false; }
+	MyChar->UnlockInventory();
+	return true;
+}
+
+bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale)
+{
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		return false;
+	}
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *MeshAssetPath);
+	if (!Mesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddTestItem: failed to load mesh '%s'"), *MeshAssetPath);
+		return false;
+	}
+	FInventoryItemData Data;
+	Data.ItemID = ItemId;
+	Data.Mesh = Mesh;
+	Data.Scale = Scale;
+	for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); ++i)
+	{
+		Data.Materials.Add(Mesh->GetMaterial(i));
+	}
+	Inv->AddItemWithData(Data);
+	return true;
 }
 
 void UTestDriverSubsystem::SetTestStatus(const FString& Step)

@@ -121,6 +121,15 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// Test-only: inject an item into the inventory by loading a static mesh by
+	// asset path and feeding it through AddItemWithData. Lets focused inventory
+	// tests skip the gameplay flow that normally grants the item.
+	bool AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale = FVector(1.0f));
+
+	// Test-only: bypass the Seneca-intro gate that normally blocks inventory
+	// open at game start. Calls AMyCharacter::UnlockInventory directly.
+	bool UnlockInventoryForTest();
+
 	// --- Sensitivity / look diagnostics ---
 
 	// Directly write the gamepad look sensitivity (clamps + snaps internally).

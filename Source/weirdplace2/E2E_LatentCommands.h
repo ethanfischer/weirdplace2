@@ -1014,6 +1014,65 @@ private:
 	int32 Expected;
 };
 
+// =======================================================================
+// FTD_UnlockInventory — bypass the Seneca-intro gate that normally blocks
+// inventory open at game start. Use at the start of any focused inventory
+// test that doesn't want to play through SenecaIntro first.
+// =======================================================================
+
+class FTD_UnlockInventory : public FTD_Base
+{
+public:
+	FTD_UnlockInventory(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Unlocking inventory (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_UnlockInventory: no driver")); return true; }
+		if (!Driver->UnlockInventoryForTest())
+		{
+			Test->AddError(TEXT("FTD_UnlockInventory: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AddTestItem — inject an item directly into the inventory by mesh path,
+// bypassing the gameplay flow that would normally grant it. For focused
+// inventory tests that don't want to play through Seneca/Rick first.
+// =======================================================================
+
+class FTD_AddTestItem : public FTD_Base
+{
+public:
+	FTD_AddTestItem(FAutomationTestBase* InTest, FName InItemId, FString InMeshPath, FVector InScale = FVector(1.f))
+		: FTD_Base(InTest), ItemId(InItemId), MeshPath(MoveTemp(InMeshPath)), Scale(InScale) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Adding test item '%s'"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AddTestItem: no driver")); return true; }
+		if (!Driver->AddTestItem(ItemId, MeshPath, Scale))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AddTestItem: failed for '%s' / %s"),
+				*ItemId.ToString(), *MeshPath));
+		}
+		return true;
+	}
+private:
+	FName ItemId;
+	FString MeshPath;
+	FVector Scale;
+};
+
 class FTD_AssertHasItem : public FTD_Base
 {
 public:

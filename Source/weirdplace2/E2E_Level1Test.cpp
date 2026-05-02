@@ -272,4 +272,56 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// InventoryThumbnails — verify that inventory thumbnails render at a
+// consistent brightness regardless of the surrounding scene's lighting.
+// The M_ItemThumbnail material divides emissive by EyeAdaptation so the
+// tonemapper's auto-exposure multiplication cancels out. Without that fix,
+// thumbnails blow out white in dim scenes.
+//
+// The test injects Money + Key into the inventory, opens the inventory in
+// the bright outdoor parking lot (PlayerStart) for a baseline screenshot,
+// then teleports somewhere dim and takes a second screenshot. Both should
+// show the thumbnails at similar brightness — visually verifiable by
+// comparing the two PNGs.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InventoryThumbnails,
+	"Weirdplace2.E2E.Level1.InventoryThumbnails",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InventoryThumbnails")
+
+	// Bypass Seneca-intro gate that normally blocks inventory open.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+
+	// Inject Money + Key directly so we can focus on rendering, not gameplay.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
+		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+
+	// Bright outdoor — open inventory + screenshot.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Inv_01_Bright")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Dim interior — same inventory, screenshot again. SenecaApproach is
+	// inside the store under store lighting which is much dimmer than outside.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Inv_02_Dim")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
