@@ -1,4 +1,6 @@
 # Todo / Bugs
+[ ] 2.95 cash exactly
+[ ] 1 cent found later, but seneca accepts it
 [ ] seneca unlock employee bathroom animation
 [ ] cash needs inventory thumbnail
 [ ] "Rick: I'll meet you inside"
