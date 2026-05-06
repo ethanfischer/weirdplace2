@@ -81,6 +81,12 @@ private:
 	// Apply current pose values to the held item mesh if valid
 	void ApplyHeldItemPose();
 
+public:
+	// Test-only: override the slot pose at runtime. Re-applies the offset and
+	// rotation to the held mesh immediately. Use to bring the held item into
+	// camera view for screenshots without depending on a controller's hand rig.
+	void SetSlotPose(FVector Offset, FRotator Rotation);
+
 	// Callback when active item changes in inventory
 	UFUNCTION()
 	void OnActiveItemChanged(const FName& NewActiveItem);

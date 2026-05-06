@@ -3,6 +3,12 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "ItemDefinition.h"
+#include "HeldItemComponent.h"
+#if WITH_EDITOR
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#endif
 #include "MovieBox.h"
 #include "PropActor.h"
 #include "Hudson.h"
@@ -686,6 +692,38 @@ bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPat
 	}
 	Inv->AddItemWithData(Data);
 	return true;
+}
+
+int32 UTestDriverSubsystem::AddAllItemDefsFromFolder(const FString& FolderPath)
+{
+#if WITH_EDITOR
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddAllItemDefsFromFolder: no inventory component"));
+		return 0;
+	}
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> AssetDatas;
+	AssetRegistry.GetAssetsByPath(FName(*FolderPath), AssetDatas, /*bRecursive*/ true);
+
+	int32 Added = 0;
+	for (const FAssetData& AD : AssetDatas)
+	{
+		UItemDefinition* Def = Cast<UItemDefinition>(AD.GetAsset());
+		if (!Def || Def->ItemID.IsNone() || !Def->Mesh)
+		{
+			continue;
+		}
+		Inv->AddItemWithData(Def->ToInventoryItemData());
+		UE_LOG(LogTemp, Log, TEXT("AddAllItemDefsFromFolder: added '%s'"), *Def->ItemID.ToString());
+		++Added;
+	}
+	return Added;
+#else
+	return 0;
+#endif
 }
 
 void UTestDriverSubsystem::SetTestStatus(const FString& Step)

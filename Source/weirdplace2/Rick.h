@@ -8,7 +8,7 @@
 #include "Rick.generated.h"
 
 class UWidgetComponent;
-class UStaticMesh;
+class UItemDefinition;
 class ASeneca;
 class UUI_Dialogue;
 
@@ -59,13 +59,7 @@ protected:
 	FString CarDialoguePath = TEXT("Dialogue/CarRide.txt");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
-	UStaticMesh* MoneyMesh;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
-	FVector MoneyScale = FVector(1.f, 1.f, 1.f);
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
-	FRotator MoneyNotificationRotation = FRotator::ZeroRotator;
+	UItemDefinition* MoneyDef;
 
 	// Line index in GivesMoneyLines at which money is added to inventory (0-based)
 	UPROPERTY(EditAnywhere, Category = "Rick|Money")

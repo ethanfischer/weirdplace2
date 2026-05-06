@@ -139,6 +139,18 @@ void UHeldItemComponent::ApplyHeldItemPose()
 	HeldItemMesh->SetRelativeRotation(HeldItemRotation);
 }
 
+void UHeldItemComponent::SetSlotPose(FVector Offset, FRotator Rotation)
+{
+	HeldItemOffset = Offset;
+	HeldItemRotation = Rotation;
+	ApplyHeldItemPose();
+	if (!CurrentItemID.IsNone())
+	{
+		// Re-apply combined rotation with the per-item rotation on top.
+		UpdateHeldItem(CurrentItemID);
+	}
+}
+
 void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)
 {
 	if (!HeldItemMesh || ItemID.IsNone() || !InventoryComponent) return;
@@ -162,6 +174,12 @@ void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)
 
 		// Apply stored scale
 		HeldItemMesh->SetRelativeScale3D(ItemData.Scale);
+
+		// Compose per-item rotation with the slot's hold pose so each item can
+		// have its own orientation (mesh pivots vary). ZeroRotator items render
+		// identically to before this change.
+		const FQuat Combined = FQuat(HeldItemRotation) * FQuat(ItemData.Rotation);
+		HeldItemMesh->SetRelativeRotation(Combined);
 
 		UE_LOG(LogTemp, Log, TEXT("HeldItemComponent: Updated to item %s with stored visual data"), *ItemID.ToString());
 	}

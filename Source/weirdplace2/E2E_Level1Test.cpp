@@ -324,4 +324,48 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// HeldItemRotationTour — grant the player every UItemDefinition under
+// /Game/Inventory, then cycle each one as the active (held) item with a
+// delay between cycles so the held mesh is visible in front of the camera.
+// Use the screenshots to eyeball each item's HeldRotation on its data asset.
+//
+// Add a new DA_*.uasset under /Game/Inventory and rerun — it'll show up
+// automatically (just bump NumExpected if you want to assert the count).
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_HeldItemRotationTour,
+	"Weirdplace2.E2E.Level1.HeldItemRotationTour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("HeldItemRotationTour")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
+
+	// Lit interior so the small held meshes are visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+
+	// Currently 4 defs in /Game/Inventory; bump if you add more. Each loop
+	// iteration: open inventory, select slot, close, wait, screenshot the
+	// held mesh in front of the camera.
+	const int32 NumSlots = 4;
+	for (int32 i = 0; i < NumSlots; ++i)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, i));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_HeldTour_%02d"), i)));
+	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

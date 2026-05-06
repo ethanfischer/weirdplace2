@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Seneca.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -221,24 +222,18 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 
 	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
 	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
-	if (!Inventory || !MoneyMesh)
+	if (!Inventory || !MoneyDef)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - missing Inventory or MoneyMesh"));
+		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - missing Inventory or MoneyDef"));
 		return;
 	}
 
-	FInventoryItemData ItemData;
-	ItemData.ItemID = FName("Money");
-	ItemData.Mesh   = MoneyMesh;
-	ItemData.Scale  = MoneyScale;
-	for (int32 i = 0; i < MoneyMesh->GetStaticMaterials().Num(); i++)
-		ItemData.Materials.Add(MoneyMesh->GetMaterial(i));
-
+	FInventoryItemData ItemData = MoneyDef->ToInventoryItemData();
 	Inventory->AddItemWithData(ItemData);
 	bGaveMoney = true;
 	UE_LOG(LogTemp, Log, TEXT("Rick - Gave Money to player"));
 
-	FPChar->ShowItemNotification(ItemData, MoneyNotificationRotation);
+	FPChar->ShowItemNotification(ItemData, MoneyDef->NotificationRotation);
 }
 
 void ARick::AppearOutside()

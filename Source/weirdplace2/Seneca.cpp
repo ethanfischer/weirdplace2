@@ -3,6 +3,7 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "Door.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -326,7 +327,7 @@ void ASeneca::OnKeyDropped()
 		{
 			if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
 			{
-				// OutsideBathroomDoor adds the broken key as "BrokenKey", not KeyToGive
+				// OutsideBathroomDoor adds the broken key as "BrokenKey", not KeyDef->ItemID
 				Inventory->UpdateItemThumbnail(FName("BrokenKey"), KeyBrokenThumbnail);
 			}
 		}
@@ -465,31 +466,16 @@ void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 		return;
 	}
 
-	if (KeyToGive == NAME_None)
+	if (!KeyDef || KeyDef->ItemID.IsNone() || !KeyDef->Mesh)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveKey - KeyToGive is NAME_None"));
+		UE_LOG(LogTemp, Error, TEXT("Seneca::GiveKey - KeyDef missing/incomplete"));
 		return;
 	}
 
-	if (!KeyMesh)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::GiveKey - KeyMesh is not set"));
-		return;
-	}
-
-	FInventoryItemData ItemData;
-	ItemData.ItemID = KeyToGive;
-	ItemData.Mesh = KeyMesh;
-	ItemData.Scale = KeyScale;
-
-	for (int32 i = 0; i < KeyMesh->GetStaticMaterials().Num(); i++)
-	{
-		ItemData.Materials.Add(KeyMesh->GetMaterial(i));
-	}
-
+	FInventoryItemData ItemData = KeyDef->ToInventoryItemData();
 	Inventory->AddItemWithData(ItemData);
-	FPChar->ShowItemNotification(ItemData, KeyNotificationRotation);
-	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyToGive.ToString());
+	FPChar->ShowItemNotification(ItemData, KeyDef->NotificationRotation);
+	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyDef->ItemID.ToString());
 }
 
 // --- Helpers ---

@@ -126,6 +126,15 @@ public:
 	// tests skip the gameplay flow that normally grants the item.
 	bool AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale = FVector(1.0f));
 
+	// Test-only: add every UItemDefinition asset under FolderPath (e.g.
+	// "/Game/Inventory") to the inventory. Returns count added.
+	int32 AddAllItemDefsFromFolder(const FString& FolderPath);
+
+	// Test-only: override the held-item slot pose (relative to camera) so the
+	// item is visible during a screenshot tour, regardless of the production
+	// hand-rig position.
+	bool SetHeldItemSlotPose(FVector Offset, FRotator Rotation);
+
 	// Test-only: bypass the Seneca-intro gate that normally blocks inventory
 	// open at game start. Calls AMyCharacter::UnlockInventory directly.
 	bool UnlockInventoryForTest();

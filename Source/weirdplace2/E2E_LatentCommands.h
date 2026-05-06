@@ -1073,6 +1073,40 @@ private:
 	FVector Scale;
 };
 
+// =======================================================================
+// FTD_AddAllItemDefsFromFolder — load every UItemDefinition under a content
+// path (e.g. "/Game/Inventory") and grant each to the player. For tour-style
+// tests that want to visualize every item without playing through gameplay.
+// =======================================================================
+
+class FTD_AddAllItemDefsFromFolder : public FTD_Base
+{
+public:
+	FTD_AddAllItemDefsFromFolder(FAutomationTestBase* InTest, FString InFolderPath, int32 InExpectedMin = 1)
+		: FTD_Base(InTest), FolderPath(MoveTemp(InFolderPath)), ExpectedMin(InExpectedMin) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Adding all item defs from %s"), *FolderPath);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AddAllItemDefsFromFolder: no driver")); return true; }
+		const int32 Added = Driver->AddAllItemDefsFromFolder(FolderPath);
+		if (Added < ExpectedMin)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AddAllItemDefsFromFolder: only %d added from %s (expected >= %d)"),
+				Added, *FolderPath, ExpectedMin));
+		}
+		return true;
+	}
+private:
+	FString FolderPath;
+	int32 ExpectedMin;
+};
+
 class FTD_AssertHasItem : public FTD_Base
 {
 public:

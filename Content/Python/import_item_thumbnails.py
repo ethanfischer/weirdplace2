@@ -18,7 +18,7 @@ import unreal
 # (source PNG filename, destination asset name) — destination dir is fixed below.
 IMPORTS = [
     # Cash: head-on bill face from the rendered set.
-    ("Money_p0_y0_r45.png", "Money_thumbnail"),
+    ("Money_p0_y0_r0.png", "Money_thumbnail"),
     # Key: 3/4 metallic angle. Matches the existing lowercase asset name on
     # disk so we overwrite cleanly instead of creating a second file.
     ("Key_p45_y90_r90.png", "key_thumbnail"),

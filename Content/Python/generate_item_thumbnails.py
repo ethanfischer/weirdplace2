@@ -128,9 +128,9 @@ def spawn_chamber_lights(actor_sub):
     """Three forward-facing directional lights illuminating items inside the
     chamber (camera is on +X side looking -X, so lights yaw toward -X)."""
     specs = [
-        ("_ThumbnailKey",  unreal.Rotator(roll=0, pitch=-25, yaw=200), 20.0),
-        ("_ThumbnailFill", unreal.Rotator(roll=0, pitch=-15, yaw=160), 8.0),
-        ("_ThumbnailRim",  unreal.Rotator(roll=0, pitch=20,  yaw=180), 6.0),
+        ("_ThumbnailKey",  unreal.Rotator(roll=0, pitch=-25, yaw=200), 12.0),
+        ("_ThumbnailFill", unreal.Rotator(roll=0, pitch=-15, yaw=160), 5.0),
+        ("_ThumbnailRim",  unreal.Rotator(roll=0, pitch=20,  yaw=180), 4.0),
     ]
     lights = []
     for label, rot, intensity in specs:
@@ -208,6 +208,17 @@ def spawn_capture(actor_sub, render_target, pad=1.4):
     cap.texture_target = render_target
     cap.capture_source = unreal.SceneCaptureSource.SCS_FINAL_COLOR_LDR
     cap.fov_angle = CAMERA_FOV
+    # Lock exposure so dimmer lights actually render dimmer (otherwise auto-
+    # exposure normalizes everything to mid-gray). Clamping min==max pins
+    # auto-exposure at a fixed value; lower bias = darker output.
+    pp = cap.post_process_settings
+    pp.set_editor_property("override_auto_exposure_min_brightness", True)
+    pp.set_editor_property("auto_exposure_min_brightness", 1.0)
+    pp.set_editor_property("override_auto_exposure_max_brightness", True)
+    pp.set_editor_property("auto_exposure_max_brightness", 1.0)
+    pp.set_editor_property("override_auto_exposure_bias", True)
+    pp.set_editor_property("auto_exposure_bias", -1.0)
+    cap.post_process_settings = pp
     return capture
 
 
