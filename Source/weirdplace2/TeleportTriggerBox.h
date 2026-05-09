@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Engine/TriggerBox.h"
 class ATargetPoint;
+class AAmbientSound;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -19,6 +20,9 @@ protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
 
+	// Fades out the Ambient_GlobalWind AAmbientSound
+	void SilenceGlobalWindIfRequested();
+
 	// --- Properties ---
 
 	// Required target point actor to teleport to (set on the level instance)
@@ -28,4 +32,8 @@ protected:
 	// Whether to destroy Ultra Dynamic Sky actors on teleport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
 	bool bDestroyUltraDynamicActors = false;
+
+	// Whether to fade out Ambient_GlobalWind on teleport (no re-enable)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	bool bSilenceGlobalWind = false;
 };

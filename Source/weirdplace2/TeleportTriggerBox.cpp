@@ -4,6 +4,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "Sound/AmbientSound.h"
+#include "Components/AudioComponent.h"
 
 ATeleportTriggerBox::ATeleportTriggerBox()
 {
@@ -56,6 +58,35 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 			MoveComp->Velocity = RotationDelta.RotateVector(MoveComp->Velocity);
 		}
 	}
+
+	if (bSilenceGlobalWind)
+	{
+		SilenceGlobalWindIfRequested();
+	}
+}
+
+void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AAmbientSound> It(World); It; ++It)
+	{
+		AAmbientSound* Ambient = *It;
+		if (Ambient && Ambient->GetActorLabel() == TEXT("Ambient_GlobalWind"))
+		{
+			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
+			{
+				AudioComp->FadeOut(0.5f, 0.0f);
+			}
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: bSilenceGlobalWind set but no AAmbientSound labeled 'Ambient_GlobalWind' found"), *GetName());
 }
 
 void ATeleportTriggerBox::DestroyUltraDynamicActors()
