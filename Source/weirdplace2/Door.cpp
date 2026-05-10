@@ -4,8 +4,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/TimelineComponent.h"
 #include "Curves/CurveFloat.h"
+#include "Engine/World.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "TimerManager.h"
 
 ADoor::ADoor()
 {
@@ -24,6 +26,8 @@ void ADoor::BeginPlay()
 	Super::BeginPlay();
 
 	InitialYaw = GetActorRotation().Yaw;
+	UE_LOG(LogTemp, Display, TEXT("[Door %s] BeginPlay InitialYaw=%.1f Location=%s"),
+		*GetName(), InitialYaw, *GetActorLocation().ToString());
 
 	// Setup timeline with curve
 	if (DoorCurve && DoorTimeline)
@@ -48,11 +52,7 @@ void ADoor::Interact_Implementation()
 			// Toggle open/close
 			if (Opened)
 			{
-				Opened = false;
-				if (DoorTimeline)
-				{
-					DoorTimeline->Reverse();
-				}
+				CloseDoor();
 			}
 			else
 			{
@@ -66,6 +66,7 @@ void ADoor::Interact_Implementation()
 				{
 					DoorTimeline->PlayFromStart();
 				}
+				StartAutoCloseTracking();
 			}
 		}
 		else
@@ -82,11 +83,7 @@ void ADoor::Interact_Implementation()
 		// Door is unlocked - toggle open/close
 		if (Opened)
 		{
-			Opened = false;
-			if (DoorTimeline)
-			{
-				DoorTimeline->Reverse();
-			}
+			CloseDoor();
 		}
 		else
 		{
@@ -100,7 +97,18 @@ void ADoor::Interact_Implementation()
 			{
 				DoorTimeline->PlayFromStart();
 			}
+			StartAutoCloseTracking();
 		}
+	}
+}
+
+void ADoor::CloseDoor()
+{
+	StopAutoCloseTracking();
+	Opened = false;
+	if (DoorTimeline)
+	{
+		DoorTimeline->Reverse();
 	}
 }
 
@@ -112,8 +120,82 @@ void ADoor::UpdateOpenDirection()
 		return;
 	}
 	const FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
-	// Dot > 0 means player is on the actor-forward side; swing the other way so the door moves away.
-	OpenDirection = (FVector::DotProduct(GetActorForwardVector(), ToPlayer) > 0.0f) ? 1.0f : -1.0f;
+	const FVector ThroughAxis = GetClosedThroughAxis();
+	const float SignedSide = FVector::DotProduct(ThroughAxis, ToPlayer);
+	OpenSidePlayerSign = SignedSide > 0.0f ? 1.0f : -1.0f;
+	OpenDirection = -OpenSidePlayerSign;
+	UE_LOG(LogTemp, Display,
+		TEXT("[Door %s] UpdateOpenDirection: InitialYaw=%.1f ThroughAxis=(%.2f,%.2f,%.2f) ToPlayer=(%.1f,%.1f,%.1f) SignedSide=%.1f -> Sign=%.0f OpenDir=%.0f"),
+		*GetName(), InitialYaw, ThroughAxis.X, ThroughAxis.Y, ThroughAxis.Z,
+		ToPlayer.X, ToPlayer.Y, ToPlayer.Z, SignedSide, OpenSidePlayerSign, OpenDirection);
+}
+
+FVector ADoor::GetClosedThroughAxis() const
+{
+	// Actor's RIGHT vector at the closed yaw — perpendicular to the door panel,
+	// pointing through the doorway. (The mesh's forward runs along the panel.)
+	return FRotator(0.0f, InitialYaw, 0.0f).RotateVector(FVector::RightVector);
+}
+
+void ADoor::StartAutoCloseTracking()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	World->GetTimerManager().SetTimer(AutoCloseCheckTimer, this, &ADoor::CheckAutoClose, 0.2f, true);
+	UE_LOG(LogTemp, Display, TEXT("[Door %s] StartAutoCloseTracking armed (OpenSidePlayerSign=%.0f)"), *GetName(), OpenSidePlayerSign);
+}
+
+void ADoor::StopAutoCloseTracking()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	World->GetTimerManager().ClearTimer(AutoCloseCheckTimer);
+	World->GetTimerManager().ClearTimer(AutoCloseFireTimer);
+}
+
+void ADoor::CheckAutoClose()
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+	const FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+	const float SignedSide = FVector::DotProduct(GetClosedThroughAxis(), ToPlayer);
+	const float CurrentSign = SignedSide > 0.0f ? 1.0f : -1.0f;
+	UE_LOG(LogTemp, Display,
+		TEXT("[Door %s] CheckAutoClose: SignedSide=%.1f CurrentSign=%.0f OpenSign=%.0f (need flip + |dist|>%.0f)"),
+		*GetName(), SignedSide, CurrentSign, OpenSidePlayerSign, AutoCloseDistance);
+
+	if (CurrentSign != OpenSidePlayerSign && FMath::Abs(SignedSide) > AutoCloseDistance)
+	{
+		UWorld* World = GetWorld();
+		if (!World)
+		{
+			return;
+		}
+		World->GetTimerManager().ClearTimer(AutoCloseCheckTimer);
+		if (AutoCloseDelay <= 0.0f)
+		{
+			AutoCloseFire();
+		}
+		else
+		{
+			World->GetTimerManager().SetTimer(AutoCloseFireTimer, this, &ADoor::AutoCloseFire, AutoCloseDelay, false);
+		}
+	}
+}
+
+void ADoor::AutoCloseFire()
+{
+	UE_LOG(LogTemp, Display, TEXT("[Door %s] AutoCloseFire"), *GetName());
+	CloseDoor();
 }
 
 bool ADoor::HasKey() const

@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Interactable.h"
 #include "GameFramework/Actor.h"
+#include "Engine/EngineTypes.h"
 #include "Door.generated.h"
 
 class UStaticMeshComponent;
@@ -43,6 +44,24 @@ protected:
 	// Picks OpenDirection so the door swings away from the player
 	void UpdateOpenDirection();
 
+	// Unit vector perpendicular to the closed door panel — points "through" the
+	// doorway. This is the actor's RIGHT axis at InitialYaw, because the door
+	// mesh's forward runs along the panel/wall, not through it.
+	FVector GetClosedThroughAxis() const;
+
+	// Shared close logic — used by manual close and auto-close
+	void CloseDoor();
+
+	// Auto-close timer management
+	void StartAutoCloseTracking();
+	void StopAutoCloseTracking();
+
+	UFUNCTION()
+	void CheckAutoClose();
+
+	UFUNCTION()
+	void AutoCloseFire();
+
 	// --- Components ---
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
@@ -74,11 +93,25 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
 	float OpenSpeed = 0.8f;
 
+	// How far past the door plane (cm) the player must walk before auto-close arms
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
+	float AutoCloseDistance = 80.0f;
+
+	// Seconds after the player crosses through before the door swings shut
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
+	float AutoCloseDelay = 0.8f;
+
 	// +1 or -1; chosen at open-time so the door swings away from the player
 	float OpenDirection = 1.0f;
 
 	// World yaw the door was placed at; timeline delta is added on top
 	float InitialYaw = 0.0f;
+
+	// Sign of the player's projection onto ClosedForward at the moment the door opened
+	float OpenSidePlayerSign = 0.0f;
+
+	FTimerHandle AutoCloseCheckTimer;
+	FTimerHandle AutoCloseFireTimer;
 
 	// --- Sounds ---
 
