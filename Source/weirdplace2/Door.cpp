@@ -23,6 +23,8 @@ void ADoor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	InitialYaw = GetActorRotation().Yaw;
+
 	// Setup timeline with curve
 	if (DoorCurve && DoorTimeline)
 	{
@@ -30,6 +32,7 @@ void ADoor::BeginPlay()
 		TimelineCallback.BindUFunction(this, FName("UpdateDoorRotation"));
 		DoorTimeline->AddInterpFloat(DoorCurve, TimelineCallback);
 		DoorTimeline->SetLooping(false);
+		DoorTimeline->SetPlayRate(OpenSpeed);
 	}
 }
 
@@ -54,6 +57,7 @@ void ADoor::Interact_Implementation()
 			else
 			{
 				Opened = true;
+				UpdateOpenDirection();
 				if (DoorOpenSound)
 				{
 					UGameplayStatics::PlaySound2D(this, DoorOpenSound);
@@ -87,6 +91,7 @@ void ADoor::Interact_Implementation()
 		else
 		{
 			Opened = true;
+			UpdateOpenDirection();
 			if (DoorOpenSound)
 			{
 				UGameplayStatics::PlaySound2D(this, DoorOpenSound);
@@ -97,6 +102,18 @@ void ADoor::Interact_Implementation()
 			}
 		}
 	}
+}
+
+void ADoor::UpdateOpenDirection()
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+	const FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+	// Dot > 0 means player is on the actor-forward side; swing the other way so the door moves away.
+	OpenDirection = (FVector::DotProduct(GetActorForwardVector(), ToPlayer) > 0.0f) ? 1.0f : -1.0f;
 }
 
 bool ADoor::HasKey() const
@@ -131,8 +148,7 @@ void ADoor::UpdateDoorRotation(float Alpha)
 {
 	if (DoorMesh)
 	{
-		float NewYaw = FMath::Lerp(0.0f, MaxDoorAngle, Alpha);
-		FRotator NewRotation(0.0f, NewYaw, 0.0f);
-		DoorMesh->SetRelativeRotation(NewRotation);
+		const float DeltaYaw = FMath::Lerp(0.0f, MaxDoorAngle * OpenDirection, Alpha);
+		DoorMesh->SetRelativeRotation(FRotator(0.0f, InitialYaw + DeltaYaw, 0.0f));
 	}
 }

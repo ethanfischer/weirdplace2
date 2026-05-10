@@ -113,3 +113,4 @@ grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
+- Doors are 110x215

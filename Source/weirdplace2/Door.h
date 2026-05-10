@@ -40,6 +40,9 @@ protected:
 	UFUNCTION()
 	void UpdateDoorRotation(float Alpha);
 
+	// Picks OpenDirection so the door swings away from the player
+	void UpdateOpenDirection();
+
 	// --- Components ---
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
@@ -66,6 +69,16 @@ protected:
 	// Maximum rotation angle in degrees (default 70)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
 	float MaxDoorAngle = 70.0f;
+
+	// Timeline play rate. Curve is 1s long, so 0.8 -> 1.25s full open
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
+	float OpenSpeed = 0.8f;
+
+	// +1 or -1; chosen at open-time so the door swings away from the player
+	float OpenDirection = 1.0f;
+
+	// World yaw the door was placed at; timeline delta is added on top
+	float InitialYaw = 0.0f;
 
 	// --- Sounds ---
 

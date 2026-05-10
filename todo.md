@@ -1,5 +1,8 @@
 # Todo / Bugs
-[ ] audio volumes
+[ ] more intricate soundscape espcially in oasis
+    [ ] have random noises so the world feels more alive
+[ ] fix doors
+[x] audio volumes
 [ ] 2.95 cash exactly
 [ ] 1 cent found later, but seneca accepts it
 [ ] seneca unlock employee bathroom animation
