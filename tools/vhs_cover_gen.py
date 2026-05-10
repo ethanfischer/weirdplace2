@@ -378,21 +378,33 @@ def find_font(name, size):
 # every cover gets a different font even within the same distributor.
 # ---------------------------------------------------------------------------
 RAW_TITLE_POOLS = {
-    "pulp": [
-        # Windows
+    # The "pulp" pool is split into sub-pools so every cover doesn't default
+    # to bold-condensed-sans. pick_font dispatches to one of these by hash.
+    "pulp_bold": [
         "impact.ttf", "ariblk.ttf", "arialbd.ttf", "bahnschrift.ttf",
         "segoeuib.ttf", "seguibl.ttf", "tahomabd.ttf", "verdanab.ttf",
-        "framd.ttf", "trebucbd.ttf", "timesbd.ttf", "georgiab.ttf",
-        "cambriab.ttf", "constanb.ttf", "palab.ttf",
-        # Google Fonts
+        "framd.ttf", "trebucbd.ttf",
         "BebasNeue-Regular.ttf", "Anton-Regular.ttf", "Oswald-Bold.ttf",
+        "RussoOne-Regular.ttf", "SquadaOne-Regular.ttf", "SixCaps.ttf",
+        "StintUltraExpanded-Regular.ttf",
+    ],
+    "pulp_novelty": [
+        # 80s/90s display weirdness — strong silhouettes, instantly distinctive
         "Bungee-Regular.ttf", "BungeeInline-Regular.ttf", "BungeeShade-Regular.ttf",
-        "BlackOpsOne-Regular.ttf", "Monoton-Regular.ttf", "AbrilFatface-Regular.ttf",
-        "RussoOne-Regular.ttf", "SquadaOne-Regular.ttf", "PaytoneOne-Regular.ttf",
-        "BowlbyOne-Regular.ttf", "FasterOne-Regular.ttf", "Audiowide-Regular.ttf",
-        "StintUltraExpanded-Regular.ttf", "SixCaps.ttf", "Yeseva-Bold.ttf",
-        "Codystar-Regular.ttf", "Limelight-Regular.ttf", "Chango-Regular.ttf",
-        "RubikWetPaint-Regular.ttf", "Creepster-Regular.ttf", "NosiferRegular.ttf",
+        "Audiowide-Regular.ttf", "FasterOne-Regular.ttf", "Codystar-Regular.ttf",
+        "Monoton-Regular.ttf", "BlackOpsOne-Regular.ttf", "Chango-Regular.ttf",
+    ],
+    "pulp_horror": [
+        # Drippy / creepy / paint stroke
+        "Creepster-Regular.ttf", "NosiferRegular.ttf",
+        "RubikWetPaint-Regular.ttf",
+    ],
+    "pulp_retro": [
+        # Vintage display + heavy serif + handwritten — Hollywood/golden-age feel
+        "AbrilFatface-Regular.ttf", "Yeseva-Bold.ttf", "PlayfairDisplay-Bold.ttf",
+        "Limelight-Regular.ttf", "PaytoneOne-Regular.ttf", "BowlbyOne-Regular.ttf",
+        "PermanentMarker-Regular.ttf", "SpecialElite-Regular.ttf",
+        "timesbd.ttf", "georgiab.ttf", "cambriab.ttf", "palab.ttf",
     ],
     "kids": [
         "comicbd.ttf", "inkfree.ttf", "segoescb.ttf", "segoeprb.ttf",
@@ -449,10 +461,21 @@ TITLE_POOLS = {k: _validate_pool(v) for k, v in RAW_TITLE_POOLS.items()}
 TAGLINE_POOL = _validate_pool(RAW_TAGLINE_POOL)
 
 
+PULP_SUBPOOLS = ["pulp_bold", "pulp_novelty", "pulp_horror", "pulp_retro"]
+
+
 def pick_font(pool, seed_str, fallback="arialbd.ttf"):
-    """Pick a font filename from a pool deterministically from a seed string."""
+    """Pick a font filename from a pool deterministically from a seed string.
+
+    For 'pulp' the call routes through 4 sub-pools (bold/novelty/horror/retro)
+    so distinctive fonts aren't drowned out by bold-condensed-sans.
+    """
     if isinstance(pool, str):
-        pool = TITLE_POOLS.get(pool) or [fallback]
+        if pool == "pulp":
+            sub = PULP_SUBPOOLS[stable_hash(seed_str + ":sub") % len(PULP_SUBPOOLS)]
+            pool = TITLE_POOLS.get(sub) or TITLE_POOLS.get("pulp_bold") or [fallback]
+        else:
+            pool = TITLE_POOLS.get(pool) or [fallback]
     if not pool:
         return fallback
     return pool[stable_hash(seed_str) % len(pool)]
@@ -461,6 +484,252 @@ def pick_font(pool, seed_str, fallback="arialbd.ttf"):
 def report_pool_sizes():
     print("Title pools:", {k: len(v) for k, v in TITLE_POOLS.items()})
     print(f"Tagline pool: {len(TAGLINE_POOL)} fonts")
+
+
+# ---------------------------------------------------------------------------
+# VHS-specific text content — actor credits, critic blurbs, bursts, tech strips.
+# Picked deterministically per title so a cover's metadata is stable across runs.
+# ---------------------------------------------------------------------------
+ACTOR_NAMES = [
+    "ROBERT VANCE", "LISA STERN", "ANDY CRIGHT", "KENT LASKER",
+    "DIANA PRESCOTT", "TONY ROSARIO", "MICHAEL HUTCHENS", "GAIL KOEHLER",
+    "DAVID FORTNEY", "TRACE BARRINGTON", "VINCE MORENO", "KAREN WHITMER",
+    "STEVE ALDRIDGE", "JANET BOWERS", "DALE MCCAFFREY", "SHARI VOORHEES",
+    "RICK CONRADO", "MELODY KENT", "PAUL HENNESSY", "TINA SAVAGE",
+    "GLEN BORMAN", "CHRIS DELANEY", "SUE ALMSTROM", "MARK FUENTES",
+    "JIM HALLORAN", "CLAIRE WAINWRIGHT", "NICK CASSARA", "DEBRA MOFFAT",
+    "RYAN HOLLINGER", "CAROL ESCOBEDO", "BRAD STIVERS", "AMY VICKERS",
+    "RAY BRENNAN", "JOAN TIPTON", "WAYNE COFFIN", "BRENDA STARK",
+    "EARL TANAKA", "MIKE SOTOMAYOR", "PATTI VAN HORN", "TED CALLOWAY",
+    "SUSAN KRAUSE", "GARRY WALDORF", "LINDA OSGOOD", "KEN PINKERTON",
+    "BARBARA EDISON", "LEE FINKBINER", "MARY DELAHUNT", "GEORGE NESBIT",
+    "HOLLY CRENSHAW", "JOEY BUCKHALTER", "LANA BURGOS", "CHET YEAMAN",
+    "DENISE BRONSON", "ALEX SANCHEZ", "LORI WIGGINS", "PETE NEMEC",
+    "RHONDA FRAZIER", "CAL BONIN", "SUZY WIDMARK", "MAX ARTUSO",
+    "TAMMY HORST", "JOEL BERNARDI", "TRACY MEDINA", "SCOTT NIELSON",
+    "DEANNA RIVAS", "BO HARGRAVE", "SHEILA LATTIMORE", "LARRY DOUGAN",
+    "JEANNE HOOPER", "ROY VESELKA", "PAM REINER", "KIRK BRAUN",
+    "JANE DOROSHENKO", "CHUCK STRAWBRIDGE", "MARY SUE FORD", "TODD MONFORT",
+    "NORMA STEINBECK", "DUKE PRATER", "ANGIE LEFEBVRE", "RUSS BOULDIN",
+]
+
+CRITIC_BLURBS = [
+    "EXPLOSIVE!", "PULSE-POUNDING!", "WICKEDLY ENTERTAINING!",
+    "EDGE-OF-YOUR-SEAT!", "A NEW CLASSIC!", "DON'T WATCH ALONE!",
+    "JAW-DROPPING!", "BRUTAL!", "BRILLIANT!", "A KNOCKOUT!",
+    "RIVETING!", "TERRIFYING!", "UNFORGETTABLE!", "MASTERFUL!",
+    "A WILD RIDE!", "POWERFUL!", "HEART-STOPPING!", "GLORIOUS!",
+    "INTENSE!", "GRIPPING!", "SHOCKING!", "WHITE-KNUCKLE!",
+    "MESMERIZING!", "VISCERAL!", "A TRIUMPH!", "DELIRIOUS FUN!",
+    "WILDLY ORIGINAL!", "WHITE-HOT!", "STUNNING!", "OUTRAGEOUS!",
+]
+
+CRITIC_SOURCES = [
+    "VIDEO REVIEW", "TV GUIDE", "TIME OUT", "ENTERTAINMENT WEEKLY",
+    "VARIETY", "THE HOLLYWOOD TIMES", "VIDEO STORE NEWS",
+    "VIDEO BUSINESS", "ROLLING STONE", "HBO MAGAZINE",
+    "CABLE GUIDE", "L.A. WEEKLY", "NEW YORK POST",
+    "FILM THREAT", "VIDEOWAVE",
+]
+
+BURST_TEXTS = [
+    "NEW RELEASE!", "COLLECTOR'S EDITION!", "WIDESCREEN!", "UNRATED!",
+    "DIRECTOR'S CUT!", "DOUBLE FEATURE!", "SPECIAL EDITION!",
+    "TWO-TAPE SET!", "MUST OWN!", "INSTANT CLASSIC!", "UNCUT!",
+    "REMASTERED!", "HIT MOVIE!", "AS SEEN IN THEATERS!",
+]
+
+TECH_STRIPS = [
+    "HI-FI STEREO  •  CLOSED CAPTIONED  •  COLOR",
+    "DOLBY SURROUND  •  CC  •  FULL COLOR",
+    "HI-FI STEREO  •  CC  •  COLOR  •  APPROX. {min} MIN.",
+    "DIGITALLY MASTERED  •  STEREO  •  COLOR",
+    "FULL SCREEN PRESENTATION  •  STEREO  •  COLOR",
+]
+
+
+def format_starring(title):
+    """Three actor names separated by bullets."""
+    seeds = [stable_hash(title + f":star{i}") % len(ACTOR_NAMES) for i in range(3)]
+    # Avoid duplicates
+    picks = []
+    for s in seeds:
+        n = ACTOR_NAMES[s]
+        offset = 0
+        while n in picks:
+            offset += 1
+            n = ACTOR_NAMES[(s + offset) % len(ACTOR_NAMES)]
+        picks.append(n)
+    return "STARRING  " + "  •  ".join(picks)
+
+
+def format_blurb(title):
+    blurb = CRITIC_BLURBS[stable_hash(title + ":blurb") % len(CRITIC_BLURBS)]
+    source = CRITIC_SOURCES[stable_hash(title + ":source") % len(CRITIC_SOURCES)]
+    star_count = [3.0, 3.5, 4.0, 4.0][stable_hash(title + ":stars") % 4]
+    full_stars = int(star_count)
+    half = star_count - full_stars >= 0.5
+    return full_stars, half, f'"{blurb}"', f"— {source}"
+
+
+def draw_star_polygon(draw, cx, cy, r, color, half=False):
+    """5-point star drawn as a polygon. half=True draws only the left half (filled),
+    right half outlined — represents a half-star rating."""
+    pts = []
+    for i in range(10):
+        ang = math.pi * (i / 5 - 0.5)
+        rr = r if i % 2 == 0 else r * 0.42
+        pts.append((cx + rr * math.cos(ang), cy + rr * math.sin(ang)))
+    if not half:
+        draw.polygon(pts, fill=color)
+    else:
+        # outline the full star, then fill only the left half
+        draw.polygon(pts, outline=color)
+        # Clip-fill via overlay would be cleanest; quick version: fill polygon
+        # of left-side points only
+        left_pts = [(min(x, cx), y) for (x, y) in pts]
+        draw.polygon(left_pts, fill=color)
+
+
+def draw_stars_row(draw, full, half, x, y, size, color):
+    """Returns the total width the row took."""
+    gap = 4
+    r = size / 2
+    cx = x + r
+    drawn = 0
+    for _ in range(full):
+        draw_star_polygon(draw, cx, y + r, r, color)
+        cx += size + gap
+        drawn += size + gap
+    if half:
+        draw_star_polygon(draw, cx, y + r, r, color, half=True)
+        drawn += size + gap
+    return drawn - gap if drawn else 0
+
+
+def has_burst(title):
+    return stable_hash(title + ":hasburst") % 100 < 45
+
+
+def burst_text(title):
+    return BURST_TEXTS[stable_hash(title + ":burst") % len(BURST_TEXTS)]
+
+
+def has_blurb(title):
+    return stable_hash(title + ":hasblurb") % 100 < 60
+
+
+def tech_strip(title, runtime):
+    template = TECH_STRIPS[stable_hash(title + ":tech") % len(TECH_STRIPS)]
+    return template.replace("{min}", str(runtime))
+
+
+def presents_line(distributor):
+    return f"{distributor}  PRESENTS"
+
+
+# ---------------------------------------------------------------------------
+# Drawing helpers for the new VHS elements
+# ---------------------------------------------------------------------------
+def draw_starring(draw, title, x, y, max_width, color, align="center"):
+    text = format_starring(title)
+    # Pick a small condensed sans for credits
+    font = find_font("arialbd.ttf", size=18)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    tw = bbox[2] - bbox[0]
+    # Shrink if too wide
+    size = 18
+    while tw > max_width and size > 12:
+        size -= 1
+        font = find_font("arialbd.ttf", size=size)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        tw = bbox[2] - bbox[0]
+    if align == "center":
+        draw.text((x + (max_width - tw) // 2, y), text, font=font, fill=color)
+    elif align == "right":
+        draw.text((x + max_width - tw, y), text, font=font, fill=color)
+    else:
+        draw.text((x, y), text, font=font, fill=color)
+    return bbox[3] - bbox[1]
+
+
+def draw_critic_blurb(draw, title, x, y, max_width, color, align="center"):
+    """Stars drawn as polygons (font-independent), blurb in random italic font."""
+    full_stars, half_star, blurb, source = format_blurb(title)
+    blurb_font = find_font(pick_font(TAGLINE_POOL, title + ":blurbfont"), size=24)
+    source_font = find_font("arialbd.ttf", size=14)
+    star_size = 22
+    star_gap = 4
+    n_marks = full_stars + (1 if half_star else 0)
+    stars_w = n_marks * star_size + (n_marks - 1) * star_gap if n_marks else 0
+    sep_w = 12
+
+    sb_blurb = draw.textbbox((0, 0), blurb, font=blurb_font)
+    sb_source = draw.textbbox((0, 0), source, font=source_font)
+    blurb_w = sb_blurb[2] - sb_blurb[0]
+    source_w = sb_source[2] - sb_source[0]
+    line1_w = stars_w + sep_w + blurb_w
+    h1 = max(star_size, sb_blurb[3] - sb_blurb[1])
+    h2 = sb_source[3] - sb_source[1]
+
+    if align == "center":
+        x0 = x + (max_width - line1_w) // 2
+        x_src = x + (max_width - source_w) // 2
+    elif align == "right":
+        x0 = x + max_width - line1_w
+        x_src = x + max_width - source_w
+    else:
+        x0 = x
+        x_src = x
+
+    # Stars (polygon, top-aligned with blurb baseline)
+    star_y = y + (h1 - star_size) // 2
+    actual_stars_w = draw_stars_row(draw, full_stars, half_star, x0, star_y, star_size, color)
+    # Blurb italic, vertically centered with stars
+    blurb_y = y + (h1 - (sb_blurb[3] - sb_blurb[1])) // 2
+    draw.text((x0 + actual_stars_w + sep_w, blurb_y), blurb, font=blurb_font, fill=color)
+    # Source
+    draw.text((x_src, y + h1 + 6), source, font=source_font, fill=color)
+    return h1 + h2 + 6
+
+
+def draw_burst_sticker(canvas, text, cx, cy, fill_color, text_color, angle=-18, radius=110):
+    """Diagonal starburst sticker with text. Drawn on a transparent overlay then composited."""
+    layer_w = layer_h = radius * 3
+    layer = Image.new("RGBA", (layer_w, layer_h), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+    # 12-point starburst polygon
+    points = []
+    cx2, cy2 = layer_w // 2, layer_h // 2
+    n_points = 18
+    for i in range(n_points * 2):
+        r = radius if i % 2 == 0 else int(radius * 0.78)
+        ang = i * math.pi / n_points
+        points.append((cx2 + r * math.cos(ang), cy2 + r * math.sin(ang)))
+    ld.polygon(points, fill=fill_color)
+    # Text inside, shrink to fit
+    size = 22
+    font = find_font("ariblk.ttf", size=size)
+    text_lines = text.split(" ", 1) if len(text) > 12 else [text]
+    while size > 10:
+        widths = [ld.textbbox((0, 0), line, font=font)[2] for line in text_lines]
+        total_h = len(text_lines) * (size + 4)
+        if max(widths) < radius * 1.5 and total_h < radius * 1.4:
+            break
+        size -= 2
+        font = find_font("ariblk.ttf", size=size)
+    line_h = size + 4
+    total_h = len(text_lines) * line_h
+    y0 = cy2 - total_h // 2
+    for i, line in enumerate(text_lines):
+        bbox = ld.textbbox((0, 0), line, font=font)
+        lw = bbox[2] - bbox[0]
+        ld.text((cx2 - lw // 2, y0 + i * line_h - 4), line, font=font, fill=text_color)
+
+    layer = layer.rotate(angle, resample=Image.BICUBIC, expand=False)
+    canvas_rgba = canvas.convert("RGBA")
+    canvas_rgba.alpha_composite(layer, (cx - layer_w // 2, cy - layer_h // 2))
+    return canvas_rgba.convert("RGB")
 
 
 def make_placeholder_bg(w, h, seed=7):
@@ -659,18 +928,27 @@ def finish(canvas):
     return canvas
 
 
-def draw_distributor_block(draw, distributor, runtime, y_dist, y_spec, color="white"):
+def draw_distributor_block(draw, distributor, runtime, y_dist, y_spec, color="white", title=""):
     dist_font = find_font("arialbd.ttf", size=22)
-    spec_font = find_font("arial.ttf", size=16)
+    spec_font = find_font("arial.ttf", size=14)
     draw_centered(draw, distributor, dist_font, y_dist, fill=color)
-    spec = f"APPROX. {runtime} MIN  /  COLOR  /  STEREO"
-    draw_centered(draw, spec, spec_font, y_spec, fill=(150, 150, 150))
+    spec = tech_strip(title, runtime)
+    draw_centered(draw, spec, spec_font, y_spec, fill=(170, 170, 170))
 
 
-def draw_banner_top(draw, banner, color):
-    banner_font = find_font("arialbd.ttf", size=26)
-    draw_centered(draw, banner, banner_font, 36, fill=color)
-    draw_centered(draw, "* * *", find_font("arial.ttf", size=18), 76, fill=(180, 180, 180))
+def draw_banner_top(draw, banner, color, distributor=None):
+    """PRESENTS line above the genre banner (if distributor provided)."""
+    if distributor:
+        presents_font = find_font("arialbd.ttf", size=15)
+        draw_centered(draw, presents_line(distributor), presents_font, 14,
+                      fill=(220, 220, 220))
+        banner_font = find_font("arialbd.ttf", size=24)
+        draw_centered(draw, banner, banner_font, 42, fill=color)
+        draw_centered(draw, "* * *", find_font("arial.ttf", size=16), 78, fill=(180, 180, 180))
+    else:
+        banner_font = find_font("arialbd.ttf", size=26)
+        draw_centered(draw, banner, banner_font, 36, fill=color)
+        draw_centered(draw, "* * *", find_font("arial.ttf", size=18), 76, fill=(180, 180, 180))
 
 
 def draw_tagline_block(draw, tagline, font_name, color, y_start, size=32):
@@ -687,12 +965,14 @@ def draw_tagline_block(draw, tagline, font_name, color, y_start, size=32):
 # ---------------------------------------------------------------------------
 def layout_bottom(canvas, title, tagline, banner, distributor, rating, runtime, style):
     """Photo full-bleed, title sits in lower third over a fade-to-black."""
-    canvas = darken_band(canvas, 0, 0, WIDTH, 110)
+    canvas = darken_band(canvas, 0, 0, WIDTH, 140)
     canvas = fade_band(canvas, HEIGHT - 600, HEIGHT - 360)
     canvas = darken_band(canvas, 0, HEIGHT - 360, WIDTH, HEIGHT)
     draw = ImageDraw.Draw(canvas)
-    draw_banner_top(draw, banner, style["banner_color"])
-    draw_rating_box(draw, rating, WIDTH - 110, 130, style["rating_box_color"])
+    draw_banner_top(draw, banner, style["banner_color"], distributor=distributor)
+    # STARRING line below banner
+    draw_starring(draw, title, 30, 110, WIDTH - 60, (220, 220, 220))
+    draw_rating_box(draw, rating, WIDTH - 110, 160, style["rating_box_color"])
 
     title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60)
     bbox = draw.textbbox((0, 0), title, font=title_font)
@@ -702,7 +982,9 @@ def layout_bottom(canvas, title, tagline, banner, distributor, rating, runtime, 
     draw_title_shadow(draw, title, title_font, tx, title_y,
                       style["title_color"], style["title_shadow"])
     draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"], HEIGHT - 300)
-    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70)
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 175, WIDTH - 80, (240, 220, 160))
+    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70, title=title)
     return finish(canvas)
 
 
@@ -717,26 +999,34 @@ def layout_top_band(canvas, title, tagline, banner, distributor, rating, runtime
     canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
+    # PRESENTS line at very top of band
+    draw_centered(draw, presents_line(distributor),
+                  find_font("arialbd.ttf", size=15), 18, fill=(255, 255, 255, 220))
     # Banner inside top band
-    draw_centered(draw, banner, find_font("arialbd.ttf", size=26), 30, fill=style["banner_color"])
-    draw_centered(draw, "* * *", find_font("arial.ttf", size=18), 70, fill=(220, 220, 220))
+    draw_centered(draw, banner, find_font("arialbd.ttf", size=24), 46, fill=style["banner_color"])
+    draw_centered(draw, "* * *", find_font("arial.ttf", size=16), 80, fill=(220, 220, 220))
 
     # Title inside top band
     title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60, max_size=140)
     bbox = draw.textbbox((0, 0), title, font=title_font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx = (WIDTH - tw) / 2
-    ty = 110 + ((band_h - 110) - th) // 2 - 20
+    ty = 130 + ((band_h - 130) - th) // 2 - 30
     draw_title_shadow(draw, title, title_font, tx, ty,
                       style["title_color"], (0, 0, 0))
+
+    # STARRING just below the title, inside the band
+    draw_starring(draw, title, 30, ty + th + 28, WIDTH - 60, (240, 240, 240))
 
     # Rating in top-right of band
     draw_rating_box(draw, rating, WIDTH - 110, band_h - 90, style["rating_box_color"])
 
-    # Tagline + distributor in bottom band
-    tag_y = HEIGHT - bottom_h + 30
-    end_y = draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"], tag_y, size=28)
-    draw_distributor_block(draw, distributor, runtime, HEIGHT - 80, HEIGHT - 50)
+    # Tagline + critic blurb + distributor in bottom band
+    tag_y = HEIGHT - bottom_h + 16
+    end_y = draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"], tag_y, size=26)
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 130, WIDTH - 80, (240, 220, 160))
+    draw_distributor_block(draw, distributor, runtime, HEIGHT - 60, HEIGHT - 32, title=title)
     return finish(canvas)
 
 
@@ -756,26 +1046,34 @@ def layout_framed(canvas, title, tagline, banner, distributor, rating, runtime, 
     draw.rectangle([frame_x0, frame_y0, frame_x1, frame_y1],
                    outline=style["banner_color"], width=12)
 
-    # Banner above frame
-    draw_centered(draw, banner, find_font("arialbd.ttf", size=26), 50, fill=style["banner_color"])
+    # PRESENTS + banner above frame
+    draw_centered(draw, presents_line(distributor),
+                  find_font("arialbd.ttf", size=15), 24, fill=(220, 220, 220))
+    draw_centered(draw, banner, find_font("arialbd.ttf", size=24), 56, fill=style["banner_color"])
 
     # Rating top-right of frame
     draw_rating_box(draw, rating, frame_x1 - 100, frame_y0 + 10, style["rating_box_color"])
 
     # Title in middle on dark area (no fade needed; it's black)
-    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60, max_size=140)
+    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60, max_size=130)
     bbox = draw.textbbox((0, 0), title, font=title_font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx = (WIDTH - tw) / 2
-    ty = 760
+    ty = 770
     draw_title_shadow(draw, title, title_font, tx, ty,
                       style["title_color"], style["title_shadow"])
 
+    # STARRING just below title
+    draw_starring(draw, title, 30, ty + th + 24, WIDTH - 60, (220, 220, 220))
+
     # Tagline lower
-    draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"], 980)
+    draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"),
+                       style["tagline_color"], 980)
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 175, WIDTH - 80, (240, 220, 160))
 
     # Distributor at bottom
-    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70)
+    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70, title=title)
     return finish(canvas)
 
 
@@ -794,18 +1092,23 @@ def layout_split(canvas, title, tagline, banner, distributor, rating, runtime, s
     canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    # Banner small at very top
-    draw_centered(draw, banner, find_font("arialbd.ttf", size=24), 24,
+    # PRESENTS + banner small at very top (overlay on photo)
+    draw_centered(draw, presents_line(distributor),
+                  find_font("arialbd.ttf", size=14), 14, fill=(255, 255, 255))
+    draw_centered(draw, banner, find_font("arialbd.ttf", size=22), 36,
                   fill=style["banner_color"])
     # Rating top-right
     draw_rating_box(draw, rating, WIDTH - 110, 70, style["rating_box_color"])
 
+    # STARRING line right above the title-area split
+    draw_starring(draw, title, 30, 770, WIDTH - 60, (220, 220, 220))
+
     # Title in upper portion of black bottom half
-    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60, max_size=150)
+    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 60, max_size=140)
     bbox = draw.textbbox((0, 0), title, font=title_font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx = (WIDTH - tw) / 2
-    ty = 830
+    ty = 820
     draw_title_shadow(draw, title, title_font, tx, ty,
                       style["title_color"], style["title_shadow"])
 
@@ -816,8 +1119,11 @@ def layout_split(canvas, title, tagline, banner, distributor, rating, runtime, s
     # Tagline
     draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"], ty + th + 70)
 
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 175, WIDTH - 80, (240, 220, 160))
+
     # Distributor at very bottom
-    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70)
+    draw_distributor_block(draw, distributor, runtime, HEIGHT - 110, HEIGHT - 70, title=title)
     return finish(canvas)
 
 
@@ -852,9 +1158,13 @@ def layout_diagonal(canvas, title, tagline, banner, distributor, rating, runtime
     canvas = canvas_rgba.convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    # Banner top-left small
-    draw.text((40, 30), banner, font=find_font("arialbd.ttf", size=22),
+    # PRESENTS + banner top-left
+    draw.text((40, 18), presents_line(distributor),
+              font=find_font("arialbd.ttf", size=14), fill=(220, 220, 220))
+    draw.text((40, 42), banner, font=find_font("arialbd.ttf", size=22),
               fill=style["banner_color"])
+    # STARRING below banner
+    draw_starring(draw, title, 40, 76, WIDTH - 80, (235, 235, 235), align="left")
     # Rating bottom-left
     draw_rating_box(draw, rating, 40, HEIGHT - 220, style["rating_box_color"])
     # Tagline lower right
@@ -865,11 +1175,18 @@ def layout_diagonal(canvas, title, tagline, banner, distributor, rating, runtime
         tw_line = bbox[2] - bbox[0]
         draw.text((WIDTH - 40 - tw_line, y), line, font=tag_font, fill=style["tagline_color"])
         y += bbox[3] - bbox[1] + 6
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 130, WIDTH - 80, (240, 220, 160), align="right")
     # Distributor at bottom (small, right-aligned)
     dist_font = find_font("arialbd.ttf", size=20)
     bbox = draw.textbbox((0, 0), distributor, font=dist_font)
-    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 60),
+    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 80),
               distributor, font=dist_font, fill="white")
+    spec_font = find_font("arial.ttf", size=14)
+    spec = tech_strip(title, runtime)
+    bbox = draw.textbbox((0, 0), spec, font=spec_font)
+    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 50),
+              spec, font=spec_font, fill=(170, 170, 170))
     return finish(canvas)
 
 
@@ -882,9 +1199,14 @@ def layout_side_stripe(canvas, title, tagline, banner, distributor, rating, runt
     canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    # Banner across very top of photo area
-    draw.text((stripe_w + 30, 40), banner,
+    # PRESENTS + banner across very top of photo area
+    draw.text((stripe_w + 30, 28), presents_line(distributor),
+              font=find_font("arialbd.ttf", size=14), fill=(220, 220, 220))
+    draw.text((stripe_w + 30, 52), banner,
               font=find_font("arialbd.ttf", size=22), fill=style["banner_color"])
+    # STARRING below banner in the photo area
+    draw_starring(draw, title, stripe_w + 30, 88, WIDTH - stripe_w - 60,
+                  (235, 235, 235), align="left")
 
     # Vertical title rendered rotated
     title_font, _ = fit_title(title, pick_font(style["title_pool"], title), HEIGHT - 200, max_size=130)
@@ -905,20 +1227,28 @@ def layout_side_stripe(canvas, title, tagline, banner, distributor, rating, runt
     # Rating top-right
     draw_rating_box(draw, rating, WIDTH - 110, 40, style["rating_box_color"])
 
-    # Tagline bottom of photo area
-    canvas = darken_band(canvas, stripe_w, HEIGHT - 220, WIDTH, HEIGHT, alpha=200)
+    # Tagline + blurb bottom of photo area
+    canvas = darken_band(canvas, stripe_w, HEIGHT - 280, WIDTH, HEIGHT, alpha=200)
     draw = ImageDraw.Draw(canvas)
-    tag_font = find_font(pick_font(TAGLINE_POOL, title + ":tagline"), size=28)
-    y = HEIGHT - 200
+    tag_font = find_font(pick_font(TAGLINE_POOL, title + ":tagline"), size=26)
+    y = HEIGHT - 260
     for line in tagline.split("\n"):
         bbox = draw.textbbox((0, 0), line, font=tag_font)
         draw.text((stripe_w + 30, y), line, font=tag_font, fill=style["tagline_color"])
         y += bbox[3] - bbox[1] + 6
-    # Distributor bottom-right
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, stripe_w + 30, HEIGHT - 130,
+                          WIDTH - stripe_w - 60, (240, 220, 160), align="left")
+    # Distributor + tech strip bottom-right
     dist_font = find_font("arialbd.ttf", size=20)
     bbox = draw.textbbox((0, 0), distributor, font=dist_font)
-    draw.text((WIDTH - 30 - (bbox[2] - bbox[0]), HEIGHT - 50),
+    draw.text((WIDTH - 30 - (bbox[2] - bbox[0]), HEIGHT - 70),
               distributor, font=dist_font, fill="white")
+    spec_font = find_font("arial.ttf", size=14)
+    spec = tech_strip(title, runtime)
+    bbox = draw.textbbox((0, 0), spec, font=spec_font)
+    draw.text((WIDTH - 30 - (bbox[2] - bbox[0]), HEIGHT - 40),
+              spec, font=spec_font, fill=(170, 170, 170))
     return finish(canvas)
 
 
@@ -935,16 +1265,20 @@ def layout_solid(canvas, title, tagline, banner, distributor, rating, runtime, s
                        outline=col, width=t)
         inset += t + 14
 
-    # Banner at top
-    draw_centered(draw, banner, find_font("arialbd.ttf", size=26), 130,
+    # PRESENTS + banner at top
+    draw_centered(draw, presents_line(distributor),
+                  find_font("arialbd.ttf", size=15), 110, fill=style["title_color"])
+    draw_centered(draw, banner, find_font("arialbd.ttf", size=24), 142,
                   fill=style["banner_color"])
+    # STARRING below banner
+    draw_starring(draw, title, 80, 178, WIDTH - 160, style["title_color"])
 
     # Big title centered
-    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 200, max_size=170)
+    title_font, _ = fit_title(title, pick_font(style["title_pool"], title), WIDTH - 200, max_size=160)
     bbox = draw.textbbox((0, 0), title, font=title_font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     tx = (WIDTH - tw) / 2
-    ty = (HEIGHT - th) / 2 - 80
+    ty = (HEIGHT - th) / 2 - 60
     draw_title_shadow(draw, title, title_font, tx, ty,
                       style["title_color"], style["banner_color"])
 
@@ -955,13 +1289,15 @@ def layout_solid(canvas, title, tagline, banner, distributor, rating, runtime, s
     # Tagline below
     draw_tagline_block(draw, tagline, pick_font(TAGLINE_POOL, title + ":tagline"), style["tagline_color"],
                        ty + th + 90, size=30)
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 80, HEIGHT - 220, WIDTH - 160, style["title_color"])
 
     # Rating top-right
     draw_rating_box(draw, rating, WIDTH - 130, 130, style["rating_box_color"])
 
     # Distributor at bottom
     draw_distributor_block(draw, distributor, runtime, HEIGHT - 130, HEIGHT - 95,
-                           color=style["title_color"])
+                           color=style["title_color"], title=title)
     return finish(canvas)
 
 
@@ -984,31 +1320,45 @@ def layout_corner(canvas, title, tagline, banner, distributor, rating, runtime, 
     canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(canvas)
 
-    # Banner above the title block, left-aligned
-    draw.text((40, 30), banner, font=find_font("arialbd.ttf", size=22),
+    # PRESENTS + banner above the title block, left-aligned
+    draw.text((40, 18), presents_line(distributor),
+              font=find_font("arialbd.ttf", size=14), fill=(220, 220, 220))
+    draw.text((40, 42), banner, font=find_font("arialbd.ttf", size=22),
               fill=style["banner_color"])
 
     # Title left-aligned inside block
     draw.text((44, block_y0 + 30), title, font=title_font, fill=style["title_color"])
 
+    # STARRING below title block
+    draw_starring(draw, title, 40, block_y1 + 16, WIDTH - 80,
+                  (235, 235, 235), align="left")
+
     # Tagline lower-left, with darken under it
-    canvas = darken_band(canvas, 0, HEIGHT - 240, WIDTH, HEIGHT, alpha=200)
+    canvas = darken_band(canvas, 0, HEIGHT - 280, WIDTH, HEIGHT, alpha=200)
     draw = ImageDraw.Draw(canvas)
-    tag_font = find_font(pick_font(TAGLINE_POOL, title + ":tagline"), size=30)
-    y = HEIGHT - 220
+    tag_font = find_font(pick_font(TAGLINE_POOL, title + ":tagline"), size=28)
+    y = HEIGHT - 260
     for line in tagline.split("\n"):
         bbox = draw.textbbox((0, 0), line, font=tag_font)
         draw.text((40, y), line, font=tag_font, fill=style["tagline_color"])
         y += bbox[3] - bbox[1] + 6
+    if has_blurb(title):
+        draw_critic_blurb(draw, title, 40, HEIGHT - 130, WIDTH - 80,
+                          (240, 220, 160), align="left")
 
     # Rating top-right
     draw_rating_box(draw, rating, WIDTH - 110, 30, style["rating_box_color"])
 
-    # Distributor bottom-right small
+    # Distributor + tech strip bottom-right
     dist_font = find_font("arialbd.ttf", size=20)
     bbox = draw.textbbox((0, 0), distributor, font=dist_font)
-    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 50),
+    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 70),
               distributor, font=dist_font, fill="white")
+    spec_font = find_font("arial.ttf", size=14)
+    spec = tech_strip(title, runtime)
+    bbox = draw.textbbox((0, 0), spec, font=spec_font)
+    draw.text((WIDTH - 40 - (bbox[2] - bbox[0]), HEIGHT - 40),
+              spec, font=spec_font, fill=(170, 170, 170))
     return finish(canvas)
 
 
@@ -1027,6 +1377,27 @@ def render_cover(title, tagline, genre_banner, distributor, rating, runtime,
 
     layout = LAYOUTS[stable_hash(title) % len(LAYOUTS)]
     canvas = layout(canvas, title, tagline, genre_banner, distributor, rating, runtime, style)
+
+    # Burst sticker as final overlay for ~45% of covers. Position varies by hash.
+    if has_burst(title):
+        positions = [
+            (WIDTH - 120, HEIGHT - 480),    # mid-right
+            (130, HEIGHT - 480),            # mid-left
+            (WIDTH - 120, 320),             # upper-right (below rating)
+            (130, 320),                     # upper-left
+        ]
+        cx, cy = positions[stable_hash(title + ":burstpos") % len(positions)]
+        burst_palette = [
+            ((255, 220, 60), (180, 0, 0)),    # yellow + red text
+            ((220, 30, 30), (255, 255, 255)), # red + white text
+            ((255, 255, 255), (200, 0, 0)),   # white + red text
+            ((255, 100, 0), (255, 255, 255)), # orange + white text
+        ]
+        bp = burst_palette[stable_hash(title + ":burstcol") % len(burst_palette)]
+        angle = -25 + (stable_hash(title + ":burstang") % 50)
+        canvas = draw_burst_sticker(canvas, burst_text(title), cx, cy,
+                                    fill_color=bp[0], text_color=bp[1],
+                                    angle=angle, radius=95)
 
     if output_path:
         canvas.save(output_path)
