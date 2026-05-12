@@ -23,6 +23,9 @@ protected:
 	// Fades out the Ambient_GlobalWind AAmbientSound
 	void SilenceGlobalWindIfRequested();
 
+	// Fades in the Ambient_Waterfall AAmbientSound (paired with wind silence)
+	void FadeInWaterfall();
+
 	// --- Properties ---
 
 	// Required target point actor to teleport to (set on the level instance)
@@ -33,7 +36,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")
 	bool bDestroyUltraDynamicActors = false;
 
-	// Whether to fade out Ambient_GlobalWind on teleport (no re-enable)
+	// Whether to fade out Ambient_GlobalWind (and fade in Ambient_Waterfall) on teleport
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	bool bSilenceGlobalWind = false;
+
+	// Fade-in duration for Ambient_Waterfall (only used when bSilenceGlobalWind is true)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	float WaterfallFadeInDuration = 10.0f;
 };

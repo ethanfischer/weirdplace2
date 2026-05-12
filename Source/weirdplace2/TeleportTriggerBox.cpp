@@ -62,7 +62,32 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 	if (bSilenceGlobalWind)
 	{
 		SilenceGlobalWindIfRequested();
+		FadeInWaterfall();
 	}
+}
+
+void ATeleportTriggerBox::FadeInWaterfall()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	for (TActorIterator<AAmbientSound> It(World); It; ++It)
+	{
+		AAmbientSound* Ambient = *It;
+		if (Ambient && Ambient->GetActorLabel() == TEXT("Ambient_Waterfall"))
+		{
+			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
+			{
+				AudioComp->FadeIn(WaterfallFadeInDuration, 1.0f);
+			}
+			return;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: no AAmbientSound labeled 'Ambient_Waterfall' found"), *GetName());
 }
 
 void ATeleportTriggerBox::SilenceGlobalWindIfRequested()

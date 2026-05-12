@@ -26,3 +26,8 @@
 Stretch goals:
 [ ] replace llm responses to movies
 [ ] allow walking away mid dialogue
+[ ] century massage
+[ ] make seneca mention it or add some reference to it
+[ ] playing videos on the tv
+[ ] replacing copywrighted content
+[ ] "follow the money"
