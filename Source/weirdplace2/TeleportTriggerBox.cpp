@@ -1,4 +1,5 @@
 #include "TeleportTriggerBox.h"
+#include "Door.h"
 #include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -6,6 +7,7 @@
 #include "EngineUtils.h"
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
+#include "TimerManager.h"
 
 ATeleportTriggerBox::ATeleportTriggerBox()
 {
@@ -64,6 +66,27 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		SilenceGlobalWindIfRequested();
 		FadeInWaterfall();
 	}
+
+	if (BathroomStallDoor)
+	{
+		GetWorldTimerManager().SetTimer(
+			BathroomStallDoorUnlockTimerHandle,
+			this,
+			&ATeleportTriggerBox::UnlockBathroomStallDoor,
+			BathroomStallDoorUnlockTime,
+			false);
+	}
+}
+
+void ATeleportTriggerBox::UnlockBathroomStallDoor()
+{
+	if (!BathroomStallDoor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: BathroomStallDoor went null before unlock timer fired"), *GetName());
+		return;
+	}
+
+	BathroomStallDoor->SetLocked(false);
 }
 
 void ATeleportTriggerBox::FadeInWaterfall()

@@ -4,6 +4,7 @@
 #include "Engine/TriggerBox.h"
 class ATargetPoint;
 class AAmbientSound;
+class ADoor;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -26,6 +27,9 @@ protected:
 	// Fades in the Ambient_Waterfall AAmbientSound (paired with wind silence)
 	void FadeInWaterfall();
 
+	UFUNCTION()
+	void UnlockBathroomStallDoor();
+
 	// --- Properties ---
 
 	// Required target point actor to teleport to (set on the level instance)
@@ -43,4 +47,13 @@ protected:
 	// Fade-in duration for Ambient_Waterfall (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WaterfallFadeInDuration = 10.0f;
+	
+	// Door to unlock after BathroomStallDoorUnlockTime seconds (set on level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	ADoor* BathroomStallDoor = nullptr;
+
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "BathroomStallDoor != nullptr"))
+	float BathroomStallDoorUnlockTime = 60.0f;
+
+	FTimerHandle BathroomStallDoorUnlockTimerHandle;
 };
