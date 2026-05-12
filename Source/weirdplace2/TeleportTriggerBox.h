@@ -44,6 +44,10 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	bool bSilenceGlobalWind = false;
 
+	// Fade-out duration for Ambient_GlobalWind (only used when bSilenceGlobalWind is true)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	float WindFadeOutDuration = 10.0f;
+
 	// Fade-in duration for Ambient_Waterfall (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WaterfallFadeInDuration = 10.0f;

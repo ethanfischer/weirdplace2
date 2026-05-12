@@ -128,7 +128,7 @@ void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
 		{
 			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
 			{
-				AudioComp->FadeOut(0.5f, 0.0f);
+				AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
 			}
 			return;
 		}
