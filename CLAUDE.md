@@ -114,3 +114,21 @@ grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
 - Doors are 110x215
+
+## Running Python in UE
+
+Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". You are capable of running python scripts for me.
+
+Two paths depending on what you need:
+
+**Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
+```bash
+# File:
+python scripts/ue_remote_exec.py --file Content/Python/your_script.py
+
+# Inline:
+python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
+```
+`scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
+
+**Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
