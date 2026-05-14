@@ -1,4 +1,5 @@
 #include "TeleportTriggerBox.h"
+#include "BladderUrgencyComponent.h"
 #include "Door.h"
 #include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
@@ -66,6 +67,14 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		SilenceGlobalWindIfRequested();
 		FadeInAmbientByLabel(TEXT("Ambient_Waterfall"), WaterfallFadeInDuration, WaterfallFadeCurve);
 		FadeInAmbientByLabel(TEXT("Ambient_Chord"), ChordFadeInDuration, ChordFadeCurve);
+	}
+
+	if (bStopBladderUrgency)
+	{
+		if (UBladderUrgencyComponent* Bladder = OtherActor->FindComponentByClass<UBladderUrgencyComponent>())
+		{
+			Bladder->StopUrgency();
+		}
 	}
 
 	if (BathroomStallDoor)

@@ -6,6 +6,7 @@
 class ATargetPoint;
 class AAmbientSound;
 class ADoor;
+class UBladderUrgencyComponent;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -44,6 +45,10 @@ protected:
 	// Whether to fade out Ambient_GlobalWind (and fade in Ambient_Waterfall) on teleport
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	bool bSilenceGlobalWind = false;
+
+	// Whether to stop the player's bladder urgency (pulses + death timer + vignette) on teleport
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	bool bStopBladderUrgency = false;
 
 	// Fade-out duration for Ambient_GlobalWind (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))

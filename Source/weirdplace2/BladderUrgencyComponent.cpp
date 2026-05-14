@@ -200,6 +200,25 @@ void UBladderUrgencyComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+void UBladderUrgencyComponent::StopUrgency()
+{
+	UE_LOG(LogTemp, Display, TEXT("BladderUrgencyComponent: StopUrgency on %s"), *GetOwner()->GetName());
+
+	GetWorld()->GetTimerManager().ClearTimer(ReminderTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(DeathTimerHandle);
+
+	bIsPulsing = false;
+	SetComponentTickEnabled(false);
+
+	if (CachedCamera && UrgencyVignetteMID)
+	{
+		BladderUrgencyInternal::SetBlendableWeight(CachedCamera->PostProcessSettings, UrgencyVignetteMID, 0.f);
+		CachedCamera->PostProcessSettings.WeightedBlendables.Array.RemoveAll(
+			[this](const FWeightedBlendable& B){ return B.Object == UrgencyVignetteMID; });
+		UrgencyVignetteMID = nullptr;
+	}
+}
+
 void UBladderUrgencyComponent::StartPulse()
 {
 	bIsPulsing = true;
