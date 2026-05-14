@@ -64,7 +64,8 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 	if (bSilenceGlobalWind)
 	{
 		SilenceGlobalWindIfRequested();
-		FadeInWaterfall();
+		FadeInAmbientByLabel(TEXT("Ambient_Waterfall"), WaterfallFadeInDuration, WaterfallFadeCurve);
+		FadeInAmbientByLabel(TEXT("Ambient_Chord"), ChordFadeInDuration, ChordFadeCurve);
 	}
 
 	if (BathroomStallDoor)
@@ -89,7 +90,7 @@ void ATeleportTriggerBox::UnlockBathroomStallDoor()
 	BathroomStallDoor->SetLocked(false);
 }
 
-void ATeleportTriggerBox::FadeInWaterfall()
+void ATeleportTriggerBox::FadeInAmbientByLabel(const FString& Label, float Duration, EAudioFaderCurve FadeCurve)
 {
 	UWorld* World = GetWorld();
 	if (!World)
@@ -100,17 +101,17 @@ void ATeleportTriggerBox::FadeInWaterfall()
 	for (TActorIterator<AAmbientSound> It(World); It; ++It)
 	{
 		AAmbientSound* Ambient = *It;
-		if (Ambient && Ambient->GetActorLabel() == TEXT("Ambient_Waterfall"))
+		if (Ambient && Ambient->GetActorLabel() == Label)
 		{
 			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
 			{
-				AudioComp->FadeIn(WaterfallFadeInDuration, 1.0f);
+				AudioComp->FadeIn(Duration, 1.0f, 0.0f, FadeCurve);
 			}
 			return;
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: no AAmbientSound labeled 'Ambient_Waterfall' found"), *GetName());
+	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: no AAmbientSound labeled '%s' found"), *GetName(), *Label);
 }
 
 void ATeleportTriggerBox::SilenceGlobalWindIfRequested()

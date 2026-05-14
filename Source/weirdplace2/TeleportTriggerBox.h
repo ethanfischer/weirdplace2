@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/TriggerBox.h"
+#include "Components/AudioComponent.h"
 class ATargetPoint;
 class AAmbientSound;
 class ADoor;
@@ -24,8 +25,8 @@ protected:
 	// Fades out the Ambient_GlobalWind AAmbientSound
 	void SilenceGlobalWindIfRequested();
 
-	// Fades in the Ambient_Waterfall AAmbientSound (paired with wind silence)
-	void FadeInWaterfall();
+	// Fades in an AAmbientSound found by actor label
+	void FadeInAmbientByLabel(const FString& Label, float Duration, EAudioFaderCurve FadeCurve = EAudioFaderCurve::Linear);
 
 	UFUNCTION()
 	void UnlockBathroomStallDoor();
@@ -51,7 +52,19 @@ protected:
 	// Fade-in duration for Ambient_Waterfall (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WaterfallFadeInDuration = 10.0f;
-	
+
+	// Fade-in curve for Ambient_Waterfall
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	EAudioFaderCurve WaterfallFadeCurve = EAudioFaderCurve::Logarithmic;
+
+	// Fade-in duration for Ambient_Chord (only used when bSilenceGlobalWind is true)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	float ChordFadeInDuration = 10.0f;
+
+	// Fade-in curve for Ambient_Chord
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	EAudioFaderCurve ChordFadeCurve = EAudioFaderCurve::Logarithmic;
+
 	// Door to unlock after BathroomStallDoorUnlockTime seconds (set on level instance)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	ADoor* BathroomStallDoor = nullptr;
