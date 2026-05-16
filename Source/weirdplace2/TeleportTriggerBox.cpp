@@ -110,7 +110,7 @@ void ATeleportTriggerBox::FadeInAmbientByLabel(const FString& Label, float Durat
 	for (TActorIterator<AAmbientSound> It(World); It; ++It)
 	{
 		AAmbientSound* Ambient = *It;
-		if (Ambient && Ambient->GetActorLabel() == Label)
+		if (Ambient && Ambient->GetName() == Label)
 		{
 			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
 			{
@@ -134,7 +134,7 @@ void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
 	for (TActorIterator<AAmbientSound> It(World); It; ++It)
 	{
 		AAmbientSound* Ambient = *It;
-		if (Ambient && Ambient->GetActorLabel() == TEXT("Ambient_GlobalWind"))
+		if (Ambient && Ambient->GetName() == TEXT("Ambient_GlobalWind"))
 		{
 			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
 			{
