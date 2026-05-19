@@ -215,8 +215,9 @@ void UMenuUIComponent::HandleConfirm()
 		return;
 	}
 
-	if (MenuActor->GetCurrentPage() == EMenuPage::Pause)
+	switch (MenuActor->GetCurrentPage())
 	{
+	case EMenuPage::Pause:
 		switch (MenuActor->GetSelectedPauseItem())
 		{
 		case EPauseMenuItem::Resume:
@@ -228,6 +229,10 @@ void UMenuUIComponent::HandleConfirm()
 			{
 				MenuActor->SyncFromSettings(CachedSettings);
 			}
+			break;
+		case EPauseMenuItem::Graphics:
+			MenuActor->SetPage(EMenuPage::Graphics);
+			MenuActor->SyncGraphicsFromCVars();
 			break;
 		case EPauseMenuItem::Quit:
 			if (CachedSettings)
@@ -244,14 +249,28 @@ void UMenuUIComponent::HandleConfirm()
 		default:
 			break;
 		}
-	}
-	else
-	{
-		// Settings page: only Back is actionable on confirm.
+		break;
+
+	case EMenuPage::Settings:
 		if (MenuActor->GetSelectedSettingsRow() == ESettingsRow::Back)
 		{
 			MenuActor->SetPage(EMenuPage::Pause);
 		}
+		break;
+
+	case EMenuPage::Graphics:
+		switch (MenuActor->GetSelectedGraphicsRow())
+		{
+		case EGraphicsRow::ResetToDefault:
+			MenuActor->ResetGraphicsToDefaults();
+			break;
+		case EGraphicsRow::Back:
+			MenuActor->SetPage(EMenuPage::Pause);
+			break;
+		default:
+			break;
+		}
+		break;
 	}
 }
 

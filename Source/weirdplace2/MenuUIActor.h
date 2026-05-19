@@ -16,7 +16,8 @@ UENUM(BlueprintType)
 enum class EMenuPage : uint8
 {
 	Pause,
-	Settings
+	Settings,
+	Graphics
 };
 
 UENUM(BlueprintType)
@@ -24,6 +25,7 @@ enum class EPauseMenuItem : uint8
 {
 	Resume,
 	Settings,
+	Graphics,
 	Quit,
 	Count UMETA(Hidden)
 };
@@ -35,6 +37,19 @@ enum class ESettingsRow : uint8
 {
 	GamepadSensitivity,
 	MouseSensitivity,
+	Back,
+	Count UMETA(Hidden)
+};
+
+// Rows on the Graphics page. Each adjustable row maps to a scalability cvar.
+UENUM(BlueprintType)
+enum class EGraphicsRow : uint8
+{
+	GlobalIllumination,
+	Reflection,
+	Shadow,
+	ViewDistance,
+	ResetToDefault,
 	Back,
 	Count UMETA(Hidden)
 };
@@ -62,9 +77,17 @@ public:
 	int32 GetSelectedIndex() const;
 	EPauseMenuItem GetSelectedPauseItem() const { return PauseSelection; }
 	ESettingsRow GetSelectedSettingsRow() const { return SettingsSelection; }
+	EGraphicsRow GetSelectedGraphicsRow() const { return GraphicsSelection; }
 
 	// Sync sensitivity row values from settings (call when entering Settings page).
 	void SyncFromSettings(UWeirdplaceGameUserSettings* Settings);
+
+	// Read current sg.* cvar values into the Graphics page (call when entering it).
+	void SyncGraphicsFromCVars();
+
+	// Re-apply the active DeviceProfile's cvars (the baked defaults) and refresh
+	// the Graphics page display.
+	void ResetGraphicsToDefaults();
 
 	// Fades both pages' visible content.
 	void SetOpacity(float Opacity);
@@ -83,6 +106,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* SettingsPageRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
+	USceneComponent* GraphicsPageRoot;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Layout")
 	float BackgroundPadding = 4.0f;
@@ -105,14 +131,24 @@ private:
 		int32 SlotCount = 0;
 	};
 
+	struct FGraphicsRowVisuals
+	{
+		UTextRenderComponent* RowText = nullptr;
+		int32 SelectedIndex = 0;
+	};
+
 	static constexpr int32 SettingsRowCount = static_cast<int32>(ESettingsRow::Count);
 	static constexpr int32 PauseItemCount = static_cast<int32>(EPauseMenuItem::Count);
+	static constexpr int32 GraphicsRowCount = static_cast<int32>(EGraphicsRow::Count);
+	static constexpr int32 GraphicsQualityLevels = 4; // 0=Low, 1=Medium, 2=High, 3=Epic
 
 	FSettingsRowVisuals SettingsRows[SettingsRowCount];
+	FGraphicsRowVisuals GraphicsRows[GraphicsRowCount];
 
 	EMenuPage CurrentPage = EMenuPage::Pause;
 	EPauseMenuItem PauseSelection = EPauseMenuItem::Resume;
 	ESettingsRow SettingsSelection = ESettingsRow::GamepadSensitivity;
+	EGraphicsRow GraphicsSelection = EGraphicsRow::GlobalIllumination;
 
 	UPROPERTY()
 	UStaticMesh* PlaneMesh;
@@ -134,6 +170,11 @@ private:
 	UPROPERTY()
 	UTextRenderComponent* SettingsBackText;
 
+	// Build stamp shown at the bottom of the menu (both pages). Sanity-check
+	// that the running binary matches the source you just changed.
+	UPROPERTY()
+	UTextRenderComponent* BuildStampText;
+
 	// Pause page items
 	UPROPERTY()
 	UTextRenderComponent* PausedHeaderText;
@@ -145,13 +186,34 @@ private:
 	UTextRenderComponent* PauseSettingsText;
 
 	UPROPERTY()
+	UTextRenderComponent* PauseGraphicsText;
+
+	UPROPERTY()
 	UTextRenderComponent* PauseQuitText;
+
+	// Graphics page items
+	UPROPERTY()
+	UTextRenderComponent* GraphicsHeaderText;
+
+	UPROPERTY()
+	UTextRenderComponent* GraphicsResetText;
+
+	UPROPERTY()
+	UTextRenderComponent* GraphicsBackText;
 
 	float CurrentOpacity = 1.0f;
 
 	void BuildPausePage();
 	void BuildSettingsPage();
 	void BuildSettingsRow(ESettingsRow Row, float LabelZ, float ValueZ, const FString& Label);
+	void BuildGraphicsPage();
+	void BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString& Label);
+
+	// sg.* cvar name + label for a graphics row.
+	static const TCHAR* GetGraphicsCVarName(EGraphicsRow Row);
+	static FString GetGraphicsQualityLabel(int32 QualityLevel);
+	int32 GetGraphicsCVarValue(EGraphicsRow Row) const;
+	void SetGraphicsCVarValue(EGraphicsRow Row, int32 Value);
 
 	void UpdateBackgroundSize();
 	void ApplyPageVisibility();
