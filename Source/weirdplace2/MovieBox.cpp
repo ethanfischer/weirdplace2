@@ -282,8 +282,13 @@ void AMovieBox::StopInspection()
 	PlayerController->SetIgnoreLookInput(false);
 	PlayerController->SetIgnoreMoveInput(false);
 
-	// Unbind input actions
-	PlayerController->InputComponent->AxisBindings.Empty(); //TODO: really?
+	// Unbind input actions. Remove only the axes registered in Interact_Implementation
+	// so other systems' axis bindings on the PC stay intact.
+	PlayerController->InputComponent->AxisBindings.RemoveAll([](const FInputAxisBinding& Binding)
+	{
+		return Binding.AxisName == TEXT("Turn Right / Left Mouse")
+			|| Binding.AxisName == TEXT("Turn Right / Left Gamepad");
+	});
 	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
 

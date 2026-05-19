@@ -65,8 +65,8 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 	if (bSilenceGlobalWind)
 	{
 		SilenceGlobalWindIfRequested();
-		FadeInAmbientByLabel(TEXT("Ambient_Waterfall"), WaterfallFadeInDuration, WaterfallFadeCurve);
-		FadeInAmbientByLabel(TEXT("Ambient_Chord"), ChordFadeInDuration, ChordFadeCurve);
+		FadeInAmbient(AmbientWaterfall, WaterfallFadeInDuration, WaterfallFadeCurve);
+		FadeInAmbient(AmbientChord, ChordFadeInDuration, ChordFadeCurve);
 	}
 
 	if (bStopBladderUrgency)
@@ -99,52 +99,32 @@ void ATeleportTriggerBox::UnlockBathroomStallDoor()
 	BathroomStallDoor->SetLocked(false);
 }
 
-void ATeleportTriggerBox::FadeInAmbientByLabel(const FString& Label, float Duration, EAudioFaderCurve FadeCurve)
+void ATeleportTriggerBox::FadeInAmbient(AAmbientSound* Ambient, float Duration, EAudioFaderCurve FadeCurve)
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	if (!Ambient)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: FadeInAmbient called with null reference"), *GetName());
 		return;
 	}
 
-	for (TActorIterator<AAmbientSound> It(World); It; ++It)
+	if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
 	{
-		AAmbientSound* Ambient = *It;
-		if (Ambient && Ambient->GetName() == Label)
-		{
-			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
-			{
-				AudioComp->FadeIn(Duration, 1.0f, 0.0f, FadeCurve);
-			}
-			return;
-		}
+		AudioComp->FadeIn(Duration, 1.0f, 0.0f, FadeCurve);
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: no AAmbientSound labeled '%s' found"), *GetName(), *Label);
 }
 
 void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	if (!AmbientGlobalWind)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: bSilenceGlobalWind set but AmbientGlobalWind is unassigned"), *GetName());
 		return;
 	}
 
-	for (TActorIterator<AAmbientSound> It(World); It; ++It)
+	if (UAudioComponent* AudioComp = AmbientGlobalWind->GetAudioComponent())
 	{
-		AAmbientSound* Ambient = *It;
-		if (Ambient && Ambient->GetName() == TEXT("Ambient_GlobalWind"))
-		{
-			if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
-			{
-				AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
-			}
-			return;
-		}
+		AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: bSilenceGlobalWind set but no AAmbientSound labeled 'Ambient_GlobalWind' found"), *GetName());
 }
 
 void ATeleportTriggerBox::DestroyUltraDynamicActors()

@@ -23,11 +23,11 @@ protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
 
-	// Fades out the Ambient_GlobalWind AAmbientSound
+	// Fades out the AmbientGlobalWind AAmbientSound if assigned
 	void SilenceGlobalWindIfRequested();
 
-	// Fades in an AAmbientSound found by actor label
-	void FadeInAmbientByLabel(const FString& Label, float Duration, EAudioFaderCurve FadeCurve = EAudioFaderCurve::Linear);
+	// Fades in the given AAmbientSound over Duration with FadeCurve
+	void FadeInAmbient(AAmbientSound* Ambient, float Duration, EAudioFaderCurve FadeCurve = EAudioFaderCurve::Linear);
 
 	UFUNCTION()
 	void UnlockBathroomStallDoor();
@@ -50,11 +50,23 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	bool bStopBladderUrgency = false;
 
-	// Fade-out duration for Ambient_GlobalWind (only used when bSilenceGlobalWind is true)
+	// Ambient sound to fade out when bSilenceGlobalWind is set (set on level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	AAmbientSound* AmbientGlobalWind = nullptr;
+
+	// Ambient sound to fade in when bSilenceGlobalWind is set (set on level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	AAmbientSound* AmbientWaterfall = nullptr;
+
+	// Ambient sound to fade in when bSilenceGlobalWind is set (set on level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
+	AAmbientSound* AmbientChord = nullptr;
+
+	// Fade-out duration for AmbientGlobalWind (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WindFadeOutDuration = 10.0f;
 
-	// Fade-in duration for Ambient_Waterfall (only used when bSilenceGlobalWind is true)
+	// Fade-in duration for AmbientWaterfall (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WaterfallFadeInDuration = 10.0f;
 
