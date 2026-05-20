@@ -50,6 +50,17 @@ public:
 	// menu is open. Acts on the currently selected item on the active page.
 	void HandleConfirm();
 
+	// Vertical step nav (IA_PreviousOption / IA_NextOption) — d-pad up/down,
+	// W/S, arrow up/down, left-stick up/down.
+	void NavigatePrevious();
+	void NavigateNext();
+
+	// Horizontal step nav (IA_NavigateLeft / IA_NavigateRight) — d-pad left/right,
+	// A/D, arrow left/right, left-stick left/right. Drives slider adjustment on
+	// the Settings page; no-op on pages without horizontal selection.
+	void AdjustLeft();
+	void AdjustRight();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -95,15 +106,6 @@ private:
 	void HideMenuActor();
 	void UpdateMenuPosition();
 
-	void BindMenuInput();
-	void UnbindMenuInput();
-
-	void HandleNavigateAxisX(float AxisValue);
-	void HandleNavigateAxisY(float AxisValue);
-
 	void FreezePlayerMovement();
 	void UnfreezePlayerMovement();
-
-	bool bArmedX = true;
-	bool bArmedY = true;
 };

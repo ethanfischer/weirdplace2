@@ -44,20 +44,16 @@ void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLin
 	DisplayText.Empty();
 	CurrentCharIndex = 0;
 
-	// Start typewriter effect after short delay
+	if (VoiceSound && (!IsValid(SpawnedSound) || !SpawnedSound->IsPlaying()))
+	{
+		float RandomPitch = FMath::RandRange(0.75f, 1.25f);
+		float RandomStartTime = FMath::RandRange(0.0f, 3.0f);
+		SpawnedSound = UGameplayStatics::SpawnSound2D(GetWorld(), VoiceSound, 1.0f, RandomPitch, RandomStartTime);
+	}
+
 	FTimerDelegate TimerDelegate = FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
 		SetNextDisplayTextCharacter();
-
-		if (VoiceSound)
-		{
-			if (!IsValid(SpawnedSound) || !SpawnedSound->IsPlaying())
-			{
-				float RandomPitch = FMath::RandRange(0.75f, 1.25f);
-				float RandomStartTime = FMath::RandRange(0.0f, 3.0f);
-				SpawnedSound = UGameplayStatics::SpawnSound2D(GetWorld(), VoiceSound, 1.0f, RandomPitch, RandomStartTime);
-			}
-		}
 	});
 	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, TimerDelegate, 0.04f, false);
 }
@@ -93,11 +89,11 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 			UGameplayStatics::PlaySound2D(GetWorld(), BlipSound, 1.0f, Pitch);
 		}
 
-		// Continue typewriter effect
-		GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, [this]()
+		FTimerDelegate Cont = FTimerDelegate::CreateWeakLambda(this, [this]()
 		{
 			SetNextDisplayTextCharacter();
-		}, 0.03f, false);
+		});
+		GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, Cont, 0.03f, false);
 	}
 }
 

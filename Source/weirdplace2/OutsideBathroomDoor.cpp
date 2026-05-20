@@ -2,6 +2,7 @@
 #include "Seneca.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "HeldItemComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
@@ -242,9 +243,9 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 	}
 
 	// Swap to broken mesh immediately so the visual snap is instant
-	if (AnimKeyMesh && BrokenKeyMesh)
+	if (AnimKeyMesh && BrokenKeyDef && BrokenKeyDef->Mesh)
 	{
-		AnimKeyMesh->SetStaticMesh(BrokenKeyMesh);
+		AnimKeyMesh->SetStaticMesh(BrokenKeyDef->Mesh);
 	}
 
 	// Delay physics so the broken half hangs in the lock briefly before falling
@@ -265,14 +266,17 @@ void AOutsideBathroomDoor::EnableKeyFall()
 	if (MyCharacter)
 	{
 		UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-		if (Inventory && BrokenKeyMesh)
+		if (Inventory && BrokenKeyDef && BrokenKeyDef->Mesh)
 		{
-			FInventoryItemData BrokenKeyData;
-			BrokenKeyData.ItemID = FName("BrokenKey");
-			BrokenKeyData.Mesh = BrokenKeyMesh;
+			FInventoryItemData BrokenKeyData = BrokenKeyDef->ToInventoryItemData();
+			// Reuse the player's actual key materials so the inventory entry
+			// matches the original key visual rather than the def's defaults.
 			BrokenKeyData.Materials = KeyMaterials;
-			BrokenKeyData.Scale = FVector(0.001f);
 			Inventory->AddItemWithData(BrokenKeyData);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::EnableKeyFall - missing Inventory or BrokenKeyDef"));
 		}
 	}
 

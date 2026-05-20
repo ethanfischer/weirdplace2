@@ -11,13 +11,24 @@ void UInventoryComponent::BeginPlay() {
     Super::BeginPlay();
 }
 
+// Place ItemID into the first NAME_None hole, or append. Returns the slot index used.
+static int32 AssignToFirstFreeSlot(TArray<FName>& Items, const FName& ItemID) {
+    for (int32 i = 0; i < Items.Num(); ++i) {
+        if (Items[i].IsNone()) {
+            Items[i] = ItemID;
+            return i;
+        }
+    }
+    return Items.Add(ItemID);
+}
+
 void UInventoryComponent::AddItemWithData(const FInventoryItemData& ItemData) {
     if (ItemData.ItemID.IsNone()) {
         UE_LOG(LogTemp, Warning, TEXT("AddItemWithData: Cannot add item with None ID"));
         return;
     }
 
-    Items.Add(ItemData.ItemID);
+    AssignToFirstFreeSlot(Items, ItemData.ItemID);
     ItemDataMap.Add(ItemData.ItemID, ItemData);
     if (CollectSound)
     {
@@ -32,7 +43,7 @@ void UInventoryComponent::AddItem(const FName& ItemID) {
         return;
     }
 
-    Items.Add(ItemID);
+    AssignToFirstFreeSlot(Items, ItemID);
     // No visual data for legacy AddItem - create empty entry
     FInventoryItemData EmptyData;
     EmptyData.ItemID = ItemID;
@@ -47,8 +58,14 @@ void UInventoryComponent::AddItem(const FName& ItemID) {
 bool UInventoryComponent::RemoveItem(const FName& ItemID) {
     int32 Index = Items.Find(ItemID);
     if (Index != INDEX_NONE) {
-        Items.RemoveAt(Index);
+        // Leave the slot in place (NAME_None) so other items don't shift their grid position.
+        Items[Index] = NAME_None;
         ItemDataMap.Remove(ItemID);
+
+        // Trim trailing empty slots so Items.Num() doesn't grow unboundedly.
+        while (Items.Num() > 0 && Items.Last().IsNone()) {
+            Items.Pop(/*bAllowShrinking=*/false);
+        }
 
         // Clear active item if it was the removed item
         if (ActiveItem == ItemID) {
@@ -78,7 +95,13 @@ FInventoryItemData UInventoryComponent::GetItemData(const FName& ItemID) const {
 }
 
 int32 UInventoryComponent::GetItemCount() const {
-    return Items.Num();
+    int32 Count = 0;
+    for (const FName& ItemID : Items) {
+        if (!ItemID.IsNone()) {
+            ++Count;
+        }
+    }
+    return Count;
 }
 
 void UInventoryComponent::SetActiveItem(const FName& ItemID) {

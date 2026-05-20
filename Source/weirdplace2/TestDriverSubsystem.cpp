@@ -1,7 +1,14 @@
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "ItemDefinition.h"
+#include "HeldItemComponent.h"
+#if WITH_EDITOR
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
+#endif
 #include "MovieBox.h"
 #include "PropActor.h"
 #include "Hudson.h"
@@ -15,6 +22,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
+#include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerInput.h"
@@ -478,28 +486,6 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	InjectInputAction(Player->GetSettingsAction(), false);
 }
 
-void UTestDriverSubsystem::SimulateLegacyAxis(FName AxisName, float Value)
-{
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!PC || !PC->InputComponent)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateLegacyAxis - no PC/InputComponent"));
-		return;
-	}
-
-	// Drive each matching axis binding directly. The menu's HandleNavigateAxis*
-	// handlers re-arm after a sub-rearm-threshold value, so the test should
-	// pulse a high value once then a zero pulse to re-arm.
-	for (FInputAxisBinding& Binding : PC->InputComponent->AxisBindings)
-	{
-		if (Binding.AxisName == AxisName)
-		{
-			Binding.AxisValue = Value;
-			Binding.AxisDelegate.Execute(Value);
-		}
-	}
-}
-
 // --- Sensitivity / look diagnostics ---
 
 void UTestDriverSubsystem::SetGamepadLookSensitivity(float Value)
@@ -651,6 +637,71 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+bool UTestDriverSubsystem::UnlockInventoryForTest()
+{
+	AMyCharacter* MyChar = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	if (!MyChar) { return false; }
+	MyChar->UnlockInventory();
+	return true;
+}
+
+bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale)
+{
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		return false;
+	}
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *MeshAssetPath);
+	if (!Mesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddTestItem: failed to load mesh '%s'"), *MeshAssetPath);
+		return false;
+	}
+	FInventoryItemData Data;
+	Data.ItemID = ItemId;
+	Data.Mesh = Mesh;
+	Data.Scale = Scale;
+	for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); ++i)
+	{
+		Data.Materials.Add(Mesh->GetMaterial(i));
+	}
+	Inv->AddItemWithData(Data);
+	return true;
+}
+
+int32 UTestDriverSubsystem::AddAllItemDefsFromFolder(const FString& FolderPath)
+{
+#if WITH_EDITOR
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AddAllItemDefsFromFolder: no inventory component"));
+		return 0;
+	}
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	TArray<FAssetData> AssetDatas;
+	AssetRegistry.GetAssetsByPath(FName(*FolderPath), AssetDatas, /*bRecursive*/ true);
+
+	int32 Added = 0;
+	for (const FAssetData& AD : AssetDatas)
+	{
+		UItemDefinition* Def = Cast<UItemDefinition>(AD.GetAsset());
+		if (!Def || Def->ItemID.IsNone() || !Def->Mesh)
+		{
+			continue;
+		}
+		Inv->AddItemWithData(Def->ToInventoryItemData());
+		UE_LOG(LogTemp, Log, TEXT("AddAllItemDefsFromFolder: added '%s'"), *Def->ItemID.ToString());
+		++Added;
+	}
+	return Added;
+#else
+	return 0;
+#endif
 }
 
 void UTestDriverSubsystem::SetTestStatus(const FString& Step)

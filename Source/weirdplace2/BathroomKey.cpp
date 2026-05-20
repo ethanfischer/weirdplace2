@@ -1,6 +1,7 @@
 #include "BathroomKey.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -26,6 +27,23 @@ ABathroomKey::ABathroomKey()
 void ABathroomKey::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (ItemDef && ItemDef->Mesh)
+	{
+		KeyMesh->SetStaticMesh(ItemDef->Mesh);
+		KeyMesh->SetRelativeScale3D(ItemDef->Scale);
+		if (ItemDef->MaterialOverrides.Num() > 0)
+		{
+			for (int32 i = 0; i < ItemDef->MaterialOverrides.Num(); i++)
+			{
+				KeyMesh->SetMaterial(i, ItemDef->MaterialOverrides[i]);
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("BathroomKey '%s': ItemDef missing or has no Mesh"), *GetName());
+	}
 }
 
 void ABathroomKey::NotifyActorBeginOverlap(AActor* OtherActor)
@@ -47,15 +65,13 @@ void ABathroomKey::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
-	if (KeyName == NAME_None)
+	if (!ItemDef || ItemDef->ItemID.IsNone())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("BathroomKey '%s' has invalid KeyName (NAME_None). Skipping inventory add."), *GetName());
+		UE_LOG(LogTemp, Warning, TEXT("BathroomKey '%s': ItemDef missing or has no ItemID. Skipping inventory add."), *GetName());
 		return;
 	}
 
-	// Add item with visual data captured from the mesh
-	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(KeyName, KeyMesh);
-	Inventory->AddItemWithData(ItemData);
+	Inventory->AddItemWithData(ItemDef->ToInventoryItemData());
 
 	// Play pickup sound
 	if (PickupSound)

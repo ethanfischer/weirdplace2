@@ -4,6 +4,7 @@
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "HeldItemComponent.h"
+#include "Scalability.h"
 
 AMyCharacter::AMyCharacter()
 {
@@ -22,6 +23,12 @@ AMyCharacter::AMyCharacter()
 void AMyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// DeviceProfile cvars are applied before Lumen has fully warmed up, so
+	// the first frame uses stale lighting state. Re-applying scalability after
+	// the world begins play forces Lumen to pick up the configured quality.
+	Scalability::FQualityLevels Levels = Scalability::GetQualityLevels();
+	Scalability::SetQualityLevels(Levels, /*bForce=*/true);
 }
 
 void AMyCharacter::Tick(float DeltaTime)

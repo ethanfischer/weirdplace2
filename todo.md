@@ -1,17 +1,17 @@
 # Todo / Bugs
-[x] key selection trigger too small
-[x] Inventory UI navigation grid instead of cursor based
-[ ] Inventory default selection improvement
-[x] improve gamepad sensitivity
+[ ] more intricate soundscape espcially in oasis
+    [ ] have random noises so the world feels more alive
+[ ] fix doors
+[x] audio volumes
+[ ] 2.95 cash exactly
+[ ] 1 cent found later, but seneca accepts it
 [ ] seneca unlock employee bathroom animation
 [ ] cash needs inventory thumbnail
-[ ] rick comes inside randomly and just repeats the same line
 [ ] "Rick: I'll meet you inside"
 [ ] improve movie pickup
-    [ ] don't have to turn to take
+    [x] don't have to turn to take
     [ ] tell player what button to put back
 [ ] gas station door animation
-[ ] gas station windows reflection probes?
 [ ] get money
     [ ] money mesh
     [ ] handle homeless scenario
@@ -26,3 +26,8 @@
 Stretch goals:
 [ ] replace llm responses to movies
 [ ] allow walking away mid dialogue
+[ ] century massage
+[ ] make seneca mention it or add some reference to it
+[ ] playing videos on the tv
+[ ] replacing copywrighted content
+[ ] "follow the money"

@@ -826,18 +826,19 @@ private:
 };
 
 // =======================================================================
-// FTD_SelectAndConfirmSlot — set cursor to slot N, press E to confirm
+// FTD_SelectAndConfirmSlot — set cursor to slot N. Active item now follows
+// navigation, so just moving the cursor assigns the item — no key press needed.
 // =======================================================================
 
 class FTD_SelectAndConfirmSlot : public FTD_Base
 {
 public:
 	FTD_SelectAndConfirmSlot(FAutomationTestBase* InTest, int32 InIndex)
-		: FTD_Base(InTest), Index(InIndex), Phase(0) {}
+		: FTD_Base(InTest), Index(InIndex) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Selecting inventory slot %d, pressing E"), Index);
+		return FString::Printf(TEXT("Selecting inventory slot %d"), Index);
 	}
 
 	virtual bool UpdateStep() override
@@ -845,30 +846,14 @@ public:
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 
-		switch (Phase)
+		if (!Driver->SetSelectedSlot(Index))
 		{
-		case 0: // Set the cursor position
-			if (!Driver->SetSelectedSlot(Index))
-			{
-				Test->AddError(FString::Printf(TEXT("FTD_SelectAndConfirmSlot: failed to set slot %d"), Index));
-				return true;
-			}
-			Phase = 1;
-			return false;
-		case 1: // Press E — fires legacy "InventoryConfirmSelection" via InputKey
-			Driver->SimulateKeyPress(EKeys::E);
-			Phase = 2;
-			return false;
-		case 2: // Release E
-			Driver->SimulateKeyRelease(EKeys::E);
-			return true;
-		default:
-			return true;
+			Test->AddError(FString::Printf(TEXT("FTD_SelectAndConfirmSlot: failed to set slot %d"), Index));
 		}
+		return true;
 	}
 private:
 	int32 Index;
-	int32 Phase;
 };
 
 // =======================================================================
@@ -949,7 +934,7 @@ public:
 
 		// After enough rotation, try pressing E to collect.
 		// Need ~155 degrees of rotation (at 10 deg/frame = ~16 frames).
-		// The "Collect Inspected Subitem" binding is only active when dot > 0.9,
+		// The "Collect Inspected Movie" binding is only active when dot > 0.9,
 		// so early presses are harmless (no binding = no effect).
 		if (FrameCount >= 2 && !bCollectPressed)
 		{
@@ -1027,6 +1012,99 @@ public:
 	}
 private:
 	int32 Expected;
+};
+
+// =======================================================================
+// FTD_UnlockInventory — bypass the Seneca-intro gate that normally blocks
+// inventory open at game start. Use at the start of any focused inventory
+// test that doesn't want to play through SenecaIntro first.
+// =======================================================================
+
+class FTD_UnlockInventory : public FTD_Base
+{
+public:
+	FTD_UnlockInventory(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Unlocking inventory (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_UnlockInventory: no driver")); return true; }
+		if (!Driver->UnlockInventoryForTest())
+		{
+			Test->AddError(TEXT("FTD_UnlockInventory: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AddTestItem — inject an item directly into the inventory by mesh path,
+// bypassing the gameplay flow that would normally grant it. For focused
+// inventory tests that don't want to play through Seneca/Rick first.
+// =======================================================================
+
+class FTD_AddTestItem : public FTD_Base
+{
+public:
+	FTD_AddTestItem(FAutomationTestBase* InTest, FName InItemId, FString InMeshPath, FVector InScale = FVector(1.f))
+		: FTD_Base(InTest), ItemId(InItemId), MeshPath(MoveTemp(InMeshPath)), Scale(InScale) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Adding test item '%s'"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AddTestItem: no driver")); return true; }
+		if (!Driver->AddTestItem(ItemId, MeshPath, Scale))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AddTestItem: failed for '%s' / %s"),
+				*ItemId.ToString(), *MeshPath));
+		}
+		return true;
+	}
+private:
+	FName ItemId;
+	FString MeshPath;
+	FVector Scale;
+};
+
+// =======================================================================
+// FTD_AddAllItemDefsFromFolder — load every UItemDefinition under a content
+// path (e.g. "/Game/Inventory") and grant each to the player. For tour-style
+// tests that want to visualize every item without playing through gameplay.
+// =======================================================================
+
+class FTD_AddAllItemDefsFromFolder : public FTD_Base
+{
+public:
+	FTD_AddAllItemDefsFromFolder(FAutomationTestBase* InTest, FString InFolderPath, int32 InExpectedMin = 1)
+		: FTD_Base(InTest), FolderPath(MoveTemp(InFolderPath)), ExpectedMin(InExpectedMin) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Adding all item defs from %s"), *FolderPath);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AddAllItemDefsFromFolder: no driver")); return true; }
+		const int32 Added = Driver->AddAllItemDefsFromFolder(FolderPath);
+		if (Added < ExpectedMin)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AddAllItemDefsFromFolder: only %d added from %s (expected >= %d)"),
+				Added, *FolderPath, ExpectedMin));
+		}
+		return true;
+	}
+private:
+	FString FolderPath;
+	int32 ExpectedMin;
 };
 
 class FTD_AssertHasItem : public FTD_Base
@@ -1568,44 +1646,72 @@ private:
 };
 
 // =======================================================================
-// FTD_SimulateMoveAxisFlick — fire one flick on a legacy move axis.
-// Pulses Value for one frame, then 0 the next frame so the menu's
-// HandleNavigateAxis* re-arms for a subsequent flick.
+// Nav action selector for FTD_SimulateNavAction. Resolves to a UInputAction*
+// at tick time via the player accessors.
+// =======================================================================
+enum class ENavInputAction : uint8
+{
+	NextOption,
+	PreviousOption,
+	NavigateLeft,
+	NavigateRight,
+};
+
+// =======================================================================
+// FTD_SimulateNavAction — inject one of the four menu nav actions through
+// Enhanced Input. Press → 1 frame gap → Release so the consumer's Started
+// trigger event fires exactly once.
 // =======================================================================
 
-class FTD_SimulateMoveAxisFlick : public FTD_Base
+class FTD_SimulateNavAction : public FTD_Base
 {
 public:
-	FTD_SimulateMoveAxisFlick(FAutomationTestBase* InTest, FName InAxisName, float InValue)
-		: FTD_Base(InTest), AxisName(InAxisName), Value(InValue), Phase(0) {}
+	FTD_SimulateNavAction(FAutomationTestBase* InTest, ENavInputAction InAction)
+		: FTD_Base(InTest), NavAction(InAction), bPressed(false) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Flicking axis '%s' = %.2f"), *AxisName.ToString(), Value);
+		const TCHAR* Name = TEXT("?");
+		switch (NavAction)
+		{
+		case ENavInputAction::NextOption:     Name = TEXT("NextOption"); break;
+		case ENavInputAction::PreviousOption: Name = TEXT("PreviousOption"); break;
+		case ENavInputAction::NavigateLeft:   Name = TEXT("NavigateLeft"); break;
+		case ENavInputAction::NavigateRight:  Name = TEXT("NavigateRight"); break;
+		}
+		return FString::Printf(TEXT("Injecting IA_%s"), Name);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMoveAxisFlick: no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateNavAction: no driver")); return true; }
 
-		switch (Phase)
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_SimulateNavAction: no player")); return true; }
+
+		UInputAction* Action = nullptr;
+		switch (NavAction)
 		{
-		case 0:
-			Driver->SimulateLegacyAxis(AxisName, Value);
-			Phase = 1;
-			return false;
-		case 1:
-			Driver->SimulateLegacyAxis(AxisName, 0.0f);
-			return true;
-		default:
-			return true;
+		case ENavInputAction::NextOption:     Action = Player->GetNextOptionAction(); break;
+		case ENavInputAction::PreviousOption: Action = Player->GetPreviousOptionAction(); break;
+		case ENavInputAction::NavigateLeft:   Action = Player->GetNavigateLeftAction(); break;
+		case ENavInputAction::NavigateRight:  Action = Player->GetNavigateRightAction(); break;
 		}
+		if (!Action) { Test->AddError(TEXT("FTD_SimulateNavAction: action accessor returned null")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->InjectInputAction(Action, true);
+			bPressed = true;
+			return false;
+		}
+		Driver->InjectInputAction(Action, false);
+		return true;
 	}
 private:
-	FName AxisName;
-	float Value;
-	int32 Phase;
+	ENavInputAction NavAction;
+	bool bPressed;
 };
 
 // =======================================================================

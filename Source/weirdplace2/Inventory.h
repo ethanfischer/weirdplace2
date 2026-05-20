@@ -82,7 +82,8 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	bool HasItem(const FName& ItemID) const;
 
-	// Returns copy of current inventory item IDs
+	// Returns copy of current inventory item IDs.
+	// Sparse: entries may be NAME_None to preserve slot positions after RemoveItem.
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	TArray<FName> GetItems() const;
 
@@ -119,7 +120,8 @@ public:
 	static FInventoryItemData CreateItemDataFromMeshComponent(const FName& ItemID, UStaticMeshComponent* MeshComponent);
 
 private:
-	// All inventory items by ID (for ordered iteration)
+	// Inventory items by slot index. Sparse: removed slots are NAME_None so
+	// remaining items keep their grid position (Ocarina-of-Time style).
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
 	TArray<FName> Items;
 

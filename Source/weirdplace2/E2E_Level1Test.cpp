@@ -209,7 +209,7 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_01_PauseOpen")));
 
 	// Navigate down once (Resume → Settings) and confirm to swap to Settings page.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
@@ -217,9 +217,9 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenu_02_SettingsAfterSwap")));
 
 	// Settings page: Gamepad → Mouse → Back, then confirm Back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateMoveAxisFlick(this, FName("Move Forward / Backward"), -1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
@@ -267,6 +267,102 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_03_AfterClose")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// InventoryThumbnails — verify that inventory thumbnails render at a
+// consistent brightness regardless of the surrounding scene's lighting.
+// The M_ItemThumbnail material divides emissive by EyeAdaptation so the
+// tonemapper's auto-exposure multiplication cancels out. Without that fix,
+// thumbnails blow out white in dim scenes.
+//
+// The test injects Money + Key into the inventory, opens the inventory in
+// the bright outdoor parking lot (PlayerStart) for a baseline screenshot,
+// then teleports somewhere dim and takes a second screenshot. Both should
+// show the thumbnails at similar brightness — visually verifiable by
+// comparing the two PNGs.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InventoryThumbnails,
+	"Weirdplace2.E2E.Level1.InventoryThumbnails",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InventoryThumbnails")
+
+	// Bypass Seneca-intro gate that normally blocks inventory open.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+
+	// Inject Money + Key directly so we can focus on rendering, not gameplay.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
+		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+
+	// Bright outdoor — open inventory + screenshot.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Inv_01_Bright")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Dim interior — same inventory, screenshot again. SenecaApproach is
+	// inside the store under store lighting which is much dimmer than outside.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Inv_02_Dim")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// HeldItemRotationTour — grant the player every UItemDefinition under
+// /Game/Inventory, then cycle each one as the active (held) item with a
+// delay between cycles so the held mesh is visible in front of the camera.
+// Use the screenshots to eyeball each item's HeldRotation on its data asset.
+//
+// Add a new DA_*.uasset under /Game/Inventory and rerun — it'll show up
+// automatically (just bump NumExpected if you want to assert the count).
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_HeldItemRotationTour,
+	"Weirdplace2.E2E.Level1.HeldItemRotationTour",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("HeldItemRotationTour")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
+
+	// Lit interior so the small held meshes are visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+
+	// Currently 4 defs in /Game/Inventory; bump if you add more. Each loop
+	// iteration: open inventory, select slot, close, wait, screenshot the
+	// held mesh in front of the camera.
+	const int32 NumSlots = 4;
+	for (int32 i = 0; i < NumSlots; ++i)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, i));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_HeldTour_%02d"), i)));
+	}
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

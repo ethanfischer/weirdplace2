@@ -12,6 +12,7 @@ class UStaticMesh;
 class UMaterialInterface;
 class UTimelineComponent;
 class UCurveFloat;
+class UItemDefinition;
 
 UCLASS()
 class WEIRDPLACE2_API AOutsideBathroomDoor : public ADoor
@@ -39,9 +40,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyDropSound;
 
-	// Key name to remove from inventory (should match Seneca's KeyToGive)
+	// Key name to remove from inventory (should match Seneca's KeyDef ItemID)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor")
 	FName KeyToRemove = FName("Key");
+
+	// Definition for the broken-half item granted to the player after the snap.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor")
+	UItemDefinition* BrokenKeyDef;
 
 	// --- Key Break Animation ---
 
@@ -100,10 +105,6 @@ protected:
 	// Full key mesh shown during insert and turn phases - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	UStaticMesh* FullKeyMesh;
-
-	// Broken key half mesh shown after snap - assign in BP
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
-	UStaticMesh* BrokenKeyMesh;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyInsertSound;

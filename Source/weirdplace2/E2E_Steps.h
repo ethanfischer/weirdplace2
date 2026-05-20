@@ -56,12 +56,13 @@ namespace E2ESteps
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 
+		// Slots are persistent (OoT-style): movie i stays at slot i even after earlier movies are given.
 		for (int32 i = 0; i < 3; ++i)
 		{
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
 			if (i == 0)
 				ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));

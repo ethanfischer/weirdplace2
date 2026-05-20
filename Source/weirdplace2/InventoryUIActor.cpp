@@ -327,6 +327,13 @@ void AInventoryUIActor::CreateThumbnails()
 	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
 	{
 		const FName& ItemID = Items[i];
+		// Sparse storage: empty slots stay in the array as NAME_None to preserve grid positions.
+		// ThumbnailMeshes must stay slot-aligned so SelectedIndex addresses the right entry.
+		if (ItemID.IsNone())
+		{
+			ThumbnailMeshes.Add(nullptr);
+			continue;
+		}
 
 		UStaticMeshComponent* Thumbnail = NewObject<UStaticMeshComponent>(this);
 		Thumbnail->SetStaticMesh(PlaneMesh);
@@ -443,7 +450,7 @@ void AInventoryUIActor::UpdateSelectionHighlight()
 
 void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 {
-	FText ActiveItemText = FText::FromString(TEXT("No Item Selected"));
+	FText ActiveItemText = FText::FromString(TEXT(""));
 	if (!ItemID.IsNone())
 	{
 		FString ItemName = ItemID.ToString();

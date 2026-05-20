@@ -2,7 +2,10 @@
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "DeviceProfiles/DeviceProfile.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 #include "Engine/StaticMesh.h"
+#include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -20,12 +23,24 @@ static constexpr float kMouseKBValueZ     = -16.0f;
 static constexpr float kSettingsBackZ     = -24.0f;
 
 // ---------------------------------------------------------------------------
-// Pause page layout
+// Pause page layout (now four items: Resume, Settings, Graphics, Quit)
 // ---------------------------------------------------------------------------
-static constexpr float kPausedHeaderZ = 18.0f;
-static constexpr float kPauseResumeZ  =  6.0f;
-static constexpr float kPauseSettingsZ = 0.0f;
-static constexpr float kPauseQuitZ    = -6.0f;
+static constexpr float kPausedHeaderZ   =  18.0f;
+static constexpr float kPauseResumeZ    =   8.0f;
+static constexpr float kPauseSettingsZ  =   2.0f;
+static constexpr float kPauseGraphicsZ  =  -4.0f;
+static constexpr float kPauseQuitZ      = -10.0f;
+
+// ---------------------------------------------------------------------------
+// Graphics page layout (one centered row per setting)
+// ---------------------------------------------------------------------------
+static constexpr float kGraphicsHeaderZ =  18.0f;
+static constexpr float kGraphicsGIZ     =  10.0f;
+static constexpr float kGraphicsReflZ   =   4.0f;
+static constexpr float kGraphicsShadowZ =  -2.0f;
+static constexpr float kGraphicsVDZ     =  -8.0f;
+static constexpr float kGraphicsResetZ  = -16.0f;
+static constexpr float kGraphicsBackZ   = -22.0f;
 
 AMenuUIActor::AMenuUIActor()
 {
@@ -56,6 +71,9 @@ AMenuUIActor::AMenuUIActor()
 	SettingsPageRoot = CreateDefaultSubobject<USceneComponent>(TEXT("SettingsPageRoot"));
 	SettingsPageRoot->SetupAttachment(RootSceneComponent);
 
+	GraphicsPageRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GraphicsPageRoot"));
+	GraphicsPageRoot->SetupAttachment(RootSceneComponent);
+
 	// --- Pause page items (constructor-created so they're tracked properly) ---
 	PausedHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PausedHeaderText"));
 	PausedHeaderText->SetupAttachment(PausePageRoot);
@@ -82,6 +100,14 @@ AMenuUIActor::AMenuUIActor()
 	PauseSettingsText->SetVerticalAlignment(EVRTA_TextCenter);
 	PauseSettingsText->SetText(FText::FromString(TEXT("Settings")));
 
+	PauseGraphicsText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PauseGraphicsText"));
+	PauseGraphicsText->SetupAttachment(PausePageRoot);
+	PauseGraphicsText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	PauseGraphicsText->SetWorldSize(3.0f);
+	PauseGraphicsText->SetHorizontalAlignment(EHTA_Center);
+	PauseGraphicsText->SetVerticalAlignment(EVRTA_TextCenter);
+	PauseGraphicsText->SetText(FText::FromString(TEXT("Graphics")));
+
 	PauseQuitText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PauseQuitText"));
 	PauseQuitText->SetupAttachment(PausePageRoot);
 	PauseQuitText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
@@ -89,6 +115,16 @@ AMenuUIActor::AMenuUIActor()
 	PauseQuitText->SetHorizontalAlignment(EHTA_Center);
 	PauseQuitText->SetVerticalAlignment(EVRTA_TextCenter);
 	PauseQuitText->SetText(FText::FromString(TEXT("Quit")));
+
+	BuildStampText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("BuildStampText"));
+	BuildStampText->SetupAttachment(RootSceneComponent);
+	BuildStampText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	BuildStampText->SetRelativeLocation(FVector(0.0f, 0.0f, -28.0f));
+	BuildStampText->SetWorldSize(1.5f);
+	BuildStampText->SetTextRenderColor(FColor(140, 140, 140));
+	BuildStampText->SetHorizontalAlignment(EHTA_Center);
+	BuildStampText->SetVerticalAlignment(EVRTA_TextCenter);
+	BuildStampText->SetText(FText::FromString(FString::Printf(TEXT("build %s %s"), TEXT(__DATE__), TEXT(__TIME__))));
 
 	// --- Settings page section headers ---
 	ControllerHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("ControllerHeaderText"));
@@ -116,6 +152,32 @@ AMenuUIActor::AMenuUIActor()
 	SettingsBackText->SetHorizontalAlignment(EHTA_Center);
 	SettingsBackText->SetVerticalAlignment(EVRTA_TextCenter);
 	SettingsBackText->SetText(FText::FromString(TEXT("Back")));
+
+	// --- Graphics page header + back ---
+	GraphicsHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("GraphicsHeaderText"));
+	GraphicsHeaderText->SetupAttachment(GraphicsPageRoot);
+	GraphicsHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	GraphicsHeaderText->SetWorldSize(3.5f);
+	GraphicsHeaderText->SetTextRenderColor(FColor::White);
+	GraphicsHeaderText->SetHorizontalAlignment(EHTA_Center);
+	GraphicsHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
+	GraphicsHeaderText->SetText(FText::FromString(TEXT("GRAPHICS")));
+
+	GraphicsResetText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("GraphicsResetText"));
+	GraphicsResetText->SetupAttachment(GraphicsPageRoot);
+	GraphicsResetText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	GraphicsResetText->SetWorldSize(2.5f);
+	GraphicsResetText->SetHorizontalAlignment(EHTA_Center);
+	GraphicsResetText->SetVerticalAlignment(EVRTA_TextCenter);
+	GraphicsResetText->SetText(FText::FromString(TEXT("Reset to Default")));
+
+	GraphicsBackText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("GraphicsBackText"));
+	GraphicsBackText->SetupAttachment(GraphicsPageRoot);
+	GraphicsBackText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	GraphicsBackText->SetWorldSize(3.0f);
+	GraphicsBackText->SetHorizontalAlignment(EHTA_Center);
+	GraphicsBackText->SetVerticalAlignment(EVRTA_TextCenter);
+	GraphicsBackText->SetText(FText::FromString(TEXT("Back")));
 }
 
 void AMenuUIActor::BeginPlay()
@@ -143,6 +205,7 @@ void AMenuUIActor::BeginPlay()
 
 	BuildPausePage();
 	BuildSettingsPage();
+	BuildGraphicsPage();
 	UpdateBackgroundSize();
 	ApplyPageVisibility();
 	UpdateFocusColors();
@@ -157,7 +220,41 @@ void AMenuUIActor::BuildPausePage()
 	if (PausedHeaderText)   PausedHeaderText->SetRelativeLocation(FVector(0.0f, 0.0f, kPausedHeaderZ));
 	if (PauseResumeText)    PauseResumeText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseResumeZ));
 	if (PauseSettingsText)  PauseSettingsText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseSettingsZ));
+	if (PauseGraphicsText)  PauseGraphicsText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseGraphicsZ));
 	if (PauseQuitText)      PauseQuitText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseQuitZ));
+}
+
+void AMenuUIActor::BuildGraphicsPage()
+{
+	if (GraphicsHeaderText) GraphicsHeaderText->SetRelativeLocation(FVector(0.0f, 0.0f, kGraphicsHeaderZ));
+	if (GraphicsResetText)  GraphicsResetText->SetRelativeLocation(FVector(0.0f, 0.0f, kGraphicsResetZ));
+	if (GraphicsBackText)   GraphicsBackText->SetRelativeLocation(FVector(0.0f, 0.0f, kGraphicsBackZ));
+
+	BuildGraphicsRow(EGraphicsRow::GlobalIllumination, kGraphicsGIZ,     TEXT("Lumen GI"));
+	BuildGraphicsRow(EGraphicsRow::Reflection,         kGraphicsReflZ,   TEXT("Reflections"));
+	BuildGraphicsRow(EGraphicsRow::Shadow,             kGraphicsShadowZ, TEXT("Shadows"));
+	BuildGraphicsRow(EGraphicsRow::ViewDistance,       kGraphicsVDZ,     TEXT("View Distance"));
+}
+
+void AMenuUIActor::BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString& Label)
+{
+	const int32 RowIdx = static_cast<int32>(Row);
+	FGraphicsRowVisuals& R = GraphicsRows[RowIdx];
+
+	R.RowText = NewObject<UTextRenderComponent>(this);
+	R.RowText->SetupAttachment(GraphicsPageRoot);
+	R.RowText->RegisterComponent();
+	R.RowText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	R.RowText->SetWorldSize(2.8f);
+	R.RowText->SetTextRenderColor(FColor(200, 200, 200));
+	R.RowText->SetHorizontalAlignment(EHTA_Center);
+	R.RowText->SetVerticalAlignment(EVRTA_TextCenter);
+	R.RowText->SetRelativeLocation(FVector(0.0f, 0.0f, RowZ));
+
+	const int32 CurrentValue = GetGraphicsCVarValue(Row);
+	R.SelectedIndex = CurrentValue;
+	R.RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
+		*Label, *GetGraphicsQualityLabel(CurrentValue))));
 }
 
 void AMenuUIActor::BuildSettingsPage()
@@ -240,6 +337,10 @@ void AMenuUIActor::ApplyPageVisibility()
 	{
 		SettingsPageRoot->SetVisibility(CurrentPage == EMenuPage::Settings, true);
 	}
+	if (GraphicsPageRoot)
+	{
+		GraphicsPageRoot->SetVisibility(CurrentPage == EMenuPage::Graphics, true);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -263,6 +364,10 @@ void AMenuUIActor::UpdateFocusColors()
 	if (PauseSettingsText)
 	{
 		PauseSettingsText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Settings ? Focused : Unfocused);
+	}
+	if (PauseGraphicsText)
+	{
+		PauseGraphicsText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Graphics ? Focused : Unfocused);
 	}
 	if (PauseQuitText)
 	{
@@ -291,6 +396,30 @@ void AMenuUIActor::UpdateFocusColors()
 	{
 		SettingsBackText->SetTextRenderColor(SettingsSelection == ESettingsRow::Back ? Focused : Unfocused);
 	}
+
+	// Graphics page rows
+	for (int32 i = 0; i < GraphicsRowCount; i++)
+	{
+		const EGraphicsRow Row = static_cast<EGraphicsRow>(i);
+		if (Row == EGraphicsRow::Back)
+		{
+			continue;
+		}
+		FGraphicsRowVisuals& R = GraphicsRows[i];
+		if (!R.RowText)
+		{
+			continue;
+		}
+		R.RowText->SetTextRenderColor(Row == GraphicsSelection ? Focused : Unfocused);
+	}
+	if (GraphicsResetText)
+	{
+		GraphicsResetText->SetTextRenderColor(GraphicsSelection == EGraphicsRow::ResetToDefault ? Focused : Unfocused);
+	}
+	if (GraphicsBackText)
+	{
+		GraphicsBackText->SetTextRenderColor(GraphicsSelection == EGraphicsRow::Back ? Focused : Unfocused);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -300,13 +429,17 @@ void AMenuUIActor::UpdateFocusColors()
 void AMenuUIActor::SetPage(EMenuPage NewPage)
 {
 	CurrentPage = NewPage;
-	if (NewPage == EMenuPage::Pause)
+	switch (NewPage)
 	{
+	case EMenuPage::Pause:
 		PauseSelection = EPauseMenuItem::Resume;
-	}
-	else
-	{
+		break;
+	case EMenuPage::Settings:
 		SettingsSelection = ESettingsRow::GamepadSensitivity;
+		break;
+	case EMenuPage::Graphics:
+		GraphicsSelection = EGraphicsRow::GlobalIllumination;
+		break;
 	}
 	ApplyPageVisibility();
 	UpdateFocusColors();
@@ -314,28 +447,73 @@ void AMenuUIActor::SetPage(EMenuPage NewPage)
 
 int32 AMenuUIActor::GetSelectedIndex() const
 {
-	return CurrentPage == EMenuPage::Pause
-		? static_cast<int32>(PauseSelection)
-		: static_cast<int32>(SettingsSelection);
+	switch (CurrentPage)
+	{
+	case EMenuPage::Pause:    return static_cast<int32>(PauseSelection);
+	case EMenuPage::Settings: return static_cast<int32>(SettingsSelection);
+	case EMenuPage::Graphics: return static_cast<int32>(GraphicsSelection);
+	}
+	return 0;
 }
 
 void AMenuUIActor::StepSelection(int32 Delta)
 {
-	if (CurrentPage == EMenuPage::Pause)
+	switch (CurrentPage)
+	{
+	case EMenuPage::Pause:
 	{
 		const int32 NewIdx = FMath::Clamp(static_cast<int32>(PauseSelection) + Delta, 0, PauseItemCount - 1);
 		PauseSelection = static_cast<EPauseMenuItem>(NewIdx);
+		break;
 	}
-	else
+	case EMenuPage::Settings:
 	{
 		const int32 NewIdx = FMath::Clamp(static_cast<int32>(SettingsSelection) + Delta, 0, SettingsRowCount - 1);
 		SettingsSelection = static_cast<ESettingsRow>(NewIdx);
+		break;
+	}
+	case EMenuPage::Graphics:
+	{
+		const int32 NewIdx = FMath::Clamp(static_cast<int32>(GraphicsSelection) + Delta, 0, GraphicsRowCount - 1);
+		GraphicsSelection = static_cast<EGraphicsRow>(NewIdx);
+		break;
+	}
 	}
 	UpdateFocusColors();
 }
 
 void AMenuUIActor::StepLeftRight(int32 Delta, UWeirdplaceGameUserSettings* Settings)
 {
+	if (CurrentPage == EMenuPage::Graphics)
+	{
+		if (GraphicsSelection == EGraphicsRow::Back || GraphicsSelection == EGraphicsRow::ResetToDefault)
+		{
+			return;
+		}
+		const int32 RowIdx = static_cast<int32>(GraphicsSelection);
+		FGraphicsRowVisuals& R = GraphicsRows[RowIdx];
+		const int32 NewIndex = FMath::Clamp(R.SelectedIndex + Delta, 0, GraphicsQualityLevels - 1);
+		if (NewIndex == R.SelectedIndex)
+		{
+			return;
+		}
+		R.SelectedIndex = NewIndex;
+		SetGraphicsCVarValue(GraphicsSelection, NewIndex);
+
+		if (R.RowText)
+		{
+			// Reconstruct "Label: Value" — extract Label from existing text.
+			const FString Existing = R.RowText->Text.ToString();
+			int32 ColonIdx;
+			const FString LabelPart = Existing.FindChar(':', ColonIdx)
+				? Existing.Left(ColonIdx)
+				: Existing;
+			R.RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
+				*LabelPart, *GetGraphicsQualityLabel(NewIndex))));
+		}
+		return;
+	}
+
 	if (CurrentPage != EMenuPage::Settings)
 	{
 		return;
@@ -411,6 +589,7 @@ void AMenuUIActor::SetOpacity(float Opacity)
 	if (PausedHeaderText)     PausedHeaderText->SetTextRenderColor(HeaderColor);
 	if (ControllerHeaderText) ControllerHeaderText->SetTextRenderColor(HeaderColor);
 	if (MouseKBHeaderText)    MouseKBHeaderText->SetTextRenderColor(HeaderColor);
+	if (GraphicsHeaderText)   GraphicsHeaderText->SetTextRenderColor(HeaderColor);
 
 	for (int32 i = 0; i < SettingsRowCount; i++)
 	{
@@ -503,4 +682,134 @@ float AMenuUIActor::SlotIndexToValue(ESettingsRow Row, int32 Index) const
 		return 1.0f;
 	}
 	return Min + Index * Snap;
+}
+
+// ---------------------------------------------------------------------------
+// Graphics page cvar wiring
+// ---------------------------------------------------------------------------
+
+const TCHAR* AMenuUIActor::GetGraphicsCVarName(EGraphicsRow Row)
+{
+	switch (Row)
+	{
+	case EGraphicsRow::GlobalIllumination: return TEXT("sg.GlobalIlluminationQuality");
+	case EGraphicsRow::Reflection:         return TEXT("sg.ReflectionQuality");
+	case EGraphicsRow::Shadow:             return TEXT("sg.ShadowQuality");
+	case EGraphicsRow::ViewDistance:       return TEXT("sg.ViewDistanceQuality");
+	default:                               return nullptr;
+	}
+}
+
+FString AMenuUIActor::GetGraphicsQualityLabel(int32 QualityLevel)
+{
+	switch (QualityLevel)
+	{
+	case 0: return TEXT("Low");
+	case 1: return TEXT("Medium");
+	case 2: return TEXT("High");
+	case 3: return TEXT("Epic");
+	default: return FString::Printf(TEXT("%d"), QualityLevel);
+	}
+}
+
+int32 AMenuUIActor::GetGraphicsCVarValue(EGraphicsRow Row) const
+{
+	const TCHAR* CVarName = GetGraphicsCVarName(Row);
+	if (!CVarName)
+	{
+		return 0;
+	}
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(CVarName))
+	{
+		return FMath::Clamp(CVar->GetInt(), 0, GraphicsQualityLevels - 1);
+	}
+	return 0;
+}
+
+void AMenuUIActor::SetGraphicsCVarValue(EGraphicsRow Row, int32 Value)
+{
+	const TCHAR* CVarName = GetGraphicsCVarName(Row);
+	if (!CVarName)
+	{
+		return;
+	}
+	if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(CVarName))
+	{
+		CVar->Set(Value, ECVF_SetByConsole);
+	}
+}
+
+void AMenuUIActor::ResetGraphicsToDefaults()
+{
+	UDeviceProfile* Profile = UDeviceProfileManager::Get().GetActiveProfile();
+	if (!Profile)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor::ResetGraphicsToDefaults - no active device profile"));
+		return;
+	}
+
+	// Only touch the four CVars this menu manages — device profiles often include
+	// audio/streaming/etc. that we shouldn't blast on a "Reset Graphics" click.
+	static const TCHAR* const ManagedCVars[] = {
+		TEXT("sg.GlobalIlluminationQuality"),
+		TEXT("sg.ReflectionQuality"),
+		TEXT("sg.ShadowQuality"),
+		TEXT("sg.ViewDistanceQuality"),
+	};
+
+	for (const FString& Entry : Profile->CVars)
+	{
+		FString Name, Value;
+		if (!Entry.Split(TEXT("="), &Name, &Value))
+		{
+			continue;
+		}
+		Name.TrimStartAndEndInline();
+		Value.TrimStartAndEndInline();
+
+		bool bIsManaged = false;
+		for (const TCHAR* Managed : ManagedCVars)
+		{
+			if (Name.Equals(Managed, ESearchCase::IgnoreCase))
+			{
+				bIsManaged = true;
+				break;
+			}
+		}
+		if (!bIsManaged)
+		{
+			continue;
+		}
+
+		if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*Name))
+		{
+			CVar->Set(*Value, ECVF_SetByConsole);
+		}
+	}
+
+	SyncGraphicsFromCVars();
+}
+
+void AMenuUIActor::SyncGraphicsFromCVars()
+{
+	struct FRowSpec { EGraphicsRow Row; const TCHAR* Label; };
+	static const FRowSpec Specs[] = {
+		{ EGraphicsRow::GlobalIllumination, TEXT("Lumen GI") },
+		{ EGraphicsRow::Reflection,         TEXT("Reflections") },
+		{ EGraphicsRow::Shadow,             TEXT("Shadows") },
+		{ EGraphicsRow::ViewDistance,       TEXT("View Distance") },
+	};
+	for (const FRowSpec& Spec : Specs)
+	{
+		const int32 RowIdx = static_cast<int32>(Spec.Row);
+		FGraphicsRowVisuals& R = GraphicsRows[RowIdx];
+		const int32 Value = GetGraphicsCVarValue(Spec.Row);
+		R.SelectedIndex = Value;
+		if (R.RowText)
+		{
+			R.RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
+				Spec.Label, *GetGraphicsQualityLabel(Value))));
+		}
+	}
+	UpdateFocusColors();
 }

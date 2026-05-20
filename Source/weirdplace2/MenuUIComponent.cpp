@@ -2,7 +2,6 @@
 #include "MenuUIActor.h"
 #include "WeirdplaceGameUserSettings.h"
 #include "Components/SceneComponent.h"
-#include "Components/InputComponent.h"
 #include "FirstPersonCharacter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -77,7 +76,6 @@ void UMenuUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			AnimationProgress = 0.0f;
 			CurrentState = EMenuUIState::Closed;
 			HideMenuActor();
-			UnbindMenuInput();
 			UnfreezePlayerMovement();
 
 			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
@@ -163,10 +161,7 @@ void UMenuUIComponent::OpenMenu()
 	}
 
 	CurrentState = EMenuUIState::Opening;
-	bArmedX = true;
-	bArmedY = true;
 	FreezePlayerMovement();
-	BindMenuInput();
 
 	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
 	{
@@ -215,8 +210,9 @@ void UMenuUIComponent::HandleConfirm()
 		return;
 	}
 
-	if (MenuActor->GetCurrentPage() == EMenuPage::Pause)
+	switch (MenuActor->GetCurrentPage())
 	{
+	case EMenuPage::Pause:
 		switch (MenuActor->GetSelectedPauseItem())
 		{
 		case EPauseMenuItem::Resume:
@@ -228,6 +224,10 @@ void UMenuUIComponent::HandleConfirm()
 			{
 				MenuActor->SyncFromSettings(CachedSettings);
 			}
+			break;
+		case EPauseMenuItem::Graphics:
+			MenuActor->SetPage(EMenuPage::Graphics);
+			MenuActor->SyncGraphicsFromCVars();
 			break;
 		case EPauseMenuItem::Quit:
 			if (CachedSettings)
@@ -244,15 +244,65 @@ void UMenuUIComponent::HandleConfirm()
 		default:
 			break;
 		}
-	}
-	else
-	{
-		// Settings page: only Back is actionable on confirm.
+		break;
+
+	case EMenuPage::Settings:
 		if (MenuActor->GetSelectedSettingsRow() == ESettingsRow::Back)
 		{
 			MenuActor->SetPage(EMenuPage::Pause);
 		}
+		break;
+
+	case EMenuPage::Graphics:
+		switch (MenuActor->GetSelectedGraphicsRow())
+		{
+		case EGraphicsRow::ResetToDefault:
+			MenuActor->ResetGraphicsToDefaults();
+			break;
+		case EGraphicsRow::Back:
+			MenuActor->SetPage(EMenuPage::Pause);
+			break;
+		default:
+			break;
+		}
+		break;
 	}
+}
+
+void UMenuUIComponent::NavigatePrevious()
+{
+	if (CurrentState != EMenuUIState::Open || !MenuActor)
+	{
+		return;
+	}
+	MenuActor->StepSelection(-1);
+}
+
+void UMenuUIComponent::NavigateNext()
+{
+	if (CurrentState != EMenuUIState::Open || !MenuActor)
+	{
+		return;
+	}
+	MenuActor->StepSelection(1);
+}
+
+void UMenuUIComponent::AdjustLeft()
+{
+	if (CurrentState != EMenuUIState::Open || !MenuActor || !CachedSettings)
+	{
+		return;
+	}
+	MenuActor->StepLeftRight(-1, CachedSettings);
+}
+
+void UMenuUIComponent::AdjustRight()
+{
+	if (CurrentState != EMenuUIState::Open || !MenuActor || !CachedSettings)
+	{
+		return;
+	}
+	MenuActor->StepLeftRight(1, CachedSettings);
 }
 
 void UMenuUIComponent::SpawnMenuActor()
@@ -313,100 +363,6 @@ void UMenuUIComponent::UpdateMenuPosition()
 	MenuActor->SetActorLocation(AnimatedPosition);
 	MenuActor->SetActorRotation(StoredUIRotation);
 	MenuActor->SetOpacity(EasedProgress);
-}
-
-void UMenuUIComponent::BindMenuInput()
-{
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC || !PC->InputComponent)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UMenuUIComponent::BindMenuInput - no PC/InputComponent"));
-		return;
-	}
-
-	PC->InputComponent->BindAxis("Move Right / Left", this, &UMenuUIComponent::HandleNavigateAxisX);
-	PC->InputComponent->BindAxis("Move Forward / Backward", this, &UMenuUIComponent::HandleNavigateAxisY);
-}
-
-void UMenuUIComponent::UnbindMenuInput()
-{
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC || !PC->InputComponent)
-	{
-		return;
-	}
-	// Remove only the axes registered in BindMenuInput so other systems'
-	// legacy axis bindings on the PC stay intact.
-	PC->InputComponent->AxisBindings.RemoveAll([](const FInputAxisBinding& Binding)
-	{
-		return Binding.AxisName == TEXT("Move Right / Left")
-			|| Binding.AxisName == TEXT("Move Forward / Backward");
-	});
-}
-
-void UMenuUIComponent::HandleNavigateAxisX(float AxisValue)
-{
-	if (CurrentState != EMenuUIState::Open && CurrentState != EMenuUIState::Opening)
-	{
-		return;
-	}
-	if (!MenuActor || !CachedSettings)
-	{
-		return;
-	}
-
-	constexpr float FireThreshold = 0.5f;
-	constexpr float RearmThreshold = 0.2f;
-
-	const float AbsValue = FMath::Abs(AxisValue);
-	if (!bArmedX)
-	{
-		if (AbsValue < RearmThreshold)
-		{
-			bArmedX = true;
-		}
-		return;
-	}
-
-	if (AbsValue > FireThreshold)
-	{
-		bArmedX = false;
-		const int32 Delta = AxisValue > 0.0f ? 1 : -1;
-		MenuActor->StepLeftRight(Delta, CachedSettings);
-	}
-}
-
-void UMenuUIComponent::HandleNavigateAxisY(float AxisValue)
-{
-	if (CurrentState != EMenuUIState::Open && CurrentState != EMenuUIState::Opening)
-	{
-		return;
-	}
-	if (!MenuActor)
-	{
-		return;
-	}
-
-	constexpr float FireThreshold = 0.5f;
-	constexpr float RearmThreshold = 0.2f;
-
-	const float AbsValue = FMath::Abs(AxisValue);
-	if (!bArmedY)
-	{
-		if (AbsValue < RearmThreshold)
-		{
-			bArmedY = true;
-		}
-		return;
-	}
-
-	if (AbsValue > FireThreshold)
-	{
-		bArmedY = false;
-		// Positive Y = forward/up = move to previous item (Delta -1).
-		const int32 Delta = AxisValue > 0.0f ? -1 : 1;
-		MenuActor->StepSelection(Delta);
-	}
 }
 
 void UMenuUIComponent::FreezePlayerMovement()

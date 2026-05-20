@@ -10,7 +10,7 @@ class APropActor;
 
 class UWidgetComponent;
 class UUI_Dialogue;
-class UStaticMesh;
+class UItemDefinition;
 class UTexture2D;
 class UChildActorComponent;
 class UAnimSequenceBase;
@@ -132,21 +132,8 @@ protected:
 
 	// --- Key ---
 
-	// Key name given to player
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	FName KeyToGive = FName("Key");
-
-	// Static mesh for the key (used for inventory visual data)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	UStaticMesh* KeyMesh;
-
-	// Scale override for the key in inventory/held view
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	FVector KeyScale = FVector(0.001f, 0.001f, 0.001f);
-
-	// Rotation for the key in the item notification display
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	FRotator KeyNotificationRotation = FRotator::ZeroRotator;
+	UItemDefinition* KeyDef;
 
 	// Thumbnail shown in inventory after the key is dropped (broken key)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")

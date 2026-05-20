@@ -50,10 +50,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryFullyClosed() const { return CurrentState == EInventoryUIState::Closed; }
 
-	// Confirm selection (E key / click)
-	UFUNCTION(BlueprintCallable, Category = "Inventory UI|Input")
-	void ConfirmSelection();
-
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return SelectedIndex; }
@@ -62,6 +58,17 @@ public:
 	// Used by the E2E TestDriver so tests can deterministically pick a slot without
 	// having to aim the camera at the world-space inventory UI.
 	bool SetSelectedIndexForTest(int32 Index);
+
+	// Vertical step nav (IA_PreviousOption / IA_NextOption) — d-pad up/down,
+	// W/S, arrow up/down, left-stick up/down. Steps a row in the grid;
+	// no-op for single-row grids (GridRows <= 1).
+	void NavigatePrevious();
+	void NavigateNext();
+
+	// Horizontal step nav (IA_NavigateLeft / IA_NavigateRight) — d-pad left/right,
+	// A/D, arrow left/right, left-stick left/right. Steps a column in the grid.
+	void NavigateLeft();
+	void NavigateRight();
 
 protected:
 	virtual void BeginPlay() override;
@@ -142,27 +149,20 @@ private:
 	// Update inventory actor position based on camera and animation
 	void UpdateInventoryPosition();
 
-	// Bind/unbind confirm input
-	void BindConfirmInput();
-	void UnbindConfirmInput();
+	// Bind/unbind close input (Q / B button)
+	void BindCloseInput();
+	void UnbindCloseInput();
 
 	// Freeze/unfreeze player movement
 	void FreezePlayerMovement();
 	void UnfreezePlayerMovement();
 
-	// Bind/unbind left-stick + WASD navigation axes for stepping selection.
-	void BindNavigateInput();
-	void UnbindNavigateInput();
-
-	void HandleNavigateAxisX(float AxisValue);
-	void HandleNavigateAxisY(float AxisValue);
-
 	// Step the selected slot by (DeltaCol, DeltaRow), clamped.
 	void StepSelection(int32 DeltaCol, int32 DeltaRow);
 
-	// Flick-step armed state per axis. True when ready to fire on next threshold cross.
-	bool bArmedX = true;
-	bool bArmedY = true;
+	// Push SelectedIndex to the UI and update the active item to whatever lives at that slot
+	// (NAME_None for empty). Single source of truth for navigation-driven selection.
+	void UpdateSelectedSlot();
 
 	// Handle inventory changes (refresh UI)
 	UFUNCTION()

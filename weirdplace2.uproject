@@ -11,6 +11,11 @@
 			"AdditionalDependencies": [
 				"Engine"
 			]
+		},
+		{
+			"Name": "weirdplace2DeviceProfileSelector",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
 		}
 	],
 	"Plugins": [

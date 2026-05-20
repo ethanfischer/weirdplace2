@@ -74,8 +74,20 @@ def create_item_thumbnail_material():
     mel.connect_material_expressions(texture_param, "RGB", multiply, "A")
     mel.connect_material_expressions(exposure, "", multiply, "B")
 
+    # Cancel out the tonemapper's auto-exposure multiplication. Without this,
+    # the inventory thumbnails blow out white in dark scenes (auto-exposure
+    # cranks up, emissive output × exposure = saturated). Dividing by
+    # EyeAdaptation neutralizes that so thumbnails render at a constant
+    # brightness regardless of how dim/bright the rest of the scene is.
+    eye_adapt = mel.create_material_expression(
+        material, unreal.MaterialExpressionEyeAdaptation, 250, 80
+    )
+    divide = mel.create_material_expression(material, unreal.MaterialExpressionDivide, 400, 0)
+    mel.connect_material_expressions(multiply, "", divide, "A")
+    mel.connect_material_expressions(eye_adapt, "", divide, "B")
+
     material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mel.connect_material_property(multiply, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(divide, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
     mel.recompile_material(material)
     unreal.EditorAssetLibrary.save_asset(full_path)

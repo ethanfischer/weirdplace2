@@ -1,9 +1,14 @@
 #include "TeleportTriggerBox.h"
+#include "BladderUrgencyComponent.h"
+#include "Door.h"
 #include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "EngineUtils.h"
+#include "Sound/AmbientSound.h"
+#include "Components/AudioComponent.h"
+#include "TimerManager.h"
 
 ATeleportTriggerBox::ATeleportTriggerBox()
 {
@@ -55,6 +60,70 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		{
 			MoveComp->Velocity = RotationDelta.RotateVector(MoveComp->Velocity);
 		}
+	}
+
+	if (bSilenceGlobalWind)
+	{
+		SilenceGlobalWindIfRequested();
+		FadeInAmbient(AmbientWaterfall, WaterfallFadeInDuration, WaterfallFadeCurve);
+		FadeInAmbient(AmbientChord, ChordFadeInDuration, ChordFadeCurve);
+	}
+
+	if (bStopBladderUrgency)
+	{
+		if (UBladderUrgencyComponent* Bladder = OtherActor->FindComponentByClass<UBladderUrgencyComponent>())
+		{
+			Bladder->StopUrgency();
+		}
+	}
+
+	if (BathroomStallDoor)
+	{
+		GetWorldTimerManager().SetTimer(
+			BathroomStallDoorUnlockTimerHandle,
+			this,
+			&ATeleportTriggerBox::UnlockBathroomStallDoor,
+			BathroomStallDoorUnlockTime,
+			false);
+	}
+}
+
+void ATeleportTriggerBox::UnlockBathroomStallDoor()
+{
+	if (!BathroomStallDoor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: BathroomStallDoor went null before unlock timer fired"), *GetName());
+		return;
+	}
+
+	BathroomStallDoor->SetLocked(false);
+}
+
+void ATeleportTriggerBox::FadeInAmbient(AAmbientSound* Ambient, float Duration, EAudioFaderCurve FadeCurve)
+{
+	if (!Ambient)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: FadeInAmbient called with null reference"), *GetName());
+		return;
+	}
+
+	if (UAudioComponent* AudioComp = Ambient->GetAudioComponent())
+	{
+		AudioComp->FadeIn(Duration, 1.0f, 0.0f, FadeCurve);
+	}
+}
+
+void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
+{
+	if (!AmbientGlobalWind)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TeleportTriggerBox %s: bSilenceGlobalWind set but AmbientGlobalWind is unassigned"), *GetName());
+		return;
+	}
+
+	if (UAudioComponent* AudioComp = AmbientGlobalWind->GetAudioComponent())
+	{
+		AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
 	}
 }
 

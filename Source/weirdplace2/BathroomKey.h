@@ -7,6 +7,7 @@
 class USphereComponent;
 class UStaticMeshComponent;
 class USoundBase;
+class UItemDefinition;
 
 UCLASS()
 class WEIRDPLACE2_API ABathroomKey : public AActor
@@ -33,9 +34,9 @@ protected:
 
 	// --- Properties ---
 
-	// The name/ID of this key (used to match with doors)
+	// Item definition; ItemID is used to match with doors.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key")
-	FName KeyName;
+	UItemDefinition* ItemDef;
 
 	// Sound played when key is picked up
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Key")
