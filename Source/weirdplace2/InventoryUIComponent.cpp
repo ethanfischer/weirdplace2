@@ -95,7 +95,7 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		break;
 
 	case EInventoryUIState::Open:
-		// Selection is now stick-driven via HandleNavigateAxis*. No tick work.
+		// Selection is driven by Enhanced Input nav actions on the character.
 		break;
 
 	case EInventoryUIState::Closed:
@@ -160,13 +160,10 @@ void UInventoryUIComponent::OpenInventoryUI()
 	// Persist the cursor position across opens — including when the previously-
 	// selected item was just given to an NPC, so the player reopens onto the now-empty slot.
 	ClampSelectedIndex();
-	bArmedX = true;
-	bArmedY = true;
 
 	CurrentState = EInventoryUIState::Opening;
 	FreezePlayerMovement();
 	BindCloseInput();
-	BindNavigateInput();
 
 	// Disable interactions with environment
 	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
@@ -205,7 +202,6 @@ void UInventoryUIComponent::CloseInventoryUI()
 	}
 
 	CurrentState = EInventoryUIState::Closing;
-	UnbindNavigateInput();
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
@@ -370,83 +366,40 @@ bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
 	return true;
 }
 
-void UInventoryUIComponent::BindNavigateInput()
+void UInventoryUIComponent::NavigatePrevious()
 {
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC || !PC->InputComponent)
+	if (CurrentState != EInventoryUIState::Open || GridRows <= 1)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UInventoryUIComponent::BindNavigateInput - no PC/InputComponent"));
 		return;
 	}
-
-	PC->InputComponent->BindAxis("Move Right / Left", this, &UInventoryUIComponent::HandleNavigateAxisX);
-	PC->InputComponent->BindAxis("Move Forward / Backward", this, &UInventoryUIComponent::HandleNavigateAxisY);
+	StepSelection(0, -1);
 }
 
-void UInventoryUIComponent::UnbindNavigateInput()
+void UInventoryUIComponent::NavigateNext()
 {
-	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-	if (!PC || !PC->InputComponent)
+	if (CurrentState != EInventoryUIState::Open || GridRows <= 1)
 	{
 		return;
 	}
-	// Wholesale clear - mirrors AMovieBox::StopInspection.
-	PC->InputComponent->AxisBindings.Empty();
+	StepSelection(0, 1);
 }
 
-void UInventoryUIComponent::HandleNavigateAxisX(float AxisValue)
+void UInventoryUIComponent::NavigateLeft()
 {
-	if (CurrentState != EInventoryUIState::Open && CurrentState != EInventoryUIState::Opening)
+	if (CurrentState != EInventoryUIState::Open)
 	{
 		return;
 	}
-
-	constexpr float FireThreshold = 0.5f;
-	constexpr float RearmThreshold = 0.2f;
-
-	const float AbsValue = FMath::Abs(AxisValue);
-	if (!bArmedX)
-	{
-		if (AbsValue < RearmThreshold)
-		{
-			bArmedX = true;
-		}
-		return;
-	}
-
-	if (AbsValue > FireThreshold)
-	{
-		bArmedX = false;
-		StepSelection(AxisValue > 0.0f ? 1 : -1, 0);
-	}
+	StepSelection(-1, 0);
 }
 
-void UInventoryUIComponent::HandleNavigateAxisY(float AxisValue)
+void UInventoryUIComponent::NavigateRight()
 {
-	if (CurrentState != EInventoryUIState::Open && CurrentState != EInventoryUIState::Opening)
+	if (CurrentState != EInventoryUIState::Open)
 	{
 		return;
 	}
-
-	constexpr float FireThreshold = 0.5f;
-	constexpr float RearmThreshold = 0.2f;
-
-	const float AbsValue = FMath::Abs(AxisValue);
-	if (!bArmedY)
-	{
-		if (AbsValue < RearmThreshold)
-		{
-			bArmedY = true;
-		}
-		return;
-	}
-
-	if (AbsValue > FireThreshold)
-	{
-		bArmedY = false;
-		// Forward (positive Y) navigates UP a row, which is -GridColumns in row-major linear index.
-		StepSelection(0, AxisValue > 0.0f ? -1 : 1);
-	}
+	StepSelection(1, 0);
 }
 
 void UInventoryUIComponent::StepSelection(int32 DeltaCol, int32 DeltaRow)

@@ -1646,44 +1646,72 @@ private:
 };
 
 // =======================================================================
-// FTD_SimulateMoveAxisFlick — fire one flick on a legacy move axis.
-// Pulses Value for one frame, then 0 the next frame so the menu's
-// HandleNavigateAxis* re-arms for a subsequent flick.
+// Nav action selector for FTD_SimulateNavAction. Resolves to a UInputAction*
+// at tick time via the player accessors.
+// =======================================================================
+enum class ENavInputAction : uint8
+{
+	NextOption,
+	PreviousOption,
+	NavigateLeft,
+	NavigateRight,
+};
+
+// =======================================================================
+// FTD_SimulateNavAction — inject one of the four menu nav actions through
+// Enhanced Input. Press → 1 frame gap → Release so the consumer's Started
+// trigger event fires exactly once.
 // =======================================================================
 
-class FTD_SimulateMoveAxisFlick : public FTD_Base
+class FTD_SimulateNavAction : public FTD_Base
 {
 public:
-	FTD_SimulateMoveAxisFlick(FAutomationTestBase* InTest, FName InAxisName, float InValue)
-		: FTD_Base(InTest), AxisName(InAxisName), Value(InValue), Phase(0) {}
+	FTD_SimulateNavAction(FAutomationTestBase* InTest, ENavInputAction InAction)
+		: FTD_Base(InTest), NavAction(InAction), bPressed(false) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Flicking axis '%s' = %.2f"), *AxisName.ToString(), Value);
+		const TCHAR* Name = TEXT("?");
+		switch (NavAction)
+		{
+		case ENavInputAction::NextOption:     Name = TEXT("NextOption"); break;
+		case ENavInputAction::PreviousOption: Name = TEXT("PreviousOption"); break;
+		case ENavInputAction::NavigateLeft:   Name = TEXT("NavigateLeft"); break;
+		case ENavInputAction::NavigateRight:  Name = TEXT("NavigateRight"); break;
+		}
+		return FString::Printf(TEXT("Injecting IA_%s"), Name);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_SimulateMoveAxisFlick: no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_SimulateNavAction: no driver")); return true; }
 
-		switch (Phase)
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_SimulateNavAction: no player")); return true; }
+
+		UInputAction* Action = nullptr;
+		switch (NavAction)
 		{
-		case 0:
-			Driver->SimulateLegacyAxis(AxisName, Value);
-			Phase = 1;
-			return false;
-		case 1:
-			Driver->SimulateLegacyAxis(AxisName, 0.0f);
-			return true;
-		default:
-			return true;
+		case ENavInputAction::NextOption:     Action = Player->GetNextOptionAction(); break;
+		case ENavInputAction::PreviousOption: Action = Player->GetPreviousOptionAction(); break;
+		case ENavInputAction::NavigateLeft:   Action = Player->GetNavigateLeftAction(); break;
+		case ENavInputAction::NavigateRight:  Action = Player->GetNavigateRightAction(); break;
 		}
+		if (!Action) { Test->AddError(TEXT("FTD_SimulateNavAction: action accessor returned null")); return true; }
+
+		if (!bPressed)
+		{
+			Driver->InjectInputAction(Action, true);
+			bPressed = true;
+			return false;
+		}
+		Driver->InjectInputAction(Action, false);
+		return true;
 	}
 private:
-	FName AxisName;
-	float Value;
-	int32 Phase;
+	ENavInputAction NavAction;
+	bool bPressed;
 };
 
 // =======================================================================

@@ -25,6 +25,7 @@
 #include "InputCoreTypes.h"
 #include "WeirdplaceGameUserSettings.h"
 #include "MenuUIComponent.h"
+#include "UObject/ConstructorHelpers.h"
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -49,6 +50,30 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
+
+	// Auto-load the option-step Input Actions so they don't need to be wired up
+	// per-Blueprint. The IMC binds them to d-pad up/down (and W/S/arrows/left-stick
+	// up/down); we dispatch to menu/inventory navigation in the handlers.
+	static ConstructorHelpers::FObjectFinder<UInputAction> NextOptionFinder(TEXT("/Game/FirstPerson/Input/Actions/IA_NextOption.IA_NextOption"));
+	if (NextOptionFinder.Succeeded())
+	{
+		NextOptionAction = NextOptionFinder.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UInputAction> PrevOptionFinder(TEXT("/Game/FirstPerson/Input/Actions/IA_PreviousOption.IA_PreviousOption"));
+	if (PrevOptionFinder.Succeeded())
+	{
+		PreviousOptionAction = PrevOptionFinder.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UInputAction> NavLeftFinder(TEXT("/Game/FirstPerson/Input/Actions/IA_NavigateLeft.IA_NavigateLeft"));
+	if (NavLeftFinder.Succeeded())
+	{
+		NavigateLeftAction = NavLeftFinder.Object;
+	}
+	static ConstructorHelpers::FObjectFinder<UInputAction> NavRightFinder(TEXT("/Game/FirstPerson/Input/Actions/IA_NavigateRight.IA_NavigateRight"));
+	if (NavRightFinder.Succeeded())
+	{
+		NavigateRightAction = NavRightFinder.Object;
+	}
 }
 
 void AFirstPersonCharacter::BeginPlay()
@@ -228,6 +253,86 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		{
 			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Triggered, this, &AFirstPersonCharacter::HandleShowMenu);
 			EnhancedInputComponent->BindAction(SettingsAction, ETriggerEvent::Completed, this, &AFirstPersonCharacter::HandleShowMenuCompleted);
+		}
+		if (NextOptionAction)
+		{
+			EnhancedInputComponent->BindAction(NextOptionAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleNextOption);
+		}
+		if (PreviousOptionAction)
+		{
+			EnhancedInputComponent->BindAction(PreviousOptionAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandlePreviousOption);
+		}
+		if (NavigateLeftAction)
+		{
+			EnhancedInputComponent->BindAction(NavigateLeftAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleNavigateLeft);
+		}
+		if (NavigateRightAction)
+		{
+			EnhancedInputComponent->BindAction(NavigateRightAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleNavigateRight);
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleNextOption()
+{
+	if (MenuUIComponent && MenuUIComponent->IsFullyOpen())
+	{
+		MenuUIComponent->NavigateNext();
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
+	{
+		if (InvUI->IsInventoryFullyOpen())
+		{
+			InvUI->NavigateNext();
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandlePreviousOption()
+{
+	if (MenuUIComponent && MenuUIComponent->IsFullyOpen())
+	{
+		MenuUIComponent->NavigatePrevious();
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
+	{
+		if (InvUI->IsInventoryFullyOpen())
+		{
+			InvUI->NavigatePrevious();
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleNavigateLeft()
+{
+	if (MenuUIComponent && MenuUIComponent->IsFullyOpen())
+	{
+		MenuUIComponent->AdjustLeft();
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
+	{
+		if (InvUI->IsInventoryFullyOpen())
+		{
+			InvUI->NavigateLeft();
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleNavigateRight()
+{
+	if (MenuUIComponent && MenuUIComponent->IsFullyOpen())
+	{
+		MenuUIComponent->AdjustRight();
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
+	{
+		if (InvUI->IsInventoryFullyOpen())
+		{
+			InvUI->NavigateRight();
 		}
 	}
 }

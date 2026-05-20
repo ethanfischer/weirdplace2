@@ -59,6 +59,17 @@ public:
 	// having to aim the camera at the world-space inventory UI.
 	bool SetSelectedIndexForTest(int32 Index);
 
+	// Vertical step nav (IA_PreviousOption / IA_NextOption) — d-pad up/down,
+	// W/S, arrow up/down, left-stick up/down. Steps a row in the grid;
+	// no-op for single-row grids (GridRows <= 1).
+	void NavigatePrevious();
+	void NavigateNext();
+
+	// Horizontal step nav (IA_NavigateLeft / IA_NavigateRight) — d-pad left/right,
+	// A/D, arrow left/right, left-stick left/right. Steps a column in the grid.
+	void NavigateLeft();
+	void NavigateRight();
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -146,23 +157,12 @@ private:
 	void FreezePlayerMovement();
 	void UnfreezePlayerMovement();
 
-	// Bind/unbind left-stick + WASD navigation axes for stepping selection.
-	void BindNavigateInput();
-	void UnbindNavigateInput();
-
-	void HandleNavigateAxisX(float AxisValue);
-	void HandleNavigateAxisY(float AxisValue);
-
 	// Step the selected slot by (DeltaCol, DeltaRow), clamped.
 	void StepSelection(int32 DeltaCol, int32 DeltaRow);
 
 	// Push SelectedIndex to the UI and update the active item to whatever lives at that slot
 	// (NAME_None for empty). Single source of truth for navigation-driven selection.
 	void UpdateSelectedSlot();
-
-	// Flick-step armed state per axis. True when ready to fire on next threshold cross.
-	bool bArmedX = true;
-	bool bArmedY = true;
 
 	// Handle inventory changes (refresh UI)
 	UFUNCTION()

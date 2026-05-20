@@ -486,28 +486,6 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	InjectInputAction(Player->GetSettingsAction(), false);
 }
 
-void UTestDriverSubsystem::SimulateLegacyAxis(FName AxisName, float Value)
-{
-	APlayerController* PC = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr;
-	if (!PC || !PC->InputComponent)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateLegacyAxis - no PC/InputComponent"));
-		return;
-	}
-
-	// Drive each matching axis binding directly. The menu's HandleNavigateAxis*
-	// handlers re-arm after a sub-rearm-threshold value, so the test should
-	// pulse a high value once then a zero pulse to re-arm.
-	for (FInputAxisBinding& Binding : PC->InputComponent->AxisBindings)
-	{
-		if (Binding.AxisName == AxisName)
-		{
-			Binding.AxisValue = Value;
-			Binding.AxisDelegate.Execute(Value);
-		}
-	}
-}
-
 // --- Sensitivity / look diagnostics ---
 
 void UTestDriverSubsystem::SetGamepadLookSensitivity(float Value)

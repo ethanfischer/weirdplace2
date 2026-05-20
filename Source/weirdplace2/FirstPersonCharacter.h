@@ -97,6 +97,24 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	UInputAction* SettingsAction;
 
+	// Discrete step navigation actions. IMC_Default binds these to d-pad
+	// up/down (plus W/S/arrow/left-stick up/down). Used to drive menu and
+	// inventory selection movement when those UIs are open.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* NextOptionAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* PreviousOptionAction;
+
+	// Horizontal nav actions. IMC_Default binds these to d-pad left/right
+	// (plus A/D/arrow/left-stick left/right). Used for slider adjustment in
+	// the settings menu and column navigation in inventory grids.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* NavigateLeftAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* NavigateRightAction;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu", meta = (AllowPrivateAccess = "true"))
 	UMenuUIComponent* MenuUIComponent;
 
@@ -126,6 +144,10 @@ public:
 	void HandleShowInventoryCompleted();
 	void HandleShowMenu();
 	void HandleShowMenuCompleted();
+	void HandleNextOption();
+	void HandlePreviousOption();
+	void HandleNavigateLeft();
+	void HandleNavigateRight();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
@@ -142,6 +164,10 @@ public:
 	UInputAction* GetInteractAction() const { return InteractAction; }
 	UInputAction* GetInventoryAction() const { return InventoryAction; }
 	UInputAction* GetSettingsAction() const { return SettingsAction; }
+	UInputAction* GetNextOptionAction() const { return NextOptionAction; }
+	UInputAction* GetPreviousOptionAction() const { return PreviousOptionAction; }
+	UInputAction* GetNavigateLeftAction() const { return NavigateLeftAction; }
+	UInputAction* GetNavigateRightAction() const { return NavigateRightAction; }
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);
