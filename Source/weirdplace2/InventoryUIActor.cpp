@@ -328,8 +328,10 @@ void AInventoryUIActor::CreateThumbnails()
 	{
 		const FName& ItemID = Items[i];
 		// Sparse storage: empty slots stay in the array as NAME_None to preserve grid positions.
+		// ThumbnailMeshes must stay slot-aligned so SelectedIndex addresses the right entry.
 		if (ItemID.IsNone())
 		{
+			ThumbnailMeshes.Add(nullptr);
 			continue;
 		}
 

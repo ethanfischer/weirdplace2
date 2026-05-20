@@ -163,6 +163,9 @@ void UInventoryUIComponent::OpenInventoryUI()
 
 	CurrentState = EInventoryUIState::Opening;
 	FreezePlayerMovement();
+	// Closing leaves the Exit Interaction binding live until the animation ends;
+	// strip any stale binding before adding a new one so we don't accumulate handlers.
+	UnbindCloseInput();
 	BindCloseInput();
 
 	// Disable interactions with environment

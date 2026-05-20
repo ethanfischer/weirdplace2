@@ -748,17 +748,42 @@ void AMenuUIActor::ResetGraphicsToDefaults()
 		return;
 	}
 
+	// Only touch the four CVars this menu manages — device profiles often include
+	// audio/streaming/etc. that we shouldn't blast on a "Reset Graphics" click.
+	static const TCHAR* const ManagedCVars[] = {
+		TEXT("sg.GlobalIlluminationQuality"),
+		TEXT("sg.ReflectionQuality"),
+		TEXT("sg.ShadowQuality"),
+		TEXT("sg.ViewDistanceQuality"),
+	};
+
 	for (const FString& Entry : Profile->CVars)
 	{
 		FString Name, Value;
-		if (Entry.Split(TEXT("="), &Name, &Value))
+		if (!Entry.Split(TEXT("="), &Name, &Value))
 		{
-			Name.TrimStartAndEndInline();
-			Value.TrimStartAndEndInline();
-			if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*Name))
+			continue;
+		}
+		Name.TrimStartAndEndInline();
+		Value.TrimStartAndEndInline();
+
+		bool bIsManaged = false;
+		for (const TCHAR* Managed : ManagedCVars)
+		{
+			if (Name.Equals(Managed, ESearchCase::IgnoreCase))
 			{
-				CVar->Set(*Value, ECVF_SetByConsole);
+				bIsManaged = true;
+				break;
 			}
+		}
+		if (!bIsManaged)
+		{
+			continue;
+		}
+
+		if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*Name))
+		{
+			CVar->Set(*Value, ECVF_SetByConsole);
 		}
 	}
 
