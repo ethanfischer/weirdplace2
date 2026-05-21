@@ -269,6 +269,23 @@ void UMenuUIComponent::HandleConfirm()
 	}
 }
 
+void UMenuUIComponent::HandleBack()
+{
+	if (CurrentState != EMenuUIState::Open || !MenuActor)
+	{
+		return;
+	}
+
+	if (MenuActor->GetCurrentPage() == EMenuPage::Pause)
+	{
+		CloseMenu();
+	}
+	else
+	{
+		MenuActor->SetPage(EMenuPage::Pause);
+	}
+}
+
 void UMenuUIComponent::NavigatePrevious()
 {
 	if (CurrentState != EMenuUIState::Open || !MenuActor)

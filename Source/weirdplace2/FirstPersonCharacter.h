@@ -115,6 +115,12 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
 	UInputAction* NavigateRightAction;
 
+	// Back / cancel action. Gamepad B button + Backspace. When the pause menu
+	// is open on a sub-page, returns to the Pause page; when on the Pause page,
+	// closes the menu. When inventory is open, closes it.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+	UInputAction* BackAction;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu", meta = (AllowPrivateAccess = "true"))
 	UMenuUIComponent* MenuUIComponent;
 
@@ -148,6 +154,7 @@ public:
 	void HandlePreviousOption();
 	void HandleNavigateLeft();
 	void HandleNavigateRight();
+	void HandleBack();
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
@@ -168,6 +175,7 @@ public:
 	UInputAction* GetPreviousOptionAction() const { return PreviousOptionAction; }
 	UInputAction* GetNavigateLeftAction() const { return NavigateLeftAction; }
 	UInputAction* GetNavigateRightAction() const { return NavigateRightAction; }
+	UInputAction* GetBackAction() const { return BackAction; }
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightEnabled(bool bEnabled);

@@ -50,6 +50,10 @@ public:
 	// menu is open. Acts on the currently selected item on the active page.
 	void HandleConfirm();
 
+	// Back navigation. On a sub-page (Settings/Graphics) returns to Pause.
+	// On the Pause page closes the menu. No-op when the menu isn't open.
+	void HandleBack();
+
 	// Vertical step nav (IA_PreviousOption / IA_NextOption) — d-pad up/down,
 	// W/S, arrow up/down, left-stick up/down.
 	void NavigatePrevious();
