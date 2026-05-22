@@ -29,6 +29,17 @@ Build commands (fallback if MCP is unavailable):
 "C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
+## Steam Deck Deploy
+
+Build → `scripts/push_to_deck.ps1 -DeckHost deck@<ip>` → launch from Steam on the Deck (not directly — Steam Input has to wrap the process for the controller to work).
+
+Build flags depend on what changed:
+- New `UPROPERTY`/class → full `-cook -allmaps -build -stage` (or you'll hit `Bad export index` on cooked Blueprints)
+- `.cpp` only → `-build -skipcook -stage`
+- `.ini` only → `-skipbuild -skipcook -stage`
+
+Full command + setup + log retrieval + Deck device profile notes: `docs/steamdeck-deploy.md`.
+
 ## Architecture
 
 ### Core Systems
