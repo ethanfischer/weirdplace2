@@ -17,7 +17,9 @@ public class weirdplace2 : ModuleRules
 			"UMG",
 			"EnhancedInput",
 
-			"HeadMountedDisplay"
+			"HeadMountedDisplay",
+
+			"MediaAssets"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
