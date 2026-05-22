@@ -6,6 +6,9 @@
 [ ] 2.95 cash exactly
 [ ] 1 cent found later, but seneca accepts it
 [ ] seneca unlock employee bathroom animation
+[ ] put in eye contact given by seneca
+    [ ] maybe after friend talks to him
+[ ] Seneca doesn't give you back the videos. He says he will give them later. First wear this eye contact and pick out the right movie and bring it back to me
 [ ] cash needs inventory thumbnail
 [ ] "Rick: I'll meet you inside"
 [ ] improve movie pickup
