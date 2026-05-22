@@ -25,6 +25,8 @@
 [ ] meet seneca outside smoking cig
     [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
         Cigarette prop already attached to finger bone in `BP_Seneca`.
+[ ] looking at one of the gastation lights for 30 seconds adds something to your inventory
+    [ ] for example, watching the movie rewards you too
 
 Stretch goals:
 [ ] replace llm responses to movies
