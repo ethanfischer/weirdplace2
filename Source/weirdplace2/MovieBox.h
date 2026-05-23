@@ -34,6 +34,9 @@ public:
 	void RotateInspectedActor(float AxisValue);
 	void StopInspection();
 
+	// Test-only query: true while this MovieBox is the actively inspected one.
+	bool IsBeingInspected() const { return InspectedActor != nullptr; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movie")
 	UMaterialInterface* CoverMaterial;
 

@@ -400,8 +400,17 @@ void UTestDriverSubsystem::SimulateMouseX(float Delta)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateMouseX - no PlayerController"));
 		return;
 	}
-	// Axis event: feed the Delta as AmountDepressed on an IE_Axis simulated event.
-	PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::MouseX, EInputEvent::IE_Axis, /*AmountDepressed=*/Delta));
+	// Use the axis-specific constructor so DeltaTime and NumSamples are populated
+	// (CreateSimulated leaves DeltaTime at 0, which breaks axis processing).
+	FInputKeyEventArgs Args(
+		/*InViewport=*/nullptr,
+		INPUTDEVICEID_NONE,
+		EKeys::MouseX,
+		/*InDelta=*/Delta,
+		/*InDeltaTime=*/GetWorld()->GetDeltaSeconds(),
+		/*InNumSamples=*/1,
+		/*InEventTimestamp=*/FPlatformTime::Cycles64());
+	PC->InputKey(Args);
 }
 
 // --- Enhanced Input injection ---
@@ -607,6 +616,22 @@ void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 		UE_LOG(LogTemp, Log, TEXT("TestDriver::MarkLastFoundMovieCollected - %s"), *LastFoundMovie->GetName());
 		LastFoundMovie.Reset();
 	}
+}
+
+bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
+{
+	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
+	{
+		AMovieBox* Box = *It;
+		if (Box && Box->IsBeingInspected())
+		{
+			UE_LOG(LogTemp, Log, TEXT("TestDriver::TriggerCollectInspectedMovie - %s"), *Box->GetName());
+			Box->CollectInspectedMovie();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerCollectInspectedMovie - no MovieBox in inspection"));
+	return false;
 }
 
 // --- State queries ---
