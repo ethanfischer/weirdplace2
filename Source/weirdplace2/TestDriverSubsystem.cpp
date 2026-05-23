@@ -20,6 +20,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InputKeyEventArgs.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
@@ -376,7 +377,7 @@ void UTestDriverSubsystem::SimulateKeyPress(FKey Key)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyPress - no PlayerController"));
 		return;
 	}
-	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Pressed, FVector::ZeroVector));
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Pressed, /*AmountDepressed=*/1.0f));
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::SimulateKeyPress - %s"), *Key.ToString());
 }
 
@@ -388,7 +389,7 @@ void UTestDriverSubsystem::SimulateKeyRelease(FKey Key)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyRelease - no PlayerController"));
 		return;
 	}
-	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Released, FVector::ZeroVector));
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Released, /*AmountDepressed=*/0.0f));
 }
 
 void UTestDriverSubsystem::SimulateMouseX(float Delta)
@@ -399,8 +400,8 @@ void UTestDriverSubsystem::SimulateMouseX(float Delta)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateMouseX - no PlayerController"));
 		return;
 	}
-	// Axis key: use the constructor that takes (Key, Delta, DeltaTime, NumSamples).
-	PC->InputKey(FInputKeyParams(EKeys::MouseX, (double)Delta, GetWorld()->GetDeltaSeconds(), 1));
+	// Axis event: feed the Delta as AmountDepressed on an IE_Axis simulated event.
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(EKeys::MouseX, EInputEvent::IE_Axis, /*AmountDepressed=*/Delta));
 }
 
 // --- Enhanced Input injection ---

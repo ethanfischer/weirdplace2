@@ -64,7 +64,7 @@ bool UInventoryComponent::RemoveItem(const FName& ItemID) {
 
         // Trim trailing empty slots so Items.Num() doesn't grow unboundedly.
         while (Items.Num() > 0 && Items.Last().IsNone()) {
-            Items.Pop(/*bAllowShrinking=*/false);
+            Items.Pop(EAllowShrinking::No);
         }
 
         // Clear active item if it was the removed item
