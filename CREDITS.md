@@ -7,8 +7,6 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 2. Audit trail — if an asset's license is later disputed or revoked, we know where it came from.
 3. Shippable credits — entries here feed the in-game credits screen.
 
-> **TODO markers:** Entries below were seeded from a Content folder scan. Anything marked _TODO_ needs human verification (exact license, pack name on Fab, commercial-use rights, etc.) before we can rely on it for shipping.
-
 ## Entry Format
 
 ```
@@ -35,62 +33,114 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
   - Website: https://aemyn.bearblog.dev
   - Instagram: @aemyn
 
-### Freesound #620404 — Passbys Inside City Tunnel
+### "Passbys inside City Tunnel" — Freesound #620404
 - **Author:** sotiris_laskaris
-- **Source:** https://freesound.org/people/sotiris_laskaris/sounds/620404/
-- **License:** _TODO — confirm from the freesound page_
+- **Source:** https://freesound.org/s/620404/
+- **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
 - **Used in:** `Content/Sounds/620404__sotiris_laskaris__passbys-inside-city-tunnel.uasset`
-- **Required attribution:** _TODO — depends on license_
+- **Required attribution:** `"Passbys inside City Tunnel" by sotiris_laskaris -- https://freesound.org/s/620404/ -- License: Creative Commons Attribution 4.0`
+
+### "Ambient alien sound 05" — Jagadamba (freesound)
+- **Author:** Jagadamba
+- **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
+- **Used in:** `Content/Sounds/aliensound.mp3` / `.uasset`
+- **Required attribution:** `"Ambient alien sound 05" by Jagadamba (freesound.org) -- License: Creative Commons Attribution 4.0`
+
+### "Bathroom Room Tone" — danhelbling (freesound)
+- **Author:** danhelbling
+- **License:** Creative Commons 0 (public domain — no attribution legally required)
+- **Used in:** `Content/Sounds/bathroomroomtone.wav` / `.uasset`
+
+### "Trying to open a locked door" — Kodack (freesound)
+- **Author:** Kodack
+- **License:** Creative Commons 0
+- **Used in:** `Content/Sounds/lockeddoor.uasset`
+
+### "Brazilian_Waterfall_River" — SuperStudioBR (freesound)
+- **Author:** SuperStudioBR
+- **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
+- **Used in:** `Content/Sounds/waterfall.wav` / `.uasset`, `Content/Sounds/waterfall2.mp3` / `.uasset`
+- **Required attribution:** `"Brazilian_Waterfall_River" by SuperStudioBR (freesound.org) -- License: Creative Commons Attribution 4.0`
+
+### "Long intense stomach growl 8" — SamanthaCastleberry (freesound) — *suspected*
+- **Author:** SamanthaCastleberry
+- **License:** Creative Commons 0
+- **Used in:** `Content/Sounds/bladder.wav`/`.uasset`, `bladder2.wav`/`.uasset` (suspected — only stomach growl in user's freesound history; `bladder` naming is project-side gameplay context)
+
+### "WavesAudioDoorOpenSFX" — MAVOM22 (freesound) — *suspected*
+- **Author:** MAVOM22
+- **License:** Creative Commons 0
+- **Used in:** `Content/Sounds/dooropen.uasset` (suspected — only door-open sound in user's freesound history)
+
+### "Convenience Store Door Chime" — zebragrrl (freesound)
+- **Author:** zebragrrl
+- **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
+- **Used in:** `Content/welcomebell.wav` / `welcomebell.uasset` (and the related `SColor_GreetingBell.uasset` if it references this SoundWave)
+- **Required attribution:** `"Convenience Store Door Chime (16bit, 44.1kHz, Stereo)" by zebragrrl (freesound.org) -- License: Creative Commons Attribution 4.0`
+
+### Audio files with unconfirmed source
+These project files have no obvious match in the user's freesound history. Could be original recordings, from a marketplace pack, or freesound files renamed beyond recognition. Verify and credit if third-party.
+
+- `Content/Sounds/Wind.uasset`, `Content/Sounds/WindInside.uasset` (origin confirmed not freesound)
+- `Content/Sounds/chord.wav` / `.uasset`
+- `Content/Sounds/elevatormusic.uasset`
+- `Content/Sounds/lel.uasset`
+- `Content/Sounds/lowvoice.uasset` / `LowVoiceSoundCue.uasset`
+- `Content/Sounds/Passing.uasset`
+- `Content/Sounds/MenuOpen.uasset`, `MenuClose.uasset`, `MenuItemSelected.uasset`
+- `Content/Sounds/ItemCollect/itemCollected_*.uasset` (11 variants)
+- `Content/Sounds/TextBlip/textBlip_01.uasset`
+- `Content/Sounds/Soundscape/*` (Color_Wind, Color_WindInside, Palette_Inside, Palette_Outside — these are likely engine SoundscapePalette/SoundClass assets, not raw imports)
+- `Content/Sounds/SC_Ambient.uasset` (likely a SoundClass, not a raw import)
+
+### License watch-list — commercial-use restrictions
+_None at present. CC BY-NC assets have been removed from the project._
 
 ---
 
 ## Visual Assets
 
-### Fab — CRT TV
-- **Source:** Fab marketplace
-- **License:** _TODO — Fab Standard License (verify per-asset terms in your Fab library)_
-- **Used in:** `Content/Fab/CRT_TV/`
-- **Required attribution:** Fab Standard typically does not require per-asset credit, but verify.
-
-### Fab — Laundromat
-- **Source:** Fab marketplace
-- **License:** _TODO_
-- **Used in:** `Content/Fab/Laundromat/`, `Content/Laundromat/VOL2_Laundry/`
-
-### Fab — Small Key (1MB)
-- **Source:** Fab marketplace
-- **License:** _TODO_
-- **Used in:** `Content/Fab/Small_Key__1MB_/`
-- **Notes:** Mesh authored at 57m scale; gameplay scales 0.001x. (See memory `reference_python_editor_apis.md`.)
-
-### Fab — Suburban Household
-- **Source:** Fab marketplace
-- **License:** _TODO_
-- **Used in:** `Content/Fab/Suburban_Household/`
-
 ### Quixel Megascans
 - **Author:** Quixel / Epic Games
-- **License:** Megascans are free for use in Unreal Engine projects under the Quixel/Epic license. Verify current terms.
+- **License:** Megascans are free for use in Unreal Engine projects under the [Quixel/Epic license](https://quixel.com/terms). Cannot be used outside UE without a separate license.
 - **Used in:** `Content/Megascans/3D_Plants/`, `Content/Megascans/Surfaces/`, `Content/Fab/Megascans/`, `Content/MSPresets/`
-- **Required attribution:** None required for use in UE projects, but verify if shipping outside UE.
-
-### Ultra Dynamic Sky
-- **Source:** _TODO — likely Fab/Unreal Marketplace (Everett Gunther)_
-- **License:** _TODO — confirm Marketplace EULA terms_
-- **Used in:** `Content/UltraDynamicSky/`
-
-### "VOL" Series Packs
-These all follow a `VOL<N>_<theme>` naming convention typical of a marketplace creator. Confirm the exact pack/seller on Fab and update.
-
-- `Content/Eighties/VOL4_Technology/` — _TODO seller/pack name_
-- `Content/Fences/VOL2/` — _TODO seller/pack name_
-- `Content/Vehicles/VOL3_RetroCars/` — _TODO seller/pack name_
+- **Required attribution:** None required for in-engine use.
 
 ### MetaHumans
 - **Author:** Epic Games
 - **License:** MetaHuman EULA — free for use in Unreal Engine projects. Cannot be used outside UE.
 - **Used in:** `Content/MetaHumans/`
-- **Required attribution:** None required, but the MetaHuman EULA applies.
+- **Required attribution:** None required.
+
+### Fab marketplace assets — seller verification pending
+The folders below came from Fab. The Fab Standard License typically does **not** require per-asset credit, but you should verify the specific license in your Fab library (each Fab listing shows its license tier on the product page). Fill in the seller name from your Fab library.
+
+- `Content/Fab/CRT_TV/` — **Seller:** [timahene3d](https://www.fab.com/sellers/timahene3d) on Fab
+  - **License:** Fab Standard (acquired via Fab My Library; license persists even though the product itself has since been delisted from the public storefront)
+  - **Required attribution:** None required under Fab Standard.
+  - Contents: `BP_TV`, `MP_TV*`, `M_TVScreen`, `crt_tv` mesh + 10 textures, `drivingvideo.uasset`
+- `Content/Fab/Small_Key__1MB_/` — **Source: UNKNOWN** — not in user's Fab library despite the folder name. The `__1MB_` suffix suggests an auto-generated download from a site that includes file size in the filename (Sketchfab and TurboSquid both do this), but the actual origin has not been confirmed. Small key mesh, authored at 57m, gameplay scales 0.001x — see memory `reference_python_editor_apis.md`.
+- `Content/Fab/Laundromat/VOL2_Laundry/` — **Seller:** Dekogon Studios (Fab Standard License). Same content also at `Content/Laundromat/VOL2_Laundry/`.
+- `Content/Fab/Suburban_Household/VOL2_Couches/` — **Seller:** Dekogon Studios (Fab Standard License).
+
+### "VOL" series packs (Fab marketplace) — Dekogon Studios
+The `VOL.<N>_<theme>` naming pattern with `LP`/`NN` (Low Poly / Nanite) subfolders and `SM_*` mesh prefixes matches the Dekogon Studios "VOL." series on Fab. Verified by user against their Fab library.
+
+- **Seller:** Dekogon Studios
+- **License:** Fab Standard License
+- **Required attribution:** None required under Fab Standard.
+
+Project folders:
+- `Content/Eighties/VOL4_Technology/` — likely "Props/Buildings VOL.4 — Technology" or similar Dekogon Eighties-themed VOL.4 pack
+- `Content/Fences/VOL2/` — likely Dekogon Fences VOL.2
+- `Content/Vehicles/VOL3_RetroCars/` — likely Dekogon Retro Cars VOL.3
+
+### Ultra Dynamic Sky
+- **Source:** https://www.fab.com/listings/84fda27a-c79f-49c9-8458-82401fb37cfb
+- **Seller:** Everett Gunther
+- **License:** Fab Standard License
+- **Used in:** `Content/UltraDynamicSky/`
+- **Required attribution:** None required under Fab Standard.
 
 ### Epic-included content (no attribution required, listed for audit only)
 - `Content/StarterContent/` — Epic Starter Content
@@ -104,14 +154,17 @@ These all follow a `VOL<N>_<theme>` naming convention typical of a marketplace c
 ### NodeToCode (modified)
 - **Author:** protospatial
 - **Source:** https://github.com/protospatial/NodeToCode
-- **License:** _TODO — confirm upstream license_
+- **License:** Apache 2.0
 - **Used in:** `Plugins/NodeToCode_5.4/` — Blueprint → C++ conversion during development
 - **Modifications:** https://github.com/protospatial/NodeToCode/pull/14
+- **Required attribution:** Apache 2.0 requires preserving the LICENSE and NOTICE files; not a user-facing credit requirement, but the LICENSE must ship with any redistribution of plugin source/binaries.
 
 ### UnrealMCP
-- **Source:** _TODO — confirm origin (likely a third-party MCP integration)_
-- **License:** _TODO_
-- **Used in:** `Plugins/UnrealMCP/`
+- **Author:** kvick (Dreamatron Studios) — [@kvickart](https://x.com/kvickart)
+- **Source:** https://github.com/kvick-games/UnrealMCP
+- **License:** MIT
+- **Used in:** `Plugins/UnrealMCP/` — editor-side AI tooling during development (not shipped at runtime)
+- **Required attribution:** MIT requires preserving the copyright notice and license text in any redistribution.
 
 ---
 
