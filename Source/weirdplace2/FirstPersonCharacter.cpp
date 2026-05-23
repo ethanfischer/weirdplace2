@@ -270,6 +270,10 @@ void AFirstPersonCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInp
 		{
 			EnhancedInputComponent->BindAction(NavigateRightAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleNavigateRight);
 		}
+		if (BackAction)
+		{
+			EnhancedInputComponent->BindAction(BackAction, ETriggerEvent::Started, this, &AFirstPersonCharacter::HandleBack);
+		}
 	}
 }
 
@@ -333,6 +337,22 @@ void AFirstPersonCharacter::HandleNavigateRight()
 		if (InvUI->IsInventoryFullyOpen())
 		{
 			InvUI->NavigateRight();
+		}
+	}
+}
+
+void AFirstPersonCharacter::HandleBack()
+{
+	if (MenuUIComponent && MenuUIComponent->IsFullyOpen())
+	{
+		MenuUIComponent->HandleBack();
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
+	{
+		if (InvUI->IsInventoryFullyOpen())
+		{
+			InvUI->CloseInventoryUI();
 		}
 	}
 }

@@ -29,6 +29,17 @@ Build commands (fallback if MCP is unavailable):
 "C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
+## Steam Deck Deploy
+
+Build → `scripts/push_to_deck.ps1 -DeckHost deck@<ip>` → launch from Steam on the Deck (not directly — Steam Input has to wrap the process for the controller to work).
+
+Build flags depend on what changed:
+- New `UPROPERTY`/class → full `-cook -allmaps -build -stage` (or you'll hit `Bad export index` on cooked Blueprints)
+- `.cpp` only → `-build -skipcook -stage`
+- `.ini` only → `-skipbuild -skipcook -stage`
+
+Full command + setup + log retrieval + Deck device profile notes: `docs/steamdeck-deploy.md`.
+
 ## Architecture
 
 ### Core Systems
@@ -114,6 +125,7 @@ grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
 - Doors are 110x215
+- If you add 3rd party assets, make sure to give them credit in credits.md
 
 ## Running Python in UE
 
