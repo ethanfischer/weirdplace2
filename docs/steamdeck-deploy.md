@@ -36,6 +36,32 @@ Pick the right combination of `-build` / `-cook` / `-stage` based on what change
 
 Output lands in `Packaged/SteamDeck-Linux/Linux/`. Don't use Shipping config for in-progress work — it strips logging and you lose ability to diagnose.
 
+## Known 5.7 cook blocker: MoviePoster MediaPlaylist
+
+The cook fails with:
+
+```
+Can't save '.../FirstPersonMap.umap': Illegal reference to private object:
+  'MediaPlaylist /Game/MoviePoster.Default__MoviePoster_C:MediaPlateComponent0.MediaPlaylist_0'
+  referenced by 'MediaPlaylist_0'
+  (at .../MoviePoster_C_UAID_5CE91EB24CBCF73802_...:MediaPlateComponent0)
+  in its 'Unknown property' property.
+```
+
+UE 5.7 deprecated `UMediaPlateComponent::MediaPlaylist` in favor of `MediaPlateResource` and tightened private-import checks in `SavePackage`. The level instance still serializes a reference to the CDO's `MediaPlaylist_0` subobject (a relic of pre-5.5 saves), which the cook now rejects.
+
+`PostLoad` migration (`UMediaPlateComponent::InitializeMediaPlateResource`) only fires when the deprecated playlist has ≥1 entry; an empty deprecated playlist leaves the reference intact, so a plain resave of the asset doesn't clear it.
+
+**Fix (manual, in the editor):**
+1. Open `Content/FirstPerson/Maps/FirstPersonMap`.
+2. Find the `MoviePoster` level actor (location `(3835.9, -573.8, 133.3)`, yaw `-90`).
+3. Delete it.
+4. Re-place a fresh `BP_MoviePoster` from the Content Browser at the same transform.
+5. Save the level (`Ctrl+S`).
+6. Re-cook.
+
+Driving this from Python doesn't work cleanly — `EditorAssetLibrary.save_asset` and `LevelEditorSubsystem.save_current_level` both refused to write the new external-actor file for the respawned instance. Use the editor UI.
+
 ## Push
 
 ```powershell
