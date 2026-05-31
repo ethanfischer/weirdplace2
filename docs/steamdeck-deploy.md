@@ -4,7 +4,7 @@ Linux Development builds run natively on the Deck (no Proton). Push over SSH fro
 
 ## One-time setup (already done on this machine)
 
-- `LINUX_MULTIARCH_ROOT` env var → `C:\UnrealToolchains\v22_clang-16.0.6-centos7\` (Machine scope, but not always inherited by tool shells — set inline if a build fails with "Platform Linux is not a valid platform to build").
+- `LINUX_MULTIARCH_ROOT` env var → `C:\UnrealToolchains\v26_clang-20.1.8-rockylinux8\` (Machine scope, but not always inherited by tool shells — set inline if a build fails with "Platform Linux is not a valid platform to build"). UE 5.7 requires v26; install from https://dev.epicgames.com/documentation/en-us/unreal-engine/linux-development-requirements-for-unreal-engine or via Epic Launcher → UE 5.7 → Options → "Linux Cross-Compile Toolchain". UE 5.4's v22 toolchain is **not** compatible with 5.7 and will fail with "Missing files required to build Linux targets".
 - MSYS2 at `C:\msys64\` with `rsync` + `openssh` packages.
 - SSH key at `C:\Users\ethan\.ssh\id_ed25519` AND mirrored to `C:\msys64\home\ethan\.ssh\`. MSYS rsync uses MSYS's home, not Windows OpenSSH's — if a password prompt appears, the key isn't where MSYS ssh expects.
 - Deck has sshd enabled and the pubkey in `~/.ssh/authorized_keys`.
@@ -15,8 +15,8 @@ Linux Development builds run natively on the Deck (no Proton). Push over SSH fro
 From PowerShell so env vars inherit:
 
 ```powershell
-$env:LINUX_MULTIARCH_ROOT = 'C:\UnrealToolchains\v22_clang-16.0.6-centos7\'
-& "C:\Program Files\Epic Games\UE_5.4\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
+$env:LINUX_MULTIARCH_ROOT = 'C:\UnrealToolchains\v26_clang-20.1.8-rockylinux8\'
+& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
   -project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" `
   -noP4 -platform=Linux -clientconfig=Development `
   -cook -allmaps -build -stage -pak -archive `
@@ -35,6 +35,32 @@ Pick the right combination of `-build` / `-cook` / `-stage` based on what change
 **Don't skip cook after layout changes.** Cooked Blueprint subclasses serialize property indices; reusing stale cooked data after a `UPROPERTY` add produces `ObjectSerializationError: Bad export index` and the game hangs on Steam's loading screen.
 
 Output lands in `Packaged/SteamDeck-Linux/Linux/`. Don't use Shipping config for in-progress work — it strips logging and you lose ability to diagnose.
+
+## Known 5.7 cook blocker: MoviePoster MediaPlaylist
+
+The cook fails with:
+
+```
+Can't save '.../FirstPersonMap.umap': Illegal reference to private object:
+  'MediaPlaylist /Game/MoviePoster.Default__MoviePoster_C:MediaPlateComponent0.MediaPlaylist_0'
+  referenced by 'MediaPlaylist_0'
+  (at .../MoviePoster_C_UAID_5CE91EB24CBCF73802_...:MediaPlateComponent0)
+  in its 'Unknown property' property.
+```
+
+UE 5.7 deprecated `UMediaPlateComponent::MediaPlaylist` in favor of `MediaPlateResource` and tightened private-import checks in `SavePackage`. The level instance still serializes a reference to the CDO's `MediaPlaylist_0` subobject (a relic of pre-5.5 saves), which the cook now rejects.
+
+`PostLoad` migration (`UMediaPlateComponent::InitializeMediaPlateResource`) only fires when the deprecated playlist has ≥1 entry; an empty deprecated playlist leaves the reference intact, so a plain resave of the asset doesn't clear it.
+
+**Fix (manual, in the editor):**
+1. Open `Content/FirstPerson/Maps/FirstPersonMap`.
+2. Find the `MoviePoster` level actor (location `(3835.9, -573.8, 133.3)`, yaw `-90`).
+3. Delete it.
+4. Re-place a fresh `BP_MoviePoster` from the Content Browser at the same transform.
+5. Save the level (`Ctrl+S`).
+6. Re-cook.
+
+Driving this from Python doesn't work cleanly — `EditorAssetLibrary.save_asset` and `LevelEditorSubsystem.save_current_level` both refused to write the new external-actor file for the respawned instance. Use the editor UI.
 
 ## Push
 
@@ -60,7 +86,7 @@ Then grep locally. Crash dumps are at `Saved/Crashes/crashinfo-*/weirdplace2.log
 
 ## Deck device profile
 
-`Config/DefaultDeviceProfiles.ini` defines the `SteamDeck` profile (sg.* cvars, t.MaxFPS). It's selected by `Source/weirdplace2DeviceProfileSelector/`, a custom module that reads `/etc/os-release` for `ID=steamos`/`ID=holo`. Wired by `Config/Linux/LinuxEngine.ini`. UE 5.4 has zero built-in Steam Deck detection — this is why the custom selector exists.
+`Config/DefaultDeviceProfiles.ini` defines the `SteamDeck` profile (sg.* cvars, t.MaxFPS). It's selected by `Source/weirdplace2DeviceProfileSelector/`, a custom module that reads `/etc/os-release` for `ID=steamos`/`ID=holo`. Wired by `Config/Linux/LinuxEngine.ini`. UE 5.7 has zero built-in Steam Deck detection — this is why the custom selector exists.
 
 Gotchas:
 - `sg.ResolutionQuality` is a **percentage (1-100)**, not a 0-3 quality level like the other `sg.*` groups. 75 = 75% screen percentage.

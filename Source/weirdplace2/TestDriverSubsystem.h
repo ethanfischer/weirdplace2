@@ -109,6 +109,13 @@ public:
 	// collected, so subsequent calls skip it.
 	void MarkLastFoundMovieCollected();
 
+	// Test-only: invoke CollectInspectedMovie directly on whichever MovieBox is
+	// currently in inspection. UE 5.7 Enhanced Input intermittently consumes
+	// the legacy "Collect Inspected Movie" ActionMapping when E is fed via
+	// simulated input, so tests bypass the input layer here. Returns true if a
+	// MovieBox was found and collect was called.
+	bool TriggerCollectInspectedMovie();
+
 	// --- State queries ---
 
 	EPlayerActivityState GetActivityState() const;

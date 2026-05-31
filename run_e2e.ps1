@@ -5,7 +5,7 @@ param(
 
 $ProjectRoot = $PSScriptRoot
 $LogFile = "$ProjectRoot\Saved\Logs\E2ETest.log"
-$UECmd = "C:\Program Files\Epic Games\UE_5.4\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+$UECmd = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $UProject = "$ProjectRoot\weirdplace2.uproject"
 $TestPath = "Weirdplace2.E2E.Level1.$TestName"
 

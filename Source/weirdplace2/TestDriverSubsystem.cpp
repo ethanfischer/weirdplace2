@@ -20,6 +20,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "InputKeyEventArgs.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
@@ -376,7 +377,7 @@ void UTestDriverSubsystem::SimulateKeyPress(FKey Key)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyPress - no PlayerController"));
 		return;
 	}
-	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Pressed, FVector::ZeroVector));
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Pressed, /*AmountDepressed=*/1.0f));
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::SimulateKeyPress - %s"), *Key.ToString());
 }
 
@@ -388,7 +389,7 @@ void UTestDriverSubsystem::SimulateKeyRelease(FKey Key)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateKeyRelease - no PlayerController"));
 		return;
 	}
-	PC->InputKey(FInputKeyParams(Key, EInputEvent::IE_Released, FVector::ZeroVector));
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Released, /*AmountDepressed=*/0.0f));
 }
 
 void UTestDriverSubsystem::SimulateMouseX(float Delta)
@@ -399,8 +400,17 @@ void UTestDriverSubsystem::SimulateMouseX(float Delta)
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulateMouseX - no PlayerController"));
 		return;
 	}
-	// Axis key: use the constructor that takes (Key, Delta, DeltaTime, NumSamples).
-	PC->InputKey(FInputKeyParams(EKeys::MouseX, (double)Delta, GetWorld()->GetDeltaSeconds(), 1));
+	// Use the axis-specific constructor so DeltaTime and NumSamples are populated
+	// (CreateSimulated leaves DeltaTime at 0, which breaks axis processing).
+	FInputKeyEventArgs Args(
+		/*InViewport=*/nullptr,
+		INPUTDEVICEID_NONE,
+		EKeys::MouseX,
+		/*InDelta=*/Delta,
+		/*InDeltaTime=*/GetWorld()->GetDeltaSeconds(),
+		/*InNumSamples=*/1,
+		/*InEventTimestamp=*/FPlatformTime::Cycles64());
+	PC->InputKey(Args);
 }
 
 // --- Enhanced Input injection ---
@@ -606,6 +616,22 @@ void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 		UE_LOG(LogTemp, Log, TEXT("TestDriver::MarkLastFoundMovieCollected - %s"), *LastFoundMovie->GetName());
 		LastFoundMovie.Reset();
 	}
+}
+
+bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
+{
+	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
+	{
+		AMovieBox* Box = *It;
+		if (Box && Box->IsBeingInspected())
+		{
+			UE_LOG(LogTemp, Log, TEXT("TestDriver::TriggerCollectInspectedMovie - %s"), *Box->GetName());
+			Box->CollectInspectedMovie();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerCollectInspectedMovie - no MovieBox in inspection"));
+	return false;
 }
 
 // --- State queries ---
