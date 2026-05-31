@@ -12,4 +12,5 @@ reviews:
     - "!Content/Images/**"
     - "!Content/Animations/**"
     - "!Content/Python/**"
-    - "!Plugins/NodeToCode_5.4/**"
+    - "!**/NodeToCode_5.4/**"
+    - "!Plugins/NodeToCode_5.4/**/*"
