@@ -3,12 +3,14 @@
 
 #include "SpawnerActorComponent.h"
 
+#include "Sound/AmbientSound.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
+
 // Sets default values for this component's properties
 USpawnerActorComponent::USpawnerActorComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 void USpawnerActorComponent::BeginPlay()
@@ -33,6 +35,39 @@ void USpawnerActorComponent::BeginPlay()
 void USpawnerActorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!ChosenBox || !ChordAmbientSound)
+	{
+		return;
+	}
+
+	UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent();
+	if (!AudioComp)
+	{
+		return;
+	}
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!PC)
+	{
+		return;
+	}
+
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	PC->GetPlayerViewPoint(ViewLocation, ViewRotation);
+
+	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * 10000.0f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(ChosenBoxReticle), false);
+	Params.AddIgnoredActor(GetOwner());
+	const bool bHit = World->LineTraceSingleByChannel(Hit, ViewLocation, TraceEnd, ECC_Visibility, Params);
+	const bool bLookingAtChosen = bHit && Hit.GetActor() == ChosenBox;
+
+	const float TargetMultiplier = bLookingAtChosen ? LookAtVolumeMultiplier : 1.0f;
+	CurrentVolumeMultiplier = FMath::FInterpConstantTo(CurrentVolumeMultiplier, TargetMultiplier, DeltaTime, LookAtFadeSpeed);
+	AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
 }
 
 void USpawnerActorComponent::SpawnMovieBoxes()
@@ -54,7 +89,17 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	}
 
 	auto       VideoNameIndex = 0;
-	int ChosenOnes[3] = {1, 43, 89};
+
+	TArray<AActor*> TopShelfMovieBoxes;
+
+	int32 TopShelfIndex = 0;
+	for (auto i = 1; i < ShelfLocations.Num(); i++)
+	{
+		if (ShelfLocations[i].Z > ShelfLocations[TopShelfIndex].Z)
+		{
+			TopShelfIndex = i;
+		}
+	}
 
 	for (auto ShelfIndex = 0; ShelfIndex < ShelfLocations.Num(); ShelfIndex++)
 	{
@@ -62,24 +107,38 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
-				auto ChosenOneAdjustment = 0;
-				for (auto j = 0; j < 3; j++)
-				{
-					if (ChosenOnes[j] == VideoNameIndex)
-					{
-						ChosenOneAdjustment = 10;
-						break;
-					}
-				}
 				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
-				AdjustedLocation.Y += ChosenOneAdjustment;
 				auto AdjustedRotation = BookcaseIndex % 2 == 0 ? SpawnerRotation : SpawnerRotationFlipped;
 				FActorSpawnParameters SpawnParameters;
 				FName BaseName = VideoNames[VideoNameIndex % VideoNames.Num()];
 				SpawnParameters.Name = FName(*FString::Printf(TEXT("%s_%d"), *BaseName.ToString(), VideoNameIndex));
-				World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
+				AActor* Spawned = World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
+				if (Spawned && ShelfIndex == TopShelfIndex)
+				{
+					TopShelfMovieBoxes.Add(Spawned);
+				}
 				VideoNameIndex++;
 			}
 		}
+	}
+
+	if (ChordAmbientSound && TopShelfMovieBoxes.Num() > 0)
+	{
+		const int32 RandomIndex = FMath::RandRange(0, TopShelfMovieBoxes.Num() - 1);
+		ChosenBox = TopShelfMovieBoxes[RandomIndex];
+
+		const FVector OffsetLocation = ChosenBox->GetActorLocation() + ChosenBox->GetActorForwardVector() * ChosenForwardOffset;
+		ChosenBox->SetActorLocation(OffsetLocation);
+
+		ChordAmbientSound->SetActorLocation(OffsetLocation);
+		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
+		{
+			AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
+		}
+		UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s offset by %.1fcm forward; ChordAmbientSound positioned at it"), *ChosenBox->GetName(), ChosenForwardOffset);
+	}
+	else if (!ChordAmbientSound)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent: ChordAmbientSound not assigned on %s — skipping random placement"), *Owner->GetName());
 	}
 }
