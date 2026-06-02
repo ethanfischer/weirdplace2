@@ -26,6 +26,13 @@
 #include "WeirdplaceGameUserSettings.h"
 #include "MenuUIComponent.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWidget.h"
+#if PLATFORM_LINUX
+THIRD_PARTY_INCLUDES_START
+#include <SDL3/SDL.h>
+THIRD_PARTY_INCLUDES_END
+#endif
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -143,11 +150,100 @@ void AFirstPersonCharacter::BeginPlay()
 			}
 		}
 	}
+
+#if PLATFORM_LINUX
+	// UE 5.7's LinuxWindow.cpp calls SDL_StartTextInput on every window that
+	// accepts input (SDL3 made text-input per-window). On Steam Deck the OS
+	// keyboard pops up while text input is active. No in-game text entry, so
+	// stop it on every top-level window we can see.
+	StopLinuxTextInputOnAllWindows();
+#endif
 }
+
+#if PLATFORM_LINUX
+void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput: Slate not initialized"));
+		return;
+	}
+
+	auto TryStop = [](const TSharedPtr<SWindow>& Win, const TCHAR* Tag)
+	{
+		if (!Win.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: window null"), Tag);
+			return;
+		}
+		TSharedPtr<FGenericWindow> NativeWindow = Win->GetNativeWindow();
+		if (!NativeWindow.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: native window null"), Tag);
+			return;
+		}
+		SDL_Window* SDLWindow = static_cast<SDL_Window*>(NativeWindow->GetOSWindowHandle());
+		if (!SDLWindow)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: SDL handle null"), Tag);
+			return;
+		}
+		const bool bWasActive = SDL_TextInputActive(SDLWindow);
+		const bool bStopped = SDL_StopTextInput(SDLWindow);
+		UE_LOG(LogTemp, Display, TEXT("Linux SDL_StopTextInput[%s]: handle=%p wasActive=%d ok=%d"), Tag, SDLWindow, bWasActive, bStopped);
+	};
+
+	// Primary path: the SWindow hosting our game viewport
+	if (GEngine && GEngine->GameViewport)
+	{
+		TryStop(GEngine->GameViewport->GetWindow(), TEXT("GameViewport"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[GameViewport]: no GEngine->GameViewport"));
+	}
+
+	// Fallback: every interactive top-level window currently known to Slate
+	TArray<TSharedRef<SWindow>> AllWindows = FSlateApplication::Get().GetInteractiveTopLevelWindows();
+	UE_LOG(LogTemp, Display, TEXT("Linux SDL_StopTextInput: %d top-level windows"), AllWindows.Num());
+	for (int32 i = 0; i < AllWindows.Num(); ++i)
+	{
+		const FString Tag = FString::Printf(TEXT("TopLevel[%d]"), i);
+		TryStop(AllWindows[i], *Tag);
+	}
+}
+#endif
 
 void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Diagnostic: trace Slate keyboard focus. On Steam Deck the OS keyboard
+	// pops up when SDL/Slate enters text-input mode, which happens when a
+	// focused widget claims keyboard focus / supports text entry. Logging
+	// every transition makes whatever grabs focus at boot identifiable.
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication& App = FSlateApplication::Get();
+		TSharedPtr<SWidget> Current = App.GetUserFocusedWidget(0);
+		TSharedPtr<SWidget> Previous = LastFocusedWidget.Pin();
+		if (Current != Previous || !bLoggedInitialFocus)
+		{
+			auto Describe = [](const TSharedPtr<SWidget>& W) -> FString
+			{
+				if (!W.IsValid()) return TEXT("None");
+				return FString::Printf(TEXT("%s [%s]"),
+					*W->GetTypeAsString(),
+					*W->GetTag().ToString());
+			};
+			UE_LOG(LogTemp, Display, TEXT("Slate keyboard focus: %s -> %s (supportsKBFocus=%d)"),
+				*Describe(Previous),
+				*Describe(Current),
+				Current.IsValid() ? Current->SupportsKeyboardFocus() : 0);
+			LastFocusedWidget = Current;
+			bLoggedInitialFocus = true;
+		}
+	}
 
 	// Update crosshair based on context:
 	// - In dialogue: show chat-bubble reticle (dialogue suppresses interaction).

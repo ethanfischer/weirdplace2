@@ -17,6 +17,7 @@ class UStaticMeshComponent;
 class UWeirdplaceGameUserSettings;
 class UMenuUIComponent;
 class APlayerController;
+class SWidget;
 
 USTRUCT()
 struct FSimpleDialogueLine
@@ -137,6 +138,13 @@ private:
 	float ComputeMouseLookScale() const;
 	bool IsGamepadLookActive() const;
 
+#if PLATFORM_LINUX
+	// Stop SDL3 per-window text input on every Slate top-level window. UE 5.7's
+	// LinuxWindow.cpp turns it on at window creation and never turns it off,
+	// which makes Steam Deck show the on-screen keyboard.
+	void StopLinuxTextInputOnAllWindows();
+#endif
+
 public:
 
 	// --- Input Handlers ---
@@ -234,6 +242,10 @@ private:
 	bool bInventoryDoOnceCompleted = false;
 	bool bMenuDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
+
+	// Slate keyboard-focus tracing (Steam Deck on-screen keyboard diagnosis)
+	TWeakPtr<SWidget> LastFocusedWidget;
+	bool bLoggedInitialFocus = false;
 
 
 	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.

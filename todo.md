@@ -37,3 +37,7 @@ Stretch goals:
 [ ] playing videos on the tv
 [ ] replacing copywrighted content
 [ ] "follow the money"
+[ ] There is no dying. only waking up in the other world
+    [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
+        [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
+    

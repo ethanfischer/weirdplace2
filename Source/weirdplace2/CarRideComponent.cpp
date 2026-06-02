@@ -100,6 +100,19 @@ void UCarRideComponent::StartRide()
 		}
 	}
 
+	// Disable movement BEFORE the teleport. UE 5.7 floor-snaps in the next tick
+	// after SetActorLocation while MOVE_Walking is active, which would yank the
+	// player off the seat. MOVE_None disables CharacterMovementComponent physics.
+	PC->SetIgnoreMoveInput(true);
+	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
+	{
+		MoveComp->StopMovementImmediately();
+		MoveComp->SetMovementMode(MOVE_None);
+		MoveComp->SetJumpAllowed(false);
+		MoveComp->GravityScale = 0.0f;
+	}
+	Player->SetCanInteract(false);
+
 	// Teleport player to passenger seat
 	// Offset down by camera relative position so the player's eye (not feet) lands at the target
 	if (PassengerSeatTarget)
@@ -109,24 +122,18 @@ void UCarRideComponent::StartRide()
 		{
 			CameraOffset = Camera->GetRelativeLocation();
 		}
-		Player->SetActorLocation(PassengerSeatTarget->GetActorLocation() - CameraOffset);
-		Player->SetActorRotation(PassengerSeatTarget->GetActorRotation());
-		PC->SetControlRotation(PassengerSeatTarget->GetActorRotation());
+		const FVector TargetEye = PassengerSeatTarget->GetActorLocation();
+		const FVector ActorLocation = TargetEye - CameraOffset;
+		const FRotator TargetRotation = PassengerSeatTarget->GetActorRotation();
+		Player->SetActorLocationAndRotation(ActorLocation, TargetRotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
+		PC->SetControlRotation(TargetRotation);
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::StartRide - Teleport: EyeTarget=%s ActorLoc=%s CamOffset=%s Rot=%s"),
+			*TargetEye.ToString(), *ActorLocation.ToString(), *CameraOffset.ToString(), *TargetRotation.ToString());
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: PassengerSeatTarget is null!"));
 	}
-
-	// Disable movement, gravity, and interaction
-	PC->SetIgnoreMoveInput(true);
-	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
-	{
-		MoveComp->SetJumpAllowed(false);
-		MoveComp->GravityScale = 0.0f;
-		MoveComp->Velocity = FVector::ZeroVector;
-	}
-	Player->SetCanInteract(false);
 
 	// Start scenery movement
 	bSceneryMoving = true;
@@ -386,7 +393,13 @@ void UCarRideComponent::OnFadeOutComplete()
 		return;
 	}
 
-	// Teleport player to arrival target (offset by camera height, same as seat teleport)
+	// Teleport player to arrival target (offset by camera height, same as seat teleport).
+	// MOVE_None + StopMovementImmediately first so the post-teleport tick doesn't floor-snap.
+	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
+	{
+		MoveComp->StopMovementImmediately();
+		MoveComp->SetMovementMode(MOVE_None);
+	}
 	if (ArrivalTarget)
 	{
 		FVector CameraOffset = FVector::ZeroVector;
@@ -394,9 +407,17 @@ void UCarRideComponent::OnFadeOutComplete()
 		{
 			CameraOffset = Camera->GetRelativeLocation();
 		}
-		Player->SetActorLocation(ArrivalTarget->GetActorLocation() - CameraOffset);
-		Player->SetActorRotation(ArrivalTarget->GetActorRotation());
-		PC->SetControlRotation(ArrivalTarget->GetActorRotation());
+		const FVector TargetEye = ArrivalTarget->GetActorLocation();
+		const FVector ActorLocation = TargetEye - CameraOffset;
+		const FRotator TargetRotation = ArrivalTarget->GetActorRotation();
+		Player->SetActorLocationAndRotation(ActorLocation, TargetRotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
+		PC->SetControlRotation(TargetRotation);
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnFadeOutComplete - Teleport: EyeTarget=%s ActorLoc=%s CamOffset=%s Rot=%s"),
+			*TargetEye.ToString(), *ActorLocation.ToString(), *CameraOffset.ToString(), *TargetRotation.ToString());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnFadeOutComplete - ArrivalTarget is null!"));
 	}
 
 	// Show the gas station now that the ride is over
@@ -428,10 +449,11 @@ void UCarRideComponent::OnFadeOutComplete()
 		SceneryRoot->SetActorEnableCollision(true);
 	}
 
-	// Re-enable movement and gravity
+	// Re-enable movement and gravity (StartRide set MOVE_None to suppress floor-snap)
 	PC->SetIgnoreMoveInput(false);
 	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
 	{
+		MoveComp->SetMovementMode(MOVE_Walking);
 		MoveComp->SetJumpAllowed(true);
 		MoveComp->GravityScale = 1.0f;
 	}
