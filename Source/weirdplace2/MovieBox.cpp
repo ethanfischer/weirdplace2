@@ -251,8 +251,15 @@ void AMovieBox::CollectInspectedMovie()
 	// Add item to inventory with visual data captured from the envelope mesh
 	MyCharacter->AddItemToInventoryWithMesh(FName(*CoverName), EnvelopeMesh);
 
-	// Close inspection after collecting
-	StopInspection();
+	// Defer StopInspection by one tick. 5.7 fires legacy "Collect Inspected Movie"
+	// (IE_Pressed, this binding) before Enhanced Input IA_Interact (Triggered) on
+	// the same E press; restoring CanInteract synchronously lets the subsequent
+	// IA_Interact path raycast the shelf and re-open inspection.
+	GetWorld()->GetTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			StopInspection();
+		}));
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
