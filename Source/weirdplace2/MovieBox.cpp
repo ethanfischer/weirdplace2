@@ -237,7 +237,9 @@ void AMovieBox::CollectInspectedMovie()
 		}
 	}
 
-	EnvelopeMesh->SetHiddenInGame(true);
+	// SetVisibility(false, true) propagates to children so subclass-added child meshes
+	// (e.g. BP_BlankVHS's "Tape") hide along with the parent Cube.
+	EnvelopeMesh->SetVisibility(false, true);
 	InteractionWidget->SetVisibility(false);
 	DidCollectMovie = true;
 
