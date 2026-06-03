@@ -752,6 +752,14 @@ void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
 	}
 
 	FPChar->ShowItemNotification(BasketData, BasketNotificationRotation);
+
+	if (UInventoryComponent* Inventory = FPChar->GetInventoryComponent())
+	{
+		if (Inventory->CollectSound)
+		{
+			UGameplayStatics::PlaySound2D(this, Inventory->CollectSound);
+		}
+	}
 }
 
 // --- Key Beat ---
