@@ -89,7 +89,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
-	void GiveMoneyGetKey(FAutomationTestBase* T)
+	void GiveMoneyAskForBlank(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
@@ -99,20 +99,38 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		// Advance until the movie stack notification appears
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_AskedForBlank")));
+	}
+
+	void CollectBlankTape(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearBlankTape(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtBlankTape(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::Interacting));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(T, FName("BlankVHS")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_BlankTapeCollected")));
+	}
+
+	void GiveBlankTapeGetKey(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));   // BlankVHS at slot 0 (Money is gone)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// Advance through the merged burn-flavor + key-handoff lines until the
+		// [Give key] cue fires the key item notification.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_GotMovies")));
-		// Dismiss movie stack, continue dialogue
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15_GotKey")));
+		// Dismiss key, finish dialogue.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13b_MoviesGone")));
-		// Advance until the key mesh notification appears
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14_GotKey")));
-		// Dismiss key, continue dialogue
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_14b_KeyMeshGone")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15b_KeyMeshGone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
@@ -121,7 +139,9 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("OutsideBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15_InventoryWithKey")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 3));
+		// Key lands in slot 0 now that the combined-tape movie stack is gone —
+		// the post-key inventory only contains the Key.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));

@@ -12,6 +12,7 @@
 
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TestWaypoint.h"
 #include "Door.h"
@@ -443,6 +444,76 @@ public:
 		if (!Driver->LookAtKeyActor())
 		{
 			Test->AddError(TEXT("FTD_LookAtKeyActor: failed"));
+		}
+		return true;
+	}
+};
+
+// Teleport directly in front of the chord-spawned blank tape using the box's
+// own forward vector. The chord spawner picks one of many top-shelf boxes
+// (random bookcase/shelf position) and replaces it, so a static waypoint
+// won't reach reliably. The spawner's ChosenForwardOffset translates the
+// chosen tape along +ForwardVector to make it stick out from the shelf —
+// meaning +ForwardVector always points out toward the viewer, regardless of
+// which bookcase the random pick landed on. Approach from that direction so
+// the interact raycast has an unobstructed path.
+class FTD_TeleportNearBlankTape : public FTD_Base
+{
+public:
+	FTD_TeleportNearBlankTape(FAutomationTestBase* InTest, float InDistance = 150.f)
+		: FTD_Base(InTest), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting in front of blank tape"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no driver")); return true; }
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no blank tape")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no player")); return true; }
+
+		const FVector TapeLoc = Tape->GetActorLocation();
+		FVector Forward = Tape->GetActorForwardVector();
+		Forward.Z = 0.f;
+		Forward = Forward.GetSafeNormal();
+		if (Forward.IsNearlyZero())
+		{
+			Forward = FVector::ForwardVector;
+		}
+
+		const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector NewLoc = TapeLoc + Forward * Distance + FVector(0.f, 0.f, HalfHeight);
+		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+
+		const FRotator LookRot = (TapeLoc - NewLoc).Rotation();
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(LookRot);
+		}
+		return true;
+	}
+private:
+	float Distance;
+};
+
+class FTD_LookAtBlankTape : public FTD_Base
+{
+public:
+	FTD_LookAtBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at blank tape"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtBlankTape: no driver")); return true; }
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_LookAtBlankTape: no blank tape")); return true; }
+		if (!Driver->LookAt(Tape))
+		{
+			Test->AddError(TEXT("FTD_LookAtBlankTape: LookAt failed"));
 		}
 		return true;
 	}

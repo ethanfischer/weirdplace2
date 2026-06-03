@@ -19,7 +19,9 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::CollectMovies(this);
 	E2ESteps::GiveMoviesToSeneca(this);
 	E2ESteps::GetMoneyFromRick(this);
-	E2ESteps::GiveMoneyGetKey(this);
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::FastForwardSenecaSmoking(this);
 	E2ESteps::SenecaSmokingDialogue(this);

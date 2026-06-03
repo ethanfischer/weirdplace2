@@ -109,6 +109,10 @@ public:
 	// collected, so subsequent calls skip it.
 	void MarkLastFoundMovieCollected();
 
+	// Returns the BP_BlankVHS-class spawned blank tape (the one with
+	// bExemptFromMovieLimit==true), or nullptr if none exists.
+	AMovieBox* FindBlankTape() const;
+
 	// Test-only: invoke CollectInspectedMovie directly on whichever MovieBox is
 	// currently in inspection. UE 5.7 Enhanced Input intermittently consumes
 	// the legacy "Collect Inspected Movie" ActionMapping when E is fed via

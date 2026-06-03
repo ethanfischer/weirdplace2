@@ -1001,10 +1001,10 @@ void ASeneca::HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryCompo
 	}
 	Inventory->ClearActiveItem();
 
-	CurrentState = ESenecaState::AwaitingTapeBurn;
-	UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForBlankTape -> AwaitingTapeBurn (blank tape '%s' received)"), *ActiveItem.ToString());
+	CurrentState = ESenecaState::ReadyToGiveKey;
+	UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForBlankTape -> ReadyToGiveKey (blank tape '%s' received; burn off-screen)"), *ActiveItem.ToString());
 
-	StartAwaitingTapeBurnDialogue(FPChar);
+	StartReadyToGiveKeyDialogue(FPChar);
 }
 
 void ASeneca::StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar)

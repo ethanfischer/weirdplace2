@@ -608,6 +608,25 @@ AMovieBox* UTestDriverSubsystem::FindNextUncollectedMovie()
 	return nullptr;
 }
 
+AMovieBox* UTestDriverSubsystem::FindBlankTape() const
+{
+	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
+	{
+		AMovieBox* Box = *It;
+		if (!Box)
+		{
+			continue;
+		}
+		const AMovieBox* CDO = Box->GetClass()->GetDefaultObject<AMovieBox>();
+		if (CDO && CDO->bExemptFromMovieLimit)
+		{
+			return Box;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::FindBlankTape - no blank tape found in level"));
+	return nullptr;
+}
+
 void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 {
 	if (LastFoundMovie.IsValid())
