@@ -102,7 +102,7 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 
 	auto       VideoNameIndex = 0;
 
-	TArray<AActor*> TopShelfMovieBoxes;
+	TopShelfMovieBoxes.Reset();
 
 	int32 TopShelfIndex = 0;
 	for (auto i = 1; i < ShelfLocations.Num(); i++)
@@ -134,15 +134,36 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		}
 	}
 
-	if (!BlankVhsBoxClass)
+	// Silence the chord hum at level load — ActivateChosenTape() turns it on when Seneca asks for the blank tape.
+	if (ChordAmbientSound)
 	{
-		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: BlankVhsBoxClass not assigned on %s — skipping chosen-tape replacement and chord"), *Owner->GetName());
+		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
+		{
+			AudioComp->Stop();
+		}
+	}
+}
+
+void USpawnerActorComponent::ActivateChosenTape()
+{
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - No World"));
 		return;
 	}
 
+	if (!BlankVhsBoxClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - BlankVhsBoxClass not assigned on %s"), *Owner->GetName());
+		return;
+	}
+
+	// Drop any candidates the player already collected (GC nulled the UPROPERTY entries).
+	TopShelfMovieBoxes.RemoveAll([](AActor* A) { return !IsValid(A); });
+
 	if (TopShelfMovieBoxes.Num() == 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: TopShelfMovieBoxes is empty on %s — cannot pick chosen tape"), *Owner->GetName());
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - No live top-shelf candidates on %s — chord beat unrecoverable"), *Owner->GetName());
 		return;
 	}
 
@@ -156,7 +177,7 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	ChosenBox = World->SpawnActor<AMovieBox>(BlankVhsBoxClass, OriginalTransform.GetLocation(), OriginalTransform.Rotator(), ReplaceParams);
 	if (!ChosenBox)
 	{
-		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: Failed to spawn BlankVhsBoxClass replacement"));
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - Failed to spawn BlankVhsBoxClass replacement"));
 		return;
 	}
 
@@ -171,12 +192,13 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
 		{
 			AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
+			AudioComp->Play();
 		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent: ChordAmbientSound not assigned on %s — chord disabled but chosen tape still placed"), *Owner->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent::ActivateChosenTape - ChordAmbientSound not assigned on %s — chord disabled but chosen tape still placed"), *Owner->GetName());
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s (ChosenItemID=%s) offset by %.1fcm forward"), *ChosenBox->GetName(), *ChosenItemID.ToString(), ChosenForwardOffset);
+	UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ActivateChosenTape - ChosenBox %s (ChosenItemID=%s) offset by %.1fcm forward"), *ChosenBox->GetName(), *ChosenItemID.ToString(), ChosenForwardOffset);
 }

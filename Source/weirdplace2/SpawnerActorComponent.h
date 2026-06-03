@@ -64,6 +64,9 @@ private:
 	UPROPERTY()
 	AActor* ChosenBox = nullptr;
 
+	UPROPERTY()
+	TArray<AActor*> TopShelfMovieBoxes;
+
 	FName ChosenItemID;
 
 	float CurrentVolumeMultiplier = 1.0f;
@@ -71,6 +74,10 @@ private:
 	void SpawnMovieBoxes();
 
 public:
+	// Swap a random top-shelf MovieBox for BlankVhsBoxClass and start the chord hum.
+	// Called by ASeneca when the "find a blank tape" beat begins.
+	void ActivateChosenTape();
+
 	AActor* GetChosenBox() const { return ChosenBox; }
 	FName   GetChosenItemID() const { return ChosenItemID; }
 

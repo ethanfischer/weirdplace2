@@ -448,6 +448,15 @@ void ASeneca::Interact_Implementation()
 			Inventory->ClearActiveItem();
 			CurrentState = ESenecaState::WaitingForBlankTape;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> WaitingForBlankTape (money received)"));
+			if (CachedMovieSpawner)
+			{
+				UE_LOG(LogTemp, Log, TEXT("Seneca - Activating chord-spawner chosen tape"));
+				CachedMovieSpawner->ActivateChosenTape();
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Seneca - CachedMovieSpawner not set; cannot activate chosen tape"));
+			}
 			StartWaitingForBlankTapeDialogue(FPCharacter);
 		}
 		else
