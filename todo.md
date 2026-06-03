@@ -1,11 +1,8 @@
 # Todo / Bugs
-[ ] fix triple collection sound when 3 movies given
 [ ] fix no collection sound when basket given
-[ ] replace collection sound with something better fitting
+[x] replace collection sound with something better fitting
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
-[ ] 2.95 cash exactly
-[ ] 1 cent found later, but seneca accepts it
 [ ] seneca unlock employee bathroom animation
 [ ] put in eye contact given by seneca
     [ ] maybe after friend talks to him
@@ -40,4 +37,6 @@ Stretch goals:
 [ ] There is no dying. only waking up in the other world
     [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
         [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
+[ ] 2.95 cash exactly
+    [ ] 1 cent found later, but seneca accepts it
     
