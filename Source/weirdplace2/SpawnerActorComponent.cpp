@@ -3,6 +3,7 @@
 
 #include "SpawnerActorComponent.h"
 
+#include "MovieBox.h"
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -45,6 +46,17 @@ void USpawnerActorComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	if (!AudioComp)
 	{
 		return;
+	}
+
+	if (AMovieBox* ChosenMovieBox = Cast<AMovieBox>(ChosenBox))
+	{
+		if (ChosenMovieBox->WasCollected())
+		{
+			UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s collected, stopping chord"), *ChosenBox->GetName());
+			AudioComp->Stop();
+			ChosenBox = nullptr;
+			return;
+		}
 	}
 
 	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
@@ -122,23 +134,49 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		}
 	}
 
-	if (ChordAmbientSound && TopShelfMovieBoxes.Num() > 0)
+	if (!BlankVhsBoxClass)
 	{
-		const int32 RandomIndex = FMath::RandRange(0, TopShelfMovieBoxes.Num() - 1);
-		ChosenBox = TopShelfMovieBoxes[RandomIndex];
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: BlankVhsBoxClass not assigned on %s — skipping chosen-tape replacement and chord"), *Owner->GetName());
+		return;
+	}
 
-		const FVector OffsetLocation = ChosenBox->GetActorLocation() + ChosenBox->GetActorForwardVector() * ChosenForwardOffset;
-		ChosenBox->SetActorLocation(OffsetLocation);
+	if (TopShelfMovieBoxes.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: TopShelfMovieBoxes is empty on %s — cannot pick chosen tape"), *Owner->GetName());
+		return;
+	}
 
+	const int32 RandomIndex = FMath::RandRange(0, TopShelfMovieBoxes.Num() - 1);
+	AActor* OriginalBox = TopShelfMovieBoxes[RandomIndex];
+	const FTransform OriginalTransform = OriginalBox->GetActorTransform();
+	OriginalBox->Destroy();
+
+	FActorSpawnParameters ReplaceParams;
+	ReplaceParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ChosenBox = World->SpawnActor<AMovieBox>(BlankVhsBoxClass, OriginalTransform.GetLocation(), OriginalTransform.Rotator(), ReplaceParams);
+	if (!ChosenBox)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: Failed to spawn BlankVhsBoxClass replacement"));
+		return;
+	}
+
+	const FVector OffsetLocation = ChosenBox->GetActorLocation() + ChosenBox->GetActorForwardVector() * ChosenForwardOffset;
+	ChosenBox->SetActorLocation(OffsetLocation);
+
+	ChosenItemID = BlankVhsBoxClass->GetDefaultObject<AMovieBox>()->ItemIDOverride;
+
+	if (ChordAmbientSound)
+	{
 		ChordAmbientSound->SetActorLocation(OffsetLocation);
 		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
 		{
 			AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
 		}
-		UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s offset by %.1fcm forward; ChordAmbientSound positioned at it"), *ChosenBox->GetName(), ChosenForwardOffset);
 	}
-	else if (!ChordAmbientSound)
+	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent: ChordAmbientSound not assigned on %s — skipping random placement"), *Owner->GetName());
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent: ChordAmbientSound not assigned on %s — chord disabled but chosen tape still placed"), *Owner->GetName());
 	}
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s (ChosenItemID=%s) offset by %.1fcm forward"), *ChosenBox->GetName(), *ChosenItemID.ToString(), ChosenForwardOffset);
 }

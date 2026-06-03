@@ -5,6 +5,7 @@
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "Door.h"
+#include "SpawnerActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -121,6 +122,9 @@ void ASeneca::BeginPlay()
 	LoadDialogueFile(ESenecaState::WaitingForMovies, WaitingForMoviesDialoguePath);
 	LoadDialogueFile(ESenecaState::WaitingForMoviePurchase, WaitingForMoviePurchaseDialoguePath);
 	LoadDialogueFile(ESenecaState::WaitingForMoney, WaitingForMoneyDialoguePath);
+	LoadDialogueFile(ESenecaState::WaitingForBlankTape, WaitingForBlankTapeDialoguePath);
+	LoadDialogueFile(ESenecaState::AwaitingTapeBurn, AwaitingTapeBurnDialoguePath);
+	LoadDialogueFile(ESenecaState::ReadyToGiveCombinedTape, ReadyToGiveCombinedTapeDialoguePath);
 	LoadDialogueFile(ESenecaState::ReadyToGiveKey, ReadyToGiveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
@@ -149,9 +153,23 @@ void ASeneca::BeginPlay()
 		};
 		LoadReminderFile(WaitingForMoviesReminderPath, WaitingForMoviesReminderLines);
 		LoadReminderFile(WaitingForMoviePurchaseReminderPath, WaitingForMoviePurchaseReminderLines);
+		LoadReminderFile(WaitingForBlankTapeReminderPath, WaitingForBlankTapeReminderLines);
 	}
 
 	LoadMovieComments();
+
+	if (MovieSpawnerActor)
+	{
+		CachedMovieSpawner = MovieSpawnerActor->FindComponentByClass<USpawnerActorComponent>();
+		if (!CachedMovieSpawner)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - MovieSpawnerActor %s has no USpawnerActorComponent"), *MovieSpawnerActor->GetName());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - MovieSpawnerActor not assigned on level instance"));
+	}
 }
 
 // --- State Machine ---
@@ -264,6 +282,18 @@ void ASeneca::OnDialogueEnded()
 			}
 			StartMoviePurchaseDialogue(FPChar3);
 		}
+		break;
+	}
+
+	case ESenecaState::ReadyToGiveCombinedTape:
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (AFirstPersonCharacter* FPChar = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr)
+		{
+			FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnCombinedTapeDialogueLineShown);
+		}
+		CurrentState = ESenecaState::ReadyToGiveKey;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: ReadyToGiveCombinedTape -> ReadyToGiveKey"));
 		break;
 	}
 
@@ -416,9 +446,9 @@ void ASeneca::Interact_Implementation()
 				return;
 			}
 			Inventory->ClearActiveItem();
-			CurrentState = ESenecaState::ReadyToGiveKey;
-			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> ReadyToGiveKey (money received)"));
-			StartReadyToGiveKeyDialogue(FPCharacter);
+			CurrentState = ESenecaState::WaitingForBlankTape;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> WaitingForBlankTape (money received)"));
+			StartWaitingForBlankTapeDialogue(FPCharacter);
 		}
 		else
 		{
@@ -428,6 +458,51 @@ void ASeneca::Interact_Implementation()
 				FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 			}
 		}
+		return;
+	}
+
+	if (CurrentState == ESenecaState::WaitingForBlankTape)
+	{
+		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		if (!Inventory)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForBlankTape"));
+			return;
+		}
+
+		if (!CachedMovieSpawner)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - CachedMovieSpawner not set; cannot identify blank tape"));
+			return;
+		}
+
+		const FName ActiveItem = Inventory->GetActiveItem();
+		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
+		if (!ActiveItem.IsNone() && !ChosenID.IsNone() && ActiveItem == ChosenID)
+		{
+			HandleBlankTapeGive(FPCharacter, Inventory);
+		}
+		else
+		{
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForBlankTapeReminderLines, this);
+		}
+		return;
+	}
+
+	if (CurrentState == ESenecaState::AwaitingTapeBurn)
+	{
+		const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::AwaitingTapeBurn);
+		if (Lines && Lines->Num() > 0)
+		{
+			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+		}
+		return;
+	}
+
+	if (CurrentState == ESenecaState::ReadyToGiveCombinedTape)
+	{
+		StartReadyToGiveCombinedTapeDialogue(FPCharacter);
 		return;
 	}
 
@@ -728,32 +803,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDialogueLineShown - Executing '%s'"), *Action);
 	bKeyBeatArmed = false;
 
-	if (Action == TEXT("Give movies"))
-	{
-		UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
-		if (!Inventory)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Seneca::OnKeyDialogueLineShown - No inventory; cannot return movies"));
-			return;
-		}
-
-		if (TakenMovies.Num() == 0)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Seneca::OnKeyDialogueLineShown - 'Give movies' fired but TakenMovies is empty"));
-		}
-
-		for (const FInventoryItemData& MovieData : TakenMovies)
-		{
-			Inventory->AddItemWithData(MovieData);
-		}
-
-		FPChar->ShowItemNotificationStack(TakenMovies, MovieRelativeRotation);
-
-		TakenMovies.Reset();
-		ClearCounterMovies();
-		return;
-	}
-
 	if (Action == TEXT("Give key"))
 	{
 		GiveKey(FPChar);
@@ -927,5 +976,139 @@ void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
 	}
 
 	FPChar->StartDialogue(MultiLines, this);
+}
+
+// --- Blank Tape Beat ---
+
+void ASeneca::StartWaitingForBlankTapeDialogue(AFirstPersonCharacter* FPChar)
+{
+	const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::WaitingForBlankTape);
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartWaitingForBlankTapeDialogue - No lines found"));
+		return;
+	}
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+}
+
+void ASeneca::HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory)
+{
+	const FName ActiveItem = Inventory->GetActiveItem();
+	if (!Inventory->RemoveItem(ActiveItem))
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::HandleBlankTapeGive - Failed to remove '%s' from inventory"), *ActiveItem.ToString());
+		return;
+	}
+	Inventory->ClearActiveItem();
+
+	CurrentState = ESenecaState::AwaitingTapeBurn;
+	UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForBlankTape -> AwaitingTapeBurn (blank tape '%s' received)"), *ActiveItem.ToString());
+
+	StartAwaitingTapeBurnDialogue(FPChar);
+}
+
+void ASeneca::StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar)
+{
+	const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::AwaitingTapeBurn);
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartAwaitingTapeBurnDialogue - No lines found"));
+		return;
+	}
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+}
+
+void ASeneca::GiveCombinedTape()
+{
+	if (CurrentState != ESenecaState::AwaitingTapeBurn)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::GiveCombinedTape called in state %d; ignoring"),
+			static_cast<int32>(CurrentState));
+		return;
+	}
+	CurrentState = ESenecaState::ReadyToGiveCombinedTape;
+	UE_LOG(LogTemp, Log, TEXT("Seneca - State: AwaitingTapeBurn -> ReadyToGiveCombinedTape (combined tape ready)"));
+}
+
+// --- Combined Tape Beat ---
+
+void ASeneca::StartReadyToGiveCombinedTapeDialogue(AFirstPersonCharacter* FPChar)
+{
+	const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::ReadyToGiveCombinedTape);
+	if (!Lines || Lines->Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartReadyToGiveCombinedTapeDialogue - No lines found"));
+		return;
+	}
+
+	TArray<FSimpleDialogueLine> MultiLines;
+	for (const FText& LineText : *Lines)
+	{
+		FSimpleDialogueLine Line;
+		Line.Speaker = FText::FromString(TEXT("Seneca"));
+		Line.Text = LineText;
+		MultiLines.Add(Line);
+	}
+
+	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnCombinedTapeDialogueLineShown);
+	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnCombinedTapeDialogueLineShown);
+	FPChar->StartDialogue(MultiLines, this);
+}
+
+void ASeneca::OnCombinedTapeDialogueLineShown(int32 LineIndex)
+{
+	const FString Action = GetActionForLine(ESenecaState::ReadyToGiveCombinedTape, LineIndex);
+	if (Action.IsEmpty())
+	{
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return;
+	}
+
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	if (!FPChar)
+	{
+		return;
+	}
+
+	if (!bCombinedTapeBeatArmed)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Seneca::OnCombinedTapeDialogueLineShown - Arming '%s' beat at LineIndex=%d"), *Action, LineIndex);
+		bCombinedTapeBeatArmed = true;
+		FPChar->bBlockNextDialogueAdvance = true;
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnCombinedTapeDialogueLineShown - Executing '%s'"), *Action);
+	bCombinedTapeBeatArmed = false;
+
+	if (Action == TEXT("Give combined tape"))
+	{
+		if (!CombinedTapeDef)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnCombinedTapeDialogueLineShown - CombinedTapeDef not assigned"));
+			return;
+		}
+
+		UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
+		if (!Inventory)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::OnCombinedTapeDialogueLineShown - No inventory; cannot give combined tape"));
+			return;
+		}
+
+		FInventoryItemData ItemData = CombinedTapeDef->ToInventoryItemData();
+		Inventory->AddItemWithData(ItemData);
+		FPChar->ShowItemNotification(ItemData, CombinedTapeDef->NotificationRotation);
+		TakenMovies.Reset();
+		ClearCounterMovies();
+		return;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("Seneca::OnCombinedTapeDialogueLineShown - Unknown action '%s'"), *Action);
 }
 

@@ -37,8 +37,19 @@ public:
 	// Test-only query: true while this MovieBox is the actively inspected one.
 	bool IsBeingInspected() const { return InspectedActor != nullptr; }
 
+	bool WasCollected() const { return DidCollectMovie; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Movie")
 	UMaterialInterface* CoverMaterial;
+
+	// Subclasses (e.g. BP_BlankVHS) set this to true to opt out of the 3-movie cap
+	// and the IsMovieCollectionLocked() gate so they can be picked up after the cap is locked.
+	UPROPERTY(EditDefaultsOnly, Category="Movie")
+	bool bExemptFromMovieLimit = false;
+
+	// If non-empty, used as the inventory ItemID instead of the actor-name-derived one.
+	UPROPERTY(EditDefaultsOnly, Category="Movie")
+	FName ItemIDOverride;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
 	float InspectionDistance = 50.0f;

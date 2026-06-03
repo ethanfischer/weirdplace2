@@ -7,6 +7,7 @@
 #include "SpawnerActorComponent.generated.h"
 
 class AAmbientSound;
+class AMovieBox;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class WEIRDPLACE2_API USpawnerActorComponent : public UActorComponent {
@@ -18,6 +19,11 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings")
 	TSubclassOf<AActor> MovieBoxClass;
+
+	// Replacement class for the randomly chosen top-shelf box (the "blank tape").
+	// Must be a BP_MovieBox subclass with ItemIDOverride set (e.g. BP_BlankVHS).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings")
+	TSubclassOf<AMovieBox> BlankVhsBoxClass;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings")
 	TArray<FVector> ShelfLocations;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings")
@@ -58,11 +64,16 @@ private:
 	UPROPERTY()
 	AActor* ChosenBox = nullptr;
 
+	FName ChosenItemID;
+
 	float CurrentVolumeMultiplier = 1.0f;
 
 	void SpawnMovieBoxes();
 
 public:
+	AActor* GetChosenBox() const { return ChosenBox; }
+	FName   GetChosenItemID() const { return ChosenItemID; }
+
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 };

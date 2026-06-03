@@ -188,10 +188,12 @@ void AMovieBox::Interact_Implementation()
 		}));
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
 
-	// Show the collect prompt for the entire inspection if collection is allowed
+	// Show the collect prompt for the entire inspection if collection is allowed.
+	// bExemptFromMovieLimit (e.g. BP_BlankVHS) bypasses both the cap and the lock.
 	const bool bCanCollect = MyCharacter
-		&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
-		&& !MyCharacter->IsMovieCollectionLocked();
+		&& (bExemptFromMovieLimit
+			|| (MyCharacter->GetInventoryComponent()->GetItemCount() < 3
+				&& !MyCharacter->IsMovieCollectionLocked()));
 	InteractionWidget->SetVisibility(bCanCollect);
 }
 
@@ -204,32 +206,35 @@ void AMovieBox::CollectInspectedMovie()
 	}
 	if (DidCollectMovie) return;
 
-	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
+	if (!bExemptFromMovieLimit)
 	{
-		if (CantCarryWidget)
+		if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
 		{
-			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
-				FTimerDelegate::CreateWeakLambda(this, [this]()
-				{
-					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-				}), 2.0f, false);
+			if (CantCarryWidget)
+			{
+				CantCarryWidget->SetVisibility(true);
+				GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+					FTimerDelegate::CreateWeakLambda(this, [this]()
+					{
+						if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+					}), 2.0f, false);
+			}
+			return;
 		}
-		return;
-	}
 
-	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
-	{
-		if (CantCarryWidget)
+		if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
 		{
-			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
-				FTimerDelegate::CreateWeakLambda(this, [this]()
-				{
-					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-				}), 2.0f, false);
+			if (CantCarryWidget)
+			{
+				CantCarryWidget->SetVisibility(true);
+				GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+					FTimerDelegate::CreateWeakLambda(this, [this]()
+					{
+						if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+					}), 2.0f, false);
+			}
+			return;
 		}
-		return;
 	}
 
 	EnvelopeMesh->SetHiddenInGame(true);
@@ -249,7 +254,8 @@ void AMovieBox::CollectInspectedMovie()
 	}
 
 	// Add item to inventory with visual data captured from the envelope mesh
-	MyCharacter->AddItemToInventoryWithMesh(FName(*CoverName), EnvelopeMesh);
+	const FName InventoryID = !ItemIDOverride.IsNone() ? ItemIDOverride : FName(*CoverName);
+	MyCharacter->AddItemToInventoryWithMesh(InventoryID, EnvelopeMesh);
 
 	// Defer StopInspection by one tick. 5.7 fires legacy "Collect Inspected Movie"
 	// (IE_Pressed, this binding) before Enhanced Input IA_Interact (Triggered) on
