@@ -1,32 +1,32 @@
-# Todo / Bugs
-[ ] fix no collection sound when basket given
+# Claude Friendly
+[x] fix no collection sound when basket given
 [x] replace collection sound with something better fitting
+[ ] looking at one of the gastation lights for 30 seconds adds something to your inventory
+    [ ] for example, watching the movie rewards you too
+[ ] "Rick: I'll meet you inside" It shouldn't say Rick: in the dialogue shown to the user but it does for some reason.
+[ ] improve movie pickup
+    [ ] tell player what button to put back
+    [ ] have text always face player
+    
+# Needs human
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
 [ ] seneca unlock employee bathroom animation
-[ ] put in eye contact given by seneca
-    [ ] maybe after friend talks to him
-[ ] Seneca doesn't give you back the videos. He says he will give them later. First wear this eye contact and pick out the right movie and bring it back to me
-[ ] cash needs inventory thumbnail
-[ ] "Rick: I'll meet you inside"
-[ ] improve movie pickup
-    [x] don't have to turn to take
-    [ ] tell player what button to put back
 [ ] gas station door animation
-[ ] get money
-    [ ] money mesh
-    [ ] handle homeless scenario
-    [x] rick shouldn't teleport while in dialogue or while looking at him
 [ ] drop key
     [ ] need better sfx
     [ ] broken key mesh
 [ ] meet seneca outside smoking cig
     [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
         Cigarette prop already attached to finger bone in `BP_Seneca`.
-[ ] looking at one of the gastation lights for 30 seconds adds something to your inventory
-    [ ] for example, watching the movie rewards you too
+        
+# Needs design
+[ ] handle homeless scenario if you give money to Hudson. how to progress? 
+    [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
 
-Stretch goals:
+# Stretch goals:
+[ ] put in eye contact given by seneca
+    [ ] maybe after friend talks to him
 [ ] replace llm responses to movies
 [ ] allow walking away mid dialogue
 [ ] century massage
@@ -37,6 +37,4 @@ Stretch goals:
 [ ] There is no dying. only waking up in the other world
     [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
         [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
-[ ] 2.95 cash exactly
-    [ ] 1 cent found later, but seneca accepts it
     
