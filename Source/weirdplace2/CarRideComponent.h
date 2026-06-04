@@ -74,6 +74,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 
+	// Fade to black and replay the ride from the start. Used by AShadowMan as a
+	// placeholder "wake up in the other world" effect.
+	UFUNCTION(BlueprintCallable, Category = "Car Ride")
+	void RestartRide();
+
 private:
 	void StartRide();
 	void SkipRide();
