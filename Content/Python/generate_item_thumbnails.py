@@ -45,6 +45,11 @@ ITEM_REGISTRY = [
         "materials": ["/Game/Fab/Small_Key__1MB_/MetalKey"],
         "rotation": (90.0, 0.0, 0.0),
     },
+    {
+        "id": "BlankVHS",
+        "mesh": "/Game/Import/blankvhstape/SM_VhsBox_Memphis",
+        "rotation": (0.0, 0.0, 0.0),
+    },
 ]
 
 THUMB_W, THUMB_H = 1024, 1440
