@@ -135,12 +135,13 @@ Two paths depending on what you need:
 
 **Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
 ```bash
-# File:
-python scripts/ue_remote_exec.py --file Content/Python/your_script.py
+# File (must be an ABSOLUTE path — UE 5.7's MODE_EXEC_FILE resolves it directly):
+python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Content/Python/your_script.py" --mode ExecuteFile
 
 # Inline:
 python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
 ```
+Do not use `--file <path>` — the wrapper ships file contents, but 5.7's MODE_EXEC_FILE expects a path and the run silently fails with empty output. Always pass the absolute path through `--code`.
 `scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
 
 **Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
