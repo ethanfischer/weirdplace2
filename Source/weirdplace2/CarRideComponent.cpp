@@ -150,39 +150,6 @@ void UCarRideComponent::StartRide()
 
 }
 
-void UCarRideComponent::RestartRide()
-{
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC || !PC->PlayerCameraManager)
-	{
-		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::RestartRide - No PlayerController/CameraManager"));
-		return;
-	}
-
-	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::RestartRide - Fading to black"));
-	PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, FadeDuration, FLinearColor::Black, false, true);
-
-	// After fade completes, re-run the ride from the start. StartRide() already
-	// hides the gas station, disables collision, applies the floor-snap guard
-	// (MOVE_None + StopMovementImmediately) before teleporting to PassengerSeatTarget,
-	// and re-arms bSceneryMoving + the dialogue start timer.
-	GetWorld()->GetTimerManager().SetTimer(
-		FadeOutTimerHandle,
-		FTimerDelegate::CreateWeakLambda(this, [this]()
-		{
-			StartRide();
-
-			APlayerController* PC = GetWorld()->GetFirstPlayerController();
-			if (PC && PC->PlayerCameraManager)
-			{
-				PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeDuration, FLinearColor::Black, false, false);
-			}
-		}),
-		FadeDuration,
-		false
-	);
-}
-
 void UCarRideComponent::SkipRide()
 {
 	GetWorld()->GetTimerManager().ClearTimer(DialogueStartTimerHandle);

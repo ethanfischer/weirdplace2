@@ -37,7 +37,6 @@ Stretch goals:
 [ ] There is no dying. only waking up in the other world
     [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
         [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
-    [ ] shadow-man kill currently replays the car ride (UCarRideComponent::RestartRide) as a placeholder — swap to the real "other world" mechanic once it exists
 [ ] 2.95 cash exactly
     [ ] 1 cent found later, but seneca accepts it
     
