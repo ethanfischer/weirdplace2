@@ -181,6 +181,12 @@ void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)
 		const FQuat Combined = FQuat(HeldItemRotation) * FQuat(ItemData.Rotation);
 		HeldItemMesh->SetRelativeRotation(Combined);
 
+		// Hold the mesh by its bounds center, not its pivot — imported assets
+		// put the pivot anywhere (the blank tape's box hangs half out of
+		// frame otherwise). Centered-pivot meshes are unaffected.
+		const FVector LocalCenter = ItemData.Mesh->GetBoundingBox().GetCenter();
+		HeldItemMesh->SetRelativeLocation(HeldItemOffset - Combined.RotateVector(LocalCenter * ItemData.Scale));
+
 		UE_LOG(LogTemp, Log, TEXT("HeldItemComponent: Updated to item %s with stored visual data"), *ItemID.ToString());
 	}
 	else
@@ -192,6 +198,9 @@ void UHeldItemComponent::UpdateHeldItem(const FName& ItemID)
 			HeldItemMesh->SetStaticMesh(CubeMesh);
 			HeldItemMesh->SetRelativeScale3D(FVector(0.1f, 0.75f, 1.0f)); // VHS-like proportions
 		}
+
+		// A previous item may have shifted the bounds-centering offset.
+		HeldItemMesh->SetRelativeLocation(HeldItemOffset);
 
 		// Placeholder material with color based on item name
 		UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/EngineMaterials/DefaultMaterial.DefaultMaterial"));

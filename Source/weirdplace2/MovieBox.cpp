@@ -105,12 +105,19 @@ void AMovieBox::BeginPlay()
 
 	// Put-back prompt: created at runtime (not in the BP) so every MovieBox
 	// subclass gets it. Attached to the envelope so collect's recursive hide
-	// also hides it.
+	// also hides it. Text stays empty outside inspection — the component's
+	// bounds count toward the actor's bounding box, which the E2E LookAt
+	// aim uses, and the TextRender default text ("Text") shifts it.
 	PutBackPrompt = NewObject<UTextRenderComponent>(this, TEXT("PutBackPrompt"));
+	// Contribute nothing to the actor's bounding box — the E2E LookAt aims at
+	// the actor bounds center, and even a zero-extent point at the pivot
+	// skews it enough to make shelf aiming clip neighboring boxes.
+	PutBackPrompt->bUseAttachParentBound = true;
 	PutBackPrompt->RegisterComponent();
 	PutBackPrompt->AttachToComponent(EnvelopeMesh, FAttachmentTransformRules::KeepRelativeTransform);
 	PutBackPrompt->SetHorizontalAlignment(EHTA_Center);
 	PutBackPrompt->SetWorldSize(4.0f);
+	PutBackPrompt->SetText(FText::GetEmpty());
 	PutBackPrompt->SetVisibility(false);
 }
 
@@ -330,9 +337,23 @@ void AMovieBox::CollectInspectedMovie()
 		}
 	}
 
-	// Add item to inventory with visual data captured from the envelope mesh
+	// Add item to inventory with visual data captured from the envelope mesh.
+	// World scale (not relative) so meshes whose size comes from ancestor
+	// scaling are captured at the size the player actually saw, and
+	// HeldPoseCorrection brings differently-authored meshes into the standard
+	// held orientation.
 	const FName InventoryID = !ItemIDOverride.IsNone() ? ItemIDOverride : FName(*CoverName);
-	MyCharacter->AddItemToInventoryWithMesh(InventoryID, EnvelopeMesh);
+	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(InventoryID, EnvelopeMesh);
+	ItemData.Scale = EnvelopeMesh->GetComponentScale();
+	ItemData.Rotation = (FQuat(ItemData.Rotation) * FQuat(HeldPoseCorrection)).Rotator();
+	if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
+	{
+		Inventory->AddItemWithData(ItemData);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: player has no InventoryComponent"), *GetName());
+	}
 
 	// Defer StopInspection by one tick. 5.7 fires legacy "Collect Inspected Movie"
 	// (IE_Pressed, this binding) before Enhanced Input IA_Interact (Triggered) on
@@ -382,9 +403,17 @@ void AMovieBox::StopInspection()
 	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
 
-	// Hide the collect and put-back prompts
+	// Hide the collect and put-back prompts. The put-back prompt also clears
+	// its text and returns to the pivot so it stops contributing stale
+	// world-position bounds to the actor's bounding box.
 	if (InteractionWidget) InteractionWidget->SetVisibility(false);
-	if (PutBackPrompt) PutBackPrompt->SetVisibility(false);
+	if (PutBackPrompt)
+	{
+		PutBackPrompt->SetVisibility(false);
+		PutBackPrompt->SetText(FText::GetEmpty());
+		PutBackPrompt->SetRelativeLocation(FVector::ZeroVector);
+		PutBackPrompt->SetRelativeRotation(FRotator::ZeroRotator);
+	}
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;

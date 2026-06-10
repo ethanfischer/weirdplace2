@@ -496,4 +496,71 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// BlankVHSHeldPose — the held blank tape must sit in the hand the same
+// way a regular movie does. Pose equality is asserted as matching
+// camera-space long/short box axes (mesh-authoring agnostic), plus
+// side-by-side screenshots.
+// =======================================================================
+
+namespace
+{
+	static FVector CapturedMovieLongAxis = FVector::ZeroVector;
+	static FVector CapturedMovieShortAxis = FVector::ZeroVector;
+	static float CapturedMovieMaxExtent = 0.f;
+	static FVector CapturedMovieCenter = FVector::ZeroVector;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BlankVHSHeldPose,
+	"Weirdplace2.E2E.Level1.BlankVHSHeldPose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+
+	// Collect a regular shelf movie (slot 0).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// The blank tape only exists after Seneca's money beat swaps it onto the
+	// shelf — trigger the swap, then collect it through the production
+	// capture path (slot 1). Shelf aiming at the randomly-placed blank is
+	// flaky and isn't what this test is about.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BlankVHS")));
+
+	// Hold the movie; capture its pose axes.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_01_MovieHeld")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureHeldBoxAxes(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
+
+	// Hold the blank tape; its pose must match.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_02_BlankHeld")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldBoxAxesMatch(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

@@ -5,7 +5,7 @@
 [x] improve movie pickup
     [x] tell player what button to put back
     [x] have text always face player
-[ ] make blank vhs held pose same as other movies
+[x] make blank vhs held pose same as other movies
     
 # Needs human
 [ ] more intricate soundscape espcially in oasis

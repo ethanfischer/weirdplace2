@@ -3,7 +3,7 @@
 **Home branch:** `May31`
 **Overnight branch:** `overnight/2026-06-09`
 **Scope agreed (plan-mode approved):** 1) gas-station light gaze → cash (ONE light, rising hum; TV sub-item deferred by your call) · 2) "Rick:" prefix loader-parse fix · 3) movie put-back prompt + text faces player · 4) blank VHS held pose
-**Result:** run in progress — this line is replaced when the night ends.
+**Result:** 4 done · 0 blocked · 0 skipped (+1 bonus: pre-existing HappyPath flake diagnosed and fixed). Final tip: HappyPath green ×3 + all four item tests green.
 
 ## Done — needs your eyes before merge
 - ✅ **Gas-station light gaze reward → cash** — `Weirdplace2.E2E.Level1.GazeReward` green (13 steps).
@@ -31,6 +31,18 @@
   - First green's screenshot showed the text occluded by the box itself; pulled it 18cm toward the camera. The component-flag assert can't catch occlusion — the screenshot did.
   - Diegetic 3D text per the VR rule; world size 4cm.
 
+- ✅ **Blank VHS held pose matches other movies** — `Weirdplace2.E2E.Level1.BlankVHSHeldPose` green (24 steps).
+  Screenshots: `E2E_VHSPose_01_MovieHeld.png` / `E2E_VHSPose_02_BlankHeld.png` — movie and blank ride the hand slot with the same tilt, size, and spot.
+  **Verify in-game:** collect a movie and the blank tape, hold each from the inventory — the blank should sit in your hand like any movie (it used to be a giant box lying sideways, half off-screen).
+  Notes / decisions made solo:
+  - Three fixes: capture **world** scale at collect (not relative — the Memphis mesh gets its size from ancestor scaling, so the held blank was giant), a per-class `HeldPoseCorrection` rotation on MovieBox (BP_BlankVHS CDO = 180° yaw, solved from logged camera-space axis mappings), and `HeldItemComponent` now holds meshes by **bounds center** instead of pivot (the Memphis pivot is way off-mesh; centered-pivot meshes unaffected).
+  - The pose assert compares camera-space box axes + size + center between held movie and held blank — mesh-authoring agnostic, reusable.
+
+- ✅ **Bonus: HappyPath de-flaked** (not a todo item — surfaced by item 4's regression gate).
+  `Weirdplace2.E2E.Level1.HappyPath` green ×3 consecutive (different random tape slots), plus all four item tests green on the final tip.
+  What was wrong: the blank-tape collect has always been **slot-dependent** — `ActivateChosenTape` swaps a *random* top-shelf box each run, and the test aimed at the actor's render-bounds center, which the Tape child mesh skews off the Memphis envelope's collision. On bad slots the interact ray slipped past the box (or hit a neighbor) and the back half of HappyPath cascaded. Base `May31` passed only because it rolled a friendly slot.
+  Fixes: (a) `FTD_TeleportNearBlankTape` probes both sides with the interact-trace object types and aims at the **verified-hittable surface point**; (b) restored `ChosenForwardOffset` 0→10cm on the `BP_Spawner1` instance (the C++ default — the chosen tape now stands proud of the row, which also telegraphs it visually; **eyeball this on the shelf in-game**); (c) the new put-back prompt contributes no phantom bounds (`bUseAttachParentBound`).
+
 ## Blocked / WIP
 <!-- parked attempts land here -->
 
@@ -42,6 +54,8 @@
 - `git diff May31..overnight/2026-06-09` — the full change
 - Screenshots: `Saved/Screenshots/WindowsEditor/E2E_*.png`
 - Parked attempts: `git branch --list 'wip/*'`
+
+→ **Next:** the deferred "watching the movie rewards you too" sub-item is a one-evening follow-up — the gaze mechanic is built; it's one more `GazeRewardTarget`-style rig pointed at the TV (decide reward + whether it should require the movie actually playing).
 
 ---
 **Not merged — waiting on your verification.** Green tests and screenshots I checked got each item this far, but nothing lands on `May31` until *you* play it and confirm. Walk the **Verify in-game** steps above, then tell me how you want the merge handled (squash / cherry-pick / plain / leave / discard).

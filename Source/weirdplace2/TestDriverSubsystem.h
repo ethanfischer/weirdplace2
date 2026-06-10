@@ -46,6 +46,19 @@ public:
 	// an actor found by editor label. Used to target sub-features like
 	// BP_OutsideBathroomDoor's "KeyLockSocket".
 	bool LookAtActorComponentByName(const FString& ActorLabel, const FString& ComponentName);
+	// Same, with the actor already in hand. Use when the actor's full bounds
+	// center is skewed by child meshes (e.g. the blank tape's Tape child).
+	bool LookAtComponentByName(AActor* Actor, const FString& ComponentName);
+	USceneComponent* FindComponentOnActorByName(AActor* Actor, const FString& ComponentName) const;
+
+	// Aim the camera at an exact world position.
+	bool LookAtWorldPoint(const FVector& Point);
+
+	// Set by FTD_TeleportNearBlankTape: a verified-hittable point just inside
+	// the blank tape's collision surface. FTD_LookAtBlankTape aims here —
+	// derived centers (actor bounds, envelope bounds) miss the Memphis mesh's
+	// collision at some shelf-slot angles.
+	FVector BlankTapeAimPoint = FVector::ZeroVector;
 	bool LookAtSeneca();
 	bool LookAtRick();
 	bool LookAtKeyActor();
@@ -143,6 +156,14 @@ public:
 	// nothing is inspected or the inspected box has no 'PutBackPrompt'.
 	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
 
+	// Camera-space directions of the held item's longest and shortest local
+	// bounding-box axes, the scaled length of the longest half-extent in cm,
+	// and the bounds center in camera space. Two box-shaped items "held in
+	// the same pose" have matching axes, comparable size, and the same
+	// center, regardless of how their meshes were authored. Returns false if
+	// nothing is held/visible.
+	bool GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.
@@ -160,6 +181,16 @@ public:
 	// Test-only: bypass the Seneca-intro gate that normally blocks inventory
 	// open at game start. Calls AMyCharacter::UnlockInventory directly.
 	bool UnlockInventoryForTest();
+
+	// Test-only: activate the blank tape without playing through the money
+	// beat. Finds the level's USpawnerActorComponent and calls
+	// ActivateChosenTape, exactly as Seneca does on receiving money.
+	bool ActivateBlankTapeForTest();
+
+	// Test-only: collect the blank tape through the production capture path
+	// (CollectInspectedMovie) without aiming at it on the crowded shelf. The
+	// shelf-aim flow is exercised by HappyPath; pose-focused tests use this.
+	bool CollectBlankTapeForTest();
 
 	// --- Sensitivity / look diagnostics ---
 

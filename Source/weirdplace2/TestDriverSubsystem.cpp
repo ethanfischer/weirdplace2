@@ -11,6 +11,7 @@
 #endif
 #include "MovieBox.h"
 #include "PropActor.h"
+#include "SpawnerActorComponent.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -191,22 +192,19 @@ bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel,
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no actor '%s'"), *ActorLabel);
 		return false;
 	}
+	return LookAtComponentByName(Actor, ComponentName);
+}
 
-	USceneComponent* Found = nullptr;
-	TArray<USceneComponent*> SceneComps;
-	Actor->GetComponents<USceneComponent>(SceneComps);
-	for (USceneComponent* Comp : SceneComps)
+bool UTestDriverSubsystem::LookAtComponentByName(AActor* Actor, const FString& ComponentName)
+{
+	if (!Actor)
 	{
-		if (Comp && Comp->GetName() == ComponentName)
-		{
-			Found = Comp;
-			break;
-		}
+		return false;
 	}
+
+	USceneComponent* Found = FindComponentOnActorByName(Actor, ComponentName);
 	if (!Found)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no component '%s' on actor '%s'"),
-			*ComponentName, *ActorLabel);
 		return false;
 	}
 
@@ -222,10 +220,46 @@ bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel,
 	const FRotator NewRot = (AimPoint - CamLoc).GetSafeNormal().Rotation();
 	PC->SetControlRotation(NewRot);
 
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtActorComponentByName - %s.%s aim=%s (loc=%s) rot=%s dist=%.1f"),
-		*ActorLabel, *ComponentName, *AimPoint.ToString(), *Found->GetComponentLocation().ToString(),
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtComponentByName - %s.%s aim=%s (loc=%s) rot=%s dist=%.1f"),
+		*Actor->GetName(), *ComponentName, *AimPoint.ToString(), *Found->GetComponentLocation().ToString(),
 		*NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
 	return true;
+}
+
+bool UTestDriverSubsystem::LookAtWorldPoint(const FVector& Point)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { return false; }
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC) { return false; }
+	UCameraComponent* Camera = Player->GetFirstPersonCamera();
+	if (!Camera) { return false; }
+
+	const FVector CamLoc = Camera->GetComponentLocation();
+	PC->SetControlRotation((Point - CamLoc).GetSafeNormal().Rotation());
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtWorldPoint - aim=%s cam=%s dist=%.1f"),
+		*Point.ToString(), *CamLoc.ToString(), FVector::Dist(Point, CamLoc));
+	return true;
+}
+
+USceneComponent* UTestDriverSubsystem::FindComponentOnActorByName(AActor* Actor, const FString& ComponentName) const
+{
+	if (!Actor)
+	{
+		return nullptr;
+	}
+	TArray<USceneComponent*> SceneComps;
+	Actor->GetComponents<USceneComponent>(SceneComps);
+	for (USceneComponent* Comp : SceneComps)
+	{
+		if (Comp && Comp->GetName() == ComponentName)
+		{
+			return Comp;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::FindComponentOnActorByName - no component '%s' on actor '%s'"),
+		*ComponentName, *Actor->GetName());
+	return nullptr;
 }
 
 bool UTestDriverSubsystem::LookAtSeneca()
@@ -789,12 +823,122 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	return true;
 }
 
+bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no player"));
+		return false;
+	}
+
+	// The pawn can carry more than one UHeldItemComponent (C++ default
+	// subobject + BP-added); only the live one owns a held mesh. Use that one.
+	UStaticMeshComponent* Mesh = nullptr;
+	TArray<UHeldItemComponent*> HeldComps;
+	Player->GetComponents<UHeldItemComponent>(HeldComps);
+	for (UHeldItemComponent* Comp : HeldComps)
+	{
+		if (Comp->GetHeldItemMeshComponent())
+		{
+			Mesh = Comp->GetHeldItemMeshComponent();
+			break;
+		}
+	}
+	if (!Mesh || !Mesh->GetStaticMesh() || !Mesh->IsVisible())
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no visible held item mesh (comps=%d mesh=%d staticmesh=%d isvisible=%d)"),
+			HeldComps.Num(),
+			Mesh != nullptr,
+			Mesh && Mesh->GetStaticMesh() != nullptr,
+			Mesh && Mesh->IsVisible());
+		return false;
+	}
+
+	// Identify the mesh's longest and shortest local axes after scale. When
+	// two scaled extents are within 20% (the blank tape's box is nearly
+	// square at gameplay scale), fall back to the authored extents, which
+	// are unambiguous.
+	const FVector Authored = Mesh->GetStaticMesh()->GetBoundingBox().GetExtent();
+	const FVector Ext = Authored * Mesh->GetComponentScale().GetAbs();
+	int32 LongIdx = 0, ShortIdx = 0;
+	for (int32 i = 1; i < 3; ++i)
+	{
+		if (Ext[i] > Ext[LongIdx]) { LongIdx = i; }
+		if (Ext[i] < Ext[ShortIdx]) { ShortIdx = i; }
+	}
+	for (int32 i = 0; i < 3; ++i)
+	{
+		if (i != LongIdx && i != ShortIdx
+			&& Ext[i] > Ext[LongIdx] * 0.8f
+			&& Authored[i] > Authored[LongIdx])
+		{
+			LongIdx = i;
+		}
+	}
+	OutMaxExtent = Ext[LongIdx];
+	FVector LocalLong = FVector::ZeroVector;
+	FVector LocalShort = FVector::ZeroVector;
+	LocalLong[LongIdx] = 1.f;
+	LocalShort[ShortIdx] = 1.f;
+
+	FVector CamLoc;
+	FRotator CamRot;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
+	const FQuat CamQ = CamRot.Quaternion();
+	const FQuat MeshQ = Mesh->GetComponentQuat();
+	OutLongAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalLong));
+	OutShortAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalShort));
+
+	const FVector WorldCenter = Mesh->GetComponentTransform().TransformPosition(
+		Mesh->GetStaticMesh()->GetBoundingBox().GetCenter());
+	OutCenterCamSpace = CamQ.UnrotateVector(WorldCenter - CamLoc);
+
+	// Full local->camera mapping, for diagnosing pose-correction values.
+	const FQuat MeshToCam = CamQ.Inverse() * MeshQ;
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetHeldItemBoxAxes - ext=%s X->%s Y->%s Z->%s relrot=%s"),
+		*Ext.ToString(),
+		*MeshToCam.RotateVector(FVector::XAxisVector).ToString(),
+		*MeshToCam.RotateVector(FVector::YAxisVector).ToString(),
+		*MeshToCam.RotateVector(FVector::ZAxisVector).ToString(),
+		*Mesh->GetRelativeRotation().ToString());
+	return true;
+}
+
 bool UTestDriverSubsystem::UnlockInventoryForTest()
 {
 	AMyCharacter* MyChar = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (!MyChar) { return false; }
 	MyChar->UnlockInventory();
 	return true;
+}
+
+bool UTestDriverSubsystem::ActivateBlankTapeForTest()
+{
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (USpawnerActorComponent* Spawner = It->FindComponentByClass<USpawnerActorComponent>())
+		{
+			Spawner->ActivateChosenTape();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::ActivateBlankTapeForTest - no USpawnerActorComponent in level"));
+	return false;
+}
+
+bool UTestDriverSubsystem::CollectBlankTapeForTest()
+{
+	AMovieBox* Tape = FindBlankTape();
+	if (!Tape)
+	{
+		return false;
+	}
+	// CollectInspectedMovie runs the real capture (AddItemToInventoryWithMesh
+	// off the envelope) and its deferred StopInspection no-ops outside
+	// inspection.
+	Tape->CollectInspectedMovie();
+	return Tape->WasCollected();
 }
 
 bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale)

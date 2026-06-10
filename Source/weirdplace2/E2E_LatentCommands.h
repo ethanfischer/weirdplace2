@@ -460,7 +460,9 @@ public:
 class FTD_TeleportNearBlankTape : public FTD_Base
 {
 public:
-	FTD_TeleportNearBlankTape(FAutomationTestBase* InTest, float InDistance = 150.f)
+	// 80cm default: close enough that the eye-line into the shelf slot clears
+	// the plank above the box, like a player leaning in.
+	FTD_TeleportNearBlankTape(FAutomationTestBase* InTest, float InDistance = 80.f)
 		: FTD_Base(InTest), Distance(InDistance) {}
 
 	virtual FString GetStatusText() const override { return TEXT("Teleporting in front of blank tape"); }
@@ -475,6 +477,12 @@ public:
 		if (!Player) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no player")); return true; }
 
 		const FVector TapeLoc = Tape->GetActorLocation();
+		// Aim at the envelope's own bounds — the actor bounds center is skewed
+		// by the Tape child mesh, enough to slip the trace past the envelope's
+		// collision at some shelf-slot angles.
+		USceneComponent* Envelope = Driver->FindComponentOnActorByName(Tape, TEXT("Cube"));
+		if (!Envelope) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: blank tape has no 'Cube' envelope")); return true; }
+		const FVector TapeCenter = Envelope->Bounds.Origin;
 		FVector Forward = Tape->GetActorForwardVector();
 		Forward.Z = 0.f;
 		Forward = Forward.GetSafeNormal();
@@ -484,10 +492,57 @@ public:
 		}
 
 		const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-		const FVector NewLoc = TapeLoc + Forward * Distance + FVector(0.f, 0.f, HalfHeight);
+
+		// The blank inherits the replaced slot's rotation, and on some racks
+		// that faces INTO the shelf unit — standing "in front" there means the
+		// next aisle, where the interact trace hits that rack's own boxes.
+		// Stand on whichever side can actually trace to the tape, using the
+		// same object types as RaycastInteractableCheck.
+		FCollisionObjectQueryParams ObjectParams;
+		ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+		ObjectParams.AddObjectTypesToQuery(ECC_GameTraceChannel6);
+
+		UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: tape loc=%s boundsCenter=%s fwd=%s"),
+			*TapeLoc.ToString(), *TapeCenter.ToString(), *Forward.ToString());
+
+		bool bFoundSpot = false;
+		FVector NewLoc = FVector::ZeroVector;
+		Driver->BlankTapeAimPoint = FVector::ZeroVector;
+		for (const float Sign : { 1.f, -1.f })
+		{
+			const FVector TryLoc = TapeLoc + Forward * (Distance * Sign) + FVector(0.f, 0.f, HalfHeight);
+			// Probe from where the camera actually ends up after landing
+			// (~42cm above the shelf slot at this approach distance).
+			const FVector Eye(TryLoc.X, TryLoc.Y, TapeCenter.Z + 42.f);
+			FHitResult Hit;
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(BlankTapeAim), /*bTraceComplex*/ false);
+			QueryParams.AddIgnoredActor(Player);
+			const bool bHit = Tape->GetWorld()->LineTraceSingleByObjectType(Hit, Eye, TapeCenter, ObjectParams, QueryParams);
+			UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: side %+.0f eye=%s -> hit %s at %s"),
+				Sign, *Eye.ToString(),
+				bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("(nothing)"),
+				bHit ? *Hit.ImpactPoint.ToString() : TEXT("-"));
+			if (bHit && Hit.GetActor() == Tape)
+			{
+				NewLoc = TryLoc;
+				// Hand the verified-hittable surface point (nudged just inside
+				// the collision) to FTD_LookAtBlankTape — derived bounds
+				// centers miss the Memphis mesh's collision at some angles.
+				Driver->BlankTapeAimPoint = Hit.ImpactPoint + (TapeCenter - Eye).GetSafeNormal() * 3.f;
+				bFoundSpot = true;
+				break;
+			}
+		}
+		if (!bFoundSpot)
+		{
+			Test->AddError(TEXT("FTD_TeleportNearBlankTape: neither side of the tape has a clear interact trace to it"));
+			return true;
+		}
+
 		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
 
-		const FRotator LookRot = (TapeLoc - NewLoc).Rotation();
+		const FRotator LookRot = (Driver->BlankTapeAimPoint - NewLoc).Rotation();
 		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
 		{
 			PC->SetControlRotation(LookRot);
@@ -511,7 +566,15 @@ public:
 		if (!Driver) { Test->AddError(TEXT("FTD_LookAtBlankTape: no driver")); return true; }
 		AMovieBox* Tape = Driver->FindBlankTape();
 		if (!Tape) { Test->AddError(TEXT("FTD_LookAtBlankTape: no blank tape")); return true; }
-		if (!Driver->LookAt(Tape))
+		// Aim at the surface point FTD_TeleportNearBlankTape verified is
+		// hittable — every derived center (actor bounds, envelope bounds)
+		// misses the Memphis mesh's collision at some shelf-slot angles.
+		if (Driver->BlankTapeAimPoint.IsZero())
+		{
+			Test->AddError(TEXT("FTD_LookAtBlankTape: run FTD_TeleportNearBlankTape first (no verified aim point)"));
+			return true;
+		}
+		if (!Driver->LookAtWorldPoint(Driver->BlankTapeAimPoint))
 		{
 			Test->AddError(TEXT("FTD_LookAtBlankTape: LookAt failed"));
 		}
@@ -1414,6 +1477,148 @@ public:
 private:
 	FString ExpectedSubstring;
 	float MinFacingDot;
+};
+
+// =======================================================================
+// FTD_ActivateBlankTape — test bypass: trigger the spawner's chosen-tape
+// swap directly instead of playing through the money beat.
+// =======================================================================
+
+class FTD_ActivateBlankTape : public FTD_Base
+{
+public:
+	FTD_ActivateBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Activating blank tape (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_ActivateBlankTape: no driver")); return true; }
+		if (!Driver->ActivateBlankTapeForTest())
+		{
+			Test->AddError(TEXT("FTD_ActivateBlankTape: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_CollectBlankTape — test bypass: collect the blank tape through the
+// production capture path without shelf aiming (HappyPath covers aiming).
+// =======================================================================
+
+class FTD_CollectBlankTape : public FTD_Base
+{
+public:
+	FTD_CollectBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Collecting blank tape (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CollectBlankTape: no driver")); return true; }
+		if (!Driver->CollectBlankTapeForTest())
+		{
+			Test->AddError(TEXT("FTD_CollectBlankTape: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_CaptureHeldBoxAxes / FTD_AssertHeldBoxAxesMatch — record the held
+// item's camera-space long/short box axes into caller-owned vectors, then
+// later assert the currently held item's axes match (same "pose" for two
+// box-shaped items regardless of mesh authoring). Abs dots: a box flipped
+// 180° reads as the same held pose.
+// =======================================================================
+
+class FTD_CaptureHeldBoxAxes : public FTD_Base
+{
+public:
+	FTD_CaptureHeldBoxAxes(FAutomationTestBase* InTest, FVector* InOutLong, FVector* InOutShort, float* InOutMaxExtent, FVector* InOutCenter)
+		: FTD_Base(InTest), OutLong(InOutLong), OutShort(InOutShort), OutMaxExtent(InOutMaxExtent), OutCenter(InOutCenter) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Capturing held item box axes"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no driver")); return true; }
+		if (!Driver->GetHeldItemBoxAxes(*OutLong, *OutShort, *OutMaxExtent, *OutCenter))
+		{
+			Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no visible held item"));
+		}
+		return true;
+	}
+private:
+	FVector* OutLong;
+	FVector* OutShort;
+	float* OutMaxExtent;
+	FVector* OutCenter;
+};
+
+class FTD_AssertHeldBoxAxesMatch : public FTD_Base
+{
+public:
+	FTD_AssertHeldBoxAxesMatch(FAutomationTestBase* InTest, const FVector* InLong, const FVector* InShort,
+		const float* InMaxExtent, const FVector* InCenter,
+		float InMinLongDot = 0.95f, float InMinShortDot = 0.90f, float InMaxSizeRatio = 2.0f, float InMaxCenterDelta = 15.f)
+		: FTD_Base(InTest), RefLong(InLong), RefShort(InShort), RefMaxExtent(InMaxExtent), RefCenter(InCenter)
+		, MinLongDot(InMinLongDot), MinShortDot(InMinShortDot), MaxSizeRatio(InMaxSizeRatio), MaxCenterDelta(InMaxCenterDelta) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting held item pose matches captured axes"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no driver")); return true; }
+
+		FVector Long, Short, Center;
+		float MaxExtent = 0.f;
+		if (!Driver->GetHeldItemBoxAxes(Long, Short, MaxExtent, Center))
+		{
+			Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no visible held item"));
+			return true;
+		}
+
+		const float LongDot = FMath::Abs(FVector::DotProduct(Long, *RefLong));
+		const float ShortDot = FMath::Abs(FVector::DotProduct(Short, *RefShort));
+		if (LongDot < MinLongDot || ShortDot < MinShortDot)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: pose differs (longDot=%.3f need>=%.2f, shortDot=%.3f need>=%.2f; held long=%s ref long=%s)"),
+				LongDot, MinLongDot, ShortDot, MinShortDot, *Long.ToString(), *RefLong->ToString()));
+		}
+
+		const float SizeRatio = (*RefMaxExtent > KINDA_SMALL_NUMBER) ? (MaxExtent / *RefMaxExtent) : 0.f;
+		if (SizeRatio < 1.f / MaxSizeRatio || SizeRatio > MaxSizeRatio)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: size differs (held extent %.1fcm vs ref %.1fcm, ratio %.2f outside 1/%.1f..%.1f)"),
+				MaxExtent, *RefMaxExtent, SizeRatio, MaxSizeRatio, MaxSizeRatio));
+		}
+
+		const float CenterDelta = FVector::Dist(Center, *RefCenter);
+		if (CenterDelta > MaxCenterDelta)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: held position differs (center %s vs ref %s, delta %.1fcm > %.1fcm)"),
+				*Center.ToString(), *RefCenter->ToString(), CenterDelta, MaxCenterDelta));
+		}
+		return true;
+	}
+private:
+	const FVector* RefLong;
+	const FVector* RefShort;
+	const float* RefMaxExtent;
+	const FVector* RefCenter;
+	float MinLongDot;
+	float MinShortDot;
+	float MaxSizeRatio;
+	float MaxCenterDelta;
 };
 
 // =======================================================================
