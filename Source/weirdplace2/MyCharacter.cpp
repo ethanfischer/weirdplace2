@@ -42,16 +42,6 @@ void AMyCharacter::LockMovieCollection()
 	UE_LOG(LogTemp, Log, TEXT("AMyCharacter::LockMovieCollection - Movie collection locked"));
 }
 
-void AMyCharacter::UnlockInventory()
-{
-	if (bInventoryUnlocked)
-	{
-		return;
-	}
-	bInventoryUnlocked = true;
-	UE_LOG(LogTemp, Log, TEXT("Inventory unlocked for player"));
-}
-
 void AMyCharacter::SetCanInteract(bool value)
 {
 	CanInteract = value;

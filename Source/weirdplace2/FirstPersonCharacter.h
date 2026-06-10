@@ -213,6 +213,11 @@ public:
 	// the displayed speaker/body through this.
 	UUI_Dialogue* GetActiveDialogueWidget() const { return UI_Dialogue; }
 
+	// Last input device the player actually used (look/move/inspection input).
+	// Drives device-specific button prompts.
+	bool IsUsingGamepad() const { return bLastInputWasGamepad; }
+	void SetUsingGamepad(bool bGamepad) { bLastInputWasGamepad = bGamepad; }
+
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void AdvanceSimpleDialogue();
 
@@ -228,6 +233,9 @@ public:
 	bool bBlockNextDialogueAdvance = false;
 
 private:
+	// See IsUsingGamepad(). Defaults to keyboard until input is seen.
+	bool bLastInputWasGamepad = false;
+
 	// --- Item Notification ---
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))

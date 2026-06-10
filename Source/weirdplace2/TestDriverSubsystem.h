@@ -178,10 +178,6 @@ public:
 	// hand-rig position.
 	bool SetHeldItemSlotPose(FVector Offset, FRotator Rotation);
 
-	// Test-only: bypass the Seneca-intro gate that normally blocks inventory
-	// open at game start. Calls AMyCharacter::UnlockInventory directly.
-	bool UnlockInventoryForTest();
-
 	// Test-only: activate the blank tape without playing through the money
 	// beat. Finds the level's USpawnerActorComponent and calls
 	// ActivateChosenTape, exactly as Seneca does on receiving money.

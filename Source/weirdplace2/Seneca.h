@@ -213,20 +213,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Counter")
 	FRotator MovieRelativeRotation = FRotator::ZeroRotator;
 
-	// --- Basket Beat Config ---
-
-	// Pre-placed ShoppingBasket actor in the level — shown on beat, hidden on next E press
+	// Pre-placed ShoppingBasket actor in the level. The basket-give beat is
+	// gone (inventory works from spawn); the prop stays hidden at BeginPlay
+	// until it's re-dressed or deleted in the editor.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
 	APropActor* ShoppingBasketActor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	int32 BasketBeatLineIndex = 2;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	FRotator BasketNotificationRotation = FRotator::ZeroRotator;
-
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString InventoryButtonDisplayName = TEXT("Tab");
 
 private:
 	// Gives the key to the player and shows the item notification on success.
@@ -300,14 +291,7 @@ private:
 	// Called when the smoking appear delay expires
 	void OnSmokingDelayComplete();
 
-	// --- Basket Beat ---
-
 	void StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar);
-
-	UFUNCTION()
-	void OnBasketDialogueLineShown(int32 LineIndex);
-
-	bool bBasketBeatArmed = false;
 
 	// --- Key Beat ---
 

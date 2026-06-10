@@ -297,9 +297,6 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("InventoryThumbnails")
 
-	// Bypass Seneca-intro gate that normally blocks inventory open.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
-
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
 		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
@@ -344,8 +341,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("HeldItemRotationTour")
-
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
 
 	// Lit interior so the small held meshes are visible.
@@ -467,10 +462,6 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("MoviePutBackPrompt")
 
-	// MovieBox::CanInteract requires the inventory gate that Seneca's intro
-	// normally opens.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
-
 	// Same approach as HappyPath's CollectMovies: the MovieShelf waypoint +
 	// a hand-placed shelf box the interact trace reliably reaches.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
@@ -480,12 +471,14 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q")));
+	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
 
-	// Rotate the box; the prompt must keep facing the camera.
+	// Rotate the box (mouse axis); the prompt must keep facing the camera
+	// and stay keyboard-flavored.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
 
 	// The prompted key really does put the movie back.
@@ -519,8 +512,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
-
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
 
 	// Collect a regular shelf movie (slot 0).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
@@ -558,6 +549,30 @@ bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_02_BlankHeld")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldBoxAxesMatch(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// InventoryFromStart — the inventory works from the moment the player
+// spawns; no Seneca-intro gate, no test bypass.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InventoryFromStart,
+	"Weirdplace2.E2E.Level1.InventoryFromStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InventoryFromStart")
+
+	// Deliberately NO unlock step: Tab must work at spawn.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Open")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

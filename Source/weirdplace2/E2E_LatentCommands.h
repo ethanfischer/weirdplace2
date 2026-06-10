@@ -1146,31 +1146,6 @@ private:
 };
 
 // =======================================================================
-// FTD_UnlockInventory — bypass the Seneca-intro gate that normally blocks
-// inventory open at game start. Use at the start of any focused inventory
-// test that doesn't want to play through SenecaIntro first.
-// =======================================================================
-
-class FTD_UnlockInventory : public FTD_Base
-{
-public:
-	FTD_UnlockInventory(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Unlocking inventory (test bypass)"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_UnlockInventory: no driver")); return true; }
-		if (!Driver->UnlockInventoryForTest())
-		{
-			Test->AddError(TEXT("FTD_UnlockInventory: failed"));
-		}
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_AddTestItem — inject an item directly into the inventory by mesh path,
 // bypassing the gameplay flow that would normally grant it. For focused
 // inventory tests that don't want to play through Seneca/Rick first.
@@ -1437,12 +1412,12 @@ private:
 class FTD_AssertPutBackPrompt : public FTD_Base
 {
 public:
-	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedSubstring, float InMinFacingDot = 0.94f)
-		: FTD_Base(InTest), ExpectedSubstring(MoveTemp(InExpectedSubstring)), MinFacingDot(InMinFacingDot) {}
+	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedText, float InMinFacingDot = 0.94f)
+		: FTD_Base(InTest), ExpectedText(MoveTemp(InExpectedText)), MinFacingDot(InMinFacingDot) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting put-back prompt mentions \"%s\" and faces camera"), *ExpectedSubstring);
+		return FString::Printf(TEXT("Asserting put-back prompt reads \"%s\" and faces camera"), *ExpectedText);
 	}
 
 	virtual bool UpdateStep() override
@@ -1462,10 +1437,12 @@ public:
 		{
 			Test->AddError(TEXT("FTD_AssertPutBackPrompt: prompt exists but is not visible"));
 		}
-		if (!Text.Contains(ExpectedSubstring))
+		// Exact match: catches both a wrong binding and the dual "Q / B" form
+		// when only the active device's key should show.
+		if (Text != ExpectedText)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text \"%s\" doesn't mention \"%s\""),
-				*Text, *ExpectedSubstring));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text is \"%s\", expected \"%s\""),
+				*Text, *ExpectedText));
 		}
 		if (FacingDot < MinFacingDot)
 		{
@@ -1475,7 +1452,7 @@ public:
 		return true;
 	}
 private:
-	FString ExpectedSubstring;
+	FString ExpectedText;
 	float MinFacingDot;
 };
 

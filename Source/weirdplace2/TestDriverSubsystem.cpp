@@ -905,14 +905,6 @@ bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVec
 	return true;
 }
 
-bool UTestDriverSubsystem::UnlockInventoryForTest()
-{
-	AMyCharacter* MyChar = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-	if (!MyChar) { return false; }
-	MyChar->UnlockInventory();
-	return true;
-}
-
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()
 {
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)

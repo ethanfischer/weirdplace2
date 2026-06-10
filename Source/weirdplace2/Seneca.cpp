@@ -212,15 +212,6 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 			TextLines.Add(FText::FromString(Line));
 		}
 
-		if (State == ESenecaState::WaitingForMovies)
-		{
-			for (FText& Line : TextLines)
-			{
-				FString Str = Line.ToString().Replace(TEXT("[[InventoryButton]]"), *InventoryButtonDisplayName);
-				Line = FText::FromString(Str);
-			}
-		}
-
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Loaded %d lines from %s"), TextLines.Num(), *FullPath);
 	}
 	else
@@ -247,20 +238,6 @@ void ASeneca::OnDialogueEnded()
 	{
 	case ESenecaState::WaitingForMovies:
 	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
-		{
-			if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn()))
-			{
-				FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnBasketDialogueLineShown);
-			}
-		}
-
-		ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-		if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-		{
-			MyCharacter->UnlockInventory();
-		}
 		bIntroDialoguePlayed = true;
 		CurrentState = ESenecaState::WaitingForMoviePurchase;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (intro dialogue done)"));
@@ -694,72 +671,7 @@ void ASeneca::StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar)
 		MultiLines.Add(Line);
 	}
 
-	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnBasketDialogueLineShown);
-	FPChar->OnDialogueLineShown.AddDynamic(this, &ASeneca::OnBasketDialogueLineShown);
 	FPChar->StartDialogue(MultiLines, this);
-}
-
-void ASeneca::OnBasketDialogueLineShown(int32 LineIndex)
-{
-	if (LineIndex != BasketBeatLineIndex)
-	{
-		return;
-	}
-
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC)
-	{
-		return;
-	}
-
-	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PC->GetPawn());
-	if (!FPChar)
-	{
-		return;
-	}
-
-	if (!bBasketBeatArmed)
-	{
-		// First broadcast: arm the block so the next E press triggers the beat
-		bBasketBeatArmed = true;
-		FPChar->bBlockNextDialogueAdvance = true;
-		return;
-	}
-
-	// Second broadcast: show the basket mesh in front of the camera
-	bBasketBeatArmed = false;
-
-	if (!ShoppingBasketActor || !ShoppingBasketActor->MeshComponent)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor or mesh not assigned"));
-		return;
-	}
-
-	UStaticMesh* BasketMesh = ShoppingBasketActor->MeshComponent->GetStaticMesh();
-	if (!BasketMesh)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::OnBasketDialogueLineShown - ShoppingBasketActor has no static mesh"));
-		return;
-	}
-
-	FInventoryItemData BasketData;
-	BasketData.ItemID = FName("Basket");
-	BasketData.Mesh = BasketMesh;
-	BasketData.Scale = ShoppingBasketActor->MeshComponent->GetRelativeScale3D();
-	for (int32 i = 0; i < BasketMesh->GetStaticMaterials().Num(); i++)
-	{
-		BasketData.Materials.Add(BasketMesh->GetMaterial(i));
-	}
-
-	FPChar->ShowItemNotification(BasketData, BasketNotificationRotation);
-
-	if (UInventoryComponent* Inventory = FPChar->GetInventoryComponent())
-	{
-		if (Inventory->CollectSound)
-		{
-			UGameplayStatics::PlaySound2D(this, Inventory->CollectSound);
-		}
-	}
 }
 
 // --- Key Beat ---

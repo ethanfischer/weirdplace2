@@ -498,13 +498,23 @@ float AFirstPersonCharacter::ComputeMouseLookScale() const
 
 void AFirstPersonCharacter::AddControllerYawInput(float Val)
 {
-	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	const bool bGamepad = IsGamepadLookActive();
+	if (!FMath::IsNearlyZero(Val))
+	{
+		bLastInputWasGamepad = bGamepad;
+	}
+	const float Scale = bGamepad ? ComputeGamepadLookScale() : ComputeMouseLookScale();
 	Super::AddControllerYawInput(Val * Scale);
 }
 
 void AFirstPersonCharacter::AddControllerPitchInput(float Val)
 {
-	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	const bool bGamepad = IsGamepadLookActive();
+	if (!FMath::IsNearlyZero(Val))
+	{
+		bLastInputWasGamepad = bGamepad;
+	}
+	const float Scale = bGamepad ? ComputeGamepadLookScale() : ComputeMouseLookScale();
 	Super::AddControllerPitchInput(Val * Scale);
 }
 
@@ -599,12 +609,6 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 	bInventoryDoOnceCompleted = true;
-
-	if (!IsInventoryUnlocked())
-	{
-		UE_LOG(LogTemp, Log, TEXT("HandleShowInventory - inventory not yet unlocked (talk to Seneca first)"));
-		return;
-	}
 
 	if (GetActivityState() != EPlayerActivityState::FreeRoaming)
 	{

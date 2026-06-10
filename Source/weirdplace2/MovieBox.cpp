@@ -2,6 +2,7 @@
 
 
 #include "MovieBox.h"
+#include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
@@ -138,12 +139,20 @@ void AMovieBox::Tick(float DeltaTime)
 		const FVector PromptLoc = GetActorLocation() + ToCam * 18.f - FVector(0.f, 0.f, 14.f);
 		PutBackPrompt->SetWorldLocation(PromptLoc);
 		PutBackPrompt->SetWorldRotation((CamLoc - PromptLoc).Rotation());
+
+		// Re-render the prompt if the player switched devices mid-inspection.
+		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+		if (FPChar && FPChar->IsUsingGamepad() != bPromptBuiltForGamepad)
+		{
+			bPromptBuiltForGamepad = FPChar->IsUsingGamepad();
+			PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
+		}
 	}
 }
 
 bool AMovieBox::CanInteract()
 {
-	return MyCharacter && MyCharacter->IsInventoryUnlocked();
+	return MyCharacter != nullptr;
 }
 
 void AMovieBox::Interact_Implementation()
@@ -153,7 +162,7 @@ void AMovieBox::Interact_Implementation()
 		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: Interact called with missing components — BeginPlay failed to initialize"), *GetName());
 		return;
 	}
-	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
+	if (!MyCharacter)
 	{
 		return;
 	}
@@ -202,9 +211,10 @@ void AMovieBox::Interact_Implementation()
 		PlayerController->InputComponent->RegisterComponent();
 	}
 
-	// Bind rotation input
-	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
-	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
+	// Bind rotation input, per device so the put-back prompt can track which
+	// one the player is actually using.
+	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActorMouse);
+	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActorGamepad);
 
 	// Defer the collect binding by one tick so the in-flight E IE_Pressed event
 	// that opened inspection doesn't immediately trigger collect.
@@ -230,6 +240,8 @@ void AMovieBox::Interact_Implementation()
 
 	if (PutBackPrompt)
 	{
+		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+		bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
 		PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
 		PutBackPrompt->SetVisibility(true);
 	}
@@ -265,18 +277,17 @@ FString AMovieBox::BuildPutBackPromptText() const
 		}
 	}
 
-	if (Keyboard.IsEmpty() && Gamepad.IsEmpty())
+	// Show only the binding for the device the player is actually using.
+	const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+	const bool bGamepad = FPChar && FPChar->IsUsingGamepad();
+	const FString& Key = bGamepad ? Gamepad : Keyboard;
+	if (Key.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: 'Exit Interaction' has no key mappings"), *GetName());
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: 'Exit Interaction' has no %s mapping"),
+			*GetName(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
 		return FString();
 	}
-
-	FString Keys = Keyboard;
-	if (!Gamepad.IsEmpty())
-	{
-		Keys = Keys.IsEmpty() ? Gamepad : FString::Printf(TEXT("%s / %s"), *Keys, *Gamepad);
-	}
-	return FString::Printf(TEXT("%s  put back"), *Keys);
+	return FString::Printf(TEXT("%s  put back"), *Key);
 }
 
 void AMovieBox::CollectInspectedMovie()
@@ -374,6 +385,31 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	FVector LocalUpVector = InspectedActor->GetActorUpVector();
 	FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f));
 	InspectedActor->AddActorWorldRotation(DeltaRotation);
+}
+
+void AMovieBox::RotateInspectedActorMouse(float AxisValue)
+{
+	// Legacy axes fire every frame with 0; only real input marks the device.
+	if (FMath::Abs(AxisValue) > 0.1f)
+	{
+		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
+		{
+			FPChar->SetUsingGamepad(false);
+		}
+	}
+	RotateInspectedActor(AxisValue);
+}
+
+void AMovieBox::RotateInspectedActorGamepad(float AxisValue)
+{
+	if (FMath::Abs(AxisValue) > 0.1f)
+	{
+		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
+		{
+			FPChar->SetUsingGamepad(true);
+		}
+	}
+	RotateInspectedActor(AxisValue);
 }
 
 

@@ -44,10 +44,6 @@ public:
 
 	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
-	// Unlocks inventory access (called by Seneca after first dialogue)
-	void UnlockInventory();
-	bool IsInventoryUnlocked() const { return bInventoryUnlocked; }
-
 	// Locks movie collection (called by Seneca when checkout begins)
 	void LockMovieCollection();
 	bool IsMovieCollectionLocked() const { return bMovieCollectionLocked; }
@@ -79,7 +75,6 @@ private:
 
 	double LastDialogueEndTime = -TNumericLimits<double>::Max();
 
-	bool bInventoryUnlocked = false;
 	bool bMovieCollectionLocked = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))

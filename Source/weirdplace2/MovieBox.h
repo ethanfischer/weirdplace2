@@ -32,6 +32,11 @@ public:
 
 	void CollectInspectedMovie();
 	void RotateInspectedActor(float AxisValue);
+	// Thin per-device wrappers: record which device the player is using
+	// (look input is ignored during inspection, so these axes are the only
+	// device signal) then rotate.
+	void RotateInspectedActorMouse(float AxisValue);
+	void RotateInspectedActorGamepad(float AxisValue);
 	void StopInspection();
 
 	// Test-only query: true while this MovieBox is the actively inspected one.
@@ -84,6 +89,11 @@ private:
 	UPROPERTY()
 	UTextRenderComponent* PutBackPrompt = nullptr;
 
-	// "Q / B  put back" built from the live 'Exit Interaction' mappings.
+	// "Q  put back" or "B  put back" — the active device's 'Exit Interaction'
+	// binding only.
 	FString BuildPutBackPromptText() const;
+
+	// Device the prompt text was last built for, so Tick can rebuild it when
+	// the player switches devices mid-inspection.
+	bool bPromptBuiltForGamepad = false;
 };
