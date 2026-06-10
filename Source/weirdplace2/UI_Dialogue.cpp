@@ -152,6 +152,11 @@ void UUI_Dialogue::SetTextColor(const FSlateColor& Color)
 	}
 }
 
+FString UUI_Dialogue::GetDisplayedSpeaker() const
+{
+	return SpeakerName ? SpeakerName->GetText().ToString() : FString();
+}
+
 void UUI_Dialogue::NativeOnFocusLost(const FFocusEvent& InFocusEvent)
 {
 	Super::NativeOnFocusLost(InFocusEvent);

@@ -15,6 +15,14 @@
   - Gaze = 10° cone + line-of-sight trace (a hit in the last 10% of the ray counts as the fixture itself).
   - TV/movie sub-item deferred per your kickoff answer; todo sub-line left open.
 
+- ✅ **"Rick:" prefix out of dialogue body** — `Weirdplace2.E2E.Level1.RickDialoguePrefix` green (8 steps).
+  Screenshot: `E2E_RickPrefix_DialogueShown.png` (Rick by his car, line reads "I'll meet you inside once I'm done here" — no prefix).
+  **Verify in-game:** at the gas station start, walk up to Rick outside and interact — the bubble should show the line without `Rick:`.
+  Notes / decisions made solo:
+  - Root cause: `ARick::LoadOutsideDialogue`'s idle branch loaded lines raw while every sibling loader parses `Speaker:` — fixed the idle branch to match (loader-parse, your ratified choice).
+  - The displayed-dialogue assert reads the live `UUI_Dialogue` widget (new tiny getters + driver method) — reusable for any future dialogue test.
+  - First red failed for the wrong reason: `FTD_TeleportNearRick`'s spot doesn't put Rick's interactable geometry on the interact ray; switched to the HappyPath's `RickApproach` waypoint. Other NPC-prefix files (Hudson/Seneca) weren't touched — this todo named Rick's idle line only.
+
 ## Blocked / WIP
 <!-- parked attempts land here -->
 

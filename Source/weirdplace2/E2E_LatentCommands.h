@@ -1322,6 +1322,51 @@ private:
 };
 
 // =======================================================================
+// FTD_AssertDialogueLine — the dialogue widget must currently show exactly
+// this speaker plate and body text. Exact body match catches speaker
+// prefixes leaking into the displayed line.
+// =======================================================================
+
+class FTD_AssertDialogueLine : public FTD_Base
+{
+public:
+	FTD_AssertDialogueLine(FAutomationTestBase* InTest, FString InExpectedSpeaker, FString InExpectedBody)
+		: FTD_Base(InTest), ExpectedSpeaker(MoveTemp(InExpectedSpeaker)), ExpectedBody(MoveTemp(InExpectedBody)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting dialogue shows [%s] \"%s\""), *ExpectedSpeaker, *ExpectedBody);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueLine: no driver")); return true; }
+
+		FString Speaker, Body;
+		if (!Driver->GetDisplayedDialogue(Speaker, Body))
+		{
+			Test->AddError(TEXT("FTD_AssertDialogueLine: no dialogue is being displayed"));
+			return true;
+		}
+		if (Speaker != ExpectedSpeaker)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueLine: speaker plate is \"%s\", expected \"%s\""),
+				*Speaker, *ExpectedSpeaker));
+		}
+		if (Body != ExpectedBody)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueLine: body is \"%s\", expected \"%s\""),
+				*Body, *ExpectedBody));
+		}
+		return true;
+	}
+private:
+	FString ExpectedSpeaker;
+	FString ExpectedBody;
+};
+
+// =======================================================================
 // FTD_AssertGazeHumStopped — the hum must not keep playing once the
 // gaze reward has fired.
 // =======================================================================

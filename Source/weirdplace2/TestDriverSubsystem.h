@@ -133,6 +133,10 @@ public:
 	// exists — which is also the meaningful red-phase failure.
 	bool GetGazeHumState(float& OutVolume, bool& bOutPlaying) const;
 
+	// Reads the speaker plate and full body line off the dialogue widget the
+	// player is currently in. Returns false if no dialogue widget is active.
+	bool GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.

@@ -27,6 +27,11 @@ public:
 	// Override the text color for both speaker name and dialogue text
 	void SetTextColor(const FSlateColor& Color);
 
+	// What the widget is currently showing (FullText is the complete line the
+	// typewriter is revealing). Used by E2E asserts on displayed dialogue.
+	FString GetDisplayedSpeaker() const;
+	FString GetFullLineText() const { return FullText; }
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;

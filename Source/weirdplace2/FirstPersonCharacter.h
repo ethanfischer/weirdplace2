@@ -209,6 +209,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC);
 
+	// The dialogue widget currently in use (null outside dialogue). Tests read
+	// the displayed speaker/body through this.
+	UUI_Dialogue* GetActiveDialogueWidget() const { return UI_Dialogue; }
+
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void AdvanceSimpleDialogue();
 

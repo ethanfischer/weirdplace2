@@ -415,4 +415,40 @@ bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// RickDialoguePrefix — Rick's outside-idle line is authored as
+// "Rick: I'll meet you inside once I'm done here". The speaker belongs on
+// the plate; the body shown to the player must not include "Rick:".
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_RickDialoguePrefix,
+	"Weirdplace2.E2E.Level1.RickDialoguePrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("RickDialoguePrefix")
+
+	// Same approach as HappyPath's GetMoneyFromRick: the RickApproach waypoint
+	// is placed where the interact trace reliably reaches him.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this,
+		TEXT("Rick"), TEXT("I'll meet you inside once I'm done here")));
+
+	// Let the typewriter draw before the screenshot.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_RickPrefix_DialogueShown")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

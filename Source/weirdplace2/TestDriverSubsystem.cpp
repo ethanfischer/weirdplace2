@@ -15,6 +15,7 @@
 #include "Rick.h"
 #include "Seneca.h"
 #include "TestWaypoint.h"
+#include "UI_Dialogue.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -712,6 +713,27 @@ bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) 
 
 	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no actor tagged 'GazeReward' in level"));
 	return false;
+}
+
+bool UTestDriverSubsystem::GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDisplayedDialogue - no player"));
+		return false;
+	}
+
+	UUI_Dialogue* Widget = Player->GetActiveDialogueWidget();
+	if (!Widget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDisplayedDialogue - no active dialogue widget"));
+		return false;
+	}
+
+	OutSpeaker = Widget->GetDisplayedSpeaker();
+	OutBody = Widget->GetFullLineText();
+	return true;
 }
 
 bool UTestDriverSubsystem::UnlockInventoryForTest()
