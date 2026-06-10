@@ -158,6 +158,16 @@ project rule against **fallback code**: if the happy path can't succeed, log and
 error out — don't add a second branch of "just in case" logic that makes the code
 harder to reason about. Re-run the test to confirm it's still green.
 
+### 4.5 REGRESSION GATE — the focused test is not enough
+If the item touched code shared with other flows (components added to common
+actors, capture/collect paths, input bindings, anything affecting actor bounds
+or traces), run the flagship suite test (`HappyPath`) before committing — a
+focused test can stay green while the change shifts something the flagship
+depends on. Budget one flagship run per such item. And when the flagship fails
+on a flow with **randomness** in it (random spawns, random slots), don't trust
+a single-run bisect: compare the random outcome across runs in the logs first —
+a base-commit pass may just be a lucky roll of the same pre-existing flake.
+
 ### 5. RECORD — commit the green
 Check the item off in `todo.md` (flip its `[ ]` to `[x]`, sub-bullets too), append
 it to `NIGHTLY_REPORT.md` (template below), then **commit everything for this item
