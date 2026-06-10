@@ -451,4 +451,49 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// MoviePutBackPrompt — while inspecting a movie, a world-space prompt
+// names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
+// facing the player even as the box is rotated. Pressing the prompted key
+// actually puts the movie back.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MoviePutBackPrompt,
+	"Weirdplace2.E2E.Level1.MoviePutBackPrompt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MoviePutBackPrompt")
+
+	// MovieBox::CanInteract requires the inventory gate that Seneca's intro
+	// normally opens.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
+
+	// Same approach as HappyPath's CollectMovies: the MovieShelf waypoint +
+	// a hand-placed shelf box the interact trace reliably reaches.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
+
+	// Rotate the box; the prompt must keep facing the camera.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
+
+	// The prompted key really does put the movie back.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::Q));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

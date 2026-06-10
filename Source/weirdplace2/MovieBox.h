@@ -71,4 +71,12 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Mesh", meta=(AllowPrivateAccess="true"))
 	UStaticMeshComponent* EnvelopeMesh;
+
+	// World-space prompt naming the put-back binding, shown during inspection.
+	// Created at runtime in BeginPlay; billboarded toward the player in Tick.
+	UPROPERTY()
+	UTextRenderComponent* PutBackPrompt = nullptr;
+
+	// "Q / B  put back" built from the live 'Exit Interaction' mappings.
+	FString BuildPutBackPromptText() const;
 };

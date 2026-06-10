@@ -1367,6 +1367,56 @@ private:
 };
 
 // =======================================================================
+// FTD_AssertPutBackPrompt — while a movie is inspected, a world-space
+// prompt must be visible, name the put-back binding, and face the camera.
+// =======================================================================
+
+class FTD_AssertPutBackPrompt : public FTD_Base
+{
+public:
+	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedSubstring, float InMinFacingDot = 0.94f)
+		: FTD_Base(InTest), ExpectedSubstring(MoveTemp(InExpectedSubstring)), MinFacingDot(InMinFacingDot) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting put-back prompt mentions \"%s\" and faces camera"), *ExpectedSubstring);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPutBackPrompt: no driver")); return true; }
+
+		FString Text;
+		float FacingDot = 0.f;
+		bool bVisible = false;
+		if (!Driver->GetPutBackPromptState(Text, FacingDot, bVisible))
+		{
+			Test->AddError(TEXT("FTD_AssertPutBackPrompt: no inspected MovieBox with a PutBackPrompt"));
+			return true;
+		}
+		if (!bVisible)
+		{
+			Test->AddError(TEXT("FTD_AssertPutBackPrompt: prompt exists but is not visible"));
+		}
+		if (!Text.Contains(ExpectedSubstring))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text \"%s\" doesn't mention \"%s\""),
+				*Text, *ExpectedSubstring));
+		}
+		if (FacingDot < MinFacingDot)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: not facing camera (dot=%.3f, need >=%.2f)"),
+				FacingDot, MinFacingDot));
+		}
+		return true;
+	}
+private:
+	FString ExpectedSubstring;
+	float MinFacingDot;
+};
+
+// =======================================================================
 // FTD_AssertGazeHumStopped — the hum must not keep playing once the
 // gaze reward has fired.
 // =======================================================================

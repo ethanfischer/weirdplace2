@@ -23,6 +23,14 @@
   - The displayed-dialogue assert reads the live `UUI_Dialogue` widget (new tiny getters + driver method) — reusable for any future dialogue test.
   - First red failed for the wrong reason: `FTD_TeleportNearRick`'s spot doesn't put Rick's interactable geometry on the interact ray; switched to the HappyPath's `RickApproach` waypoint. Other NPC-prefix files (Hudson/Seneca) weren't touched — this todo named Rick's idle line only.
 
+- ✅ **Movie put-back prompt + always faces player** — `Weirdplace2.E2E.Level1.MoviePutBackPrompt` green (13 steps).
+  Screenshots: `E2E_PutBack_01_PromptShown.png` / `E2E_PutBack_02_AfterRotate.png` — "Q / B  put back" floats below the inspected box and holds its facing while the box spins.
+  **Verify in-game:** inspect any shelf movie — white text under the box should read `Q / B  put back`, stay readable as you rotate the box, and pressing Q (or gamepad B) should return the movie to the shelf.
+  Notes / decisions made solo:
+  - Prompt is a runtime-created `UTextRenderComponent` on every MovieBox (no Blueprint edit), text composed live from the `Exit Interaction` mappings — rebind the key and the prompt follows.
+  - First green's screenshot showed the text occluded by the box itself; pulled it 18cm toward the camera. The component-flag assert can't catch occlusion — the screenshot did.
+  - Diegetic 3D text per the VR rule; world size 4cm.
+
 ## Blocked / WIP
 <!-- parked attempts land here -->
 

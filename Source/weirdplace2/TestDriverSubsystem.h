@@ -137,6 +137,12 @@ public:
 	// player is currently in. Returns false if no dialogue widget is active.
 	bool GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const;
 
+	// Reads the put-back prompt off the MovieBox currently in inspection:
+	// its text, visibility, and how squarely it faces the camera (dot of the
+	// text forward vector against the to-camera direction). Returns false if
+	// nothing is inspected or the inspected box has no 'PutBackPrompt'.
+	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.

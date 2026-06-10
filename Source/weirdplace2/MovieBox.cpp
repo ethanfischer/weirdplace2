@@ -6,6 +6,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -100,6 +102,16 @@ void AMovieBox::BeginPlay()
 	{
 		CantCarryWidget->SetVisibility(false);
 	}
+
+	// Put-back prompt: created at runtime (not in the BP) so every MovieBox
+	// subclass gets it. Attached to the envelope so collect's recursive hide
+	// also hides it.
+	PutBackPrompt = NewObject<UTextRenderComponent>(this, TEXT("PutBackPrompt"));
+	PutBackPrompt->RegisterComponent();
+	PutBackPrompt->AttachToComponent(EnvelopeMesh, FAttachmentTransformRules::KeepRelativeTransform);
+	PutBackPrompt->SetHorizontalAlignment(EHTA_Center);
+	PutBackPrompt->SetWorldSize(4.0f);
+	PutBackPrompt->SetVisibility(false);
 }
 
 // Called every frame
@@ -107,6 +119,19 @@ void AMovieBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Keep the put-back prompt below the inspected box and facing the player —
+	// the box itself rotates under player input during inspection. Pulled
+	// toward the camera so the rotating box can never occlude it.
+	if (InspectedActor && PutBackPrompt && PlayerController)
+	{
+		FVector CamLoc;
+		FRotator CamRot;
+		PlayerController->GetPlayerViewPoint(CamLoc, CamRot);
+		const FVector ToCam = (CamLoc - GetActorLocation()).GetSafeNormal();
+		const FVector PromptLoc = GetActorLocation() + ToCam * 18.f - FVector(0.f, 0.f, 14.f);
+		PutBackPrompt->SetWorldLocation(PromptLoc);
+		PutBackPrompt->SetWorldRotation((CamLoc - PromptLoc).Rotation());
+	}
 }
 
 bool AMovieBox::CanInteract()
@@ -195,6 +220,56 @@ void AMovieBox::Interact_Implementation()
 			|| (MyCharacter->GetInventoryComponent()->GetItemCount() < 3
 				&& !MyCharacter->IsMovieCollectionLocked()));
 	InteractionWidget->SetVisibility(bCanCollect);
+
+	if (PutBackPrompt)
+	{
+		PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
+		PutBackPrompt->SetVisibility(true);
+	}
+}
+
+FString AMovieBox::BuildPutBackPromptText() const
+{
+	if (!PlayerController || !PlayerController->PlayerInput)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: no PlayerInput to read the put-back binding from"), *GetName());
+		return FString();
+	}
+
+	auto ShortName = [](const FKey& Key) -> FString
+	{
+		if (Key == EKeys::Gamepad_FaceButton_Bottom) return FString(TEXT("A"));
+		if (Key == EKeys::Gamepad_FaceButton_Right)  return FString(TEXT("B"));
+		if (Key == EKeys::Gamepad_FaceButton_Left)   return FString(TEXT("X"));
+		if (Key == EKeys::Gamepad_FaceButton_Top)    return FString(TEXT("Y"));
+		return Key.GetDisplayName(false).ToString();
+	};
+
+	FString Keyboard, Gamepad;
+	for (const FInputActionKeyMapping& Mapping : PlayerController->PlayerInput->GetKeysForAction(FName("Exit Interaction")))
+	{
+		if (Mapping.Key.IsGamepadKey())
+		{
+			if (Gamepad.IsEmpty()) Gamepad = ShortName(Mapping.Key);
+		}
+		else if (Keyboard.IsEmpty())
+		{
+			Keyboard = Mapping.Key.GetDisplayName(false).ToString();
+		}
+	}
+
+	if (Keyboard.IsEmpty() && Gamepad.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: 'Exit Interaction' has no key mappings"), *GetName());
+		return FString();
+	}
+
+	FString Keys = Keyboard;
+	if (!Gamepad.IsEmpty())
+	{
+		Keys = Keys.IsEmpty() ? Gamepad : FString::Printf(TEXT("%s / %s"), *Keys, *Gamepad);
+	}
+	return FString::Printf(TEXT("%s  put back"), *Keys);
 }
 
 void AMovieBox::CollectInspectedMovie()
@@ -307,8 +382,9 @@ void AMovieBox::StopInspection()
 	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
 
-	// Hide the collect prompt
+	// Hide the collect and put-back prompts
 	if (InteractionWidget) InteractionWidget->SetVisibility(false);
+	if (PutBackPrompt) PutBackPrompt->SetVisibility(false);
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;

@@ -19,6 +19,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -733,6 +734,58 @@ bool UTestDriverSubsystem::GetDisplayedDialogue(FString& OutSpeaker, FString& Ou
 
 	OutSpeaker = Widget->GetDisplayedSpeaker();
 	OutBody = Widget->GetFullLineText();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	AMovieBox* Inspected = nullptr;
+	for (TActorIterator<AMovieBox> It(World); It; ++It)
+	{
+		if (It->IsBeingInspected())
+		{
+			Inspected = *It;
+			break;
+		}
+	}
+	if (!Inspected)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - no MovieBox is being inspected"));
+		return false;
+	}
+
+	UTextRenderComponent* Prompt = nullptr;
+	TArray<UTextRenderComponent*> Texts;
+	Inspected->GetComponents<UTextRenderComponent>(Texts);
+	for (UTextRenderComponent* T : Texts)
+	{
+		if (T->GetFName() == TEXT("PutBackPrompt"))
+		{
+			Prompt = T;
+			break;
+		}
+	}
+	if (!Prompt)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - inspected MovieBox '%s' has no 'PutBackPrompt' component"),
+			*Inspected->GetName());
+		return false;
+	}
+
+	OutText = Prompt->Text.ToString();
+	bOutVisible = Prompt->IsVisible();
+
+	FVector CamLoc;
+	FRotator CamRot;
+	World->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
+	const FVector ToCam = (CamLoc - Prompt->GetComponentLocation()).GetSafeNormal();
+	OutFacingDot = FVector::DotProduct(Prompt->GetForwardVector(), ToCam);
 	return true;
 }
 
