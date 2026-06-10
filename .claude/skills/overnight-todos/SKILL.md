@@ -54,14 +54,37 @@ This is the single human touchpoint. Get scope nailed down, then go dark.
    Recommend ordering cleanly-E2E-testable items first so the night front-loads
    verifiable wins.
 
-4. **Lock it in.** Record the branch the user is currently on
+4. **Review the per-item spec.** Scope agreement says *which* items; this step
+   nails down *what done looks like* before any code is written. For each agreed
+   item, present (in one message, fast — recon-light, no editor boots):
+   - the observable behavior, restated as one sentence
+   - the E2E test name and its key assertions
+   - what RED must fail on (so a wrong-reason red is caught at review time)
+   - what GREEN looks like, including what each named screenshot should show
+   - any design calls you'd otherwise make solo (reward choice, fix shape,
+     where UI text lives) — flagged explicitly for ratification
+   Get sign-off (AskUserQuestion for the flagged calls). The user's answers are
+   binding scope; record them. Don't start deep recon before this review — if a
+   spec needs facts you don't have, say what you'll check and what you'll do in
+   each case.
+
+5. **Switch to plan mode — the explicit handoff gate.** When the questions are
+   answered, do NOT start working. Call EnterPlanMode, fold the user's answers
+   into one consolidated night plan (items in order, each with its ratified
+   spec and pass criteria; home + overnight branch names; the WIP-parking rule;
+   where `NIGHTLY_REPORT.md` lands), and present it via ExitPlanMode. **Plan
+   approval is the bright line:** before it you're in conversation; after it
+   you're autonomous. Nothing — not even a "harmless" recon build or a test
+   edit — starts before the plan is approved.
+
+6. **Lock it in.** On plan approval, record the branch the user is currently on
    (`git rev-parse --abbrev-ref HEAD`) — that's the *home branch* you'll offer to
    merge back into. Cut a dedicated overnight branch off it:
    `git checkout -b overnight/<YYYY-MM-DD>`. Create a task list (TaskCreate) with
-   one task per agreed item so progress is trackable, restate the agreed scope and
-   ordering in one message, name the home and overnight branches, and tell the
-   user you're going autonomous now and they'll find `NIGHTLY_REPORT.md` in the
-   morning. This message is the last thing they see until then.
+   one task per agreed item so progress is trackable. Then send the goodnight
+   message — it must open with the explicit release: **"I have the answers I
+   need — you can go to bed now."** — followed by the branch names and where the
+   report will be. This message is the last thing the user sees until morning.
 
 After this point, **do not ask the user anything.** If you'd normally stop to
 ask, instead make the most reasonable call, leave the work as WIP, write down the
