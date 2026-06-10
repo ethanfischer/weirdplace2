@@ -8,10 +8,11 @@ class UAudioComponent;
 class UItemDefinition;
 class USoundBase;
 
-// Stare at this actor's location long enough and it pays out. Place it at the
-// bounds center of the thing being stared at (e.g. a gas-station canopy
-// light). A hum swells as the held gaze approaches RequiredLookSeconds;
-// looking away resets both the timer and the hum. Grants once per game.
+// Stare at the GazeTarget actor long enough and this pays out. Gaze counts
+// when the camera's center ray actually hits the target — any point on it,
+// which matters for long fixtures like the canopy bar light. A hum swells as
+// the held gaze approaches RequiredLookSeconds; looking away resets both the
+// timer and the hum. Grants once per game.
 UCLASS()
 class WEIRDPLACE2_API AGazeRewardActor : public AActor
 {
@@ -21,6 +22,10 @@ public:
 	AGazeRewardActor();
 
 	virtual void Tick(float DeltaTime) override;
+
+	// The actor the player must stare at (set by UGazeRewardSubsystem)
+	UPROPERTY(EditAnywhere, Category = "Gaze Reward")
+	AActor* GazeTarget = nullptr;
 
 	// Item granted when the stare completes
 	UPROPERTY(EditAnywhere, Category = "Gaze Reward")
@@ -33,10 +38,6 @@ public:
 	// Sound that swells while the gaze is held
 	UPROPERTY(EditAnywhere, Category = "Gaze Reward")
 	USoundBase* HumSound = nullptr;
-
-	// Half-angle of the cone within which the camera counts as "looking", degrees
-	UPROPERTY(EditAnywhere, Category = "Gaze Reward")
-	float GazeConeHalfAngleDegrees = 10.f;
 
 	// Beyond this camera distance the gaze never counts, in cm
 	UPROPERTY(EditAnywhere, Category = "Gaze Reward")

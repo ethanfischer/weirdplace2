@@ -66,36 +66,60 @@ bool AGazeRewardActor::IsPlayerGazingAtMe() const
 		return false;
 	}
 
+	if (!GazeTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GazeRewardActor '%s': GazeTarget not set"), *GetName());
+		return false;
+	}
+
 	FVector CamLoc;
 	FRotator CamRot;
 	PC->GetPlayerViewPoint(CamLoc, CamRot);
+	const FVector Dir = CamRot.Vector();
 
-	const FVector ToMe = GetActorLocation() - CamLoc;
-	const float Dist = ToMe.Size();
-	if (Dist > MaxGazeDistance || Dist < KINDA_SMALL_NUMBER)
+	// Gaze = the camera's center ray crosses the target's bounding box — ANY
+	// point of the fixture counts (the canopy bar is 30m long; a cone around
+	// its center point only ever worked for the test driver, not a human).
+	// Box test instead of a hit test because light fixtures may have no
+	// collision at all. Slab method, tracking the ray's box-entry distance.
+	const FBox TargetBox = GazeTarget->GetComponentsBoundingBox(/*bNonColliding*/ true).ExpandBy(10.f);
+	float TMin = 0.f;
+	float TMax = MaxGazeDistance;
+	for (int32 i = 0; i < 3; ++i)
 	{
-		return false;
+		if (FMath::IsNearlyZero(Dir[i]))
+		{
+			if (CamLoc[i] < TargetBox.Min[i] || CamLoc[i] > TargetBox.Max[i])
+			{
+				return false;
+			}
+		}
+		else
+		{
+			float T1 = (TargetBox.Min[i] - CamLoc[i]) / Dir[i];
+			float T2 = (TargetBox.Max[i] - CamLoc[i]) / Dir[i];
+			if (T1 > T2)
+			{
+				Swap(T1, T2);
+			}
+			TMin = FMath::Max(TMin, T1);
+			TMax = FMath::Min(TMax, T2);
+			if (TMin > TMax)
+			{
+				return false;
+			}
+		}
 	}
 
-	const float CosAngle = FVector::DotProduct(CamRot.Vector(), ToMe / Dist);
-	if (CosAngle < FMath::Cos(FMath::DegreesToRadians(GazeConeHalfAngleDegrees)))
-	{
-		return false;
-	}
-
-	// Line of sight: this actor sits at the stared-at fixture's bounds center,
-	// so a hit in the last 10% of the ray is the fixture itself. Anything
-	// nearer is a real obstruction.
+	// Occlusion: anything solid between the camera and where the ray enters
+	// the fixture's box blocks the gaze. The target itself is ignored so this
+	// works whether or not the fixture has collision.
+	const FVector EntryPoint = CamLoc + Dir * TMin;
 	FHitResult Hit;
 	FCollisionQueryParams Params(SCENE_QUERY_STAT(GazeReward), /*bTraceComplex*/ false);
 	Params.AddIgnoredActor(PC->GetPawn());
-	if (GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, GetActorLocation(), ECC_Visibility, Params)
-		&& Hit.Distance < Dist * 0.9f)
-	{
-		return false;
-	}
-
-	return true;
+	Params.AddIgnoredActor(GazeTarget);
+	return !GetWorld()->LineTraceSingleByChannel(Hit, CamLoc, EntryPoint, ECC_Visibility, Params);
 }
 
 void AGazeRewardActor::GrantReward()

@@ -51,6 +51,7 @@ void UGazeRewardSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		return;
 	}
 
+	Gaze->GazeTarget = Target;
 	Gaze->RewardItem = RewardItem;
 	Gaze->HumSound = Hum;
 	Gaze->RequiredLookSeconds = RequiredLookSeconds;
