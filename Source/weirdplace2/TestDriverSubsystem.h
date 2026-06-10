@@ -128,6 +128,11 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
+	// (its first UAudioComponent). Returns false if no such actor/component
+	// exists — which is also the meaningful red-phase failure.
+	bool GetGazeHumState(float& OutVolume, bool& bOutPlaying) const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.

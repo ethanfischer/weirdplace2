@@ -1262,6 +1262,97 @@ private:
 };
 
 // =======================================================================
+// FTD_AssertGazeHumRising — sample the gaze-reward hum volume at two
+// times into a held stare and assert it's playing and getting louder.
+// Latent commands tick sequentially, so this command owns the stare
+// timeline between SampleT1 and SampleT2 while the camera holds its aim.
+// =======================================================================
+
+class FTD_AssertGazeHumRising : public FTD_Base
+{
+public:
+	FTD_AssertGazeHumRising(FAutomationTestBase* InTest, double InSampleT1, double InSampleT2)
+		: FTD_Base(InTest), SampleT1(InSampleT1), SampleT2(InSampleT2) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze hum rises between %.0fs and %.0fs"), SampleT1, SampleT2);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeHumRising: no driver")); return true; }
+
+		const double Elapsed = GetElapsedSinceFirstTick();
+		if (!bSampledV1)
+		{
+			if (Elapsed < SampleT1) { return false; }
+			bool bPlaying = false;
+			if (!Driver->GetGazeHumState(V1, bPlaying))
+			{
+				Test->AddError(TEXT("FTD_AssertGazeHumRising: no gaze-reward hum in level"));
+				return true;
+			}
+			if (!bPlaying || V1 <= 0.f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertGazeHumRising: hum not audible at %.1fs (playing=%d vol=%.3f)"),
+					Elapsed, bPlaying ? 1 : 0, V1));
+				return true;
+			}
+			bSampledV1 = true;
+			return false;
+		}
+
+		if (Elapsed < SampleT2) { return false; }
+		float V2 = 0.f;
+		bool bPlaying = false;
+		if (!Driver->GetGazeHumState(V2, bPlaying) || !bPlaying || V2 <= V1)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeHumRising: hum not rising (V1=%.3f V2=%.3f playing=%d)"),
+				V1, V2, bPlaying ? 1 : 0));
+		}
+		return true;
+	}
+private:
+	double SampleT1;
+	double SampleT2;
+	float V1 = 0.f;
+	bool bSampledV1 = false;
+};
+
+// =======================================================================
+// FTD_AssertGazeHumStopped — the hum must not keep playing once the
+// gaze reward has fired.
+// =======================================================================
+
+class FTD_AssertGazeHumStopped : public FTD_Base
+{
+public:
+	FTD_AssertGazeHumStopped(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting gaze hum stopped"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeHumStopped: no driver")); return true; }
+		float Volume = 0.f;
+		bool bPlaying = false;
+		if (!Driver->GetGazeHumState(Volume, bPlaying))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeHumStopped: no gaze-reward hum in level"));
+			return true;
+		}
+		if (bPlaying)
+		{
+			Test->AddError(TEXT("FTD_AssertGazeHumStopped: hum still playing after reward"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
 // FTD_FastForwardSenecaSmoking — skip Seneca's 60s SmokingAppearDelay
 // timer. One-shot.
 // =======================================================================

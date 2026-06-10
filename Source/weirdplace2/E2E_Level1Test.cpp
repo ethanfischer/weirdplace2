@@ -370,4 +370,49 @@ bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// GazeReward — staring at the one rigged gas-station canopy light
+// ('gasstationbarlight') for 30 continuous seconds grants more cash
+// (the Money item). While the gaze is held, a hum swells toward the
+// 30-second mark and stops once the reward fires. The other canopy
+// lights are NOT rigged and must grant nothing.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GazeReward,
+	"Weirdplace2.E2E.Level1.GazeReward",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GazeReward")
+
+	// --- The rigged light: stare 30s -> Money, hum rising on the way ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight"), 500.f));
+	// The canopy light sits at Z~821; the teleport drops the player onto the
+	// lot below — let them land before aiming.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_01_StaringAtLight")));
+	// Hum volume sampled at ~5s and ~15s into the stare must be rising.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumRising(this, 5.0, 15.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(this, FName("Money"), 40.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumStopped(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_02_CashGranted")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// --- Only that one light is rigged: a long stare at another canopy
+	// light must grant nothing. ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight2"), 500.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(35.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

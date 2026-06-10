@@ -16,6 +16,7 @@
 #include "Seneca.h"
 #include "TestWaypoint.h"
 #include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
@@ -682,6 +683,35 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (!It->ActorHasTag(FName("GazeReward")))
+		{
+			continue;
+		}
+		UAudioComponent* Audio = It->FindComponentByClass<UAudioComponent>();
+		if (!Audio)
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - tagged actor '%s' has no AudioComponent"), *It->GetName());
+			return false;
+		}
+		OutVolume = Audio->VolumeMultiplier;
+		bOutPlaying = Audio->IsPlaying();
+		return true;
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no actor tagged 'GazeReward' in level"));
+	return false;
 }
 
 bool UTestDriverSubsystem::UnlockInventoryForTest()

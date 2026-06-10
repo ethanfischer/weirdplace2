@@ -1,6 +1,6 @@
 # Claude Friendly
-[ ] looking at one of the gastation lights for 30 seconds adds something to your inventory
-    [ ] for example, watching the movie rewards you too
+[x] looking at one of the gastation lights for 30 seconds adds something to your inventory
+    [ ] for example, watching the movie rewards you too (deferred 6/9 — Ethan's call: light-only for now)
 [ ] "Rick: I'll meet you inside" It shouldn't say Rick: in the dialogue shown to the user but it does for some reason.
 [ ] improve movie pickup
     [ ] tell player what button to put back
