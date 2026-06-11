@@ -470,13 +470,13 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
 	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
 
 	// Rotate the box (mouse axis); the prompt must keep facing the camera
 	// and stay keyboard-flavored.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("Q  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
 
 	// The prompted key really does put the movie back.

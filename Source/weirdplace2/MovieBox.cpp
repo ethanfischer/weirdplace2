@@ -236,8 +236,8 @@ void AMovieBox::Interact_Implementation()
 	InteractionWidget->SetVisibility(bCanCollect);
 
 	// The put-back prompt is a one-time control hint: show it only until the
-	// player has finished their first movie interaction (taken or put back).
-	if (PutBackPrompt && MyCharacter && !MyCharacter->HasTakenOrReturnedMovie())
+	// player has put a movie back at least once (taking one doesn't count).
+	if (PutBackPrompt && MyCharacter && !MyCharacter->HasReturnedMovie())
 	{
 		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
 		bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
@@ -286,7 +286,7 @@ FString AMovieBox::BuildPutBackPromptText() const
 			*GetName(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
 		return FString();
 	}
-	return FString::Printf(TEXT("%s  put back"), *Key);
+	return FString::Printf(TEXT("[%s]  put back"), *Key);
 }
 
 void AMovieBox::CollectInspectedMovie()
@@ -435,9 +435,12 @@ void AMovieBox::StopInspection()
 	MyCharacter->SetCanInteract(true);
 	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
 
-	// Both exits (take and put-back) funnel through here, so this marks "the
-	// player has finished a movie interaction" — the put-back hint won't show
-	// on any future inspection.
-	MyCharacter->MarkMovieTakenOrReturned();
+	// Both exits funnel through here; DidCollectMovie tells them apart. Only a
+	// put-back (not a take) marks the hint as seen, so it stops showing on
+	// future inspections.
+	if (!DidCollectMovie)
+	{
+		MyCharacter->MarkMovieReturned();
+	}
 }
 

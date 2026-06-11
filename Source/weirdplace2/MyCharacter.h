@@ -48,10 +48,10 @@ public:
 	void LockMovieCollection();
 	bool IsMovieCollectionLocked() const { return bMovieCollectionLocked; }
 
-	// One-time "put back" control hint: shown only until the player has
-	// finished their first movie interaction (taken one or put one back).
-	bool HasTakenOrReturnedMovie() const { return bHasTakenOrReturnedMovie; }
-	void MarkMovieTakenOrReturned() { bHasTakenOrReturnedMovie = true; }
+	// One-time "put back" control hint: shown only until the player has put a
+	// movie back at least once (taking a movie doesn't count).
+	bool HasReturnedMovie() const { return bHasReturnedMovie; }
+	void MarkMovieReturned() { bHasReturnedMovie = true; }
 
 	// Add item to inventory by ID (legacy - no visual data)
 	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
@@ -82,10 +82,10 @@ private:
 
 	bool bMovieCollectionLocked = false;
 
-	// Set true once the player has taken or put back a movie; suppresses the
-	// put-back prompt on every subsequent inspection. Runtime-only (resets
-	// each session), like bMovieCollectionLocked.
-	bool bHasTakenOrReturnedMovie = false;
+	// Set true once the player has put a movie back; suppresses the put-back
+	// prompt on every subsequent inspection. Runtime-only (resets each
+	// session), like bMovieCollectionLocked.
+	bool bHasReturnedMovie = false;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryComponent* InventoryComponent;

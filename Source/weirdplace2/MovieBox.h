@@ -87,7 +87,7 @@ private:
 	UPROPERTY()
 	UDiegeticTextComponent* PutBackPrompt = nullptr;
 
-	// "Q  put back" or "B  put back" — the active device's 'Exit Interaction'
+	// "[Q]  put back" or "[B]  put back" — the active device's 'Exit Interaction'
 	// binding only.
 	FString BuildPutBackPromptText() const;
 
