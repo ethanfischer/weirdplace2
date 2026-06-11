@@ -81,7 +81,9 @@ private:
 	UStaticMeshComponent* EnvelopeMesh;
 
 	// World-space prompt naming the put-back binding, shown during inspection.
-	// Created at runtime in BeginPlay; faces the player via the component itself.
+	// Added as a "PutBackPrompt" component in BP_MovieBox (so its position is
+	// tunable in-editor); fetched by name in BeginPlay. Faces the player via
+	// the component itself.
 	UPROPERTY()
 	UDiegeticTextComponent* PutBackPrompt = nullptr;
 

@@ -105,20 +105,29 @@ void AMovieBox::BeginPlay()
 		CantCarryWidget->SetVisibility(false);
 	}
 
-	// Put-back prompt: created at runtime (not in the BP) so every MovieBox
-	// subclass gets it. Attached to the envelope so collect's recursive hide
-	// also hides it. The DiegeticTextComponent owns styling + facing the
-	// player. Text stays empty outside inspection — the component's bounds
-	// count toward the actor's bounding box, which the E2E LookAt aim uses.
-	PutBackPrompt = NewObject<UDiegeticTextComponent>(this, TEXT("PutBackPrompt"));
-	// Contribute nothing to the actor's bounding box — the E2E LookAt aims at
-	// the actor bounds center, and even a zero-extent point at the pivot
-	// skews it enough to make shelf aiming clip neighboring boxes.
-	PutBackPrompt->bUseAttachParentBound = true;
-	PutBackPrompt->RegisterComponent();
-	PutBackPrompt->AttachToComponent(EnvelopeMesh, FAttachmentTransformRules::KeepRelativeTransform);
-	PutBackPrompt->SetText(FText::GetEmpty());
-	PutBackPrompt->SetVisibility(false);
+	// Put-back prompt is a "PutBackPromptText" UDiegeticTextComponent placed in
+	// BP_MovieBox so its position is tunable in-editor. Fetch it by name, the
+	// same way the other BP components above are wired up. (The component can't
+	// be named "PutBackPrompt" — that collides with this class's member var.)
+	TArray<UDiegeticTextComponent*> AllDiegeticText;
+	GetComponents<UDiegeticTextComponent>(AllDiegeticText);
+	for (UDiegeticTextComponent* Comp : AllDiegeticText)
+	{
+		if (Comp->GetFName() == TEXT("PutBackPromptText"))
+		{
+			PutBackPrompt = Comp;
+			break;
+		}
+	}
+	if (!PutBackPrompt)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MovieBox %s: PutBackPromptText component not found — add a 'PutBackPromptText' DiegeticText component to BP_MovieBox"), *GetName());
+	}
+	else
+	{
+		PutBackPrompt->SetText(FText::GetEmpty());
+		PutBackPrompt->SetVisibility(false);
+	}
 }
 
 // Called every frame
@@ -126,22 +135,9 @@ void AMovieBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Keep the put-back prompt anchored just above the inspected box (the box
-	// spins under player input, so the prompt can't simply ride the attachment).
-	// The DiegeticTextComponent handles facing the player. Pulled slightly
-	// toward the camera so the rotating box can't occlude it.
-	if (InspectedActor && PutBackPrompt && PlayerController && EnvelopeMesh)
+	// Re-render the prompt if the player switched devices mid-inspection.
+	if (InspectedActor && PutBackPrompt && MyCharacter)
 	{
-		FVector CamLoc;
-		FRotator CamRot;
-		PlayerController->GetPlayerViewPoint(CamLoc, CamRot);
-		const FBoxSphereBounds BoxBounds = EnvelopeMesh->Bounds;
-		const float TopZ = BoxBounds.Origin.Z + BoxBounds.BoxExtent.Z;
-		const FVector ToCam = (CamLoc - BoxBounds.Origin).GetSafeNormal();
-		const FVector PromptLoc = FVector(BoxBounds.Origin.X, BoxBounds.Origin.Y, TopZ + 3.f - BoxBounds.BoxExtent.Z * 0.5f) + ToCam * 9.f;
-		PutBackPrompt->SetWorldLocation(PromptLoc);
-
-		// Re-render the prompt if the player switched devices mid-inspection.
 		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
 		if (FPChar && FPChar->IsUsingGamepad() != bPromptBuiltForGamepad)
 		{
@@ -425,8 +421,6 @@ void AMovieBox::StopInspection()
 	{
 		PutBackPrompt->SetVisibility(false);
 		PutBackPrompt->SetText(FText::GetEmpty());
-		PutBackPrompt->SetRelativeLocation(FVector::ZeroVector);
-		PutBackPrompt->SetRelativeRotation(FRotator::ZeroRotator);
 	}
 
 	// Clear inspected actor reference
