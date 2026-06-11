@@ -136,7 +136,8 @@ void AMovieBox::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	// Re-render the prompt if the player switched devices mid-inspection.
-	if (InspectedActor && PutBackPrompt && MyCharacter)
+	// Only while it's actually showing — once it's been seen, it stays hidden.
+	if (InspectedActor && PutBackPrompt && PutBackPrompt->IsVisible() && MyCharacter)
 	{
 		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
 		if (FPChar && FPChar->IsUsingGamepad() != bPromptBuiltForGamepad)
@@ -234,7 +235,9 @@ void AMovieBox::Interact_Implementation()
 				&& !MyCharacter->IsMovieCollectionLocked()));
 	InteractionWidget->SetVisibility(bCanCollect);
 
-	if (PutBackPrompt)
+	// The put-back prompt is a one-time control hint: show it only until the
+	// player has finished their first movie interaction (taken or put back).
+	if (PutBackPrompt && MyCharacter && !MyCharacter->HasTakenOrReturnedMovie())
 	{
 		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
 		bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
@@ -431,5 +434,10 @@ void AMovieBox::StopInspection()
 
 	MyCharacter->SetCanInteract(true);
 	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
+
+	// Both exits (take and put-back) funnel through here, so this marks "the
+	// player has finished a movie interaction" — the put-back hint won't show
+	// on any future inspection.
+	MyCharacter->MarkMovieTakenOrReturned();
 }
 
