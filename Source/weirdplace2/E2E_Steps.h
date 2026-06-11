@@ -31,8 +31,6 @@ namespace E2ESteps
 
 	void CollectMovies(FAutomationTestBase* T)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("MovieShelf")));
-
 		const TCHAR* MovieLabels[] = {
 			TEXT("BP_MovieBox120"),
 			TEXT("BP_MovieBox121"),
@@ -40,7 +38,10 @@ namespace E2ESteps
 		};
 		for (int32 i = 0; i < 3; ++i)
 		{
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, MovieLabels[i]));
+			// Stand in front of each box along its own forward vector and aim
+			// at a trace-verified surface point — derived bounds centers hit
+			// neighboring boxes at oblique angles.
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(T, MovieLabels[i]));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::Interacting));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(T));

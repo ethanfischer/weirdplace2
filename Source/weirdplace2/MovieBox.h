@@ -6,6 +6,7 @@
 #include "Interactable.h"
 #include "MyCharacter.h"
 class UTextRenderComponent;
+class UDiegeticTextComponent;
 #include "Components/WidgetComponent.h"
 #include "GameFramework/Actor.h"
 #include "MovieBox.generated.h"
@@ -80,9 +81,9 @@ private:
 	UStaticMeshComponent* EnvelopeMesh;
 
 	// World-space prompt naming the put-back binding, shown during inspection.
-	// Created at runtime in BeginPlay; billboarded toward the player in Tick.
+	// Created at runtime in BeginPlay; faces the player via the component itself.
 	UPROPERTY()
-	UTextRenderComponent* PutBackPrompt = nullptr;
+	UDiegeticTextComponent* PutBackPrompt = nullptr;
 
 	// "Q  put back" or "B  put back" — the active device's 'Exit Interaction'
 	// binding only.

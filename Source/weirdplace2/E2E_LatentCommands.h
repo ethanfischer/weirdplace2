@@ -12,6 +12,7 @@
 
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TestWaypoint.h"
@@ -583,6 +584,114 @@ public:
 };
 
 // =======================================================================
+// FTD_TeleportFacingShelfBoxAndAim — stand directly in front of a shelf
+// MovieBox (along its own forward vector, trying both sides), then aim at
+// a TRACE-VERIFIED surface point probed from the player's real post-landing
+// camera position. Derived bounds centers hit neighboring boxes at oblique
+// angles — the blank-tape lesson, generalized to any labeled shelf box.
+// =======================================================================
+
+class FTD_TeleportFacingShelfBoxAndAim : public FTD_Base
+{
+public:
+	FTD_TeleportFacingShelfBoxAndAim(FAutomationTestBase* InTest, FString InLabel, float InDistance = 80.f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Standing in front of '%s' (verified aim)"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportFacingShelfBoxAndAim: no driver")); return true; }
+		AMovieBox* Box = Cast<AMovieBox>(Driver->FindActorByLabel(Label));
+		if (!Box)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportFacingShelfBoxAndAim: no MovieBox '%s'"), *Label));
+			return true;
+		}
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_TeleportFacingShelfBoxAndAim: no player")); return true; }
+		USceneComponent* Envelope = Driver->FindComponentOnActorByName(Box, TEXT("Cube"));
+		if (!Envelope)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportFacingShelfBoxAndAim: '%s' has no 'Cube' envelope"), *Label));
+			return true;
+		}
+		const FVector Center = Envelope->Bounds.Origin;
+
+		if (bAwaitingProbe)
+		{
+			// Give the 5.7 floor snap a beat to settle, then probe from where
+			// the camera ACTUALLY is — the exact trace the interact will run.
+			if (FPlatformTime::Seconds() - TeleportTime < 0.3) { return false; }
+			bAwaitingProbe = false;
+
+			FCollisionObjectQueryParams ObjectParams;
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+			ObjectParams.AddObjectTypesToQuery(ECC_GameTraceChannel6);
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ShelfBoxAim), /*bTraceComplex*/ false);
+			QueryParams.AddIgnoredActor(Player);
+
+			const FVector Eye = Player->GetFirstPersonCamera()->GetComponentLocation();
+			FHitResult Hit;
+			const bool bHit = Box->GetWorld()->LineTraceSingleByObjectType(Hit, Eye, Center, ObjectParams, QueryParams);
+			UE_LOG(LogTemp, Log, TEXT("FTD_TeleportFacingShelfBoxAndAim: '%s' side %d eye=%s -> hit %s at %s"),
+				*Label, SideIndex, *Eye.ToString(),
+				bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("(nothing)"),
+				bHit ? *Hit.ImpactPoint.ToString() : TEXT("-"));
+			if (bHit && Hit.GetActor() == Box)
+			{
+				// Aim just inside the verified surface point.
+				const FVector AimPoint = Hit.ImpactPoint + (Center - Eye).GetSafeNormal() * 3.f;
+				if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+				{
+					PC->SetControlRotation((AimPoint - Eye).Rotation());
+				}
+				return true;
+			}
+			SideIndex++;
+		}
+
+		if (SideIndex >= 2)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_TeleportFacingShelfBoxAndAim: neither side of '%s' has a clear interact trace"), *Label));
+			return true;
+		}
+
+		FVector Forward = Box->GetActorForwardVector();
+		Forward.Z = 0.f;
+		Forward = Forward.GetSafeNormal();
+		if (Forward.IsNearlyZero())
+		{
+			Forward = FVector::ForwardVector;
+		}
+		const float Sign = (SideIndex == 0) ? 1.f : -1.f;
+		// Keep the player's current capsule height — same floor as the shelf
+		// aisle; the floor snap settles any small error before the probe.
+		const FVector TryLoc = FVector(Center.X, Center.Y, Player->GetActorLocation().Z) + Forward * (Distance * Sign);
+		Player->SetActorLocation(TryLoc, false, nullptr, ETeleportType::TeleportPhysics);
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation((Center - TryLoc).Rotation());
+		}
+		TeleportTime = FPlatformTime::Seconds();
+		bAwaitingProbe = true;
+		return false;
+	}
+private:
+	FString Label;
+	float Distance;
+	int32 SideIndex = 0;
+	bool bAwaitingProbe = false;
+	double TeleportTime = 0.0;
+};
+
+// =======================================================================
 // FTD_SimulateKeyPress — press+release a key with a 1-frame gap.
 // Uses APlayerController::InputKey, which only fires LEGACY input bindings.
 // For Enhanced Input actions, use FTD_SimulateInteractAction /
@@ -1103,13 +1212,34 @@ public:
 
 	virtual bool UpdateStep() override
 	{
+		// NullRHI renders nothing, so the request is never serviced — and the
+		// automation framework stops ticking latent commands while a screenshot
+		// is pending, starving the whole queue forever (observed as multi-hour
+		// hangs). Headless screenshots are blank anyway; skip the request.
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_TakeScreenshot: '%s' skipped (NullRHI renders nothing)"), *Name);
+			return true;
+		}
 		if (!bRequested)
 		{
 			FScreenshotRequest::RequestScreenshot(Name, false, false);
 			bRequested = true;
 			return false;
 		}
-		return !FScreenshotRequest::IsScreenshotRequested();
+		if (!FScreenshotRequest::IsScreenshotRequested())
+		{
+			return true;
+		}
+		// Watchdog for headed runs: a request the viewport never services must
+		// not wedge the whole suite. Clear the stale request and move on.
+		if (GetElapsedSinceFirstTick() > 10.0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FTD_TakeScreenshot: '%s' never serviced after 10s — skipping"), *Name);
+			FScreenshotRequest::Reset();
+			return true;
+		}
+		return false;
 	}
 private:
 	FString Name;

@@ -818,8 +818,14 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	FVector CamLoc;
 	FRotator CamRot;
 	World->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
-	const FVector ToCam = (CamLoc - Prompt->GetComponentLocation()).GetSafeNormal();
-	OutFacingDot = FVector::DotProduct(Prompt->GetForwardVector(), ToCam);
+	// The prompt is yaw-only billboarded (stays upright), so measure facing in
+	// the horizontal plane — a pitch difference to the camera is expected and
+	// shouldn't count against it.
+	FVector ToCam = CamLoc - Prompt->GetComponentLocation();
+	FVector Forward = Prompt->GetForwardVector();
+	ToCam.Z = 0.f;
+	Forward.Z = 0.f;
+	OutFacingDot = FVector::DotProduct(Forward.GetSafeNormal(), ToCam.GetSafeNormal());
 	return true;
 }
 

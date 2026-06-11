@@ -462,11 +462,9 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("MoviePutBackPrompt")
 
-	// Same approach as HappyPath's CollectMovies: the MovieShelf waypoint +
-	// a hand-placed shelf box the interact trace reliably reaches.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	// Same approach as HappyPath's CollectMovies: stand in front of the box
+	// and aim at a trace-verified surface point.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
@@ -514,9 +512,7 @@ bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
 	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
 
 	// Collect a regular shelf movie (slot 0).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("MovieShelf")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));

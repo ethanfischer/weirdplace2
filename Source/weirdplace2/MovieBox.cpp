@@ -2,6 +2,7 @@
 
 
 #include "MovieBox.h"
+#include "DiegeticTextComponent.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
@@ -106,18 +107,16 @@ void AMovieBox::BeginPlay()
 
 	// Put-back prompt: created at runtime (not in the BP) so every MovieBox
 	// subclass gets it. Attached to the envelope so collect's recursive hide
-	// also hides it. Text stays empty outside inspection — the component's
-	// bounds count toward the actor's bounding box, which the E2E LookAt
-	// aim uses, and the TextRender default text ("Text") shifts it.
-	PutBackPrompt = NewObject<UTextRenderComponent>(this, TEXT("PutBackPrompt"));
+	// also hides it. The DiegeticTextComponent owns styling + facing the
+	// player. Text stays empty outside inspection — the component's bounds
+	// count toward the actor's bounding box, which the E2E LookAt aim uses.
+	PutBackPrompt = NewObject<UDiegeticTextComponent>(this, TEXT("PutBackPrompt"));
 	// Contribute nothing to the actor's bounding box — the E2E LookAt aims at
 	// the actor bounds center, and even a zero-extent point at the pivot
 	// skews it enough to make shelf aiming clip neighboring boxes.
 	PutBackPrompt->bUseAttachParentBound = true;
 	PutBackPrompt->RegisterComponent();
 	PutBackPrompt->AttachToComponent(EnvelopeMesh, FAttachmentTransformRules::KeepRelativeTransform);
-	PutBackPrompt->SetHorizontalAlignment(EHTA_Center);
-	PutBackPrompt->SetWorldSize(4.0f);
 	PutBackPrompt->SetText(FText::GetEmpty());
 	PutBackPrompt->SetVisibility(false);
 }
@@ -127,18 +126,20 @@ void AMovieBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Keep the put-back prompt below the inspected box and facing the player —
-	// the box itself rotates under player input during inspection. Pulled
-	// toward the camera so the rotating box can never occlude it.
-	if (InspectedActor && PutBackPrompt && PlayerController)
+	// Keep the put-back prompt anchored just above the inspected box (the box
+	// spins under player input, so the prompt can't simply ride the attachment).
+	// The DiegeticTextComponent handles facing the player. Pulled slightly
+	// toward the camera so the rotating box can't occlude it.
+	if (InspectedActor && PutBackPrompt && PlayerController && EnvelopeMesh)
 	{
 		FVector CamLoc;
 		FRotator CamRot;
 		PlayerController->GetPlayerViewPoint(CamLoc, CamRot);
-		const FVector ToCam = (CamLoc - GetActorLocation()).GetSafeNormal();
-		const FVector PromptLoc = GetActorLocation() + ToCam * 18.f - FVector(0.f, 0.f, 14.f);
+		const FBoxSphereBounds BoxBounds = EnvelopeMesh->Bounds;
+		const float TopZ = BoxBounds.Origin.Z + BoxBounds.BoxExtent.Z;
+		const FVector ToCam = (CamLoc - BoxBounds.Origin).GetSafeNormal();
+		const FVector PromptLoc = FVector(BoxBounds.Origin.X, BoxBounds.Origin.Y, TopZ + 3.f - BoxBounds.BoxExtent.Z * 0.5f) + ToCam * 9.f;
 		PutBackPrompt->SetWorldLocation(PromptLoc);
-		PutBackPrompt->SetWorldRotation((CamLoc - PromptLoc).Rotation());
 
 		// Re-render the prompt if the player switched devices mid-inspection.
 		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
@@ -332,6 +333,9 @@ void AMovieBox::CollectInspectedMovie()
 	// SetVisibility(false, true) propagates to children so subclass-added child meshes
 	// (e.g. BP_BlankVHS's "Tape") hide along with the parent Cube.
 	EnvelopeMesh->SetVisibility(false, true);
+	// The invisible box must not keep blocking interact traces — otherwise a
+	// player aiming at the empty slot re-inspects an empty envelope.
+	SetActorEnableCollision(false);
 	InteractionWidget->SetVisibility(false);
 	DidCollectMovie = true;
 

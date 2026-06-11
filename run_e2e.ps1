@@ -1,6 +1,7 @@
 param(
     [string]$TestName = "HappyPath",
-    [switch]$Headed
+    [switch]$Headed,
+    [int]$TimeoutMinutes = 20
 )
 
 $ProjectRoot = $PSScriptRoot
@@ -32,7 +33,15 @@ $argList = @(
 if (-not $Headed) {
     $argList += "-NullRHI"
 }
-$proc = Start-Process -FilePath $UECmd -ArgumentList $argList -RedirectStandardOutput $stdoutLog -RedirectStandardError "$ProjectRoot\Saved\Logs\E2ETest_stderr.log" -PassThru -Wait
+$proc = Start-Process -FilePath $UECmd -ArgumentList $argList -RedirectStandardOutput $stdoutLog -RedirectStandardError "$ProjectRoot\Saved\Logs\E2ETest_stderr.log" -PassThru
+
+# Watchdog: a hung editor must not block forever or leave an orphan process
+# (a screenshot stall once kept UnrealEditor-Cmd alive for 2.5 hours).
+if (-not $proc.WaitForExit($TimeoutMinutes * 60 * 1000)) {
+    $proc.Kill()
+    Write-Host "FAIL - $TestPath (timed out after $TimeoutMinutes minutes; killed UnrealEditor-Cmd pid $($proc.Id))"
+    exit 1
+}
 
 if (-not (Test-Path $LogFile)) {
     Write-Host "FAIL - No log file produced"
