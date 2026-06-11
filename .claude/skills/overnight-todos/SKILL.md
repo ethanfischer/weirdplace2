@@ -2,8 +2,10 @@
 name: overnight-todos
 description: >-
   Autonomously work through the "# Claude Friendly" section of todo.md overnight
-  using red-green-refactor TDD against the project's E2E harness, verifying each
-  change with headed screenshots, then leave a NIGHTLY_REPORT.md handoff. Use
+  using red-green-refactor TDD against the project's E2E harness. At kickoff it
+  interviews you item-by-item to lock the E2E acceptance criteria for each task,
+  then verifies each change with headed screenshots and leaves a NIGHTLY_REPORT.md
+  handoff. Use
   this whenever the user wants to run unattended/overnight, "knock out todos
   while I sleep", "TDD the todo list", do an "overnight run", or hand off a batch
   of Claude-Friendly todos for autonomous work. The kickoff is interactive (scope
@@ -54,24 +56,47 @@ This is the single human touchpoint. Get scope nailed down, then go dark.
    Recommend ordering cleanly-E2E-testable items first so the night front-loads
    verifiable wins.
 
-4. **Review the per-item spec.** Scope agreement says *which* items; this step
-   nails down *what done looks like* before any code is written. For each agreed
-   item, present (in one message, fast — recon-light, no editor boots):
-   - the observable behavior, restated as one sentence
-   - the E2E test name and its key assertions
-   - what RED must fail on (so a wrong-reason red is caught at review time)
-   - what GREEN looks like, including what each named screenshot should show
-   - any design calls you'd otherwise make solo (reward choice, fix shape,
-     where UI text lives) — flagged explicitly for ratification
-   Get sign-off (AskUserQuestion for the flagged calls). The user's answers are
-   binding scope; record them. Don't start deep recon before this review — if a
-   spec needs facts you don't have, say what you'll check and what you'll do in
-   each case.
+4. **Interview for acceptance criteria — item by item.** Scope (step 3) settled
+   *which* items; this step settles *what each test must prove*, and it is the heart
+   of the kickoff. The acceptance criteria are **not** something you arrive with and
+   ask the user to rubber-stamp — they are precisely what the interview exists to
+   pull out of them. `todo.md` lines are one-liners with no written criteria, so you
+   generate the criteria *together*, before any code.
+
+   Take **one item at a time** (a few sharp questions, lock its criteria, then the
+   next — don't dump one wall of questions across all items). For each item:
+   - **Restate & classify** in a sentence: the intended observable behavior, tagged
+     E2E-assertable / screenshot-only / not-autonomously-verifiable.
+   - **Ask only what's genuinely ambiguous** (don't interrogate the obvious), aimed
+     squarely at what a test must witness:
+     - *Trigger* — the precise player action/state that fires it (gaze-raycast for
+       N seconds? proximity? an interact press?)
+     - *Outcome* — the single observable change to assert, with specifics: which
+       reward item, exact count, the exact on-screen text that must or must not
+       appear.
+     - *Boundaries & negatives* — what must NOT happen; timing thresholds; one-shot
+       vs repeatable (does looking away reset the timer? grant once or every 30s?).
+     - *Reject condition* — "what would make you wake up and call this wrong?"
+     - *Visual* — what the screenshot must show to count as visually correct.
+   - **Synthesize** the answers into a per-item checklist where each line is one
+     observable assertion paired with the harness mechanism that proves it
+     (`FTD_AssertInventoryCount` delta, `FTD_AssertActivityState`, an on-screen-text
+     assert, a screenshot). Mark the **RED-defining assertion** — the one that must
+     fail before the feature exists. If a criterion needs a *new* test primitive
+     (e.g. there is no dialogue-text assert today — check the `FTD_*` catalog in
+     `references/e2e-harness.md`), say so now so its build cost is on the table.
+   - **Ratify** — `AskUserQuestion` for any discrete design fork; free-form
+     confirm/edit the checklist. Once the user signs off, those criteria are binding
+     scope: the test encodes exactly them, no more and no less.
+
+   Don't start deep recon before the interview. If writing a criterion needs a fact
+   you don't have, say what you'll check and what you'll do in each case — don't
+   guess the spec into existence.
 
 5. **Switch to plan mode — the explicit handoff gate.** When the questions are
    answered, do NOT start working. Call EnterPlanMode, fold the user's answers
    into one consolidated night plan (items in order, each with its ratified
-   spec and pass criteria; home + overnight branch names; the WIP-parking rule;
+   acceptance criteria; home + overnight branch names; the WIP-parking rule;
    where `NIGHTLY_REPORT.md` lands), and present it via ExitPlanMode. **Plan
    approval is the bright line:** before it you're in conversation; after it
    you're autonomous. Nothing — not even a "harmless" recon build or a test
@@ -81,10 +106,14 @@ This is the single human touchpoint. Get scope nailed down, then go dark.
    (`git rev-parse --abbrev-ref HEAD`) — that's the *home branch* you'll offer to
    merge back into. Cut a dedicated overnight branch off it:
    `git checkout -b overnight/<YYYY-MM-DD>`. Create a task list (TaskCreate) with
-   one task per agreed item so progress is trackable. Then send the goodnight
-   message — it must open with the explicit release: **"I have the answers I
-   need — you can go to bed now."** — followed by the branch names and where the
-   report will be. This message is the last thing the user sees until morning.
+   one task per agreed item so progress is trackable. **Write `NIGHTLY_REPORT.md`
+   now**, opening with the locked **Agreed acceptance criteria** block (template
+   below): this is the binding contract on disk, so it survives the context
+   summarization a long overnight run will hit, and the loop re-reads it rather than
+   trusting a faded memory of the interview. Then send the goodnight message — it
+   must open with the explicit release: **"I have the answers I need — you can go to
+   bed now."** — followed by the branch names and where the report will be. This
+   message is the last thing the user sees until morning.
 
 After this point, **do not ask the user anything.** If you'd normally stop to
 ask, instead make the most reasonable call, leave the work as WIP, write down the
@@ -124,9 +153,12 @@ verification, or flag it **not autonomously verifiable** and skip to the next
 item rather than fake a test.
 
 ### 2. RED — write the test, make it fail at runtime
-Add a new `IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `E2E_Level1Test.cpp`
+Re-read this item's locked acceptance criteria from `NIGHTLY_REPORT.md` and encode
+**exactly** them — every ratified assertion, nothing extra. Add a new
+`IMPLEMENT_SIMPLE_AUTOMATION_TEST` in `E2E_Level1Test.cpp`
 (`Weirdplace2.E2E.Level1.<Name>`), composing existing `FTD_*` latent commands and
-step helpers. Take a screenshot at the moment of truth.
+step helpers, and take a screenshot at the moment of truth. The **RED-defining
+assertion** named in the criteria is the one that must fail now.
 
 Crucial distinction: the test must **compile and fail on an assertion**, not fail
 to compile. If the behavior needs a new *test* primitive (a new `FTD_` assert or
@@ -169,8 +201,10 @@ a single-run bisect: compare the random outcome across runs in the logs first �
 a base-commit pass may just be a lucky roll of the same pre-existing flake.
 
 ### 5. RECORD — commit the green
-Check the item off in `todo.md` (flip its `[ ]` to `[x]`, sub-bullets too), append
-it to `NIGHTLY_REPORT.md` (template below), then **commit everything for this item
+Check the item off in `todo.md` (flip its `[ ]` to `[x]`, sub-bullets too), then add
+its result entry to `NIGHTLY_REPORT.md` (template below) — **mark each locked
+acceptance criterion ✅ or ❌ against the kickoff checklist**, not a vague "works,"
+so the morning read is delivered-vs-agreed. Then **commit everything for this item
 to the overnight branch** in one commit:
 ```
 git add -A && git commit -m "todo: <item summary> — E2E Weirdplace2.E2E.Level1.<Name> green"
@@ -208,11 +242,19 @@ and note in the report that it's incomplete.
 This is the payoff of committing per item: "leave WIP, move on" without letting one
 bad item break the build under everything that follows.
 
+**Blocked on spec.** If a locked acceptance criterion turns out untestable,
+self-contradictory, or impossible once you're into it, do **not** quietly rewrite it
+into something you *can* pass — that throws away the entire reason you interviewed.
+Mark the item *blocked-on-spec*, record in the report what the conflict is and the
+revision you'd propose, and move on. The user resolves it in the morning; you don't
+get to redefine the contract while they sleep.
+
 ---
 
 ## The morning handoff
 
-Two artifacts plus the diff. Write `NIGHTLY_REPORT.md` at the repo root. Keep it
+Two artifacts plus the diff. `NIGHTLY_REPORT.md` (created at kickoff with the locked
+criteria, then filled in through the night) lives at the repo root. Keep it
 skimmable — the user reads it half-awake.
 
 ```markdown
@@ -223,8 +265,16 @@ skimmable — the user reads it half-awake.
 **Scope agreed:** <the items, in order>
 **Result:** N done · M blocked · K skipped
 
+## Agreed acceptance criteria — locked at kickoff (written before going autonomous)
+### <item 1>
+- [ ] <observable assertion> — proven by `<FTD_ assert / screenshot>`  *(RED-defining)*
+- [ ] <observable assertion> — proven by `<...>`
+### <item 2>
+- [ ] <...>
+
 ## Done — needs your eyes before merge
 - ✅ <item> — `Weirdplace2.E2E.Level1.<Name>` green · commit `<short-sha>`.
+  Criteria: ✅ <c1> · ✅ <c2> · ❌ <c3 — what fell short>.
   Screenshots: `E2E_<slug>_*.png` — <what you saw that confirms it>.
   **Verify in-game:** <the concrete repro — e.g. "look at the gas-station light
   for 30s, check inventory gained an item">.
@@ -233,6 +283,8 @@ skimmable — the user reads it half-awake.
 ## Blocked / WIP
 - ⛔ <item> — <why>. Attempt parked on `wip/<slug>`. Touches: <files>.
   To resume: `git checkout wip/<slug>` — <the one concrete next step>.
+- 📋 <item> — **blocked on spec**: <which locked criterion conflicts, and why>.
+  Proposed revision: <...>. No code written; needs your call.
 
 ## Skipped
 - ⏭️ <item> — <reason it wasn't autonomously verifiable>.
