@@ -27,12 +27,63 @@
 #include "MenuUIComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/IInputProcessor.h"
 #include "Widgets/SWidget.h"
 #if PLATFORM_LINUX
 THIRD_PARTY_INCLUDES_START
 #include <SDL3/SDL.h>
 THIRD_PARTY_INCLUDES_END
 #endif
+
+// Watches every Slate input event app-wide and records whether the last real
+// input came from a gamepad, so the player's device flag is correct the instant
+// any UI needs it (e.g. the movie put-back prompt) — without polling or waiting
+// for active look/rotate input.
+class FInputDeviceTracker : public IInputProcessor
+{
+public:
+	TWeakObjectPtr<AFirstPersonCharacter> Owner;
+
+	virtual void Tick(const float, FSlateApplication&, TSharedRef<ICursor>) override {}
+
+	virtual bool HandleKeyDownEvent(FSlateApplication&, const FKeyEvent& Event) override
+	{
+		// Gamepad face/d-pad buttons are keys too; IsGamepadKey() splits them.
+		Record(Event.GetKey().IsGamepadKey());
+		return false;
+	}
+
+	virtual bool HandleAnalogInputEvent(FSlateApplication&, const FAnalogInputEvent& Event) override
+	{
+		// Sticks/triggers emit analog noise at rest — require real deflection.
+		if (FMath::Abs(Event.GetAnalogValue()) > 0.2f)
+		{
+			Record(Event.GetKey().IsGamepadKey());
+		}
+		return false;
+	}
+
+	virtual bool HandleMouseMoveEvent(FSlateApplication&, const FPointerEvent&) override
+	{
+		Record(false);
+		return false;
+	}
+
+	virtual bool HandleMouseButtonDownEvent(FSlateApplication&, const FPointerEvent&) override
+	{
+		Record(false);
+		return false;
+	}
+
+private:
+	void Record(bool bGamepad)
+	{
+		if (Owner.IsValid())
+		{
+			Owner->SetUsingGamepad(bGamepad);
+		}
+	}
+};
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -158,6 +209,25 @@ void AFirstPersonCharacter::BeginPlay()
 	// stop it on every top-level window we can see.
 	StopLinuxTextInputOnAllWindows();
 #endif
+
+	// Track the last-used input device app-wide for device-specific prompts.
+	if (FSlateApplication::IsInitialized())
+	{
+		TSharedRef<FInputDeviceTracker> Tracker = MakeShared<FInputDeviceTracker>();
+		Tracker->Owner = this;
+		InputDeviceTracker = Tracker;
+		FSlateApplication::Get().RegisterInputPreProcessor(Tracker);
+	}
+}
+
+void AFirstPersonCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (InputDeviceTracker.IsValid() && FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(InputDeviceTracker);
+	}
+	InputDeviceTracker.Reset();
+	Super::EndPlay(EndPlayReason);
 }
 
 #if PLATFORM_LINUX
@@ -498,23 +568,15 @@ float AFirstPersonCharacter::ComputeMouseLookScale() const
 
 void AFirstPersonCharacter::AddControllerYawInput(float Val)
 {
-	const bool bGamepad = IsGamepadLookActive();
-	if (!FMath::IsNearlyZero(Val))
-	{
-		bLastInputWasGamepad = bGamepad;
-	}
-	const float Scale = bGamepad ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	// IsGamepadLookActive() selects the per-device sensitivity curve only; the
+	// last-used-device flag (for prompts) is owned by FInputDeviceTracker.
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
 	Super::AddControllerYawInput(Val * Scale);
 }
 
 void AFirstPersonCharacter::AddControllerPitchInput(float Val)
 {
-	const bool bGamepad = IsGamepadLookActive();
-	if (!FMath::IsNearlyZero(Val))
-	{
-		bLastInputWasGamepad = bGamepad;
-	}
-	const float Scale = bGamepad ? ComputeGamepadLookScale() : ComputeMouseLookScale();
+	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
 	Super::AddControllerPitchInput(Val * Scale);
 }
 

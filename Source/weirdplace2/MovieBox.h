@@ -32,11 +32,6 @@ public:
 
 	void CollectInspectedMovie();
 	void RotateInspectedActor(float AxisValue);
-	// Thin per-device wrappers: record which device the player is using
-	// (look input is ignored during inspection, so these axes are the only
-	// device signal) then rotate.
-	void RotateInspectedActorMouse(float AxisValue);
-	void RotateInspectedActorGamepad(float AxisValue);
 	void StopInspection();
 
 	// Test-only query: true while this MovieBox is the actively inspected one.

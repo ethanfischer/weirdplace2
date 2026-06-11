@@ -43,6 +43,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -259,6 +260,10 @@ private:
 	TWeakPtr<SWidget> LastFocusedWidget;
 	bool bLoggedInitialFocus = false;
 
+
+	// Watches every app-wide input event to keep bLastInputWasGamepad correct
+	// the moment any input arrives — not just during active look/rotate.
+	TSharedPtr<class IInputProcessor> InputDeviceTracker;
 
 	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.
 	UPROPERTY()

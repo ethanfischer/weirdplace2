@@ -211,10 +211,9 @@ void AMovieBox::Interact_Implementation()
 		PlayerController->InputComponent->RegisterComponent();
 	}
 
-	// Bind rotation input, per device so the put-back prompt can track which
-	// one the player is actually using.
-	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActorMouse);
-	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActorGamepad);
+	// Bind rotation input
+	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
+	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
 
 	// Defer the collect binding by one tick so the in-flight E IE_Pressed event
 	// that opened inspection doesn't immediately trigger collect.
@@ -385,31 +384,6 @@ void AMovieBox::RotateInspectedActor(float AxisValue)
 	FVector LocalUpVector = InspectedActor->GetActorUpVector();
 	FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f));
 	InspectedActor->AddActorWorldRotation(DeltaRotation);
-}
-
-void AMovieBox::RotateInspectedActorMouse(float AxisValue)
-{
-	// Legacy axes fire every frame with 0; only real input marks the device.
-	if (FMath::Abs(AxisValue) > 0.1f)
-	{
-		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
-		{
-			FPChar->SetUsingGamepad(false);
-		}
-	}
-	RotateInspectedActor(AxisValue);
-}
-
-void AMovieBox::RotateInspectedActorGamepad(float AxisValue)
-{
-	if (FMath::Abs(AxisValue) > 0.1f)
-	{
-		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
-		{
-			FPChar->SetUsingGamepad(true);
-		}
-	}
-	RotateInspectedActor(AxisValue);
 }
 
 
