@@ -153,7 +153,7 @@ public:
 	// Reads the put-back prompt off the MovieBox currently in inspection:
 	// its text, visibility, and how squarely it faces the camera (dot of the
 	// text forward vector against the to-camera direction). Returns false if
-	// nothing is inspected or the inspected box has no 'PutBackPrompt'.
+	// nothing is inspected or the inspected box has no 'PutBackPromptText'.
 	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
 
 	// Camera-space directions of the held item's longest and shortest local

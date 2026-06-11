@@ -799,7 +799,7 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	Inspected->GetComponents<UTextRenderComponent>(Texts);
 	for (UTextRenderComponent* T : Texts)
 	{
-		if (T->GetFName() == TEXT("PutBackPrompt"))
+		if (T->GetFName() == TEXT("PutBackPromptText"))
 		{
 			Prompt = T;
 			break;
@@ -807,7 +807,7 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	}
 	if (!Prompt)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - inspected MovieBox '%s' has no 'PutBackPrompt' component"),
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - inspected MovieBox '%s' has no 'PutBackPromptText' component"),
 			*Inspected->GetName());
 		return false;
 	}
