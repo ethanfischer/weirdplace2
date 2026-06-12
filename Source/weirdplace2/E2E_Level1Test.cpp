@@ -392,6 +392,9 @@ bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_01_StaringAtLight")));
 	// Hum volume sampled at ~5s and ~15s into the stare must be rising.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumRising(this, 5.0, 15.0));
+	// ~15s in, the screen-space effect has ramped on (but not yet to max).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("mid-stare"), 0.005f, 0.81f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_03_EffectMidStare")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(this, FName("Money"), 40.0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumStopped(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
@@ -428,13 +431,16 @@ bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight"), 500.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	// Holding the gaze accumulates the dwell timer (well short of the 30s grant).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after 2s gaze"), 1.0f, 30.0f));
-	// Look away (down at the lot) — the timer must snap back to 0.
+	// Wait for the player to land and the gaze to hold (well short of the 30s grant).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForGazeSeconds(this, 1.5f, 12.0));
+	// The dwell timer is accumulating and the screen effect has begun ramping on.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("during gaze"), 1.0f, 30.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("during gaze"), 0.001f, 0.81f));
+	// Look away (down at the lot) — the timer AND the effect must snap back to 0.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookDown(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after look-away"), 0.0f, 0.001f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("after look-away"), 0.0f, 0.001f));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

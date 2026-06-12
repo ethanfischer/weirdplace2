@@ -7,7 +7,10 @@
 #include "GazeRewardComponent.generated.h"
 
 class UAudioComponent;
+class UCameraComponent;
 class UItemDefinition;
+class UMaterialInterface;
+class UMaterialInstanceDynamic;
 class USoundBase;
 
 // Drop this on any actor: stare at that actor long enough and it grants the
@@ -56,21 +59,50 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward")
 	bool bOneShot = true;
 
+	// Screen-space post-process that swells on the player's view as the gaze
+	// builds (default-loads M_GazeReward if unset). Leave empty for no effect.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Visual")
+	UMaterialInterface* GazeEffectMaterial = nullptr;
+
+	// Peak blendable weight of the effect at full gaze.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Visual")
+	float MaxEffectWeight = 0.8f;
+
+	// Curve on the visual ramp. ~1.5 builds gently from the start so the player
+	// notices something happening.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Visual")
+	float VisualRampExponent = 1.5f;
+
+	// Curve on the hum ramp. Higher = stays near-silent early then swells late
+	// (avoids the sound being audible too soon).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Audio")
+	float AudioRampExponent = 3.0f;
+
 	// Test-only accessors.
 	float GetGazeSeconds() const { return GazeSeconds; }
 	UAudioComponent* GetHumComponent() const { return HumComponent; }
 	bool WasGranted() const { return bRewardGranted; }
+	float GetCurrentEffectWeight() const { return CurrentEffectWeight; }
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
 	bool IsPlayerGazingAtOwner() const;
 	void GrantReward();
+	void ApplyEffectWeight(float Weight);
 
 	UPROPERTY()
 	UAudioComponent* HumComponent = nullptr;
 
+	UPROPERTY()
+	UCameraComponent* CachedPlayerCamera = nullptr;
+
+	UPROPERTY()
+	UMaterialInstanceDynamic* GazeEffectMID = nullptr;
+
 	float GazeSeconds = 0.f;
+	float CurrentEffectWeight = 0.f;
 	bool bRewardGranted = false;
 };

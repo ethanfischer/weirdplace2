@@ -1599,6 +1599,78 @@ private:
 	float Max;
 };
 
+// FTD_WaitForGazeSeconds — poll the gaze dwell timer until it reaches Min.
+// The player teleports above the lot and falls for ~1s+; the gaze only holds
+// continuously once they've landed, so wait rather than assume a fixed delay.
+class FTD_WaitForGazeSeconds : public FTD_Base
+{
+public:
+	FTD_WaitForGazeSeconds(FAutomationTestBase* InTest, float InMinSeconds, double InTimeout = 12.0)
+		: FTD_Base(InTest), MinSeconds(InMinSeconds), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for gaze to reach %.1fs"), MinSeconds);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForGazeSeconds: no driver")); return true; }
+		float Seconds = 0.f;
+		Driver->GetGazeRewardSeconds(Seconds);
+		if (Seconds >= MinSeconds) { return true; }
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForGazeSeconds: gaze only reached %.2fs of %.1fs within %.0fs"),
+				Seconds, MinSeconds, Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	float MinSeconds;
+	double Timeout;
+};
+
+// FTD_AssertGazeEffectWeight — read the UGazeRewardComponent's screen-effect
+// blendable weight and assert it's within [Min, Max].
+class FTD_AssertGazeEffectWeight : public FTD_Base
+{
+public:
+	FTD_AssertGazeEffectWeight(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze effect weight in [%.2f, %.2f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeEffectWeight: no driver")); return true; }
+		float W = -1.f;
+		if (!Driver->GetGazeEffectWeight(W))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeEffectWeight: no UGazeRewardComponent in level"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeEffectWeight [%s]: weight=%.3f (expect [%.2f, %.2f])"),
+			*Label, W, Min, Max);
+		if (W < Min || W > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeEffectWeight [%s]: weight=%.3f outside [%.2f, %.2f]"),
+				*Label, W, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
 // FTD_LookDown — aim the camera at the ground to break gaze on an overhead
 // fixture (the canopy light is far above the player).
 class FTD_LookDown : public FTD_Base

@@ -722,53 +722,72 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 	return Inv ? Inv->GetItemCount() : 0;
 }
 
+namespace
+{
+	// The reusable UGazeRewardComponent can now live on many actors (the user
+	// adds it wherever). The gas-station E2E tests specifically want the canopy
+	// light's component — find it by the 'GazeRewardTarget' tag, not "first one".
+	UGazeRewardComponent* FindGasStationGazeComponent(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->ActorHasTag(FName("GazeRewardTarget")))
+			{
+				if (UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>())
+				{
+					return Gaze;
+				}
+			}
+		}
+		return nullptr;
+	}
+}
+
 bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) const
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
 	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
 		return false;
 	}
-
-	for (TActorIterator<AActor> It(World); It; ++It)
+	UAudioComponent* Audio = Gaze->GetHumComponent();
+	if (!Audio)
 	{
-		UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>();
-		if (!Gaze)
-		{
-			continue;
-		}
-		UAudioComponent* Audio = Gaze->GetHumComponent();
-		if (!Audio)
-		{
-			UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - GazeReward component on '%s' has no hum"), *It->GetName());
-			return false;
-		}
-		OutVolume = Audio->VolumeMultiplier;
-		bOutPlaying = Audio->IsPlaying();
-		return true;
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - GazeReward component has no hum"));
+		return false;
 	}
-
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no UGazeRewardComponent in level"));
-	return false;
+	OutVolume = Audio->VolumeMultiplier;
+	bOutPlaying = Audio->IsPlaying();
+	return true;
 }
 
 bool UTestDriverSubsystem::GetGazeRewardSeconds(float& OutSeconds) const
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
 	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeRewardSeconds - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
 		return false;
 	}
-	for (TActorIterator<AActor> It(World); It; ++It)
+	OutSeconds = Gaze->GetGazeSeconds();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetGazeEffectWeight(float& OutWeight) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
 	{
-		if (UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>())
-		{
-			OutSeconds = Gaze->GetGazeSeconds();
-			return true;
-		}
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeEffectWeight - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
 	}
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeRewardSeconds - no UGazeRewardComponent in level"));
-	return false;
+	OutWeight = Gaze->GetCurrentEffectWeight();
+	return true;
 }
 
 bool UTestDriverSubsystem::GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,

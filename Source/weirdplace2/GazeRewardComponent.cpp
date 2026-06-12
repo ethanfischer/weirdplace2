@@ -2,11 +2,54 @@
 
 #include "GazeRewardComponent.h"
 
+#include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+
+namespace GazeRewardInternal
+{
+	static const FName IntensityParamName(TEXT("Intensity"));
+	static const TCHAR* DefaultEffectMaterialPath = TEXT("/Game/CreatedMaterials/M_GazeReward.M_GazeReward");
+
+	// Drive a single, stable weighted-blendable entry on the camera's post
+	// process (same pattern as UBladderUrgencyComponent).
+	static void SetBlendableWeight(FPostProcessSettings& PostProcessSettings, UObject* BlendableObject, float Weight)
+	{
+		if (!BlendableObject)
+		{
+			return;
+		}
+		FWeightedBlendables& WeightedBlendables = PostProcessSettings.WeightedBlendables;
+		const float ClampedWeight = FMath::Clamp(Weight, 0.f, 1.f);
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 Index = 0; Index < WeightedBlendables.Array.Num(); ++Index)
+		{
+			if (WeightedBlendables.Array[Index].Object == BlendableObject)
+			{
+				FoundIndex = Index;
+				break;
+			}
+		}
+		if (FoundIndex == INDEX_NONE)
+		{
+			WeightedBlendables.Array.Add(FWeightedBlendable(ClampedWeight, BlendableObject));
+			return;
+		}
+		WeightedBlendables.Array[FoundIndex].Weight = ClampedWeight;
+		for (int32 Index = WeightedBlendables.Array.Num() - 1; Index >= 0; --Index)
+		{
+			if (Index != FoundIndex && WeightedBlendables.Array[Index].Object == BlendableObject)
+			{
+				WeightedBlendables.Array.RemoveAt(Index);
+			}
+		}
+	}
+}
 
 UGazeRewardComponent::UGazeRewardComponent()
 {
@@ -29,6 +72,19 @@ void UGazeRewardComponent::BeginPlay()
 	}
 }
 
+void UGazeRewardComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	// Don't leave the effect baked onto the player camera's post process.
+	if (CachedPlayerCamera && GazeEffectMID)
+	{
+		GazeRewardInternal::SetBlendableWeight(CachedPlayerCamera->PostProcessSettings, GazeEffectMID, 0.f);
+		CachedPlayerCamera->PostProcessSettings.WeightedBlendables.Array.RemoveAll(
+			[this](const FWeightedBlendable& B) { return B.Object == GazeEffectMID; });
+	}
+	CurrentEffectWeight = 0.f;
+	Super::EndPlay(EndPlayReason);
+}
+
 void UGazeRewardComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -44,11 +100,15 @@ void UGazeRewardComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 		{
 			GazeSeconds = 0.f;
 			if (HumComponent) { HumComponent->Stop(); }
+			ApplyEffectWeight(0.f);
 		}
 		return;
 	}
 
 	GazeSeconds += DeltaTime;
+	const float Progress = RequiredLookSeconds > 0.f
+		? FMath::Clamp(GazeSeconds / RequiredLookSeconds, 0.f, 1.f)
+		: 1.f;
 
 	if (HumSound && HumComponent)
 	{
@@ -57,10 +117,14 @@ void UGazeRewardComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			HumComponent->SetSound(HumSound);
 			HumComponent->Play();
 		}
-		// Swell toward the payout; 0.05 floor so it's faintly audible from the
-		// first held frame.
-		HumComponent->SetVolumeMultiplier(FMath::Max(0.05f, GazeSeconds / RequiredLookSeconds));
+		// Swell toward the payout, curved so it stays near-silent early and
+		// builds late — no floor, so it isn't audible from the first frame.
+		HumComponent->SetVolumeMultiplier(FMath::Pow(Progress, AudioRampExponent));
 	}
+
+	// Screen-space effect swells on the player's view as the gaze builds. The
+	// gentler exponent lets the player notice it before the hum comes in.
+	ApplyEffectWeight(FMath::Pow(Progress, VisualRampExponent) * MaxEffectWeight);
 
 	if (GazeSeconds >= RequiredLookSeconds)
 	{
@@ -172,6 +236,7 @@ void UGazeRewardComponent::GrantReward()
 
 	bRewardGranted = true;
 	if (HumComponent) { HumComponent->Stop(); }
+	ApplyEffectWeight(0.f);
 	UE_LOG(LogTemp, Log, TEXT("GazeRewardComponent on '%s': granted '%s' after %.1fs gaze"),
 		Owner ? *Owner->GetName() : TEXT("?"), *RewardItem->ItemID.ToString(), GazeSeconds);
 
@@ -182,4 +247,42 @@ void UGazeRewardComponent::GrantReward()
 		bRewardGranted = false;
 		SetComponentTickEnabled(true);
 	}
+}
+
+void UGazeRewardComponent::ApplyEffectWeight(float Weight)
+{
+	CurrentEffectWeight = FMath::Clamp(Weight, 0.f, 1.f);
+
+	// Lazily resolve the player camera + effect material — the player may not
+	// exist at this component's BeginPlay (it lives on a level fixture).
+	if (!CachedPlayerCamera)
+	{
+		if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
+		{
+			CachedPlayerCamera = Player->GetFirstPersonCamera();
+		}
+	}
+	if (!CachedPlayerCamera)
+	{
+		return;
+	}
+	if (!GazeEffectMID)
+	{
+		if (!GazeEffectMaterial)
+		{
+			GazeEffectMaterial = LoadObject<UMaterialInterface>(nullptr, GazeRewardInternal::DefaultEffectMaterialPath);
+		}
+		if (!GazeEffectMaterial)
+		{
+			return;
+		}
+		GazeEffectMID = UMaterialInstanceDynamic::Create(GazeEffectMaterial, this);
+		if (!GazeEffectMID)
+		{
+			return;
+		}
+	}
+
+	GazeRewardInternal::SetBlendableWeight(CachedPlayerCamera->PostProcessSettings, GazeEffectMID, CurrentEffectWeight);
+	GazeEffectMID->SetScalarParameterValue(GazeRewardInternal::IntensityParamName, CurrentEffectWeight);
 }

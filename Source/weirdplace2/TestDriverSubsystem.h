@@ -151,6 +151,10 @@ public:
 	// Returns false if no component exists.
 	bool GetGazeRewardSeconds(float& OutSeconds) const;
 
+	// Reads the gaze-reward screen-effect blendable weight (0..1) off the
+	// level's UGazeRewardComponent. Returns false if no component exists.
+	bool GetGazeEffectWeight(float& OutWeight) const;
+
 	// Reads the blank-VHS chord gaze state off the level's USpawnerActorComponent
 	// (the last camera-forward trace it ran). For the gaze-sweep diagnostic.
 	// Returns false if no spawner component exists.
