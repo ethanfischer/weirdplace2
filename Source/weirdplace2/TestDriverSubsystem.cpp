@@ -750,6 +750,30 @@ bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) 
 	return false;
 }
 
+bool UTestDriverSubsystem::GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
+	FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
+	FVector& OutImpactPoint, float& OutVolume) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (USpawnerActorComponent* Spawner = It->FindComponentByClass<USpawnerActorComponent>())
+		{
+			Spawner->GetGazeDebugState(bOutHasChosen, bOutLooking, bOutHadHit,
+				OutHitActor, OutHitComponent, OutHitDistance, OutImpactPoint, OutVolume);
+			return true;
+		}
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBlankVhsGazeState - no USpawnerActorComponent in level"));
+	return false;
+}
+
 bool UTestDriverSubsystem::GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const
 {
 	AFirstPersonCharacter* Player = GetPlayer();

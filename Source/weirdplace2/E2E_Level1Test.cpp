@@ -551,6 +551,35 @@ bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// BlankVhsGazeSweep — diagnostic. Activate the blank tape, stand in front
+// of it, then sweep the reticle across a grid over its face, logging what
+// the chord gaze trace hits at each point (and screenshotting the corners).
+// Gathers objective data on the spotty look-to-boost-volume behavior.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BlankVhsGazeSweep,
+	"Weirdplace2.E2E.Level1.BlankVhsGazeSweep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BlankVhsGazeSweep::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("BlankVhsGazeSweep")
+
+	// Spawn the blank VHS as the chosen box + start the chord (sets up the
+	// SpawnerActorComponent's gaze trace), then stand in front of it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearBlankTape(this));
+
+	// Sweep a 5x5 grid across the face, logging the gaze trace at each point.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SweepGazeOverBlankVhs(this, 5));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // InventoryFromStart — the inventory works from the moment the player
 // spawns; no Seneca-intro gate, no test bypass.
 // =======================================================================

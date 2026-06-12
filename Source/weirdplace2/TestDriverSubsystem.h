@@ -146,6 +146,13 @@ public:
 	// exists — which is also the meaningful red-phase failure.
 	bool GetGazeHumState(float& OutVolume, bool& bOutPlaying) const;
 
+	// Reads the blank-VHS chord gaze state off the level's USpawnerActorComponent
+	// (the last camera-forward trace it ran). For the gaze-sweep diagnostic.
+	// Returns false if no spawner component exists.
+	bool GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
+		FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
+		FVector& OutImpactPoint, float& OutVolume) const;
+
 	// Reads the speaker plate and full body line off the dialogue widget the
 	// player is currently in. Returns false if no dialogue widget is active.
 	bool GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const;

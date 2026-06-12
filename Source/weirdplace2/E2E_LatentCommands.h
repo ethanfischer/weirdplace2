@@ -584,6 +584,176 @@ public:
 };
 
 // =======================================================================
+// FTD_SweepGazeOverBlankVhs — diagnostic. Aims the camera reticle at a grid
+// of points across the blank VHS's front face (the 4 corners are the grid
+// extremes) and, at each, logs exactly what the chord gaze trace landed on
+// (looking?, hit actor, hit component, distance, chord volume). Gathers
+// objective data on why the look-to-boost is spotty across the surface.
+// Asserts the 4 corners register the gaze, so it also guards regressions.
+// =======================================================================
+class FTD_SweepGazeOverBlankVhs : public FTD_Base
+{
+public:
+	FTD_SweepGazeOverBlankVhs(FAutomationTestBase* InTest, int32 InGridN = 5,
+		const FString& InShotPrefix = TEXT("E2E_GazeSweep"))
+		: FTD_Base(InTest), GridN(FMath::Max(2, InGridN)), ShotPrefix(InShotPrefix) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Sweeping gaze across blank VHS surface"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no driver")); return true; }
+
+		if (!bInitialized)
+		{
+			if (!BuildGrid(Driver)) { return true; }
+			bInitialized = true;
+			Phase = EPhase::Aim;
+			return false;
+		}
+
+		switch (Phase)
+		{
+		case EPhase::Aim:
+			Driver->LookAtWorldPoint(Points[Index]);
+			SettleFrames = 0;
+			Phase = EPhase::Settle;
+			return false;
+
+		case EPhase::Settle:
+			// Let the control rotation apply and the spawner component re-trace.
+			if (++SettleFrames < 3) { return false; }
+			Phase = EPhase::Sample;
+			return false;
+
+		case EPhase::Sample:
+		{
+			bool bHasChosen = false, bLooking = false, bHadHit = false;
+			FString HitActor, HitComp; float Dist = -1.f, Vol = 0.f; FVector Impact;
+			Driver->GetBlankVhsGazeState(bHasChosen, bLooking, bHadHit, HitActor, HitComp, Dist, Impact, Vol);
+
+			const int32 Col = Index % GridN, Row = Index / GridN;
+			const bool bCorner = IsCorner(Index);
+			UE_LOG(LogTemp, Warning,
+				TEXT("GazeSweep[%02d] col=%d row=%d%s aim=%s looking=%d hitActor=%s hitComp=%s dist=%.1f vol=%.2f"),
+				Index, Col, Row, bCorner ? TEXT(" CORNER") : TEXT(""), *Points[Index].ToString(),
+				bLooking ? 1 : 0, *HitActor, *HitComp, Dist, Vol);
+
+			if (bLooking) { ++LookingHits; }
+			else if (bCorner) { MissedCorners.Add(Index); }
+
+			if (bCorner && !FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+			{
+				FScreenshotRequest::RequestScreenshot(
+					FString::Printf(TEXT("%s_c%d_r%d"), *ShotPrefix, Col, Row), false, false);
+				ShotFrames = 0;
+				Phase = EPhase::ShotWait;
+				return false;
+			}
+			Phase = EPhase::Advance;
+			return false;
+		}
+
+		case EPhase::ShotWait:
+			if (!FScreenshotRequest::IsScreenshotRequested() || ++ShotFrames > 120)
+			{
+				if (ShotFrames > 120) { FScreenshotRequest::Reset(); }
+				Phase = EPhase::Advance;
+			}
+			return false;
+
+		case EPhase::Advance:
+			if (++Index >= Points.Num())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("GazeSweep SUMMARY: %d/%d points registered the gaze; %d corner(s) missed"),
+					LookingHits, Points.Num(), MissedCorners.Num());
+				if (MissedCorners.Num() > 0)
+				{
+					FString Ids;
+					for (int32 I : MissedCorners) { Ids += FString::Printf(TEXT("%d "), I); }
+					Test->AddError(FString::Printf(
+						TEXT("FTD_SweepGazeOverBlankVhs: %d corner(s) did not register the gaze (indices: %s) — collision does not cover the full surface"),
+						MissedCorners.Num(), *Ids));
+				}
+				return true;
+			}
+			Phase = EPhase::Aim;
+			return false;
+		}
+		return true;
+	}
+
+private:
+	enum class EPhase { Aim, Settle, Sample, ShotWait, Advance };
+
+	bool IsCorner(int32 i) const
+	{
+		const int32 c = i % GridN, r = i / GridN;
+		return (c == 0 || c == GridN - 1) && (r == 0 || r == GridN - 1);
+	}
+
+	// Build a grid of aim points across the blank VHS's player-facing face,
+	// using its envelope (Cube) world AABB. The face is the AABB side toward
+	// the camera; the grid spans the other two world axes.
+	bool BuildGrid(UTestDriverSubsystem* Driver)
+	{
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no blank tape")); return false; }
+		USceneComponent* Env = Driver->FindComponentOnActorByName(Tape, TEXT("Cube"));
+		if (!Env) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: blank tape has no 'Cube' envelope")); return false; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player || !Player->GetFirstPersonCamera()) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no player camera")); return false; }
+
+		const FVector Center = Env->Bounds.Origin;
+		const FVector Extent = Env->Bounds.BoxExtent;
+		const FVector CamLoc = Player->GetFirstPersonCamera()->GetComponentLocation();
+		const FVector ToBox = (Center - CamLoc).GetSafeNormal();
+
+		const FVector Axes[3] = { FVector::ForwardVector, FVector::RightVector, FVector::UpVector };
+		int32 Depth = 0; float Best = -1.f;
+		for (int32 a = 0; a < 3; ++a)
+		{
+			const float D = FMath::Abs(FVector::DotProduct(ToBox, Axes[a]));
+			if (D > Best) { Best = D; Depth = a; }
+		}
+		const int32 S1 = (Depth + 1) % 3, S2 = (Depth + 2) % 3;
+		const FVector A = Axes[S1], B = Axes[S2];
+		// Front face: push from the box center toward the camera along the depth axis.
+		const float Sign = FMath::Sign(FVector::DotProduct(CamLoc - Center, Axes[Depth]));
+		const FVector FaceCenter = Center + Axes[Depth] * (Extent[Depth] * Sign);
+
+		// Sample at 85% of the half-extents so points stay on the visible face
+		// (the AABB rim can sit just outside the mesh).
+		const float Margin = 0.85f;
+		const float EA = Extent[S1] * Margin, EB = Extent[S2] * Margin;
+		for (int32 r = 0; r < GridN; ++r)
+		{
+			for (int32 c = 0; c < GridN; ++c)
+			{
+				const float u = FMath::Lerp(-EA, EA, (float)c / (GridN - 1));
+				const float v = FMath::Lerp(-EB, EB, (float)r / (GridN - 1));
+				Points.Add(FaceCenter + A * u + B * v);
+			}
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GazeSweep: %dx%d grid over blank VHS face center=%s extent(face)=(%.1f,%.1f) depthAxis=%d"),
+			GridN, GridN, *FaceCenter.ToString(), EA, EB, Depth);
+		return true;
+	}
+
+	int32 GridN;
+	FString ShotPrefix;
+	bool bInitialized = false;
+	EPhase Phase = EPhase::Aim;
+	int32 Index = 0;
+	int32 SettleFrames = 0;
+	int32 ShotFrames = 0;
+	int32 LookingHits = 0;
+	TArray<FVector> Points;
+	TArray<int32> MissedCorners;
+};
+
+// =======================================================================
 // FTD_TeleportFacingShelfBoxAndAim — stand directly in front of a shelf
 // MovieBox (along its own forward vector, trying both sides), then aim at
 // a TRACE-VERIFIED surface point probed from the player's real post-landing

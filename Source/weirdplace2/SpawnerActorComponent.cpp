@@ -6,6 +6,7 @@
 #include "MovieBox.h"
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values for this component's properties
@@ -69,13 +70,42 @@ void USpawnerActorComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	FRotator ViewRotation;
 	PC->GetPlayerViewPoint(ViewLocation, ViewRotation);
 
-	const FVector TraceEnd = ViewLocation + ViewRotation.Vector() * 10000.0f;
+	// "Looking at the box" via geometry, not a collision trace: does the camera
+	// view ray pass within the chosen box's mesh-bounds sphere? The old
+	// ECC_Visibility line trace was hopelessly spotty here — the E2E gaze sweep
+	// showed every reticle point either hitting a neighbor's InteractionText
+	// prompt widget (which blocks Visibility and floats in the aisle) or, with
+	// widgets skipped, skimming past the ~5cm-thick case collision and hitting
+	// nothing. A ray-vs-bounds test is immune to all of that (widgets, thin
+	// collision, z-fighting, the box's random shelf slot).
+	const FVector ViewDir = ViewRotation.Vector();
+	FBoxSphereBounds BoxBounds(ChosenBox->GetActorLocation(), FVector(15.f), 15.f);
+	if (UStaticMeshComponent* Envelope = ChosenBox->FindComponentByClass<UStaticMeshComponent>())
+	{
+		BoxBounds = Envelope->Bounds;
+	}
+	const float Along = FVector::DotProduct(BoxBounds.Origin - ViewLocation, ViewDir);
+	const FVector Closest = ViewLocation + ViewDir * FMath::Max(0.f, Along);
+	const float PerpDist = FVector::Dist(Closest, BoxBounds.Origin);
+	const float GazeRadius = BoxBounds.SphereRadius;
+	const bool bLookingAtChosen = (Along > 0.f) && (PerpDist <= GazeRadius);
 
-	FHitResult Hit;
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(ChosenBoxReticle), false);
-	Params.AddIgnoredActor(GetOwner());
-	const bool bHit = World->LineTraceSingleByChannel(Hit, ViewLocation, TraceEnd, ECC_Visibility, Params);
-	const bool bLookingAtChosen = bHit && Hit.GetActor() == ChosenBox;
+	// Record for diagnostics / the E2E gaze-sweep getter.
+	bLastHadHit = (Along > 0.f);
+	LastHitActorName = ChosenBox->GetName();
+	LastHitComponentName = FString::Printf(TEXT("perp=%.1f/radius=%.1f"), PerpDist, GazeRadius);
+	LastHitDistance = PerpDist;
+	LastHitImpactPoint = Closest;
+
+	// Log every time the gaze state flips — captures any in/out flicker during
+	// manual play with the geometry that decided it.
+	if (bLookingAtChosen != bLastLookingAtChosen)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerGaze: looking=%d hitActor=%s hitComp=%s dist=%.1f impact=%s chosen=%s vol=%.2f"),
+			bLookingAtChosen, *LastHitActorName, *LastHitComponentName, LastHitDistance,
+			*LastHitImpactPoint.ToString(), ChosenBox ? *ChosenBox->GetName() : TEXT("None"), CurrentVolumeMultiplier);
+		bLastLookingAtChosen = bLookingAtChosen;
+	}
 
 	const float TargetMultiplier = bLookingAtChosen ? LookAtVolumeMultiplier : 1.0f;
 	CurrentVolumeMultiplier = FMath::FInterpConstantTo(CurrentVolumeMultiplier, TargetMultiplier, DeltaTime, LookAtFadeSpeed);

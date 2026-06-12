@@ -71,6 +71,16 @@ private:
 
 	float CurrentVolumeMultiplier = 1.0f;
 
+	// Last-frame gaze trace result, recorded for diagnostics + the E2E gaze
+	// sweep. The chord volume is spotty across the box surface and we want
+	// objective data on exactly what the camera-forward trace hits per point.
+	bool    bLastHadHit = false;
+	bool    bLastLookingAtChosen = false;
+	FString LastHitActorName;
+	FString LastHitComponentName;
+	float   LastHitDistance = -1.0f;
+	FVector LastHitImpactPoint = FVector::ZeroVector;
+
 	void SpawnMovieBoxes();
 
 public:
@@ -80,6 +90,21 @@ public:
 
 	AActor* GetChosenBox() const { return ChosenBox; }
 	FName   GetChosenItemID() const { return ChosenItemID; }
+
+	// Diagnostics: last-frame gaze trace state (for the E2E gaze-sweep test).
+	void GetGazeDebugState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
+		FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
+		FVector& OutImpactPoint, float& OutVolume) const
+	{
+		bOutHasChosen = ChosenBox != nullptr;
+		bOutLooking = bLastLookingAtChosen;
+		bOutHadHit = bLastHadHit;
+		OutHitActor = LastHitActorName;
+		OutHitComponent = LastHitComponentName;
+		OutHitDistance = LastHitDistance;
+		OutImpactPoint = LastHitImpactPoint;
+		OutVolume = CurrentVolumeMultiplier;
+	}
 
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
