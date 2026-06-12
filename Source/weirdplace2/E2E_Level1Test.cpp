@@ -411,6 +411,36 @@ bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// GazeRewardReset — the UGazeRewardComponent's dwell timer accumulates while
+// the player looks at the owner and resets the instant the gaze breaks. Fast
+// (no 30s wait, no grant): sample seconds rising, look away, sample reset.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GazeRewardReset,
+	"Weirdplace2.E2E.Level1.GazeRewardReset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GazeRewardReset")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight"), 500.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	// Holding the gaze accumulates the dwell timer (well short of the 30s grant).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after 2s gaze"), 1.0f, 30.0f));
+	// Look away (down at the lot) — the timer must snap back to 0.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookDown(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after look-away"), 0.0f, 0.001f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // RickDialoguePrefix — Rick's outside-idle line is authored as
 // "Rick: I'll meet you inside once I'm done here". The speaker belongs on
 // the plate; the body shown to the player must not include "Rick:".

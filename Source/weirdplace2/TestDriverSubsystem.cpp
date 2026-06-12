@@ -12,6 +12,7 @@
 #include "MovieBox.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
+#include "GazeRewardComponent.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -731,14 +732,15 @@ bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) 
 
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
-		if (!It->ActorHasTag(FName("GazeReward")))
+		UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>();
+		if (!Gaze)
 		{
 			continue;
 		}
-		UAudioComponent* Audio = It->FindComponentByClass<UAudioComponent>();
+		UAudioComponent* Audio = Gaze->GetHumComponent();
 		if (!Audio)
 		{
-			UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - tagged actor '%s' has no AudioComponent"), *It->GetName());
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - GazeReward component on '%s' has no hum"), *It->GetName());
 			return false;
 		}
 		OutVolume = Audio->VolumeMultiplier;
@@ -746,7 +748,26 @@ bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) 
 		return true;
 	}
 
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no actor tagged 'GazeReward' in level"));
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no UGazeRewardComponent in level"));
+	return false;
+}
+
+bool UTestDriverSubsystem::GetGazeRewardSeconds(float& OutSeconds) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>())
+		{
+			OutSeconds = Gaze->GetGazeSeconds();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeRewardSeconds - no UGazeRewardComponent in level"));
 	return false;
 }
 

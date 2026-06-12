@@ -146,6 +146,11 @@ public:
 	// exists — which is also the meaningful red-phase failure.
 	bool GetGazeHumState(float& OutVolume, bool& bOutPlaying) const;
 
+	// Reads the gaze-reward dwell timer off the level's UGazeRewardComponent.
+	// For the GazeRewardReset test (accumulates then resets on look-away).
+	// Returns false if no component exists.
+	bool GetGazeRewardSeconds(float& OutSeconds) const;
+
 	// Reads the blank-VHS chord gaze state off the level's USpawnerActorComponent
 	// (the last camera-forward trace it ran). For the gaze-sweep diagnostic.
 	// Returns false if no spawner component exists.

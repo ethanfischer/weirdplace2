@@ -1561,6 +1561,67 @@ private:
 	FName ItemId;
 };
 
+// FTD_AssertGazeRewardSeconds — read the UGazeRewardComponent's dwell timer
+// and assert it's within [Min, Max]. For the GazeRewardReset test.
+class FTD_AssertGazeRewardSeconds : public FTD_Base
+{
+public:
+	FTD_AssertGazeRewardSeconds(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze-reward seconds in [%.2f, %.2f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeRewardSeconds: no driver")); return true; }
+		float Seconds = -1.f;
+		if (!Driver->GetGazeRewardSeconds(Seconds))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeRewardSeconds: no UGazeRewardComponent in level"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeRewardSeconds [%s]: seconds=%.2f (expect [%.2f, %.2f])"),
+			*Label, Seconds, Min, Max);
+		if (Seconds < Min || Seconds > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeRewardSeconds [%s]: seconds=%.2f outside [%.2f, %.2f]"),
+				*Label, Seconds, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
+// FTD_LookDown — aim the camera at the ground to break gaze on an overhead
+// fixture (the canopy light is far above the player).
+class FTD_LookDown : public FTD_Base
+{
+public:
+	FTD_LookDown(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking down (break gaze)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookDown: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_LookDown: no player")); return true; }
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(FRotator(-80.f, 0.f, 0.f));
+		}
+		return true;
+	}
+};
+
 // =======================================================================
 // FTD_WaitForItemAdded — poll HasItem(Id) until it returns true.
 // Useful for waiting on async item grants (e.g. the key-break timeline
