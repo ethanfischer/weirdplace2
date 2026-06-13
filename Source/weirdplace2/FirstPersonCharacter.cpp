@@ -13,6 +13,7 @@
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -1145,6 +1146,33 @@ void AFirstPersonCharacter::AdvanceDialogue()
 			Hudson->OnDialogueEnded();
 		}
 	}
+}
+
+void AFirstPersonCharacter::GiveItem(const FString& Name)
+{
+	if (Name.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GiveItem - usage: GiveItem <Name> (e.g. 'GiveItem Key')"));
+		return;
+	}
+
+	const FString AssetPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *Name, *Name);
+	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *AssetPath);
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveItem - no UItemDefinition at %s"), *AssetPath);
+		return;
+	}
+
+	UInventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveItem - no InventoryComponent"));
+		return;
+	}
+
+	Inventory->AddItemWithData(Def->ToInventoryItemData());
+	UE_LOG(LogTemp, Display, TEXT("GiveItem - granted '%s' (ItemID=%s)"), *Name, *Def->ItemID.ToString());
 }
 
 void AFirstPersonCharacter::SkipToSmoking()

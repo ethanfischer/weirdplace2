@@ -90,6 +90,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	float KeyFallDelay = 1.0f;
 
+	// Seconds after the turn completes (== after KeyBreakSound fires) before
+	// the BrokenKey is granted to the player. Granting plays the Inventory
+	// CollectSound, so this delay separates the break sfx from the collect
+	// sfx (designer-tunable; default 3s).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float KeyCollectDelay = 3.0f;
+
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	UCurveFloat* KeyInsertCurve;
@@ -109,11 +116,23 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyInsertSound;
 
+	// Seconds after the insert animation BEGINS before KeyInsertSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyInsertSoundDelay = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyTurnSound;
 
+	// Seconds after the turn animation BEGINS (== insert finished) before KeyTurnSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyTurnSoundDelay = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyBreakSound;
+
+	// Seconds after the turn animation COMPLETES (visual snap) before KeyBreakSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyBreakSoundDelay = 0.0f;
 
 private:
 	// World-space start position of the held item at sequence start
@@ -143,5 +162,16 @@ private:
 	UFUNCTION()
 	void EnableKeyFall();
 
+	UFUNCTION()
+	void GrantBrokenKey();
+
 	FTimerHandle KeyFallTimerHandle;
+	FTimerHandle KeyCollectTimerHandle;
+	FTimerHandle KeyInsertSoundTimerHandle;
+	FTimerHandle KeyTurnSoundTimerHandle;
+	FTimerHandle KeyBreakSoundTimerHandle;
+
+	UFUNCTION() void PlayKeyInsertSound();
+	UFUNCTION() void PlayKeyTurnSound();
+	UFUNCTION() void PlayKeyBreakSound();
 };

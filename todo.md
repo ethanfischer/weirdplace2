@@ -10,7 +10,8 @@
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
 [ ] drop key
-    [x] need better sfx
+    [ ] need better sfx
+    [ ] show broken key collection spinning like any other collected item
     [ ] broken key mesh
     
 # Needs design

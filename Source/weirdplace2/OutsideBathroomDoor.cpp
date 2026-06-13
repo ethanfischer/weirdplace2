@@ -188,7 +188,14 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 
 	if (KeyInsertSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyInsertSound, KeyAnimStartPos);
+		if (KeyInsertSoundDelay <= 0.0f)
+		{
+			PlayKeyInsertSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyInsertSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyInsertSound, KeyInsertSoundDelay, false);
+		}
 	}
 
 	if (KeyInsertTimeline)
@@ -214,7 +221,14 @@ void AOutsideBathroomDoor::OnKeyInsertComplete()
 
 	if (KeyTurnSound && KeyLockSocket)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyTurnSound, KeyLockSocket->GetComponentLocation());
+		if (KeyTurnSoundDelay <= 0.0f)
+		{
+			PlayKeyTurnSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyTurnSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyTurnSound, KeyTurnSoundDelay, false);
+		}
 	}
 
 	if (KeyTurnTimeline)
@@ -239,7 +253,14 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 
 	if (KeyBreakSound && KeyLockSocket)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
+		if (KeyBreakSoundDelay <= 0.0f)
+		{
+			PlayKeyBreakSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyBreakSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyBreakSound, KeyBreakSoundDelay, false);
+		}
 	}
 
 	// Swap to broken mesh immediately so the visual snap is instant
@@ -248,8 +269,13 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 		AnimKeyMesh->SetStaticMesh(BrokenKeyDef->Mesh);
 	}
 
-	// Delay physics so the broken half hangs in the lock briefly before falling
+	// Two timers anchored at OnKeyTurnComplete (== KeyBreakSound fire):
+	//   KeyFallDelay   — broken half visibly falls
+	//   KeyCollectDelay — inventory grant (fires CollectSound), Seneca notify
+	// Keeping the collect anchored to the break sound (not the fall) gives
+	// designers a single knob to tune the break→collect audio gap.
 	GetWorldTimerManager().SetTimer(KeyFallTimerHandle, this, &AOutsideBathroomDoor::EnableKeyFall, KeyFallDelay, false);
+	GetWorldTimerManager().SetTimer(KeyCollectTimerHandle, this, &AOutsideBathroomDoor::GrantBrokenKey, KeyCollectDelay, false);
 }
 
 void AOutsideBathroomDoor::EnableKeyFall()
@@ -259,8 +285,10 @@ void AOutsideBathroomDoor::EnableKeyFall()
 		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		AnimKeyMesh->SetSimulatePhysics(true);
 	}
+}
 
-	// Add broken key to inventory with the same materials but the broken mesh
+void AOutsideBathroomDoor::GrantBrokenKey()
+{
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
 	if (MyCharacter)
@@ -276,7 +304,7 @@ void AOutsideBathroomDoor::EnableKeyFall()
 		}
 		else
 		{
-			UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::EnableKeyFall - missing Inventory or BrokenKeyDef"));
+			UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::GrantBrokenKey - missing Inventory or BrokenKeyDef"));
 		}
 	}
 
@@ -292,4 +320,28 @@ void AOutsideBathroomDoor::EnableKeyFall()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
+}
+
+void AOutsideBathroomDoor::PlayKeyInsertSound()
+{
+	if (KeyInsertSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyInsertSound, KeyAnimStartPos);
+	}
+}
+
+void AOutsideBathroomDoor::PlayKeyTurnSound()
+{
+	if (KeyTurnSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyTurnSound, KeyLockSocket->GetComponentLocation());
+	}
+}
+
+void AOutsideBathroomDoor::PlayKeyBreakSound()
+{
+	if (KeyBreakSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
+	}
 }
