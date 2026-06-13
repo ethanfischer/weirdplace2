@@ -12,6 +12,8 @@
 
 #include "TestDriverSubsystem.h"
 #include "FirstPersonCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TestWaypoint.h"
 #include "Door.h"
@@ -446,6 +448,417 @@ public:
 		}
 		return true;
 	}
+};
+
+// Teleport directly in front of the chord-spawned blank tape using the box's
+// own forward vector. The chord spawner picks one of many top-shelf boxes
+// (random bookcase/shelf position) and replaces it, so a static waypoint
+// won't reach reliably. The spawner's ChosenForwardOffset translates the
+// chosen tape along +ForwardVector to make it stick out from the shelf —
+// meaning +ForwardVector always points out toward the viewer, regardless of
+// which bookcase the random pick landed on. Approach from that direction so
+// the interact raycast has an unobstructed path.
+class FTD_TeleportNearBlankTape : public FTD_Base
+{
+public:
+	// 80cm default: close enough that the eye-line into the shelf slot clears
+	// the plank above the box, like a player leaning in.
+	FTD_TeleportNearBlankTape(FAutomationTestBase* InTest, float InDistance = 80.f)
+		: FTD_Base(InTest), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting in front of blank tape"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no driver")); return true; }
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no blank tape")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: no player")); return true; }
+
+		const FVector TapeLoc = Tape->GetActorLocation();
+		// Aim at the envelope's own bounds — the actor bounds center is skewed
+		// by the Tape child mesh, enough to slip the trace past the envelope's
+		// collision at some shelf-slot angles.
+		USceneComponent* Envelope = Driver->FindComponentOnActorByName(Tape, TEXT("Cube"));
+		if (!Envelope) { Test->AddError(TEXT("FTD_TeleportNearBlankTape: blank tape has no 'Cube' envelope")); return true; }
+		const FVector TapeCenter = Envelope->Bounds.Origin;
+		FVector Forward = Tape->GetActorForwardVector();
+		Forward.Z = 0.f;
+		Forward = Forward.GetSafeNormal();
+		if (Forward.IsNearlyZero())
+		{
+			Forward = FVector::ForwardVector;
+		}
+
+		const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+
+		// The blank inherits the replaced slot's rotation, and on some racks
+		// that faces INTO the shelf unit — standing "in front" there means the
+		// next aisle, where the interact trace hits that rack's own boxes.
+		// Stand on whichever side can actually trace to the tape, using the
+		// same object types as RaycastInteractableCheck.
+		FCollisionObjectQueryParams ObjectParams;
+		ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+		ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+		ObjectParams.AddObjectTypesToQuery(ECC_GameTraceChannel6);
+
+		UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: tape loc=%s boundsCenter=%s fwd=%s"),
+			*TapeLoc.ToString(), *TapeCenter.ToString(), *Forward.ToString());
+
+		bool bFoundSpot = false;
+		FVector NewLoc = FVector::ZeroVector;
+		Driver->BlankTapeAimPoint = FVector::ZeroVector;
+		for (const float Sign : { 1.f, -1.f })
+		{
+			const FVector TryLoc = TapeLoc + Forward * (Distance * Sign) + FVector(0.f, 0.f, HalfHeight);
+			// Probe from where the camera actually ends up after landing
+			// (~42cm above the shelf slot at this approach distance).
+			const FVector Eye(TryLoc.X, TryLoc.Y, TapeCenter.Z + 42.f);
+			FHitResult Hit;
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(BlankTapeAim), /*bTraceComplex*/ false);
+			QueryParams.AddIgnoredActor(Player);
+			const bool bHit = Tape->GetWorld()->LineTraceSingleByObjectType(Hit, Eye, TapeCenter, ObjectParams, QueryParams);
+			UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: side %+.0f eye=%s -> hit %s at %s"),
+				Sign, *Eye.ToString(),
+				bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("(nothing)"),
+				bHit ? *Hit.ImpactPoint.ToString() : TEXT("-"));
+			if (bHit && Hit.GetActor() == Tape)
+			{
+				NewLoc = TryLoc;
+				// Hand the verified-hittable surface point (nudged just inside
+				// the collision) to FTD_LookAtBlankTape — derived bounds
+				// centers miss the Memphis mesh's collision at some angles.
+				Driver->BlankTapeAimPoint = Hit.ImpactPoint + (TapeCenter - Eye).GetSafeNormal() * 3.f;
+				bFoundSpot = true;
+				break;
+			}
+		}
+		if (!bFoundSpot)
+		{
+			Test->AddError(TEXT("FTD_TeleportNearBlankTape: neither side of the tape has a clear interact trace to it"));
+			return true;
+		}
+
+		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+
+		const FRotator LookRot = (Driver->BlankTapeAimPoint - NewLoc).Rotation();
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(LookRot);
+		}
+		return true;
+	}
+private:
+	float Distance;
+};
+
+class FTD_LookAtBlankTape : public FTD_Base
+{
+public:
+	FTD_LookAtBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at blank tape"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtBlankTape: no driver")); return true; }
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_LookAtBlankTape: no blank tape")); return true; }
+		// Aim at the surface point FTD_TeleportNearBlankTape verified is
+		// hittable — every derived center (actor bounds, envelope bounds)
+		// misses the Memphis mesh's collision at some shelf-slot angles.
+		if (Driver->BlankTapeAimPoint.IsZero())
+		{
+			Test->AddError(TEXT("FTD_LookAtBlankTape: run FTD_TeleportNearBlankTape first (no verified aim point)"));
+			return true;
+		}
+		if (!Driver->LookAtWorldPoint(Driver->BlankTapeAimPoint))
+		{
+			Test->AddError(TEXT("FTD_LookAtBlankTape: LookAt failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_SweepGazeOverBlankVhs — diagnostic. Aims the camera reticle at a grid
+// of points across the blank VHS's front face (the 4 corners are the grid
+// extremes) and, at each, logs exactly what the chord gaze trace landed on
+// (looking?, hit actor, hit component, distance, chord volume). Gathers
+// objective data on why the look-to-boost is spotty across the surface.
+// Asserts the 4 corners register the gaze, so it also guards regressions.
+// =======================================================================
+class FTD_SweepGazeOverBlankVhs : public FTD_Base
+{
+public:
+	FTD_SweepGazeOverBlankVhs(FAutomationTestBase* InTest, int32 InGridN = 5,
+		const FString& InShotPrefix = TEXT("E2E_GazeSweep"))
+		: FTD_Base(InTest), GridN(FMath::Max(2, InGridN)), ShotPrefix(InShotPrefix) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Sweeping gaze across blank VHS surface"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no driver")); return true; }
+
+		if (!bInitialized)
+		{
+			if (!BuildGrid(Driver)) { return true; }
+			bInitialized = true;
+			Phase = EPhase::Aim;
+			return false;
+		}
+
+		switch (Phase)
+		{
+		case EPhase::Aim:
+			Driver->LookAtWorldPoint(Points[Index]);
+			SettleFrames = 0;
+			Phase = EPhase::Settle;
+			return false;
+
+		case EPhase::Settle:
+			// Let the control rotation apply and the spawner component re-trace.
+			if (++SettleFrames < 3) { return false; }
+			Phase = EPhase::Sample;
+			return false;
+
+		case EPhase::Sample:
+		{
+			bool bHasChosen = false, bLooking = false, bHadHit = false;
+			FString HitActor, HitComp; float Dist = -1.f, Vol = 0.f; FVector Impact;
+			Driver->GetBlankVhsGazeState(bHasChosen, bLooking, bHadHit, HitActor, HitComp, Dist, Impact, Vol);
+
+			const int32 Col = Index % GridN, Row = Index / GridN;
+			const bool bCorner = IsCorner(Index);
+			UE_LOG(LogTemp, Warning,
+				TEXT("GazeSweep[%02d] col=%d row=%d%s aim=%s looking=%d hitActor=%s hitComp=%s dist=%.1f vol=%.2f"),
+				Index, Col, Row, bCorner ? TEXT(" CORNER") : TEXT(""), *Points[Index].ToString(),
+				bLooking ? 1 : 0, *HitActor, *HitComp, Dist, Vol);
+
+			if (bLooking) { ++LookingHits; }
+			else if (bCorner) { MissedCorners.Add(Index); }
+
+			if (bCorner && !FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+			{
+				FScreenshotRequest::RequestScreenshot(
+					FString::Printf(TEXT("%s_c%d_r%d"), *ShotPrefix, Col, Row), false, false);
+				ShotFrames = 0;
+				Phase = EPhase::ShotWait;
+				return false;
+			}
+			Phase = EPhase::Advance;
+			return false;
+		}
+
+		case EPhase::ShotWait:
+			if (!FScreenshotRequest::IsScreenshotRequested() || ++ShotFrames > 120)
+			{
+				if (ShotFrames > 120) { FScreenshotRequest::Reset(); }
+				Phase = EPhase::Advance;
+			}
+			return false;
+
+		case EPhase::Advance:
+			if (++Index >= Points.Num())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("GazeSweep SUMMARY: %d/%d points registered the gaze; %d corner(s) missed"),
+					LookingHits, Points.Num(), MissedCorners.Num());
+				if (MissedCorners.Num() > 0)
+				{
+					FString Ids;
+					for (int32 I : MissedCorners) { Ids += FString::Printf(TEXT("%d "), I); }
+					Test->AddError(FString::Printf(
+						TEXT("FTD_SweepGazeOverBlankVhs: %d corner(s) did not register the gaze (indices: %s) — collision does not cover the full surface"),
+						MissedCorners.Num(), *Ids));
+				}
+				return true;
+			}
+			Phase = EPhase::Aim;
+			return false;
+		}
+		return true;
+	}
+
+private:
+	enum class EPhase { Aim, Settle, Sample, ShotWait, Advance };
+
+	bool IsCorner(int32 i) const
+	{
+		const int32 c = i % GridN, r = i / GridN;
+		return (c == 0 || c == GridN - 1) && (r == 0 || r == GridN - 1);
+	}
+
+	// Build a grid of aim points across the blank VHS's player-facing face,
+	// using its envelope (Cube) world AABB. The face is the AABB side toward
+	// the camera; the grid spans the other two world axes.
+	bool BuildGrid(UTestDriverSubsystem* Driver)
+	{
+		AMovieBox* Tape = Driver->FindBlankTape();
+		if (!Tape) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no blank tape")); return false; }
+		USceneComponent* Env = Driver->FindComponentOnActorByName(Tape, TEXT("Cube"));
+		if (!Env) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: blank tape has no 'Cube' envelope")); return false; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player || !Player->GetFirstPersonCamera()) { Test->AddError(TEXT("FTD_SweepGazeOverBlankVhs: no player camera")); return false; }
+
+		const FVector Center = Env->Bounds.Origin;
+		const FVector Extent = Env->Bounds.BoxExtent;
+		const FVector CamLoc = Player->GetFirstPersonCamera()->GetComponentLocation();
+		const FVector ToBox = (Center - CamLoc).GetSafeNormal();
+
+		const FVector Axes[3] = { FVector::ForwardVector, FVector::RightVector, FVector::UpVector };
+		int32 Depth = 0; float Best = -1.f;
+		for (int32 a = 0; a < 3; ++a)
+		{
+			const float D = FMath::Abs(FVector::DotProduct(ToBox, Axes[a]));
+			if (D > Best) { Best = D; Depth = a; }
+		}
+		const int32 S1 = (Depth + 1) % 3, S2 = (Depth + 2) % 3;
+		const FVector A = Axes[S1], B = Axes[S2];
+		// Front face: push from the box center toward the camera along the depth axis.
+		const float Sign = FMath::Sign(FVector::DotProduct(CamLoc - Center, Axes[Depth]));
+		const FVector FaceCenter = Center + Axes[Depth] * (Extent[Depth] * Sign);
+
+		// Sample at 85% of the half-extents so points stay on the visible face
+		// (the AABB rim can sit just outside the mesh).
+		const float Margin = 0.85f;
+		const float EA = Extent[S1] * Margin, EB = Extent[S2] * Margin;
+		for (int32 r = 0; r < GridN; ++r)
+		{
+			for (int32 c = 0; c < GridN; ++c)
+			{
+				const float u = FMath::Lerp(-EA, EA, (float)c / (GridN - 1));
+				const float v = FMath::Lerp(-EB, EB, (float)r / (GridN - 1));
+				Points.Add(FaceCenter + A * u + B * v);
+			}
+		}
+		UE_LOG(LogTemp, Warning, TEXT("GazeSweep: %dx%d grid over blank VHS face center=%s extent(face)=(%.1f,%.1f) depthAxis=%d"),
+			GridN, GridN, *FaceCenter.ToString(), EA, EB, Depth);
+		return true;
+	}
+
+	int32 GridN;
+	FString ShotPrefix;
+	bool bInitialized = false;
+	EPhase Phase = EPhase::Aim;
+	int32 Index = 0;
+	int32 SettleFrames = 0;
+	int32 ShotFrames = 0;
+	int32 LookingHits = 0;
+	TArray<FVector> Points;
+	TArray<int32> MissedCorners;
+};
+
+// =======================================================================
+// FTD_TeleportFacingShelfBoxAndAim — stand directly in front of a shelf
+// MovieBox (along its own forward vector, trying both sides), then aim at
+// a TRACE-VERIFIED surface point probed from the player's real post-landing
+// camera position. Derived bounds centers hit neighboring boxes at oblique
+// angles — the blank-tape lesson, generalized to any labeled shelf box.
+// =======================================================================
+
+class FTD_TeleportFacingShelfBoxAndAim : public FTD_Base
+{
+public:
+	FTD_TeleportFacingShelfBoxAndAim(FAutomationTestBase* InTest, FString InLabel, float InDistance = 80.f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Standing in front of '%s' (verified aim)"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportFacingShelfBoxAndAim: no driver")); return true; }
+		AMovieBox* Box = Cast<AMovieBox>(Driver->FindActorByLabel(Label));
+		if (!Box)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportFacingShelfBoxAndAim: no MovieBox '%s'"), *Label));
+			return true;
+		}
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_TeleportFacingShelfBoxAndAim: no player")); return true; }
+		USceneComponent* Envelope = Driver->FindComponentOnActorByName(Box, TEXT("Cube"));
+		if (!Envelope)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportFacingShelfBoxAndAim: '%s' has no 'Cube' envelope"), *Label));
+			return true;
+		}
+		const FVector Center = Envelope->Bounds.Origin;
+
+		if (bAwaitingProbe)
+		{
+			// Give the 5.7 floor snap a beat to settle, then probe from where
+			// the camera ACTUALLY is — the exact trace the interact will run.
+			if (FPlatformTime::Seconds() - TeleportTime < 0.3) { return false; }
+			bAwaitingProbe = false;
+
+			FCollisionObjectQueryParams ObjectParams;
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldStatic);
+			ObjectParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+			ObjectParams.AddObjectTypesToQuery(ECC_GameTraceChannel6);
+			FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(ShelfBoxAim), /*bTraceComplex*/ false);
+			QueryParams.AddIgnoredActor(Player);
+
+			const FVector Eye = Player->GetFirstPersonCamera()->GetComponentLocation();
+			FHitResult Hit;
+			const bool bHit = Box->GetWorld()->LineTraceSingleByObjectType(Hit, Eye, Center, ObjectParams, QueryParams);
+			UE_LOG(LogTemp, Log, TEXT("FTD_TeleportFacingShelfBoxAndAim: '%s' side %d eye=%s -> hit %s at %s"),
+				*Label, SideIndex, *Eye.ToString(),
+				bHit && Hit.GetActor() ? *Hit.GetActor()->GetName() : TEXT("(nothing)"),
+				bHit ? *Hit.ImpactPoint.ToString() : TEXT("-"));
+			if (bHit && Hit.GetActor() == Box)
+			{
+				// Aim just inside the verified surface point.
+				const FVector AimPoint = Hit.ImpactPoint + (Center - Eye).GetSafeNormal() * 3.f;
+				if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+				{
+					PC->SetControlRotation((AimPoint - Eye).Rotation());
+				}
+				return true;
+			}
+			SideIndex++;
+		}
+
+		if (SideIndex >= 2)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_TeleportFacingShelfBoxAndAim: neither side of '%s' has a clear interact trace"), *Label));
+			return true;
+		}
+
+		FVector Forward = Box->GetActorForwardVector();
+		Forward.Z = 0.f;
+		Forward = Forward.GetSafeNormal();
+		if (Forward.IsNearlyZero())
+		{
+			Forward = FVector::ForwardVector;
+		}
+		const float Sign = (SideIndex == 0) ? 1.f : -1.f;
+		// Keep the player's current capsule height — same floor as the shelf
+		// aisle; the floor snap settles any small error before the probe.
+		const FVector TryLoc = FVector(Center.X, Center.Y, Player->GetActorLocation().Z) + Forward * (Distance * Sign);
+		Player->SetActorLocation(TryLoc, false, nullptr, ETeleportType::TeleportPhysics);
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation((Center - TryLoc).Rotation());
+		}
+		TeleportTime = FPlatformTime::Seconds();
+		bAwaitingProbe = true;
+		return false;
+	}
+private:
+	FString Label;
+	float Distance;
+	int32 SideIndex = 0;
+	bool bAwaitingProbe = false;
+	double TeleportTime = 0.0;
 };
 
 // =======================================================================
@@ -969,13 +1382,34 @@ public:
 
 	virtual bool UpdateStep() override
 	{
+		// NullRHI renders nothing, so the request is never serviced — and the
+		// automation framework stops ticking latent commands while a screenshot
+		// is pending, starving the whole queue forever (observed as multi-hour
+		// hangs). Headless screenshots are blank anyway; skip the request.
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_TakeScreenshot: '%s' skipped (NullRHI renders nothing)"), *Name);
+			return true;
+		}
 		if (!bRequested)
 		{
 			FScreenshotRequest::RequestScreenshot(Name, false, false);
 			bRequested = true;
 			return false;
 		}
-		return !FScreenshotRequest::IsScreenshotRequested();
+		if (!FScreenshotRequest::IsScreenshotRequested())
+		{
+			return true;
+		}
+		// Watchdog for headed runs: a request the viewport never services must
+		// not wedge the whole suite. Clear the stale request and move on.
+		if (GetElapsedSinceFirstTick() > 10.0)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("FTD_TakeScreenshot: '%s' never serviced after 10s — skipping"), *Name);
+			FScreenshotRequest::Reset();
+			return true;
+		}
+		return false;
 	}
 private:
 	FString Name;
@@ -1009,31 +1443,6 @@ public:
 	}
 private:
 	int32 Expected;
-};
-
-// =======================================================================
-// FTD_UnlockInventory — bypass the Seneca-intro gate that normally blocks
-// inventory open at game start. Use at the start of any focused inventory
-// test that doesn't want to play through SenecaIntro first.
-// =======================================================================
-
-class FTD_UnlockInventory : public FTD_Base
-{
-public:
-	FTD_UnlockInventory(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Unlocking inventory (test bypass)"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_UnlockInventory: no driver")); return true; }
-		if (!Driver->UnlockInventoryForTest())
-		{
-			Test->AddError(TEXT("FTD_UnlockInventory: failed"));
-		}
-		return true;
-	}
 };
 
 // =======================================================================
@@ -1152,6 +1561,176 @@ private:
 	FName ItemId;
 };
 
+// FTD_AssertGazeRewardSeconds — read the UGazeRewardComponent's dwell timer
+// and assert it's within [Min, Max]. For the GazeRewardReset test.
+class FTD_AssertGazeRewardSeconds : public FTD_Base
+{
+public:
+	FTD_AssertGazeRewardSeconds(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze-reward seconds in [%.2f, %.2f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeRewardSeconds: no driver")); return true; }
+		float Seconds = -1.f;
+		if (!Driver->GetGazeRewardSeconds(Seconds))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeRewardSeconds: no UGazeRewardComponent in level"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeRewardSeconds [%s]: seconds=%.2f (expect [%.2f, %.2f])"),
+			*Label, Seconds, Min, Max);
+		if (Seconds < Min || Seconds > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeRewardSeconds [%s]: seconds=%.2f outside [%.2f, %.2f]"),
+				*Label, Seconds, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
+// FTD_WaitForGazeSeconds — poll the gaze dwell timer until it reaches Min.
+// The player teleports above the lot and falls for ~1s+; the gaze only holds
+// continuously once they've landed, so wait rather than assume a fixed delay.
+class FTD_WaitForGazeSeconds : public FTD_Base
+{
+public:
+	FTD_WaitForGazeSeconds(FAutomationTestBase* InTest, float InMinSeconds, double InTimeout = 12.0)
+		: FTD_Base(InTest), MinSeconds(InMinSeconds), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for gaze to reach %.1fs"), MinSeconds);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForGazeSeconds: no driver")); return true; }
+		float Seconds = 0.f;
+		Driver->GetGazeRewardSeconds(Seconds);
+		if (Seconds >= MinSeconds) { return true; }
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForGazeSeconds: gaze only reached %.2fs of %.1fs within %.0fs"),
+				Seconds, MinSeconds, Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	float MinSeconds;
+	double Timeout;
+};
+
+// FTD_AssertGazeEffectWeight — read the UGazeRewardComponent's screen-effect
+// blendable weight and assert it's within [Min, Max].
+class FTD_AssertGazeEffectWeight : public FTD_Base
+{
+public:
+	FTD_AssertGazeEffectWeight(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze effect weight in [%.2f, %.2f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeEffectWeight: no driver")); return true; }
+		float W = -1.f;
+		if (!Driver->GetGazeEffectWeight(W))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeEffectWeight: no UGazeRewardComponent in level"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeEffectWeight [%s]: weight=%.3f (expect [%.2f, %.2f])"),
+			*Label, W, Min, Max);
+		if (W < Min || W > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeEffectWeight [%s]: weight=%.3f outside [%.2f, %.2f]"),
+				*Label, W, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
+// FTD_AssertGazeCameraFOV — read the player camera's FOV (driven by the gaze
+// FOV-zoom) and assert it's within [Min, Max].
+class FTD_AssertGazeCameraFOV : public FTD_Base
+{
+public:
+	FTD_AssertGazeCameraFOV(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze camera FOV in [%.1f, %.1f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeCameraFOV: no driver")); return true; }
+		float FOV = -1.f;
+		if (!Driver->GetGazeCameraFOV(FOV))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeCameraFOV: no gaze component"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeCameraFOV [%s]: fov=%.2f (expect [%.1f, %.1f])"), *Label, FOV, Min, Max);
+		if (FOV < Min || FOV > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeCameraFOV [%s]: fov=%.2f outside [%.1f, %.1f]"),
+				*Label, FOV, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
+// FTD_LookDown — aim the camera at the ground to break gaze on an overhead
+// fixture (the canopy light is far above the player).
+class FTD_LookDown : public FTD_Base
+{
+public:
+	FTD_LookDown(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking down (break gaze)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookDown: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_LookDown: no player")); return true; }
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(FRotator(-80.f, 0.f, 0.f));
+		}
+		return true;
+	}
+};
+
 // =======================================================================
 // FTD_WaitForItemAdded — poll HasItem(Id) until it returns true.
 // Useful for waiting on async item grants (e.g. the key-break timeline
@@ -1188,6 +1767,336 @@ public:
 private:
 	FName ItemId;
 	double Timeout;
+};
+
+// =======================================================================
+// FTD_AssertGazeHumRising — sample the gaze-reward hum volume at two
+// times into a held stare and assert it's playing and getting louder.
+// Latent commands tick sequentially, so this command owns the stare
+// timeline between SampleT1 and SampleT2 while the camera holds its aim.
+// =======================================================================
+
+class FTD_AssertGazeHumRising : public FTD_Base
+{
+public:
+	FTD_AssertGazeHumRising(FAutomationTestBase* InTest, double InSampleT1, double InSampleT2)
+		: FTD_Base(InTest), SampleT1(InSampleT1), SampleT2(InSampleT2) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze hum rises between %.0fs and %.0fs"), SampleT1, SampleT2);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeHumRising: no driver")); return true; }
+
+		const double Elapsed = GetElapsedSinceFirstTick();
+		if (!bSampledV1)
+		{
+			if (Elapsed < SampleT1) { return false; }
+			bool bPlaying = false;
+			if (!Driver->GetGazeHumState(V1, bPlaying))
+			{
+				Test->AddError(TEXT("FTD_AssertGazeHumRising: no gaze-reward hum in level"));
+				return true;
+			}
+			if (!bPlaying || V1 <= 0.f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertGazeHumRising: hum not audible at %.1fs (playing=%d vol=%.3f)"),
+					Elapsed, bPlaying ? 1 : 0, V1));
+				return true;
+			}
+			bSampledV1 = true;
+			return false;
+		}
+
+		if (Elapsed < SampleT2) { return false; }
+		float V2 = 0.f;
+		bool bPlaying = false;
+		if (!Driver->GetGazeHumState(V2, bPlaying) || !bPlaying || V2 <= V1)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeHumRising: hum not rising (V1=%.3f V2=%.3f playing=%d)"),
+				V1, V2, bPlaying ? 1 : 0));
+		}
+		return true;
+	}
+private:
+	double SampleT1;
+	double SampleT2;
+	float V1 = 0.f;
+	bool bSampledV1 = false;
+};
+
+// =======================================================================
+// FTD_AssertDialogueLine — the dialogue widget must currently show exactly
+// this speaker plate and body text. Exact body match catches speaker
+// prefixes leaking into the displayed line.
+// =======================================================================
+
+class FTD_AssertDialogueLine : public FTD_Base
+{
+public:
+	FTD_AssertDialogueLine(FAutomationTestBase* InTest, FString InExpectedSpeaker, FString InExpectedBody)
+		: FTD_Base(InTest), ExpectedSpeaker(MoveTemp(InExpectedSpeaker)), ExpectedBody(MoveTemp(InExpectedBody)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting dialogue shows [%s] \"%s\""), *ExpectedSpeaker, *ExpectedBody);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueLine: no driver")); return true; }
+
+		FString Speaker, Body;
+		if (!Driver->GetDisplayedDialogue(Speaker, Body))
+		{
+			Test->AddError(TEXT("FTD_AssertDialogueLine: no dialogue is being displayed"));
+			return true;
+		}
+		if (Speaker != ExpectedSpeaker)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueLine: speaker plate is \"%s\", expected \"%s\""),
+				*Speaker, *ExpectedSpeaker));
+		}
+		if (Body != ExpectedBody)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueLine: body is \"%s\", expected \"%s\""),
+				*Body, *ExpectedBody));
+		}
+		return true;
+	}
+private:
+	FString ExpectedSpeaker;
+	FString ExpectedBody;
+};
+
+// =======================================================================
+// FTD_AssertPutBackPrompt — while a movie is inspected, a world-space
+// prompt must be visible, name the put-back binding, and face the camera.
+// =======================================================================
+
+class FTD_AssertPutBackPrompt : public FTD_Base
+{
+public:
+	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedText, float InMinFacingDot = 0.94f)
+		: FTD_Base(InTest), ExpectedText(MoveTemp(InExpectedText)), MinFacingDot(InMinFacingDot) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting put-back prompt reads \"%s\" and faces camera"), *ExpectedText);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPutBackPrompt: no driver")); return true; }
+
+		FString Text;
+		float FacingDot = 0.f;
+		bool bVisible = false;
+		if (!Driver->GetPutBackPromptState(Text, FacingDot, bVisible))
+		{
+			Test->AddError(TEXT("FTD_AssertPutBackPrompt: no inspected MovieBox with a PutBackPrompt"));
+			return true;
+		}
+		if (!bVisible)
+		{
+			Test->AddError(TEXT("FTD_AssertPutBackPrompt: prompt exists but is not visible"));
+		}
+		// Exact match: catches both a wrong binding and the dual "Q / B" form
+		// when only the active device's key should show.
+		if (Text != ExpectedText)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text is \"%s\", expected \"%s\""),
+				*Text, *ExpectedText));
+		}
+		if (FacingDot < MinFacingDot)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: not facing camera (dot=%.3f, need >=%.2f)"),
+				FacingDot, MinFacingDot));
+		}
+		return true;
+	}
+private:
+	FString ExpectedText;
+	float MinFacingDot;
+};
+
+// =======================================================================
+// FTD_ActivateBlankTape — test bypass: trigger the spawner's chosen-tape
+// swap directly instead of playing through the money beat.
+// =======================================================================
+
+class FTD_ActivateBlankTape : public FTD_Base
+{
+public:
+	FTD_ActivateBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Activating blank tape (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_ActivateBlankTape: no driver")); return true; }
+		if (!Driver->ActivateBlankTapeForTest())
+		{
+			Test->AddError(TEXT("FTD_ActivateBlankTape: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_CollectBlankTape — test bypass: collect the blank tape through the
+// production capture path without shelf aiming (HappyPath covers aiming).
+// =======================================================================
+
+class FTD_CollectBlankTape : public FTD_Base
+{
+public:
+	FTD_CollectBlankTape(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Collecting blank tape (test bypass)"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CollectBlankTape: no driver")); return true; }
+		if (!Driver->CollectBlankTapeForTest())
+		{
+			Test->AddError(TEXT("FTD_CollectBlankTape: failed"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_CaptureHeldBoxAxes / FTD_AssertHeldBoxAxesMatch — record the held
+// item's camera-space long/short box axes into caller-owned vectors, then
+// later assert the currently held item's axes match (same "pose" for two
+// box-shaped items regardless of mesh authoring). Abs dots: a box flipped
+// 180° reads as the same held pose.
+// =======================================================================
+
+class FTD_CaptureHeldBoxAxes : public FTD_Base
+{
+public:
+	FTD_CaptureHeldBoxAxes(FAutomationTestBase* InTest, FVector* InOutLong, FVector* InOutShort, float* InOutMaxExtent, FVector* InOutCenter)
+		: FTD_Base(InTest), OutLong(InOutLong), OutShort(InOutShort), OutMaxExtent(InOutMaxExtent), OutCenter(InOutCenter) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Capturing held item box axes"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no driver")); return true; }
+		if (!Driver->GetHeldItemBoxAxes(*OutLong, *OutShort, *OutMaxExtent, *OutCenter))
+		{
+			Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no visible held item"));
+		}
+		return true;
+	}
+private:
+	FVector* OutLong;
+	FVector* OutShort;
+	float* OutMaxExtent;
+	FVector* OutCenter;
+};
+
+class FTD_AssertHeldBoxAxesMatch : public FTD_Base
+{
+public:
+	FTD_AssertHeldBoxAxesMatch(FAutomationTestBase* InTest, const FVector* InLong, const FVector* InShort,
+		const float* InMaxExtent, const FVector* InCenter,
+		float InMinLongDot = 0.95f, float InMinShortDot = 0.90f, float InMaxSizeRatio = 2.0f, float InMaxCenterDelta = 15.f)
+		: FTD_Base(InTest), RefLong(InLong), RefShort(InShort), RefMaxExtent(InMaxExtent), RefCenter(InCenter)
+		, MinLongDot(InMinLongDot), MinShortDot(InMinShortDot), MaxSizeRatio(InMaxSizeRatio), MaxCenterDelta(InMaxCenterDelta) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting held item pose matches captured axes"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no driver")); return true; }
+
+		FVector Long, Short, Center;
+		float MaxExtent = 0.f;
+		if (!Driver->GetHeldItemBoxAxes(Long, Short, MaxExtent, Center))
+		{
+			Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no visible held item"));
+			return true;
+		}
+
+		const float LongDot = FMath::Abs(FVector::DotProduct(Long, *RefLong));
+		const float ShortDot = FMath::Abs(FVector::DotProduct(Short, *RefShort));
+		if (LongDot < MinLongDot || ShortDot < MinShortDot)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: pose differs (longDot=%.3f need>=%.2f, shortDot=%.3f need>=%.2f; held long=%s ref long=%s)"),
+				LongDot, MinLongDot, ShortDot, MinShortDot, *Long.ToString(), *RefLong->ToString()));
+		}
+
+		const float SizeRatio = (*RefMaxExtent > KINDA_SMALL_NUMBER) ? (MaxExtent / *RefMaxExtent) : 0.f;
+		if (SizeRatio < 1.f / MaxSizeRatio || SizeRatio > MaxSizeRatio)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: size differs (held extent %.1fcm vs ref %.1fcm, ratio %.2f outside 1/%.1f..%.1f)"),
+				MaxExtent, *RefMaxExtent, SizeRatio, MaxSizeRatio, MaxSizeRatio));
+		}
+
+		const float CenterDelta = FVector::Dist(Center, *RefCenter);
+		if (CenterDelta > MaxCenterDelta)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertHeldBoxAxesMatch: held position differs (center %s vs ref %s, delta %.1fcm > %.1fcm)"),
+				*Center.ToString(), *RefCenter->ToString(), CenterDelta, MaxCenterDelta));
+		}
+		return true;
+	}
+private:
+	const FVector* RefLong;
+	const FVector* RefShort;
+	const float* RefMaxExtent;
+	const FVector* RefCenter;
+	float MinLongDot;
+	float MinShortDot;
+	float MaxSizeRatio;
+	float MaxCenterDelta;
+};
+
+// =======================================================================
+// FTD_AssertGazeHumStopped — the hum must not keep playing once the
+// gaze reward has fired.
+// =======================================================================
+
+class FTD_AssertGazeHumStopped : public FTD_Base
+{
+public:
+	FTD_AssertGazeHumStopped(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting gaze hum stopped"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeHumStopped: no driver")); return true; }
+		float Volume = 0.f;
+		bool bPlaying = false;
+		if (!Driver->GetGazeHumState(Volume, bPlaying))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeHumStopped: no gaze-reward hum in level"));
+			return true;
+		}
+		if (bPlaying)
+		{
+			Test->AddError(TEXT("FTD_AssertGazeHumStopped: hum still playing after reward"));
+		}
+		return true;
+	}
 };
 
 // =======================================================================

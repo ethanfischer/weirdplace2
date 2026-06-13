@@ -46,6 +46,19 @@ public:
 	// an actor found by editor label. Used to target sub-features like
 	// BP_OutsideBathroomDoor's "KeyLockSocket".
 	bool LookAtActorComponentByName(const FString& ActorLabel, const FString& ComponentName);
+	// Same, with the actor already in hand. Use when the actor's full bounds
+	// center is skewed by child meshes (e.g. the blank tape's Tape child).
+	bool LookAtComponentByName(AActor* Actor, const FString& ComponentName);
+	USceneComponent* FindComponentOnActorByName(AActor* Actor, const FString& ComponentName) const;
+
+	// Aim the camera at an exact world position.
+	bool LookAtWorldPoint(const FVector& Point);
+
+	// Set by FTD_TeleportNearBlankTape: a verified-hittable point just inside
+	// the blank tape's collision surface. FTD_LookAtBlankTape aims here —
+	// derived centers (actor bounds, envelope bounds) miss the Memphis mesh's
+	// collision at some shelf-slot angles.
+	FVector BlankTapeAimPoint = FVector::ZeroVector;
 	bool LookAtSeneca();
 	bool LookAtRick();
 	bool LookAtKeyActor();
@@ -109,6 +122,10 @@ public:
 	// collected, so subsequent calls skip it.
 	void MarkLastFoundMovieCollected();
 
+	// Returns the BP_BlankVHS-class spawned blank tape (the one with
+	// bExemptFromMovieLimit==true), or nullptr if none exists.
+	AMovieBox* FindBlankTape() const;
+
 	// Test-only: invoke CollectInspectedMovie directly on whichever MovieBox is
 	// currently in inspection. UE 5.7 Enhanced Input intermittently consumes
 	// the legacy "Collect Inspected Movie" ActionMapping when E is fed via
@@ -124,6 +141,49 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
+	// (its first UAudioComponent). Returns false if no such actor/component
+	// exists — which is also the meaningful red-phase failure.
+	bool GetGazeHumState(float& OutVolume, bool& bOutPlaying) const;
+
+	// Reads the gaze-reward dwell timer off the level's UGazeRewardComponent.
+	// For the GazeRewardReset test (accumulates then resets on look-away).
+	// Returns false if no component exists.
+	bool GetGazeRewardSeconds(float& OutSeconds) const;
+
+	// Reads the gaze-reward screen-effect blendable weight (0..1) off the
+	// level's UGazeRewardComponent. Returns false if no component exists.
+	bool GetGazeEffectWeight(float& OutWeight) const;
+
+	// Reads the player camera's current FOV (driven by the gaze FOV-zoom).
+	// Returns false if no gaze component exists.
+	bool GetGazeCameraFOV(float& OutFOV) const;
+
+	// Reads the blank-VHS chord gaze state off the level's USpawnerActorComponent
+	// (the last camera-forward trace it ran). For the gaze-sweep diagnostic.
+	// Returns false if no spawner component exists.
+	bool GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
+		FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
+		FVector& OutImpactPoint, float& OutVolume) const;
+
+	// Reads the speaker plate and full body line off the dialogue widget the
+	// player is currently in. Returns false if no dialogue widget is active.
+	bool GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const;
+
+	// Reads the put-back prompt off the MovieBox currently in inspection:
+	// its text, visibility, and how squarely it faces the camera (dot of the
+	// text forward vector against the to-camera direction). Returns false if
+	// nothing is inspected or the inspected box has no 'PutBackPromptText'.
+	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
+
+	// Camera-space directions of the held item's longest and shortest local
+	// bounding-box axes, the scaled length of the longest half-extent in cm,
+	// and the bounds center in camera space. Two box-shaped items "held in
+	// the same pose" have matching axes, comparable size, and the same
+	// center, regardless of how their meshes were authored. Returns false if
+	// nothing is held/visible.
+	bool GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.
@@ -138,9 +198,15 @@ public:
 	// hand-rig position.
 	bool SetHeldItemSlotPose(FVector Offset, FRotator Rotation);
 
-	// Test-only: bypass the Seneca-intro gate that normally blocks inventory
-	// open at game start. Calls AMyCharacter::UnlockInventory directly.
-	bool UnlockInventoryForTest();
+	// Test-only: activate the blank tape without playing through the money
+	// beat. Finds the level's USpawnerActorComponent and calls
+	// ActivateChosenTape, exactly as Seneca does on receiving money.
+	bool ActivateBlankTapeForTest();
+
+	// Test-only: collect the blank tape through the production capture path
+	// (CollectInspectedMovie) without aiming at it on the crowded shelf. The
+	// shelf-aim flow is exercised by HappyPath; pose-focused tests use this.
+	bool CollectBlankTapeForTest();
 
 	// --- Sensitivity / look diagnostics ---
 

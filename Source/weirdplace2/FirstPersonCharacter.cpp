@@ -26,6 +26,64 @@
 #include "WeirdplaceGameUserSettings.h"
 #include "MenuUIComponent.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "Widgets/SWidget.h"
+#if PLATFORM_LINUX
+THIRD_PARTY_INCLUDES_START
+#include <SDL3/SDL.h>
+THIRD_PARTY_INCLUDES_END
+#endif
+
+// Watches every Slate input event app-wide and records whether the last real
+// input came from a gamepad, so the player's device flag is correct the instant
+// any UI needs it (e.g. the movie put-back prompt) — without polling or waiting
+// for active look/rotate input.
+class FInputDeviceTracker : public IInputProcessor
+{
+public:
+	TWeakObjectPtr<AFirstPersonCharacter> Owner;
+
+	virtual void Tick(const float, FSlateApplication&, TSharedRef<ICursor>) override {}
+
+	virtual bool HandleKeyDownEvent(FSlateApplication&, const FKeyEvent& Event) override
+	{
+		// Gamepad face/d-pad buttons are keys too; IsGamepadKey() splits them.
+		Record(Event.GetKey().IsGamepadKey());
+		return false;
+	}
+
+	virtual bool HandleAnalogInputEvent(FSlateApplication&, const FAnalogInputEvent& Event) override
+	{
+		// Sticks/triggers emit analog noise at rest — require real deflection.
+		if (FMath::Abs(Event.GetAnalogValue()) > 0.2f)
+		{
+			Record(Event.GetKey().IsGamepadKey());
+		}
+		return false;
+	}
+
+	virtual bool HandleMouseMoveEvent(FSlateApplication&, const FPointerEvent&) override
+	{
+		Record(false);
+		return false;
+	}
+
+	virtual bool HandleMouseButtonDownEvent(FSlateApplication&, const FPointerEvent&) override
+	{
+		Record(false);
+		return false;
+	}
+
+private:
+	void Record(bool bGamepad)
+	{
+		if (Owner.IsValid())
+		{
+			Owner->SetUsingGamepad(bGamepad);
+		}
+	}
+};
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -143,11 +201,119 @@ void AFirstPersonCharacter::BeginPlay()
 			}
 		}
 	}
+
+#if PLATFORM_LINUX
+	// UE 5.7's LinuxWindow.cpp calls SDL_StartTextInput on every window that
+	// accepts input (SDL3 made text-input per-window). On Steam Deck the OS
+	// keyboard pops up while text input is active. No in-game text entry, so
+	// stop it on every top-level window we can see.
+	StopLinuxTextInputOnAllWindows();
+#endif
+
+	// Track the last-used input device app-wide for device-specific prompts.
+	if (FSlateApplication::IsInitialized())
+	{
+		TSharedRef<FInputDeviceTracker> Tracker = MakeShared<FInputDeviceTracker>();
+		Tracker->Owner = this;
+		InputDeviceTracker = Tracker;
+		FSlateApplication::Get().RegisterInputPreProcessor(Tracker);
+	}
 }
+
+void AFirstPersonCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (InputDeviceTracker.IsValid() && FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(InputDeviceTracker);
+	}
+	InputDeviceTracker.Reset();
+	Super::EndPlay(EndPlayReason);
+}
+
+#if PLATFORM_LINUX
+void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
+{
+	if (!FSlateApplication::IsInitialized())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput: Slate not initialized"));
+		return;
+	}
+
+	auto TryStop = [](const TSharedPtr<SWindow>& Win, const TCHAR* Tag)
+	{
+		if (!Win.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: window null"), Tag);
+			return;
+		}
+		TSharedPtr<FGenericWindow> NativeWindow = Win->GetNativeWindow();
+		if (!NativeWindow.IsValid())
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: native window null"), Tag);
+			return;
+		}
+		SDL_Window* SDLWindow = static_cast<SDL_Window*>(NativeWindow->GetOSWindowHandle());
+		if (!SDLWindow)
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[%s]: SDL handle null"), Tag);
+			return;
+		}
+		const bool bWasActive = SDL_TextInputActive(SDLWindow);
+		const bool bStopped = SDL_StopTextInput(SDLWindow);
+		UE_LOG(LogTemp, Display, TEXT("Linux SDL_StopTextInput[%s]: handle=%p wasActive=%d ok=%d"), Tag, SDLWindow, bWasActive, bStopped);
+	};
+
+	// Primary path: the SWindow hosting our game viewport
+	if (GEngine && GEngine->GameViewport)
+	{
+		TryStop(GEngine->GameViewport->GetWindow(), TEXT("GameViewport"));
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Linux SDL_StopTextInput[GameViewport]: no GEngine->GameViewport"));
+	}
+
+	// Fallback: every interactive top-level window currently known to Slate
+	TArray<TSharedRef<SWindow>> AllWindows = FSlateApplication::Get().GetInteractiveTopLevelWindows();
+	UE_LOG(LogTemp, Display, TEXT("Linux SDL_StopTextInput: %d top-level windows"), AllWindows.Num());
+	for (int32 i = 0; i < AllWindows.Num(); ++i)
+	{
+		const FString Tag = FString::Printf(TEXT("TopLevel[%d]"), i);
+		TryStop(AllWindows[i], *Tag);
+	}
+}
+#endif
 
 void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// Diagnostic: trace Slate keyboard focus. On Steam Deck the OS keyboard
+	// pops up when SDL/Slate enters text-input mode, which happens when a
+	// focused widget claims keyboard focus / supports text entry. Logging
+	// every transition makes whatever grabs focus at boot identifiable.
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication& App = FSlateApplication::Get();
+		TSharedPtr<SWidget> Current = App.GetUserFocusedWidget(0);
+		TSharedPtr<SWidget> Previous = LastFocusedWidget.Pin();
+		if (Current != Previous || !bLoggedInitialFocus)
+		{
+			auto Describe = [](const TSharedPtr<SWidget>& W) -> FString
+			{
+				if (!W.IsValid()) return TEXT("None");
+				return FString::Printf(TEXT("%s [%s]"),
+					*W->GetTypeAsString(),
+					*W->GetTag().ToString());
+			};
+			UE_LOG(LogTemp, Display, TEXT("Slate keyboard focus: %s -> %s (supportsKBFocus=%d)"),
+				*Describe(Previous),
+				*Describe(Current),
+				Current.IsValid() ? Current->SupportsKeyboardFocus() : 0);
+			LastFocusedWidget = Current;
+			bLoggedInitialFocus = true;
+		}
+	}
 
 	// Update crosshair based on context:
 	// - In dialogue: show chat-bubble reticle (dialogue suppresses interaction).
@@ -402,6 +568,8 @@ float AFirstPersonCharacter::ComputeMouseLookScale() const
 
 void AFirstPersonCharacter::AddControllerYawInput(float Val)
 {
+	// IsGamepadLookActive() selects the per-device sensitivity curve only; the
+	// last-used-device flag (for prompts) is owned by FInputDeviceTracker.
 	const float Scale = IsGamepadLookActive() ? ComputeGamepadLookScale() : ComputeMouseLookScale();
 	Super::AddControllerYawInput(Val * Scale);
 }
@@ -503,12 +671,6 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 	bInventoryDoOnceCompleted = true;
-
-	if (!IsInventoryUnlocked())
-	{
-		UE_LOG(LogTemp, Log, TEXT("HandleShowInventory - inventory not yet unlocked (talk to Seneca first)"));
-		return;
-	}
 
 	if (GetActivityState() != EPlayerActivityState::FreeRoaming)
 	{
@@ -984,3 +1146,16 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		}
 	}
 }
+
+void AFirstPersonCharacter::SkipToSmoking()
+{
+	TArray<AActor*> Senecas;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASeneca::StaticClass(), Senecas);
+	if (Senecas.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no ASeneca in world"));
+		return;
+	}
+	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
+}
+

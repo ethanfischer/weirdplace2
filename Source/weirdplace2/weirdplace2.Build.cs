@@ -30,6 +30,14 @@ public class weirdplace2 : ModuleRules
 			PrivateDependencyModuleNames.Add("UnrealEd");
 		}
 
+		// Linux only: UE 5.7's LinuxWindow.cpp calls SDL_StartTextInput on every
+		// window that accepts input. On Steam Deck, SDL3 text-input state is what
+		// triggers the on-screen keyboard, so we stop it explicitly at game start.
+		if (Target.Platform == UnrealTargetPlatform.Linux)
+		{
+			AddEngineThirdPartyPrivateStaticDependencies(Target, "SDL3");
+		}
+
 		// Uncomment if you are using online features
 		// PrivateDependencyModuleNames.Add("OnlineSubsystem");
 

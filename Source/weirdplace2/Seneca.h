@@ -17,6 +17,7 @@ class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
 class UInventoryComponent;
+class USpawnerActorComponent;
 
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
@@ -24,6 +25,9 @@ enum class ESenecaState : uint8
 	WaitingForMovies,           // "Buy 3 movies first"
 	WaitingForMoviePurchase,    // Player must give each movie to Seneca
 	WaitingForMoney,            // Price quoted; player needs to find money
+	WaitingForBlankTape,        // "I need a blank tape too"
+	AwaitingTapeBurn,           // "find me later"
+	ReadyToGiveCombinedTape,    // External trigger fired; next interact hands tape over
 	ReadyToGiveKey,             // "Nice picks, here's the key"
 	GaveKey,                    // "Go use the bathroom outside"
 	Smoking,                    // "Door's busted, use employee bathroom"
@@ -62,6 +66,14 @@ public:
 	// Test-only: clear the SmokingAppearDelay timer and jump straight to
 	// OnSmokingDelayComplete so E2E tests don't have to wait 60 seconds.
 	void FastForwardSmokingAppear();
+
+	// Dev-only: teleport to SmokingPositionTarget and start the smoking anim NOW,
+	// without touching CurrentState or other quest flags.
+	void ForceSmokingAppearance();
+
+	// External trigger: combined-tape compilation finished. Only transitions
+	// AwaitingTapeBurn -> ReadyToGiveCombinedTape; otherwise logs + returns.
+	void GiveCombinedTape();
 
 	// Called by FirstPersonCharacter when dialogue with Seneca ends
 	void OnDialogueEnded();
@@ -110,6 +122,18 @@ protected:
 	FString WaitingForMoneyDialoguePath = TEXT("Dialogue/WaitingForMoney.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForBlankTapeDialoguePath = TEXT("Dialogue/WaitingForBlankTape.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForBlankTapeReminderPath = TEXT("Dialogue/WaitingForBlankTapeReminder.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString AwaitingTapeBurnDialoguePath = TEXT("Dialogue/AwaitingTapeBurn.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString ReadyToGiveCombinedTapeDialoguePath = TEXT("Dialogue/ReadyToGiveCombinedTape.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviePurchaseDialoguePath = TEXT("Dialogue/WaitingForMoviePurchase.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
@@ -129,6 +153,16 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviePurchaseReminderPath = TEXT("Dialogue/WaitingForMoviePurchaseReminder.txt");
+
+	// --- Blank Tape Beat ---
+
+	// Level-placed actor that owns the USpawnerActorComponent (assign on level instance).
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Seneca|BlankTape")
+	AActor* MovieSpawnerActor = nullptr;
+
+	// Combined tape data asset handed over after the burn completes.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|BlankTape")
+	UItemDefinition* CombinedTapeDef = nullptr;
 
 	// --- Key ---
 
@@ -183,20 +217,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Counter")
 	FRotator MovieRelativeRotation = FRotator::ZeroRotator;
 
-	// --- Basket Beat Config ---
-
-	// Pre-placed ShoppingBasket actor in the level — shown on beat, hidden on next E press
+	// Pre-placed ShoppingBasket actor in the level. The basket-give beat is
+	// gone (inventory works from spawn); the prop stays hidden at BeginPlay
+	// until it's re-dressed or deleted in the editor.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
 	APropActor* ShoppingBasketActor;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	int32 BasketBeatLineIndex = 2;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Basket")
-	FRotator BasketNotificationRotation = FRotator::ZeroRotator;
-
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString InventoryButtonDisplayName = TEXT("Tab");
 
 private:
 	// Gives the key to the player and shows the item notification on success.
@@ -258,6 +283,15 @@ private:
 	UPROPERTY()
 	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
 
+	// Returns the SkeletalMeshComponent on this actor whose mesh skeleton matches
+	// SmokingAnimation's skeleton (i.e. the MetaHuman body mesh, not face/hair).
+	USkeletalMeshComponent* FindBodyMesh() const;
+
+public:
+	void StartSmokingAnim();
+	void StopSmokingAnim();
+private:
+
 	// Tracks that the player was looking at Seneca (requires look then look-away)
 	bool bWasLookingAtMe = false;
 
@@ -270,14 +304,7 @@ private:
 	// Called when the smoking appear delay expires
 	void OnSmokingDelayComplete();
 
-	// --- Basket Beat ---
-
 	void StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar);
-
-	UFUNCTION()
-	void OnBasketDialogueLineShown(int32 LineIndex);
-
-	bool bBasketBeatArmed = false;
 
 	// --- Key Beat ---
 
@@ -297,4 +324,24 @@ private:
 	void LoadMovieComments();
 	void HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID);
 	void StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar);
+
+	// --- Blank Tape Beat ---
+
+	UPROPERTY()
+	USpawnerActorComponent* CachedMovieSpawner = nullptr;
+
+	TArray<FText> WaitingForBlankTapeReminderLines;
+
+	void StartWaitingForBlankTapeDialogue(AFirstPersonCharacter* FPChar);
+	void HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory);
+	void StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar);
+
+	// --- Combined Tape Beat ---
+
+	void StartReadyToGiveCombinedTapeDialogue(AFirstPersonCharacter* FPChar);
+
+	UFUNCTION()
+	void OnCombinedTapeDialogueLineShown(int32 LineIndex);
+
+	bool bCombinedTapeBeatArmed = false;
 };

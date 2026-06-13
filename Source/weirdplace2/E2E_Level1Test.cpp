@@ -8,7 +8,7 @@
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_HappyPath,
-	"Weirdplace2.E2E.Level1.HappyPath",
+	"Weirdplace2.E2E.Level1.Regression.HappyPath",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
@@ -19,7 +19,9 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::CollectMovies(this);
 	E2ESteps::GiveMoviesToSeneca(this);
 	E2ESteps::GetMoneyFromRick(this);
-	E2ESteps::GiveMoneyGetKey(this);
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::FastForwardSenecaSmoking(this);
 	E2ESteps::SenecaSmokingDialogue(this);
@@ -39,7 +41,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_BathroomDoorTraceRepro,
-	"Weirdplace2.E2E.Level1.BathroomDoorTraceRepro",
+	"Weirdplace2.E2E.Level1.Diagnostic.BathroomDoorTraceRepro",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
@@ -66,6 +68,47 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// SenecaSmokingAnim — diagnostic for the smoking animation failing to
+// play on the natural quest path (works via SkipToSmoking console cmd).
+// Lingers around Seneca's appear-at-smoking-spot moment and takes
+// screenshots at T+1s/T+3s/T+5s so we can see whether her arms come up.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaSmokingAnim,
+	"Weirdplace2.E2E.Level1.Diagnostic.SenecaSmokingAnim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaSmokingAnim::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaSmokingAnim")
+
+	E2ESteps::SenecaIntro(this);
+	E2ESteps::CollectMovies(this);
+	E2ESteps::GiveMoviesToSeneca(this);
+	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::GiveBlankTapeGetKey(this);
+	E2ESteps::UseKeyOnDoor(this);
+	E2ESteps::FastForwardSenecaSmoking(this);
+
+	// Linger + screenshot around the appear moment
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+1s")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+3s")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+5s")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // DialogueCooldown — verify the 2-second post-dialogue interaction
 // cooldown prevents re-triggering dialogue when spamming E, and that
 // interaction works again after the cooldown expires.
@@ -73,7 +116,7 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_DialogueCooldown,
-	"Weirdplace2.E2E.Level1.DialogueCooldown",
+	"Weirdplace2.E2E.Level1.Regression.DialogueCooldown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_DialogueCooldown::RunTest(const FString& Parameters)
@@ -135,7 +178,7 @@ namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_SensitivityScaling,
-	"Weirdplace2.E2E.Level1.SensitivityScaling",
+	"Weirdplace2.E2E.Level1.Diagnostic.SensitivityScaling",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
@@ -194,7 +237,7 @@ bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_PauseMenu,
-	"Weirdplace2.E2E.Level1.PauseMenu",
+	"Weirdplace2.E2E.Level1.Regression.PauseMenu",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
@@ -243,7 +286,7 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_PauseMenuLight,
-	"Weirdplace2.E2E.Level1.PauseMenuLight",
+	"Weirdplace2.E2E.Level1.Regression.PauseMenuLight",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
@@ -288,15 +331,12 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_InventoryThumbnails,
-	"Weirdplace2.E2E.Level1.InventoryThumbnails",
+	"Weirdplace2.E2E.Level1.Regression.InventoryThumbnails",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("InventoryThumbnails")
-
-	// Bypass Seneca-intro gate that normally blocks inventory open.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
 
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
@@ -336,14 +376,12 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_HeldItemRotationTour,
-	"Weirdplace2.E2E.Level1.HeldItemRotationTour",
+	"Weirdplace2.E2E.Level1.Diagnostic.HeldItemRotationTour",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("HeldItemRotationTour")
-
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_UnlockInventory(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
 
 	// Lit interior so the small held meshes are visible.
@@ -363,6 +401,283 @@ bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_HeldTour_%02d"), i)));
 	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// GazeReward — staring at the one rigged gas-station canopy light
+// ('gasstationbarlight') for 30 continuous seconds grants more cash
+// (the Money item). While the gaze is held, a hum swells toward the
+// 30-second mark and stops once the reward fires. The other canopy
+// lights are NOT rigged and must grant nothing.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GazeReward,
+	"Weirdplace2.E2E.Level1.Regression.GazeReward",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GazeReward")
+
+	// --- The rigged light: stare 30s -> Money, hum rising on the way ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight"), 500.f));
+	// The canopy light sits at Z~821; the teleport drops the player onto the
+	// lot below — let them land before aiming.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_01_StaringAtLight")));
+	// Hum volume sampled at ~5s and ~15s into the stare must be rising.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumRising(this, 5.0, 15.0));
+	// ~15s in, the screen-space effect has ramped on (but not yet to max).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("mid-stare"), 0.005f, 0.81f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_03_EffectMidStare")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(this, FName("Money"), 40.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeHumStopped(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GazeReward_02_CashGranted")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// --- Only that one light is rigged: a long stare at another canopy
+	// light must grant nothing. ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight2"), 500.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight2")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(35.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// GazeRewardReset — the UGazeRewardComponent's dwell timer accumulates while
+// the player looks at the owner and resets the instant the gaze breaks. Fast
+// (no 30s wait, no grant): sample seconds rising, look away, sample reset.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GazeRewardReset,
+	"Weirdplace2.E2E.Level1.Regression.GazeRewardReset",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GazeRewardReset")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("gasstationbarlight"), 500.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
+	// Wait for the player to land and the gaze to hold (well short of the 30s grant).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForGazeSeconds(this, 1.5f, 12.0));
+	// The dwell timer is accumulating, the screen effect has begun ramping on,
+	// and the camera has zoomed in slightly (FOV below the base 90).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("during gaze"), 1.0f, 30.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("during gaze"), 0.001f, 0.81f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeCameraFOV(this, TEXT("during gaze"), 70.0f, 89.95f));
+	// Look away (down at the lot) — the timer, effect, and FOV must snap back.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookDown(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after look-away"), 0.0f, 0.001f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("after look-away"), 0.0f, 0.001f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeCameraFOV(this, TEXT("after look-away"), 89.9f, 90.1f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// RickDialoguePrefix — Rick's outside-idle line is authored as
+// "Rick: I'll meet you inside once I'm done here". The speaker belongs on
+// the plate; the body shown to the player must not include "Rick:".
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_RickDialoguePrefix,
+	"Weirdplace2.E2E.Level1.Diagnostic.RickDialoguePrefix",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("RickDialoguePrefix")
+
+	// Same approach as HappyPath's GetMoneyFromRick: the RickApproach waypoint
+	// is placed where the interact trace reliably reaches him.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this,
+		TEXT("Rick"), TEXT("I'll meet you inside once I'm done here")));
+
+	// Let the typewriter draw before the screenshot.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_RickPrefix_DialogueShown")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// MoviePutBackPrompt — while inspecting a movie, a world-space prompt
+// names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
+// facing the player even as the box is rotated. Pressing the prompted key
+// actually puts the movie back.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MoviePutBackPrompt,
+	"Weirdplace2.E2E.Level1.Regression.MoviePutBackPrompt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MoviePutBackPrompt")
+
+	// Same approach as HappyPath's CollectMovies: stand in front of the box
+	// and aim at a trace-verified surface point.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
+
+	// Rotate the box (mouse axis); the prompt must keep facing the camera
+	// and stay keyboard-flavored.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
+
+	// The prompted key really does put the movie back.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::Q));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// BlankVHSHeldPose — the held blank tape must sit in the hand the same
+// way a regular movie does. Pose equality is asserted as matching
+// camera-space long/short box axes (mesh-authoring agnostic), plus
+// side-by-side screenshots.
+// =======================================================================
+
+namespace
+{
+	static FVector CapturedMovieLongAxis = FVector::ZeroVector;
+	static FVector CapturedMovieShortAxis = FVector::ZeroVector;
+	static float CapturedMovieMaxExtent = 0.f;
+	static FVector CapturedMovieCenter = FVector::ZeroVector;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BlankVHSHeldPose,
+	"Weirdplace2.E2E.Level1.Diagnostic.BlankVHSHeldPose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
+
+	// Collect a regular shelf movie (slot 0).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// The blank tape only exists after Seneca's money beat swaps it onto the
+	// shelf — trigger the swap, then collect it through the production
+	// capture path (slot 1). Shelf aiming at the randomly-placed blank is
+	// flaky and isn't what this test is about.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BlankVHS")));
+
+	// Hold the movie; capture its pose axes.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_01_MovieHeld")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureHeldBoxAxes(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
+
+	// Hold the blank tape; its pose must match.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_02_BlankHeld")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldBoxAxesMatch(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// BlankVhsGazeSweep — diagnostic. Activate the blank tape, stand in front
+// of it, then sweep the reticle across a grid over its face, logging what
+// the chord gaze trace hits at each point (and screenshotting the corners).
+// Gathers objective data on the spotty look-to-boost-volume behavior.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BlankVhsGazeSweep,
+	"Weirdplace2.E2E.Level1.Diagnostic.BlankVhsGazeSweep",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BlankVhsGazeSweep::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("BlankVhsGazeSweep")
+
+	// Spawn the blank VHS as the chosen box + start the chord (sets up the
+	// SpawnerActorComponent's gaze trace), then stand in front of it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearBlankTape(this));
+
+	// Sweep a 5x5 grid across the face, logging the gaze trace at each point.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SweepGazeOverBlankVhs(this, 5));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// InventoryFromStart — the inventory works from the moment the player
+// spawns; no Seneca-intro gate, no test bypass.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InventoryFromStart,
+	"Weirdplace2.E2E.Level1.Regression.InventoryFromStart",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InventoryFromStart")
+
+	// Deliberately NO unlock step: Tab must work at spawn.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Open")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

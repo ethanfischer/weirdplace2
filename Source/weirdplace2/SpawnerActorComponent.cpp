@@ -3,12 +3,16 @@
 
 #include "SpawnerActorComponent.h"
 
+#include "MovieBox.h"
+#include "Sound/AmbientSound.h"
+#include "Components/AudioComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+
 // Sets default values for this component's properties
 USpawnerActorComponent::USpawnerActorComponent()
 {
-	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
-	// off to improve performance if you don't need them.
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 void USpawnerActorComponent::BeginPlay()
@@ -33,6 +37,79 @@ void USpawnerActorComponent::BeginPlay()
 void USpawnerActorComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (!ChosenBox || !ChordAmbientSound)
+	{
+		return;
+	}
+
+	UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent();
+	if (!AudioComp)
+	{
+		return;
+	}
+
+	if (AMovieBox* ChosenMovieBox = Cast<AMovieBox>(ChosenBox))
+	{
+		if (ChosenMovieBox->WasCollected())
+		{
+			UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ChosenBox %s collected, stopping chord"), *ChosenBox->GetName());
+			AudioComp->Stop();
+			ChosenBox = nullptr;
+			return;
+		}
+	}
+
+	APlayerController* PC = UGameplayStatics::GetPlayerController(World, 0);
+	if (!PC)
+	{
+		return;
+	}
+
+	FVector ViewLocation;
+	FRotator ViewRotation;
+	PC->GetPlayerViewPoint(ViewLocation, ViewRotation);
+
+	// "Looking at the box" via geometry, not a collision trace: does the camera
+	// view ray pass within the chosen box's mesh-bounds sphere? The old
+	// ECC_Visibility line trace was hopelessly spotty here — the E2E gaze sweep
+	// showed every reticle point either hitting a neighbor's InteractionText
+	// prompt widget (which blocks Visibility and floats in the aisle) or, with
+	// widgets skipped, skimming past the ~5cm-thick case collision and hitting
+	// nothing. A ray-vs-bounds test is immune to all of that (widgets, thin
+	// collision, z-fighting, the box's random shelf slot).
+	const FVector ViewDir = ViewRotation.Vector();
+	FBoxSphereBounds BoxBounds(ChosenBox->GetActorLocation(), FVector(15.f), 15.f);
+	if (UStaticMeshComponent* Envelope = ChosenBox->FindComponentByClass<UStaticMeshComponent>())
+	{
+		BoxBounds = Envelope->Bounds;
+	}
+	const float Along = FVector::DotProduct(BoxBounds.Origin - ViewLocation, ViewDir);
+	const FVector Closest = ViewLocation + ViewDir * FMath::Max(0.f, Along);
+	const float PerpDist = FVector::Dist(Closest, BoxBounds.Origin);
+	const float GazeRadius = BoxBounds.SphereRadius;
+	const bool bLookingAtChosen = (Along > 0.f) && (PerpDist <= GazeRadius);
+
+	// Record for diagnostics / the E2E gaze-sweep getter.
+	bLastHadHit = (Along > 0.f);
+	LastHitActorName = ChosenBox->GetName();
+	LastHitComponentName = FString::Printf(TEXT("perp=%.1f/radius=%.1f"), PerpDist, GazeRadius);
+	LastHitDistance = PerpDist;
+	LastHitImpactPoint = Closest;
+
+	// Log every time the gaze state flips — captures any in/out flicker during
+	// manual play with the geometry that decided it.
+	if (bLookingAtChosen != bLastLookingAtChosen)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerGaze: looking=%d hitActor=%s hitComp=%s dist=%.1f impact=%s chosen=%s vol=%.2f"),
+			bLookingAtChosen, *LastHitActorName, *LastHitComponentName, LastHitDistance,
+			*LastHitImpactPoint.ToString(), ChosenBox ? *ChosenBox->GetName() : TEXT("None"), CurrentVolumeMultiplier);
+		bLastLookingAtChosen = bLookingAtChosen;
+	}
+
+	const float TargetMultiplier = bLookingAtChosen ? LookAtVolumeMultiplier : 1.0f;
+	CurrentVolumeMultiplier = FMath::FInterpConstantTo(CurrentVolumeMultiplier, TargetMultiplier, DeltaTime, LookAtFadeSpeed);
+	AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
 }
 
 void USpawnerActorComponent::SpawnMovieBoxes()
@@ -54,7 +131,17 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	}
 
 	auto       VideoNameIndex = 0;
-	int ChosenOnes[3] = {1, 43, 89};
+
+	TopShelfMovieBoxes.Reset();
+
+	int32 TopShelfIndex = 0;
+	for (auto i = 1; i < ShelfLocations.Num(); i++)
+	{
+		if (ShelfLocations[i].Z > ShelfLocations[TopShelfIndex].Z)
+		{
+			TopShelfIndex = i;
+		}
+	}
 
 	for (auto ShelfIndex = 0; ShelfIndex < ShelfLocations.Num(); ShelfIndex++)
 	{
@@ -62,24 +149,86 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 		{
 			for (auto i = 0; i < AmountPerShelf; i++)
 			{
-				auto ChosenOneAdjustment = 0;
-				for (auto j = 0; j < 3; j++)
-				{
-					if (ChosenOnes[j] == VideoNameIndex)
-					{
-						ChosenOneAdjustment = 10;
-						break;
-					}
-				}
 				auto AdjustedLocation = SpawnerLocation + (i * Spacing * SpawnDirection + (BookcaseLocations[BookcaseIndex] + ShelfLocations[ShelfIndex]));
-				AdjustedLocation.Y += ChosenOneAdjustment;
 				auto AdjustedRotation = BookcaseIndex % 2 == 0 ? SpawnerRotation : SpawnerRotationFlipped;
 				FActorSpawnParameters SpawnParameters;
 				FName BaseName = VideoNames[VideoNameIndex % VideoNames.Num()];
 				SpawnParameters.Name = FName(*FString::Printf(TEXT("%s_%d"), *BaseName.ToString(), VideoNameIndex));
-				World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
+				AActor* Spawned = World->SpawnActor<AActor>(MovieBoxClass, AdjustedLocation, AdjustedRotation, SpawnParameters);
+				if (Spawned && ShelfIndex == TopShelfIndex)
+				{
+					TopShelfMovieBoxes.Add(Spawned);
+				}
 				VideoNameIndex++;
 			}
 		}
 	}
+
+	// Silence the chord hum at level load — ActivateChosenTape() turns it on when Seneca asks for the blank tape.
+	if (ChordAmbientSound)
+	{
+		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
+		{
+			AudioComp->Stop();
+		}
+	}
+}
+
+void USpawnerActorComponent::ActivateChosenTape()
+{
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - No World"));
+		return;
+	}
+
+	if (!BlankVhsBoxClass)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - BlankVhsBoxClass not assigned on %s"), *Owner->GetName());
+		return;
+	}
+
+	// Drop any candidates the player already collected (GC nulled the UPROPERTY entries).
+	TopShelfMovieBoxes.RemoveAll([](AActor* A) { return !IsValid(A); });
+
+	if (TopShelfMovieBoxes.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - No live top-shelf candidates on %s — chord beat unrecoverable"), *Owner->GetName());
+		return;
+	}
+
+	const int32 RandomIndex = FMath::RandRange(0, TopShelfMovieBoxes.Num() - 1);
+	AActor* OriginalBox = TopShelfMovieBoxes[RandomIndex];
+	const FTransform OriginalTransform = OriginalBox->GetActorTransform();
+	OriginalBox->Destroy();
+
+	FActorSpawnParameters ReplaceParams;
+	ReplaceParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	ChosenBox = World->SpawnActor<AMovieBox>(BlankVhsBoxClass, OriginalTransform.GetLocation(), OriginalTransform.Rotator(), ReplaceParams);
+	if (!ChosenBox)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent::ActivateChosenTape - Failed to spawn BlankVhsBoxClass replacement"));
+		return;
+	}
+
+	const FVector OffsetLocation = ChosenBox->GetActorLocation() + ChosenBox->GetActorForwardVector() * ChosenForwardOffset;
+	ChosenBox->SetActorLocation(OffsetLocation);
+
+	ChosenItemID = BlankVhsBoxClass->GetDefaultObject<AMovieBox>()->ItemIDOverride;
+
+	if (ChordAmbientSound)
+	{
+		ChordAmbientSound->SetActorLocation(OffsetLocation);
+		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
+		{
+			AudioComp->SetVolumeMultiplier(CurrentVolumeMultiplier);
+			AudioComp->Play();
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SpawnerActorComponent::ActivateChosenTape - ChordAmbientSound not assigned on %s — chord disabled but chosen tape still placed"), *Owner->GetName());
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: ActivateChosenTape - ChosenBox %s (ChosenItemID=%s) offset by %.1fcm forward"), *ChosenBox->GetName(), *ChosenItemID.ToString(), ChosenForwardOffset);
 }

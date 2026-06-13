@@ -87,6 +87,9 @@ public:
 	// camera view for screenshots without depending on a controller's hand rig.
 	void SetSlotPose(FVector Offset, FRotator Rotation);
 
+	// Test-only: the mesh component currently rendering the held item.
+	UStaticMeshComponent* GetHeldItemMeshComponent() const { return HeldItemMesh; }
+
 	// Callback when active item changes in inventory
 	UFUNCTION()
 	void OnActiveItemChanged(const FName& NewActiveItem);

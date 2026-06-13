@@ -29,6 +29,13 @@ Build commands (fallback if MCP is unavailable):
 "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
+## Retargeting Mocap Animations to MetaHumans
+
+`scripts/local/retarget_mocap_to_metahuman.py` retargets a UE5-Mannequin-skeleton
+anim (e.g. mocapcentral) onto a MetaHuman and swaps the matching SequencePlayer
+nodes in a target AnimBlueprint. Idempotent. Edit the constants at the top for a
+new animation. Full workflow + Python API gotchas: `docs/animation-retargeting.md`.
+
 ## Steam Deck Deploy
 
 Build → `scripts/push_to_deck.ps1 -DeckHost deck@<ip>` → launch from Steam on the Deck (not directly — Steam Input has to wrap the process for the controller to work).
@@ -121,6 +128,21 @@ The test log is at `Saved/Logs/E2ETest.log`. To dig into failures:
 grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/E2ETest.log" | tail -40
 ```
 
+### Regression vs Diagnostic
+
+Tests in `E2E_Level1Test.cpp` live under two subgroups:
+
+- **`Weirdplace2.E2E.Level1.Regression.*`** — real guards. Failure means something broke.
+- **`Weirdplace2.E2E.Level1.Diagnostic.*`** — authoring/inspection tours, loose or no asserts. Not part of the gate; run on demand.
+
+`run_e2e.ps1` defaults a bare `-TestName <Name>` to the Regression subgroup, so existing invocations (`-TestName HappyPath`, `-TestName PauseMenu -Headed`) keep working. To target a diagnostic explicitly: `-TestName Diagnostic.BlankVhsGazeSweep`.
+
+**When finishing a feature, run the regression suite to make sure nothing broke:**
+```bash
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Headed -TimeoutMinutes 60
+```
+Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
+
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
@@ -135,12 +157,13 @@ Two paths depending on what you need:
 
 **Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
 ```bash
-# File:
-python scripts/ue_remote_exec.py --file Content/Python/your_script.py
+# File (must be an ABSOLUTE path — UE 5.7's MODE_EXEC_FILE resolves it directly):
+python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Content/Python/your_script.py" --mode ExecuteFile
 
 # Inline:
 python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
 ```
+Do not use `--file <path>` — the wrapper ships file contents, but 5.7's MODE_EXEC_FILE expects a path and the run silently fails with empty output. Always pass the absolute path through `--code`.
 `scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
 
 **Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.

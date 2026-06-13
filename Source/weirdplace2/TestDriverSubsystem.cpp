@@ -11,12 +11,17 @@
 #endif
 #include "MovieBox.h"
 #include "PropActor.h"
+#include "SpawnerActorComponent.h"
+#include "GazeRewardComponent.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
 #include "TestWaypoint.h"
+#include "UI_Dialogue.h"
 #include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -188,22 +193,19 @@ bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel,
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no actor '%s'"), *ActorLabel);
 		return false;
 	}
+	return LookAtComponentByName(Actor, ComponentName);
+}
 
-	USceneComponent* Found = nullptr;
-	TArray<USceneComponent*> SceneComps;
-	Actor->GetComponents<USceneComponent>(SceneComps);
-	for (USceneComponent* Comp : SceneComps)
+bool UTestDriverSubsystem::LookAtComponentByName(AActor* Actor, const FString& ComponentName)
+{
+	if (!Actor)
 	{
-		if (Comp && Comp->GetName() == ComponentName)
-		{
-			Found = Comp;
-			break;
-		}
+		return false;
 	}
+
+	USceneComponent* Found = FindComponentOnActorByName(Actor, ComponentName);
 	if (!Found)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtActorComponentByName - no component '%s' on actor '%s'"),
-			*ComponentName, *ActorLabel);
 		return false;
 	}
 
@@ -219,10 +221,46 @@ bool UTestDriverSubsystem::LookAtActorComponentByName(const FString& ActorLabel,
 	const FRotator NewRot = (AimPoint - CamLoc).GetSafeNormal().Rotation();
 	PC->SetControlRotation(NewRot);
 
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtActorComponentByName - %s.%s aim=%s (loc=%s) rot=%s dist=%.1f"),
-		*ActorLabel, *ComponentName, *AimPoint.ToString(), *Found->GetComponentLocation().ToString(),
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtComponentByName - %s.%s aim=%s (loc=%s) rot=%s dist=%.1f"),
+		*Actor->GetName(), *ComponentName, *AimPoint.ToString(), *Found->GetComponentLocation().ToString(),
 		*NewRot.ToString(), FVector::Dist(AimPoint, CamLoc));
 	return true;
+}
+
+bool UTestDriverSubsystem::LookAtWorldPoint(const FVector& Point)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player) { return false; }
+	APlayerController* PC = Cast<APlayerController>(Player->GetController());
+	if (!PC) { return false; }
+	UCameraComponent* Camera = Player->GetFirstPersonCamera();
+	if (!Camera) { return false; }
+
+	const FVector CamLoc = Camera->GetComponentLocation();
+	PC->SetControlRotation((Point - CamLoc).GetSafeNormal().Rotation());
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtWorldPoint - aim=%s cam=%s dist=%.1f"),
+		*Point.ToString(), *CamLoc.ToString(), FVector::Dist(Point, CamLoc));
+	return true;
+}
+
+USceneComponent* UTestDriverSubsystem::FindComponentOnActorByName(AActor* Actor, const FString& ComponentName) const
+{
+	if (!Actor)
+	{
+		return nullptr;
+	}
+	TArray<USceneComponent*> SceneComps;
+	Actor->GetComponents<USceneComponent>(SceneComps);
+	for (USceneComponent* Comp : SceneComps)
+	{
+		if (Comp && Comp->GetName() == ComponentName)
+		{
+			return Comp;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::FindComponentOnActorByName - no component '%s' on actor '%s'"),
+		*ComponentName, *Actor->GetName());
+	return nullptr;
 }
 
 bool UTestDriverSubsystem::LookAtSeneca()
@@ -608,6 +646,25 @@ AMovieBox* UTestDriverSubsystem::FindNextUncollectedMovie()
 	return nullptr;
 }
 
+AMovieBox* UTestDriverSubsystem::FindBlankTape() const
+{
+	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
+	{
+		AMovieBox* Box = *It;
+		if (!Box)
+		{
+			continue;
+		}
+		const AMovieBox* CDO = Box->GetClass()->GetDefaultObject<AMovieBox>();
+		if (CDO && CDO->bExemptFromMovieLimit)
+		{
+			return Box;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::FindBlankTape - no blank tape found in level"));
+	return nullptr;
+}
+
 void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 {
 	if (LastFoundMovie.IsValid())
@@ -665,12 +722,297 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 	return Inv ? Inv->GetItemCount() : 0;
 }
 
-bool UTestDriverSubsystem::UnlockInventoryForTest()
+namespace
 {
-	AMyCharacter* MyChar = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-	if (!MyChar) { return false; }
-	MyChar->UnlockInventory();
+	// The reusable UGazeRewardComponent can now live on many actors (the user
+	// adds it wherever). The gas-station E2E tests specifically want the canopy
+	// light's component — find it by the 'GazeRewardTarget' tag, not "first one".
+	UGazeRewardComponent* FindGasStationGazeComponent(UWorld* World)
+	{
+		if (!World)
+		{
+			return nullptr;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->ActorHasTag(FName("GazeRewardTarget")))
+			{
+				if (UGazeRewardComponent* Gaze = It->FindComponentByClass<UGazeRewardComponent>())
+				{
+					return Gaze;
+				}
+			}
+		}
+		return nullptr;
+	}
+}
+
+bool UTestDriverSubsystem::GetGazeHumState(float& OutVolume, bool& bOutPlaying) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
+	}
+	UAudioComponent* Audio = Gaze->GetHumComponent();
+	if (!Audio)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeHumState - GazeReward component has no hum"));
+		return false;
+	}
+	OutVolume = Audio->VolumeMultiplier;
+	bOutPlaying = Audio->IsPlaying();
 	return true;
+}
+
+bool UTestDriverSubsystem::GetGazeRewardSeconds(float& OutSeconds) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeRewardSeconds - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
+	}
+	OutSeconds = Gaze->GetGazeSeconds();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetGazeEffectWeight(float& OutWeight) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeEffectWeight - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
+	}
+	OutWeight = Gaze->GetCurrentEffectWeight();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetGazeCameraFOV(float& OutFOV) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeCameraFOV - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
+	}
+	OutFOV = Gaze->GetCurrentFOV();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
+	FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
+	FVector& OutImpactPoint, float& OutVolume) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (USpawnerActorComponent* Spawner = It->FindComponentByClass<USpawnerActorComponent>())
+		{
+			Spawner->GetGazeDebugState(bOutHasChosen, bOutLooking, bOutHadHit,
+				OutHitActor, OutHitComponent, OutHitDistance, OutImpactPoint, OutVolume);
+			return true;
+		}
+	}
+
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBlankVhsGazeState - no USpawnerActorComponent in level"));
+	return false;
+}
+
+bool UTestDriverSubsystem::GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDisplayedDialogue - no player"));
+		return false;
+	}
+
+	UUI_Dialogue* Widget = Player->GetActiveDialogueWidget();
+	if (!Widget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDisplayedDialogue - no active dialogue widget"));
+		return false;
+	}
+
+	OutSpeaker = Widget->GetDisplayedSpeaker();
+	OutBody = Widget->GetFullLineText();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	AMovieBox* Inspected = nullptr;
+	for (TActorIterator<AMovieBox> It(World); It; ++It)
+	{
+		if (It->IsBeingInspected())
+		{
+			Inspected = *It;
+			break;
+		}
+	}
+	if (!Inspected)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - no MovieBox is being inspected"));
+		return false;
+	}
+
+	UTextRenderComponent* Prompt = nullptr;
+	TArray<UTextRenderComponent*> Texts;
+	Inspected->GetComponents<UTextRenderComponent>(Texts);
+	for (UTextRenderComponent* T : Texts)
+	{
+		if (T->GetFName() == TEXT("PutBackPromptText"))
+		{
+			Prompt = T;
+			break;
+		}
+	}
+	if (!Prompt)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - inspected MovieBox '%s' has no 'PutBackPromptText' component"),
+			*Inspected->GetName());
+		return false;
+	}
+
+	OutText = Prompt->Text.ToString();
+	bOutVisible = Prompt->IsVisible();
+
+	FVector CamLoc;
+	FRotator CamRot;
+	World->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
+	// The prompt is yaw-only billboarded (stays upright), so measure facing in
+	// the horizontal plane — a pitch difference to the camera is expected and
+	// shouldn't count against it.
+	FVector ToCam = CamLoc - Prompt->GetComponentLocation();
+	FVector Forward = Prompt->GetForwardVector();
+	ToCam.Z = 0.f;
+	Forward.Z = 0.f;
+	OutFacingDot = FVector::DotProduct(Forward.GetSafeNormal(), ToCam.GetSafeNormal());
+	return true;
+}
+
+bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no player"));
+		return false;
+	}
+
+	// The pawn can carry more than one UHeldItemComponent (C++ default
+	// subobject + BP-added); only the live one owns a held mesh. Use that one.
+	UStaticMeshComponent* Mesh = nullptr;
+	TArray<UHeldItemComponent*> HeldComps;
+	Player->GetComponents<UHeldItemComponent>(HeldComps);
+	for (UHeldItemComponent* Comp : HeldComps)
+	{
+		if (Comp->GetHeldItemMeshComponent())
+		{
+			Mesh = Comp->GetHeldItemMeshComponent();
+			break;
+		}
+	}
+	if (!Mesh || !Mesh->GetStaticMesh() || !Mesh->IsVisible())
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no visible held item mesh (comps=%d mesh=%d staticmesh=%d isvisible=%d)"),
+			HeldComps.Num(),
+			Mesh != nullptr,
+			Mesh && Mesh->GetStaticMesh() != nullptr,
+			Mesh && Mesh->IsVisible());
+		return false;
+	}
+
+	// Identify the mesh's longest and shortest local axes after scale. When
+	// two scaled extents are within 20% (the blank tape's box is nearly
+	// square at gameplay scale), fall back to the authored extents, which
+	// are unambiguous.
+	const FVector Authored = Mesh->GetStaticMesh()->GetBoundingBox().GetExtent();
+	const FVector Ext = Authored * Mesh->GetComponentScale().GetAbs();
+	int32 LongIdx = 0, ShortIdx = 0;
+	for (int32 i = 1; i < 3; ++i)
+	{
+		if (Ext[i] > Ext[LongIdx]) { LongIdx = i; }
+		if (Ext[i] < Ext[ShortIdx]) { ShortIdx = i; }
+	}
+	for (int32 i = 0; i < 3; ++i)
+	{
+		if (i != LongIdx && i != ShortIdx
+			&& Ext[i] > Ext[LongIdx] * 0.8f
+			&& Authored[i] > Authored[LongIdx])
+		{
+			LongIdx = i;
+		}
+	}
+	OutMaxExtent = Ext[LongIdx];
+	FVector LocalLong = FVector::ZeroVector;
+	FVector LocalShort = FVector::ZeroVector;
+	LocalLong[LongIdx] = 1.f;
+	LocalShort[ShortIdx] = 1.f;
+
+	FVector CamLoc;
+	FRotator CamRot;
+	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
+	const FQuat CamQ = CamRot.Quaternion();
+	const FQuat MeshQ = Mesh->GetComponentQuat();
+	OutLongAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalLong));
+	OutShortAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalShort));
+
+	const FVector WorldCenter = Mesh->GetComponentTransform().TransformPosition(
+		Mesh->GetStaticMesh()->GetBoundingBox().GetCenter());
+	OutCenterCamSpace = CamQ.UnrotateVector(WorldCenter - CamLoc);
+
+	// Full local->camera mapping, for diagnosing pose-correction values.
+	const FQuat MeshToCam = CamQ.Inverse() * MeshQ;
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetHeldItemBoxAxes - ext=%s X->%s Y->%s Z->%s relrot=%s"),
+		*Ext.ToString(),
+		*MeshToCam.RotateVector(FVector::XAxisVector).ToString(),
+		*MeshToCam.RotateVector(FVector::YAxisVector).ToString(),
+		*MeshToCam.RotateVector(FVector::ZAxisVector).ToString(),
+		*Mesh->GetRelativeRotation().ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::ActivateBlankTapeForTest()
+{
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (USpawnerActorComponent* Spawner = It->FindComponentByClass<USpawnerActorComponent>())
+		{
+			Spawner->ActivateChosenTape();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::ActivateBlankTapeForTest - no USpawnerActorComponent in level"));
+	return false;
+}
+
+bool UTestDriverSubsystem::CollectBlankTapeForTest()
+{
+	AMovieBox* Tape = FindBlankTape();
+	if (!Tape)
+	{
+		return false;
+	}
+	// CollectInspectedMovie runs the real capture (AddItemToInventoryWithMesh
+	// off the envelope) and its deferred StopInspection no-ops outside
+	// inspection.
+	Tape->CollectInspectedMovie();
+	return Tape->WasCollected();
 }
 
 bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale)

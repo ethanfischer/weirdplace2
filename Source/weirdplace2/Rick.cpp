@@ -117,8 +117,22 @@ void ARick::LoadOutsideDialogue()
 	TArray<FString> IdleRaw;
 	if (FFileHelper::LoadFileToStringArray(IdleRaw, *IdlePath))
 	{
-		for (const FString& Line : IdleRaw)
-			if (!Line.IsEmpty()) OutsideIdleLines.Add(FText::FromString(Line));
+		for (const FString& Raw : IdleRaw)
+		{
+			FString Line = Raw;
+			Line.TrimStartAndEndInline();
+			if (Line.IsEmpty()) continue;
+
+			// Lines are authored "Speaker: text" like the other dialogue
+			// files; the plate names the speaker, so the body must not
+			// repeat it.
+			int32 ColonIndex;
+			if (Line.FindChar(TEXT(':'), ColonIndex))
+			{
+				Line = Line.Mid(ColonIndex + 1).TrimStartAndEnd();
+			}
+			OutsideIdleLines.Add(FText::FromString(Line));
+		}
 	}
 	else
 	{

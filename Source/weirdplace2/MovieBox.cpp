@@ -2,10 +2,14 @@
 
 
 #include "MovieBox.h"
+#include "DiegeticTextComponent.h"
+#include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/InputComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "GameFramework/PlayerInput.h"
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -100,6 +104,30 @@ void AMovieBox::BeginPlay()
 	{
 		CantCarryWidget->SetVisibility(false);
 	}
+
+	// Put-back prompt is a "PutBackPromptText" UDiegeticTextComponent placed in
+	// BP_MovieBox so its position is tunable in-editor. Fetch it by name, the
+	// same way the other BP components above are wired up. (The component can't
+	// be named "PutBackPrompt" — that collides with this class's member var.)
+	TArray<UDiegeticTextComponent*> AllDiegeticText;
+	GetComponents<UDiegeticTextComponent>(AllDiegeticText);
+	for (UDiegeticTextComponent* Comp : AllDiegeticText)
+	{
+		if (Comp->GetFName() == TEXT("PutBackPromptText"))
+		{
+			PutBackPrompt = Comp;
+			break;
+		}
+	}
+	if (!PutBackPrompt)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("MovieBox %s: PutBackPromptText component not found — add a 'PutBackPromptText' DiegeticText component to BP_MovieBox"), *GetName());
+	}
+	else
+	{
+		PutBackPrompt->SetText(FText::GetEmpty());
+		PutBackPrompt->SetVisibility(false);
+	}
 }
 
 // Called every frame
@@ -107,11 +135,22 @@ void AMovieBox::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	// Re-render the prompt if the player switched devices mid-inspection.
+	// Only while it's actually showing — once it's been seen, it stays hidden.
+	if (InspectedActor && PutBackPrompt && PutBackPrompt->IsVisible() && MyCharacter)
+	{
+		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+		if (FPChar && FPChar->IsUsingGamepad() != bPromptBuiltForGamepad)
+		{
+			bPromptBuiltForGamepad = FPChar->IsUsingGamepad();
+			PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
+		}
+	}
 }
 
 bool AMovieBox::CanInteract()
 {
-	return MyCharacter && MyCharacter->IsInventoryUnlocked();
+	return MyCharacter != nullptr;
 }
 
 void AMovieBox::Interact_Implementation()
@@ -121,7 +160,7 @@ void AMovieBox::Interact_Implementation()
 		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: Interact called with missing components — BeginPlay failed to initialize"), *GetName());
 		return;
 	}
-	if (!MyCharacter || !MyCharacter->IsInventoryUnlocked())
+	if (!MyCharacter)
 	{
 		return;
 	}
@@ -188,11 +227,66 @@ void AMovieBox::Interact_Implementation()
 		}));
 	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
 
-	// Show the collect prompt for the entire inspection if collection is allowed
+	// Show the collect prompt for the entire inspection if collection is allowed.
+	// bExemptFromMovieLimit (e.g. BP_BlankVHS) bypasses both the cap and the lock.
 	const bool bCanCollect = MyCharacter
-		&& MyCharacter->GetInventoryComponent()->GetItemCount() < 3
-		&& !MyCharacter->IsMovieCollectionLocked();
+		&& (bExemptFromMovieLimit
+			|| (MyCharacter->GetInventoryComponent()->GetItemCount() < 3
+				&& !MyCharacter->IsMovieCollectionLocked()));
 	InteractionWidget->SetVisibility(bCanCollect);
+
+	// The put-back prompt is a one-time control hint: show it only until the
+	// player's first completed movie interaction (collecting or putting back).
+	if (PutBackPrompt && MyCharacter && !MyCharacter->HasInteractedWithMovie())
+	{
+		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+		bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
+		PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
+		PutBackPrompt->SetVisibility(true);
+	}
+}
+
+FString AMovieBox::BuildPutBackPromptText() const
+{
+	if (!PlayerController || !PlayerController->PlayerInput)
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: no PlayerInput to read the put-back binding from"), *GetName());
+		return FString();
+	}
+
+	auto ShortName = [](const FKey& Key) -> FString
+	{
+		if (Key == EKeys::Gamepad_FaceButton_Bottom) return FString(TEXT("A"));
+		if (Key == EKeys::Gamepad_FaceButton_Right)  return FString(TEXT("B"));
+		if (Key == EKeys::Gamepad_FaceButton_Left)   return FString(TEXT("X"));
+		if (Key == EKeys::Gamepad_FaceButton_Top)    return FString(TEXT("Y"));
+		return Key.GetDisplayName(false).ToString();
+	};
+
+	FString Keyboard, Gamepad;
+	for (const FInputActionKeyMapping& Mapping : PlayerController->PlayerInput->GetKeysForAction(FName("Exit Interaction")))
+	{
+		if (Mapping.Key.IsGamepadKey())
+		{
+			if (Gamepad.IsEmpty()) Gamepad = ShortName(Mapping.Key);
+		}
+		else if (Keyboard.IsEmpty())
+		{
+			Keyboard = Mapping.Key.GetDisplayName(false).ToString();
+		}
+	}
+
+	// Show only the binding for the device the player is actually using.
+	const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+	const bool bGamepad = FPChar && FPChar->IsUsingGamepad();
+	const FString& Key = bGamepad ? Gamepad : Keyboard;
+	if (Key.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: 'Exit Interaction' has no %s mapping"),
+			*GetName(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
+		return FString();
+	}
+	return FString::Printf(TEXT("[%s]  put back"), *Key);
 }
 
 void AMovieBox::CollectInspectedMovie()
@@ -204,35 +298,43 @@ void AMovieBox::CollectInspectedMovie()
 	}
 	if (DidCollectMovie) return;
 
-	if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
+	if (!bExemptFromMovieLimit)
 	{
-		if (CantCarryWidget)
+		if (MyCharacter && MyCharacter->IsMovieCollectionLocked())
 		{
-			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
-				FTimerDelegate::CreateWeakLambda(this, [this]()
-				{
-					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-				}), 2.0f, false);
+			if (CantCarryWidget)
+			{
+				CantCarryWidget->SetVisibility(true);
+				GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+					FTimerDelegate::CreateWeakLambda(this, [this]()
+					{
+						if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+					}), 2.0f, false);
+			}
+			return;
 		}
-		return;
+
+		if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
+		{
+			if (CantCarryWidget)
+			{
+				CantCarryWidget->SetVisibility(true);
+				GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
+					FTimerDelegate::CreateWeakLambda(this, [this]()
+					{
+						if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
+					}), 2.0f, false);
+			}
+			return;
+		}
 	}
 
-	if (MyCharacter && MyCharacter->GetInventoryComponent()->GetItemCount() >= 3)
-	{
-		if (CantCarryWidget)
-		{
-			CantCarryWidget->SetVisibility(true);
-			GetWorldTimerManager().SetTimer(CantCarryTimerHandle,
-				FTimerDelegate::CreateWeakLambda(this, [this]()
-				{
-					if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
-				}), 2.0f, false);
-		}
-		return;
-	}
-
-	EnvelopeMesh->SetHiddenInGame(true);
+	// SetVisibility(false, true) propagates to children so subclass-added child meshes
+	// (e.g. BP_BlankVHS's "Tape") hide along with the parent Cube.
+	EnvelopeMesh->SetVisibility(false, true);
+	// The invisible box must not keep blocking interact traces — otherwise a
+	// player aiming at the empty slot re-inspects an empty envelope.
+	SetActorEnableCollision(false);
 	InteractionWidget->SetVisibility(false);
 	DidCollectMovie = true;
 
@@ -248,11 +350,33 @@ void AMovieBox::CollectInspectedMovie()
 		}
 	}
 
-	// Add item to inventory with visual data captured from the envelope mesh
-	MyCharacter->AddItemToInventoryWithMesh(FName(*CoverName), EnvelopeMesh);
+	// Add item to inventory with visual data captured from the envelope mesh.
+	// World scale (not relative) so meshes whose size comes from ancestor
+	// scaling are captured at the size the player actually saw, and
+	// HeldPoseCorrection brings differently-authored meshes into the standard
+	// held orientation.
+	const FName InventoryID = !ItemIDOverride.IsNone() ? ItemIDOverride : FName(*CoverName);
+	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(InventoryID, EnvelopeMesh);
+	ItemData.Scale = EnvelopeMesh->GetComponentScale();
+	ItemData.Rotation = (FQuat(ItemData.Rotation) * FQuat(HeldPoseCorrection)).Rotator();
+	if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
+	{
+		Inventory->AddItemWithData(ItemData);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: player has no InventoryComponent"), *GetName());
+	}
 
-	// Close inspection after collecting
-	StopInspection();
+	// Defer StopInspection by one tick. 5.7 fires legacy "Collect Inspected Movie"
+	// (IE_Pressed, this binding) before Enhanced Input IA_Interact (Triggered) on
+	// the same E press; restoring CanInteract synchronously lets the subsequent
+	// IA_Interact path raycast the shelf and re-open inspection.
+	GetWorld()->GetTimerManager().SetTimerForNextTick(
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			StopInspection();
+		}));
 }
 
 void AMovieBox::RotateInspectedActor(float AxisValue)
@@ -292,8 +416,15 @@ void AMovieBox::StopInspection()
 	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
 
-	// Hide the collect prompt
+	// Hide the collect and put-back prompts. The put-back prompt also clears
+	// its text and returns to the pivot so it stops contributing stale
+	// world-position bounds to the actor's bounding box.
 	if (InteractionWidget) InteractionWidget->SetVisibility(false);
+	if (PutBackPrompt)
+	{
+		PutBackPrompt->SetVisibility(false);
+		PutBackPrompt->SetText(FText::GetEmpty());
+	}
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
@@ -303,5 +434,10 @@ void AMovieBox::StopInspection()
 
 	MyCharacter->SetCanInteract(true);
 	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
+
+	// Both exits (collect and put-back) funnel through here, so this marks the
+	// player's first completed movie interaction — the put-back hint stops
+	// showing on every future inspection.
+	MyCharacter->MarkMovieInteraction();
 }
 

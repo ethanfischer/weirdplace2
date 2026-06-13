@@ -17,6 +17,7 @@ class UStaticMeshComponent;
 class UWeirdplaceGameUserSettings;
 class UMenuUIComponent;
 class APlayerController;
+class SWidget;
 
 USTRUCT()
 struct FSimpleDialogueLine
@@ -42,6 +43,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 
@@ -137,6 +139,13 @@ private:
 	float ComputeMouseLookScale() const;
 	bool IsGamepadLookActive() const;
 
+#if PLATFORM_LINUX
+	// Stop SDL3 per-window text input on every Slate top-level window. UE 5.7's
+	// LinuxWindow.cpp turns it on at window creation and never turns it off,
+	// which makes Steam Deck show the on-screen keyboard.
+	void StopLinuxTextInputOnAllWindows();
+#endif
+
 public:
 
 	// --- Input Handlers ---
@@ -158,6 +167,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
+
+	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
+	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
+	UFUNCTION(Exec) void SkipToSmoking();
+
 
 	// --- Interaction System ---
 
@@ -201,6 +215,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void StartSimpleDialogue(const FText& SpeakerName, const TArray<FText>& Lines, UObject* NPC);
 
+	// The dialogue widget currently in use (null outside dialogue). Tests read
+	// the displayed speaker/body through this.
+	UUI_Dialogue* GetActiveDialogueWidget() const { return UI_Dialogue; }
+
+	// Last input device the player actually used (look/move/inspection input).
+	// Drives device-specific button prompts.
+	bool IsUsingGamepad() const { return bLastInputWasGamepad; }
+	void SetUsingGamepad(bool bGamepad) { bLastInputWasGamepad = bGamepad; }
+
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void AdvanceSimpleDialogue();
 
@@ -216,6 +239,9 @@ public:
 	bool bBlockNextDialogueAdvance = false;
 
 private:
+	// See IsUsingGamepad(). Defaults to keyboard until input is seen.
+	bool bLastInputWasGamepad = false;
+
 	// --- Item Notification ---
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
@@ -235,6 +261,14 @@ private:
 	bool bMenuDoOnceCompleted = false;
 	bool bCreatedCrosshair = false;
 
+	// Slate keyboard-focus tracing (Steam Deck on-screen keyboard diagnosis)
+	TWeakPtr<SWidget> LastFocusedWidget;
+	bool bLoggedInitialFocus = false;
+
+
+	// Watches every app-wide input event to keep bLastInputWasGamepad correct
+	// the moment any input arrives — not just during active look/rotate.
+	TSharedPtr<class IInputProcessor> InputDeviceTracker;
 
 	// Cached for gamepad-aware look input scaling. Resolved in BeginPlay.
 	UPROPERTY()
