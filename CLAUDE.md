@@ -29,6 +29,13 @@ Build commands (fallback if MCP is unavailable):
 "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
+## Retargeting Mocap Animations to MetaHumans
+
+`scripts/local/retarget_mocap_to_metahuman.py` retargets a UE5-Mannequin-skeleton
+anim (e.g. mocapcentral) onto a MetaHuman and swaps the matching SequencePlayer
+nodes in a target AnimBlueprint. Idempotent. Edit the constants at the top for a
+new animation. Full workflow + Python API gotchas: `docs/animation-retargeting.md`.
+
 ## Steam Deck Deploy
 
 Build → `scripts/push_to_deck.ps1 -DeckHost deck@<ip>` → launch from Steam on the Deck (not directly — Steam Input has to wrap the process for the controller to work).

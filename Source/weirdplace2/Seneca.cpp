@@ -16,6 +16,9 @@
 #include "Misc/FileHelper.h"
 #include "UI_Dialogue.h"
 #include "FirstPersonCharacter.h"
+#include "Animation/AnimSequence.h"
+#include "Engine/SkeletalMesh.h"
+#include "Components/PointLightComponent.h"
 
 ASeneca::ASeneca()
 {
@@ -85,6 +88,12 @@ void ASeneca::BeginPlay()
 	if (!CachedSkeletalMesh)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found, IsPlayerLookingAtMe will use hardcoded offset"));
+	}
+
+	// Smoking-spot point light starts off; toggled by Start/StopSmokingAnim.
+	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
+	{
+		Light->SetVisibility(false);
 	}
 
 	if (KeyActor)
@@ -583,6 +592,7 @@ void ASeneca::Tick(float DeltaTime)
 			bWaitingToAppear = false;
 			bIsSmoking = true;
 			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
+			StartSmokingAnim();
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
 		return;
@@ -605,6 +615,7 @@ void ASeneca::Tick(float DeltaTime)
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
 		MoveToTarget(PendingMoveTarget);
 		bIsSmoking = false;
+		StopSmokingAnim();
 		if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
 		PendingMoveTarget = nullptr;
 		bWasLookingAtMe = false;
@@ -1039,5 +1050,71 @@ void ASeneca::OnCombinedTapeDialogueLineShown(int32 LineIndex)
 	}
 
 	UE_LOG(LogTemp, Error, TEXT("Seneca::OnCombinedTapeDialogueLineShown - Unknown action '%s'"), *Action);
+}
+
+USkeletalMeshComponent* ASeneca::FindBodyMesh() const
+{
+	if (!SmokingAnimation) return nullptr;
+	USkeleton* WantSkeleton = SmokingAnimation->GetSkeleton();
+	TArray<USkeletalMeshComponent*> Meshes;
+	GetComponents<USkeletalMeshComponent>(Meshes);
+	for (USkeletalMeshComponent* M : Meshes)
+	{
+		if (!M || !M->GetSkeletalMeshAsset()) continue;
+		if (M->GetSkeletalMeshAsset()->GetSkeleton() == WantSkeleton) return M;
+	}
+	return nullptr;
+}
+
+void ASeneca::StartSmokingAnim()
+{
+	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
+	{
+		Light->SetVisibility(true);
+	}
+	if (!SmokingAnimation)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartSmokingAnim - SmokingAnimation unset on BP_Seneca"));
+		return;
+	}
+	USkeletalMeshComponent* Body = FindBodyMesh();
+	if (!Body)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::StartSmokingAnim - no body mesh matching SmokingAnimation's skeleton"));
+		return;
+	}
+	Body->PlayAnimation(SmokingAnimation, true);
+}
+
+void ASeneca::StopSmokingAnim()
+{
+	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
+	{
+		Light->SetVisibility(false);
+	}
+	USkeletalMeshComponent* Body = FindBodyMesh();
+	if (!Body) return;
+	Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+}
+
+void ASeneca::ForceSmokingAppearance()
+{
+	if (!SmokingPositionTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::ForceSmokingAppearance - SmokingPositionTarget unset on level instance"));
+		return;
+	}
+	if (GetWorldTimerManager().IsTimerActive(SmokingAppearTimerHandle))
+	{
+		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
+	}
+	bWaitingToAppear = false;
+	PendingMoveTarget = nullptr;
+	MoveToTarget(SmokingPositionTarget);
+	SetActorEnableCollision(true);
+	bIsSmoking = true;
+	if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
+	StartSmokingAnim();
+	UE_LOG(LogTemp, Log, TEXT("Seneca::ForceSmokingAppearance - teleported + smoking"));
 }
 

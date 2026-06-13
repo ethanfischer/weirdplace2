@@ -1146,3 +1146,16 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		}
 	}
 }
+
+void AFirstPersonCharacter::SkipToSmoking()
+{
+	TArray<AActor*> Senecas;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASeneca::StaticClass(), Senecas);
+	if (Senecas.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no ASeneca in world"));
+		return;
+	}
+	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
+}
+

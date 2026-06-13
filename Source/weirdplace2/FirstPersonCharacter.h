@@ -168,6 +168,11 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
 
+	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
+	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
+	UFUNCTION(Exec) void SkipToSmoking();
+
+
 	// --- Interaction System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")

@@ -3,18 +3,11 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] looking at one of the gastation lights for 30 seconds adds something to your inventory
-    [x] add component to whatever actor I choose. And editor supplied reward
-        [ ] camera fov and black vignette
-    [x] for example, watching the movie playing on the tv rewards you too (deferred 6/9 — Ethan's call: light-only for now)
-[x] "Rick: I'll meet you inside" It shouldn't say Rick: in the dialogue shown to the user but it does for some reason.
-[x] improve movie pickup
-    [x] tell player what button to put back
-    [x] have text always face player
-[x] make blank vhs held pose same as other movies
-[x] playing videos on the tv
+[ ] broken key sound plays after broken key collection sound
     
 # Needs human
+[ ] replace gas pumps grey blocks
+[ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
 [ ] gas station door animation
@@ -40,6 +33,7 @@
 [ ] seneca unlock employee bathroom animation
 
 # Needs design
+[ ] decide what gaze rewards should be
 [ ] put in eye contact given by seneca
     [ ] maybe after friend talks to him
 [ ] replace llm responses to movies

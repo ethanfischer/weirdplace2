@@ -67,6 +67,10 @@ public:
 	// OnSmokingDelayComplete so E2E tests don't have to wait 60 seconds.
 	void FastForwardSmokingAppear();
 
+	// Dev-only: teleport to SmokingPositionTarget and start the smoking anim NOW,
+	// without touching CurrentState or other quest flags.
+	void ForceSmokingAppearance();
+
 	// External trigger: combined-tape compilation finished. Only transitions
 	// AwaitingTapeBurn -> ReadyToGiveCombinedTape; otherwise logs + returns.
 	void GiveCombinedTape();
@@ -278,6 +282,15 @@ private:
 	// Cached skeletal mesh for computing look-at bounds target
 	UPROPERTY()
 	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
+
+	// Returns the SkeletalMeshComponent on this actor whose mesh skeleton matches
+	// SmokingAnimation's skeleton (i.e. the MetaHuman body mesh, not face/hair).
+	USkeletalMeshComponent* FindBodyMesh() const;
+
+public:
+	void StartSmokingAnim();
+	void StopSmokingAnim();
+private:
 
 	// Tracks that the player was looking at Seneca (requires look then look-away)
 	bool bWasLookingAtMe = false;
