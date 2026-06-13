@@ -68,6 +68,47 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// SenecaSmokingAnim — diagnostic for the smoking animation failing to
+// play on the natural quest path (works via SkipToSmoking console cmd).
+// Lingers around Seneca's appear-at-smoking-spot moment and takes
+// screenshots at T+1s/T+3s/T+5s so we can see whether her arms come up.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaSmokingAnim,
+	"Weirdplace2.E2E.Level1.Diagnostic.SenecaSmokingAnim",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaSmokingAnim::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaSmokingAnim")
+
+	E2ESteps::SenecaIntro(this);
+	E2ESteps::CollectMovies(this);
+	E2ESteps::GiveMoviesToSeneca(this);
+	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::GiveBlankTapeGetKey(this);
+	E2ESteps::UseKeyOnDoor(this);
+	E2ESteps::FastForwardSenecaSmoking(this);
+
+	// Linger + screenshot around the appear moment
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+1s")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+3s")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+5s")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // DialogueCooldown — verify the 2-second post-dialogue interaction
 // cooldown prevents re-triggering dialogue when spamming E, and that
 // interaction works again after the cooldown expires.
