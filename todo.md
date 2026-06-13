@@ -8,16 +8,11 @@
 # Needs human
 [ ] replace gas pumps grey blocks
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
-[ ] more intricate soundscape espcially in oasis
-    [ ] have random noises so the world feels more alive
 [ ] gas station door animation
 [ ] drop key
-    [ ] need better sfx
+    [x] need better sfx
     [ ] broken key mesh
-[ ] meet seneca outside smoking cig
-    [ ] Seneca smoking animation — animate directly in UE5 via Control Rig + Sequencer on MetaHuman body, export as Animation Sequence, drive via `bIsSmoking` bool in `ABP_Seneca`.
-        Cigarette prop already attached to finger bone in `BP_Seneca`.
-        
+    
 # Needs design
 [ ] Can't see items collected in dark. Illuminate them somehow
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
@@ -31,6 +26,8 @@
 
 # Needs human
 [ ] seneca unlock employee bathroom animation
+[ ] more intricate soundscape espcially in oasis
+    [ ] have random noises so the world feels more alive
 
 # Needs design
 [ ] decide what gaze rewards should be
