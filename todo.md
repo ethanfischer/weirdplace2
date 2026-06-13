@@ -26,6 +26,7 @@
         Cigarette prop already attached to finger bone in `BP_Seneca`.
         
 # Needs design
+[ ] Can't see items collected in dark. Illuminate them somehow
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
     [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
     
