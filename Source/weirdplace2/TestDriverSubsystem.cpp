@@ -790,6 +790,18 @@ bool UTestDriverSubsystem::GetGazeEffectWeight(float& OutWeight) const
 	return true;
 }
 
+bool UTestDriverSubsystem::GetGazeCameraFOV(float& OutFOV) const
+{
+	UGazeRewardComponent* Gaze = FindGasStationGazeComponent(GetWorld());
+	if (!Gaze)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetGazeCameraFOV - no UGazeRewardComponent on a 'GazeRewardTarget' actor"));
+		return false;
+	}
+	OutFOV = Gaze->GetCurrentFOV();
+	return true;
+}
+
 bool UTestDriverSubsystem::GetBlankVhsGazeState(bool& bOutHasChosen, bool& bOutLooking, bool& bOutHadHit,
 	FString& OutHitActor, FString& OutHitComponent, float& OutHitDistance,
 	FVector& OutImpactPoint, float& OutVolume) const

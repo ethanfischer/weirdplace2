@@ -433,14 +433,17 @@ bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("gasstationbarlight")));
 	// Wait for the player to land and the gaze to hold (well short of the 30s grant).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForGazeSeconds(this, 1.5f, 12.0));
-	// The dwell timer is accumulating and the screen effect has begun ramping on.
+	// The dwell timer is accumulating, the screen effect has begun ramping on,
+	// and the camera has zoomed in slightly (FOV below the base 90).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("during gaze"), 1.0f, 30.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("during gaze"), 0.001f, 0.81f));
-	// Look away (down at the lot) — the timer AND the effect must snap back to 0.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeCameraFOV(this, TEXT("during gaze"), 70.0f, 89.95f));
+	// Look away (down at the lot) — the timer, effect, and FOV must snap back.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookDown(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeRewardSeconds(this, TEXT("after look-away"), 0.0f, 0.001f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeEffectWeight(this, TEXT("after look-away"), 0.0f, 0.001f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGazeCameraFOV(this, TEXT("after look-away"), 89.9f, 90.1f));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

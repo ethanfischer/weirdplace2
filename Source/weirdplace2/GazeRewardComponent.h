@@ -78,11 +78,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Audio")
 	float AudioRampExponent = 3.0f;
 
+	// Gradually zoom the player camera in as the gaze builds (degrees subtracted
+	// from the base FOV at full gaze). Uses VisualRampExponent for the curve.
+	// Skipped entirely in VR — FOV changes are nauseating and the headset owns FOV.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Visual")
+	bool bEnableFOVZoom = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gaze Reward|Visual")
+	float MaxFOVZoom = 15.0f;
+
 	// Test-only accessors.
 	float GetGazeSeconds() const { return GazeSeconds; }
 	UAudioComponent* GetHumComponent() const { return HumComponent; }
 	bool WasGranted() const { return bRewardGranted; }
 	float GetCurrentEffectWeight() const { return CurrentEffectWeight; }
+	float GetCurrentFOV() const;
 
 protected:
 	virtual void BeginPlay() override;
@@ -92,6 +102,8 @@ private:
 	bool IsPlayerGazingAtOwner() const;
 	void GrantReward();
 	void ApplyEffectWeight(float Weight);
+	void ApplyFOVZoom(float Progress);
+	void ResetFOV();
 
 	UPROPERTY()
 	UAudioComponent* HumComponent = nullptr;
@@ -105,4 +117,10 @@ private:
 	float GazeSeconds = 0.f;
 	float CurrentEffectWeight = 0.f;
 	bool bRewardGranted = false;
+
+	// FOV zoom state.
+	bool bVRChecked = false;
+	bool bIsVR = false;
+	bool bBaseFOVCached = false;
+	float BaseFOV = 90.f;
 };

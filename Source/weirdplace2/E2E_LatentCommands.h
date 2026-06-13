@@ -1671,6 +1671,43 @@ private:
 	float Max;
 };
 
+// FTD_AssertGazeCameraFOV — read the player camera's FOV (driven by the gaze
+// FOV-zoom) and assert it's within [Min, Max].
+class FTD_AssertGazeCameraFOV : public FTD_Base
+{
+public:
+	FTD_AssertGazeCameraFOV(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gaze camera FOV in [%.1f, %.1f] (%s)"), Min, Max, *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGazeCameraFOV: no driver")); return true; }
+		float FOV = -1.f;
+		if (!Driver->GetGazeCameraFOV(FOV))
+		{
+			Test->AddError(TEXT("FTD_AssertGazeCameraFOV: no gaze component"));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertGazeCameraFOV [%s]: fov=%.2f (expect [%.1f, %.1f])"), *Label, FOV, Min, Max);
+		if (FOV < Min || FOV > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGazeCameraFOV [%s]: fov=%.2f outside [%.1f, %.1f]"),
+				*Label, FOV, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
 // FTD_LookDown — aim the camera at the ground to break gaze on an overhead
 // fixture (the canopy light is far above the player).
 class FTD_LookDown : public FTD_Base

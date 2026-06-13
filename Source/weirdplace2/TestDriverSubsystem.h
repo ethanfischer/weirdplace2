@@ -155,6 +155,10 @@ public:
 	// level's UGazeRewardComponent. Returns false if no component exists.
 	bool GetGazeEffectWeight(float& OutWeight) const;
 
+	// Reads the player camera's current FOV (driven by the gaze FOV-zoom).
+	// Returns false if no gaze component exists.
+	bool GetGazeCameraFOV(float& OutFOV) const;
+
 	// Reads the blank-VHS chord gaze state off the level's USpawnerActorComponent
 	// (the last camera-forward trace it ran). For the gaze-sweep diagnostic.
 	// Returns false if no spawner component exists.

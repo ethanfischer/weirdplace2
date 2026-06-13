@@ -4,9 +4,11 @@
 
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
+#include "Engine/Engine.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
+#include "IXRTrackingSystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -82,6 +84,7 @@ void UGazeRewardComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			[this](const FWeightedBlendable& B) { return B.Object == GazeEffectMID; });
 	}
 	CurrentEffectWeight = 0.f;
+	ResetFOV();
 	Super::EndPlay(EndPlayReason);
 }
 
@@ -101,6 +104,7 @@ void UGazeRewardComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 			GazeSeconds = 0.f;
 			if (HumComponent) { HumComponent->Stop(); }
 			ApplyEffectWeight(0.f);
+			ResetFOV();
 		}
 		return;
 	}
@@ -125,6 +129,7 @@ void UGazeRewardComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 	// Screen-space effect swells on the player's view as the gaze builds. The
 	// gentler exponent lets the player notice it before the hum comes in.
 	ApplyEffectWeight(FMath::Pow(Progress, VisualRampExponent) * MaxEffectWeight);
+	ApplyFOVZoom(Progress);
 
 	if (GazeSeconds >= RequiredLookSeconds)
 	{
@@ -237,6 +242,7 @@ void UGazeRewardComponent::GrantReward()
 	bRewardGranted = true;
 	if (HumComponent) { HumComponent->Stop(); }
 	ApplyEffectWeight(0.f);
+	ResetFOV();
 	UE_LOG(LogTemp, Log, TEXT("GazeRewardComponent on '%s': granted '%s' after %.1fs gaze"),
 		Owner ? *Owner->GetName() : TEXT("?"), *RewardItem->ItemID.ToString(), GazeSeconds);
 
@@ -285,4 +291,52 @@ void UGazeRewardComponent::ApplyEffectWeight(float Weight)
 
 	GazeRewardInternal::SetBlendableWeight(CachedPlayerCamera->PostProcessSettings, GazeEffectMID, CurrentEffectWeight);
 	GazeEffectMID->SetScalarParameterValue(GazeRewardInternal::IntensityParamName, CurrentEffectWeight);
+}
+
+void UGazeRewardComponent::ApplyFOVZoom(float Progress)
+{
+	if (!bEnableFOVZoom)
+	{
+		return;
+	}
+	// VR owns the FOV and headset zoom is nauseating — never touch it there.
+	if (!bVRChecked)
+	{
+		bIsVR = GEngine && GEngine->XRSystem.IsValid() && GEngine->XRSystem->IsHeadTrackingAllowed();
+		bVRChecked = true;
+	}
+	if (bIsVR)
+	{
+		return;
+	}
+	if (!CachedPlayerCamera)
+	{
+		if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
+		{
+			CachedPlayerCamera = Player->GetFirstPersonCamera();
+		}
+	}
+	if (!CachedPlayerCamera)
+	{
+		return;
+	}
+	if (!bBaseFOVCached)
+	{
+		BaseFOV = CachedPlayerCamera->FieldOfView;
+		bBaseFOVCached = true;
+	}
+	CachedPlayerCamera->SetFieldOfView(BaseFOV - MaxFOVZoom * FMath::Pow(Progress, VisualRampExponent));
+}
+
+void UGazeRewardComponent::ResetFOV()
+{
+	if (bBaseFOVCached && !bIsVR && CachedPlayerCamera)
+	{
+		CachedPlayerCamera->SetFieldOfView(BaseFOV);
+	}
+}
+
+float UGazeRewardComponent::GetCurrentFOV() const
+{
+	return CachedPlayerCamera ? CachedPlayerCamera->FieldOfView : -1.f;
 }
