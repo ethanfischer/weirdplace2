@@ -8,7 +8,7 @@
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_HappyPath,
-	"Weirdplace2.E2E.Level1.HappyPath",
+	"Weirdplace2.E2E.Level1.Regression.HappyPath",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
@@ -41,7 +41,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_BathroomDoorTraceRepro,
-	"Weirdplace2.E2E.Level1.BathroomDoorTraceRepro",
+	"Weirdplace2.E2E.Level1.Diagnostic.BathroomDoorTraceRepro",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
@@ -75,7 +75,7 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_DialogueCooldown,
-	"Weirdplace2.E2E.Level1.DialogueCooldown",
+	"Weirdplace2.E2E.Level1.Regression.DialogueCooldown",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_DialogueCooldown::RunTest(const FString& Parameters)
@@ -137,7 +137,7 @@ namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_SensitivityScaling,
-	"Weirdplace2.E2E.Level1.SensitivityScaling",
+	"Weirdplace2.E2E.Level1.Diagnostic.SensitivityScaling",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
@@ -196,7 +196,7 @@ bool FE2E_Level1_SensitivityScaling::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_PauseMenu,
-	"Weirdplace2.E2E.Level1.PauseMenu",
+	"Weirdplace2.E2E.Level1.Regression.PauseMenu",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
@@ -245,7 +245,7 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_PauseMenuLight,
-	"Weirdplace2.E2E.Level1.PauseMenuLight",
+	"Weirdplace2.E2E.Level1.Regression.PauseMenuLight",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
@@ -290,7 +290,7 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_InventoryThumbnails,
-	"Weirdplace2.E2E.Level1.InventoryThumbnails",
+	"Weirdplace2.E2E.Level1.Regression.InventoryThumbnails",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
@@ -335,7 +335,7 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_HeldItemRotationTour,
-	"Weirdplace2.E2E.Level1.HeldItemRotationTour",
+	"Weirdplace2.E2E.Level1.Diagnostic.HeldItemRotationTour",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
@@ -375,7 +375,7 @@ bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_GazeReward,
-	"Weirdplace2.E2E.Level1.GazeReward",
+	"Weirdplace2.E2E.Level1.Regression.GazeReward",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
@@ -421,7 +421,7 @@ bool FE2E_Level1_GazeReward::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_GazeRewardReset,
-	"Weirdplace2.E2E.Level1.GazeRewardReset",
+	"Weirdplace2.E2E.Level1.Regression.GazeRewardReset",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
@@ -457,7 +457,7 @@ bool FE2E_Level1_GazeRewardReset::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_RickDialoguePrefix,
-	"Weirdplace2.E2E.Level1.RickDialoguePrefix",
+	"Weirdplace2.E2E.Level1.Diagnostic.RickDialoguePrefix",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
@@ -494,7 +494,7 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_MoviePutBackPrompt,
-	"Weirdplace2.E2E.Level1.MoviePutBackPrompt",
+	"Weirdplace2.E2E.Level1.Regression.MoviePutBackPrompt",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
@@ -543,7 +543,7 @@ namespace
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_BlankVHSHeldPose,
-	"Weirdplace2.E2E.Level1.BlankVHSHeldPose",
+	"Weirdplace2.E2E.Level1.Diagnostic.BlankVHSHeldPose",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
@@ -598,7 +598,7 @@ bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_BlankVhsGazeSweep,
-	"Weirdplace2.E2E.Level1.BlankVhsGazeSweep",
+	"Weirdplace2.E2E.Level1.Diagnostic.BlankVhsGazeSweep",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_BlankVhsGazeSweep::RunTest(const FString& Parameters)
@@ -625,7 +625,7 @@ bool FE2E_Level1_BlankVhsGazeSweep::RunTest(const FString& Parameters)
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_InventoryFromStart,
-	"Weirdplace2.E2E.Level1.InventoryFromStart",
+	"Weirdplace2.E2E.Level1.Regression.InventoryFromStart",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
 bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)

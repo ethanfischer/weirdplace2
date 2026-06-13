@@ -1,14 +1,28 @@
 param(
     [string]$TestName = "HappyPath",
     [switch]$Headed,
-    [int]$TimeoutMinutes = 20
+    [int]$TimeoutMinutes = 0
 )
 
 $ProjectRoot = $PSScriptRoot
 $LogFile = "$ProjectRoot\Saved\Logs\E2ETest.log"
 $UECmd = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $UProject = "$ProjectRoot\weirdplace2.uproject"
-$TestPath = "Weirdplace2.E2E.Level1.$TestName"
+
+# Resolve subgroup: if caller already named Regression/Diagnostic (whole suite or a
+# specific test under it), use as-is. Otherwise default to the Regression subgroup
+# so existing -TestName HappyPath invocations keep working.
+if ($TestName -match '^(Regression|Diagnostic)(\.|$)') {
+    $TestPath = "Weirdplace2.E2E.Level1.$TestName"
+} else {
+    $TestPath = "Weirdplace2.E2E.Level1.Regression.$TestName"
+}
+
+# Default timeout: 60 min when running the full Regression suite (9 tests * ~2-5 min),
+# 20 min otherwise.
+if ($TimeoutMinutes -le 0) {
+    if ($TestName -eq 'Regression') { $TimeoutMinutes = 60 } else { $TimeoutMinutes = 20 }
+}
 
 # Clean previous logs
 Remove-Item $LogFile -ErrorAction SilentlyContinue

@@ -121,6 +121,21 @@ The test log is at `Saved/Logs/E2ETest.log`. To dig into failures:
 grep -n "Error\|AddError\|TestDriver::Status" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/E2ETest.log" | tail -40
 ```
 
+### Regression vs Diagnostic
+
+Tests in `E2E_Level1Test.cpp` live under two subgroups:
+
+- **`Weirdplace2.E2E.Level1.Regression.*`** — real guards. Failure means something broke.
+- **`Weirdplace2.E2E.Level1.Diagnostic.*`** — authoring/inspection tours, loose or no asserts. Not part of the gate; run on demand.
+
+`run_e2e.ps1` defaults a bare `-TestName <Name>` to the Regression subgroup, so existing invocations (`-TestName HappyPath`, `-TestName PauseMenu -Headed`) keep working. To target a diagnostic explicitly: `-TestName Diagnostic.BlankVhsGazeSweep`.
+
+**When finishing a feature, run the regression suite to make sure nothing broke:**
+```bash
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Headed -TimeoutMinutes 60
+```
+Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
+
 # Misc
 - We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
