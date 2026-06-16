@@ -4,6 +4,7 @@
 
 # Claude Friendly
 [ ] broken key sound plays after broken key collection sound
+[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
     
 # Needs human
 [ ] replace gas pumps grey blocks
