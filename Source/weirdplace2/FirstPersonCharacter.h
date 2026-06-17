@@ -55,6 +55,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
 	URectLightComponent* InventoryFlashlightComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
+	URectLightComponent* ItemHoldLightComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
 	UBladderUrgencyComponent* BladderUrgencyComponent;
 
@@ -203,6 +206,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightSize(float Width, float Height);
+
+	UFUNCTION(BlueprintCallable, Category = "Lighting")
+	void SetItemHoldLightEnabled(bool bEnabled);
 
 	// --- Item Notification ---
 

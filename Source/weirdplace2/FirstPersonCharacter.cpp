@@ -161,12 +161,16 @@ void AFirstPersonCharacter::BeginPlay()
 		if (RectLight->GetFName() == TEXT("RectLight"))
 		{
 			InventoryFlashlightComponent = RectLight;
-			break;
+		}
+		else if (RectLight->GetFName() == TEXT("ItemHoldLight"))
+		{
+			ItemHoldLightComponent = RectLight;
 		}
 	}
 
-	// Ensure inventory light starts disabled at runtime.
+	// Ensure both lights start disabled at runtime.
 	SetInventoryFlashlightEnabled(false);
+	SetItemHoldLightEnabled(false);
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -751,6 +755,18 @@ void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height
 
 	InventoryFlashlightComponent->SetSourceWidth(FMath::Max(Width, 1.0f));
 	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
+}
+
+void AFirstPersonCharacter::SetItemHoldLightEnabled(bool bEnabled)
+{
+	if (!ItemHoldLightComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AFirstPersonCharacter::SetItemHoldLightEnabled: no RectLight named 'ItemHoldLight' on this pawn — add one in BP_FirstPersonCharacter"));
+		return;
+	}
+
+	ItemHoldLightComponent->SetVisibility(bEnabled);
+	ItemHoldLightComponent->SetHiddenInGame(!bEnabled);
 }
 
 void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation)

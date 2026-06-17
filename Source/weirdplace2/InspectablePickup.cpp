@@ -92,6 +92,10 @@ void AInspectablePickup::Interact_Implementation()
 
 	SetActorLocation(NewLocation);
 	SetActorRotation(NewRotation);
+	if (ItemDef)
+	{
+		AddActorLocalRotation(ItemDef->InspectionRotation);
+	}
 
 	InspectedActor = this;
 
@@ -103,7 +107,7 @@ void AInspectablePickup::Interact_Implementation()
 
 	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 	{
-		FPChar->SetInventoryFlashlightEnabled(true);
+		FPChar->SetItemHoldLightEnabled(true);
 	}
 
 	if (!PlayerController->InputComponent)
@@ -138,8 +142,8 @@ void AInspectablePickup::Interact_Implementation()
 void AInspectablePickup::RotateInspectedActor(float AxisValue)
 {
 	if (!InspectedActor) return;
-	const FVector LocalUpVector = InspectedActor->GetActorUpVector();
-	const FQuat DeltaRotation = FQuat(LocalUpVector, FMath::DegreesToRadians(-AxisValue * 2.0f));
+	const FVector HeadUp = FRotationMatrix(CameraRotation).GetUnitAxis(EAxis::Z);
+	const FQuat DeltaRotation = FQuat(HeadUp, FMath::DegreesToRadians(-AxisValue * 2.0f));
 	InspectedActor->AddActorWorldRotation(DeltaRotation);
 }
 
@@ -214,7 +218,7 @@ void AInspectablePickup::StopInspection()
 
 		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 		{
-			FPChar->SetInventoryFlashlightEnabled(false);
+			FPChar->SetItemHoldLightEnabled(false);
 		}
 	}
 }
