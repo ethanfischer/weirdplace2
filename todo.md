@@ -8,12 +8,18 @@
     
 # Needs human
 [ ] replace gas pumps grey blocks
+[ ] phone booth
+[ ] telephone pole with "missing person" poster that looks like seneca
+[ ] tv shows tornado warning
+[ ] seneca tells you about tornado shelter in bathroo stall
+[ ] hear stuff through static on pay phone
+[ ] clock that ticks with only one hand in both directions
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
 [ ] drop key
-    [ ] need better sfx
-    [ ] show broken key collection spinning like any other collected item
-    [ ] broken key mesh
+    [x] need better sfx
+    [x] show broken key collection spinning like any other collected item
+    [x] broken key mesh
     
 # Needs design
 [ ] Can't see items collected in dark. Illuminate them somehow
