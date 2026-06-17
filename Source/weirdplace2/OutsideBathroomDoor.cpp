@@ -1,6 +1,7 @@
 #include "OutsideBathroomDoor.h"
 #include "Seneca.h"
 #include "MyCharacter.h"
+#include "InspectablePickup.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "HeldItemComponent.h"
@@ -21,6 +22,10 @@ AOutsideBathroomDoor::AOutsideBathroomDoor()
 	// Scene component marking the keyhole position - designer positions this in BP
 	KeyLockSocket = CreateDefaultSubobject<USceneComponent>(TEXT("KeyLockSocket"));
 	KeyLockSocket->SetupAttachment(RootComponent);
+
+	// Scene component marking the broken-key pickup spawn position - designer positions this in BP
+	BrokenKeyDropSocket = CreateDefaultSubobject<USceneComponent>(TEXT("BrokenKeyDropSocket"));
+	BrokenKeyDropSocket->SetupAttachment(RootComponent);
 
 	// Persistent mesh used only during the animation (hidden until the sequence runs)
 	AnimKeyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AnimKeyMesh"));
@@ -269,13 +274,7 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 		AnimKeyMesh->SetStaticMesh(BrokenKeyDef->Mesh);
 	}
 
-	// Two timers anchored at OnKeyTurnComplete (== KeyBreakSound fire):
-	//   KeyFallDelay   — broken half visibly falls
-	//   KeyCollectDelay — inventory grant (fires CollectSound), Seneca notify
-	// Keeping the collect anchored to the break sound (not the fall) gives
-	// designers a single knob to tune the break→collect audio gap.
 	GetWorldTimerManager().SetTimer(KeyFallTimerHandle, this, &AOutsideBathroomDoor::EnableKeyFall, KeyFallDelay, false);
-	GetWorldTimerManager().SetTimer(KeyCollectTimerHandle, this, &AOutsideBathroomDoor::GrantBrokenKey, KeyCollectDelay, false);
 }
 
 void AOutsideBathroomDoor::EnableKeyFall()
@@ -285,28 +284,55 @@ void AOutsideBathroomDoor::EnableKeyFall()
 		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		AnimKeyMesh->SetSimulatePhysics(true);
 	}
+
+	GetWorldTimerManager().SetTimer(BrokenKeyLandTimerHandle, this, &AOutsideBathroomDoor::SpawnBrokenKeyPickup, BrokenKeyLandDelay, false);
 }
 
-void AOutsideBathroomDoor::GrantBrokenKey()
+void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 {
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	if (MyCharacter)
+	if (!BrokenKeyDef || !BrokenKeyDef->Mesh)
 	{
-		UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-		if (Inventory && BrokenKeyDef && BrokenKeyDef->Mesh)
-		{
-			FInventoryItemData BrokenKeyData = BrokenKeyDef->ToInventoryItemData();
-			// Reuse the player's actual key materials so the inventory entry
-			// matches the original key visual rather than the def's defaults.
-			BrokenKeyData.Materials = KeyMaterials;
-			Inventory->AddItemWithData(BrokenKeyData);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::GrantBrokenKey - missing Inventory or BrokenKeyDef"));
-		}
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - BrokenKeyDef missing or has no Mesh"));
+		return;
 	}
+
+	if (!BrokenKeyDropSocket)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - BrokenKeyDropSocket missing"));
+		return;
+	}
+
+	if (AnimKeyMesh)
+	{
+		AnimKeyMesh->SetSimulatePhysics(false);
+		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		AnimKeyMesh->SetVisibility(false);
+	}
+
+	const FTransform DropTransform = BrokenKeyDropSocket->GetComponentTransform();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.Owner = this;
+
+	AInspectablePickup* Pickup = GetWorld()->SpawnActorDeferred<AInspectablePickup>(
+		AInspectablePickup::StaticClass(),
+		DropTransform,
+		this,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+
+	if (!Pickup)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - failed to spawn AInspectablePickup"));
+		return;
+	}
+
+	Pickup->SetItemDef(BrokenKeyDef);
+	UGameplayStatics::FinishSpawningActor(Pickup, DropTransform);
+
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Spawned broken-key pickup at %s (BrokenKeyDropSocket world loc)"),
+		*DropTransform.GetLocation().ToString());
 
 	bDidDropKey = true;
 
