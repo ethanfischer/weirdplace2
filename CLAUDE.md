@@ -15,7 +15,24 @@ powershell -ExecutionPolicy Bypass -File livecode.ps1
 **Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
 1. `taskkill //F //IM UnrealEditor.exe` (Note: `//F //IM` is Windows CMD syntax; run from a CMD terminal if Git Bash rejects the flags.)
 2. `mcp__jetbrains__build_project`
-3. `mcp__jetbrains__execute_run_configuration` with `configurationName: "weirdplace2"`
+3. Relaunch the editor via `scripts/launch_editor.ps1` (see "Launching the editor" below) — NOT `mcp__jetbrains__execute_run_configuration` or raw `UnrealEditor.exe`, both of which silently hang.
+
+## Launching the editor
+
+**Never** invoke `UnrealEditor.exe` directly through the Bash tool with `run_in_background: true`. The editor never exits, so no completion notification ever fires and the agent silently hangs (a previous session lost 9 hours to this). Always launch via `scripts/launch_editor.ps1`, which polls the Python ready-probe and exits as soon as the editor responds READY (or after a 180s timeout).
+
+```powershell
+# Foreground (blocks ~5–30s until READY):
+powershell -ExecutionPolicy Bypass -File scripts/launch_editor.ps1
+
+# Background (notification fires on READY/timeout, ~5–180s):
+# Bash tool with run_in_background: true, same command.
+
+# Headless variant for -ExecutePythonScript workflows:
+powershell -ExecutionPolicy Bypass -File scripts/launch_editor.ps1 -Headless
+```
+
+If an editor is already running the wrapper prints `EDITOR ALREADY RUNNING` and exits 0 without spawning a duplicate.
 
 Build commands (fallback if MCP is unavailable):
 ```cmd
