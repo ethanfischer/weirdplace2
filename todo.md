@@ -33,6 +33,7 @@
 # Claude Friendly
 
 # Needs human
+[ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
