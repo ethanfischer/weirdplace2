@@ -64,22 +64,47 @@ if (-not (Test-Path $LogFile)) {
 
 $log = Get-Content $LogFile -Raw
 
-# Check for test result line
-$resultMatch = [regex]::Match($log, 'Test Completed\. Result=\{(\w+)\} Name=\{[^}]*\} Path=\{[^}]*\}')
+# A mid-suite crash exits the editor after only some tests have run, so the FIRST
+# "Test Completed" line is NOT a verdict for the whole group. Validate the entire
+# run instead:
+#   * every started test also completed (a crash/hang leaves Started > Completed)
+#   * every completed result is Success
+#   * no engine crash / fatal markers in the log
+$started   = [regex]::Matches($log, 'Test Started\. Name=\{([^}]*)\}')
+$completed = [regex]::Matches($log, 'Test Completed\. Result=\{(\w+)\} Name=\{([^}]*)\}')
+$crashMatch = [regex]::Match($log, 'StaticShutdownAfterError|Fatal error|=== Critical error|Assertion failed')
 
-if ($resultMatch.Success) {
-    $result = $resultMatch.Groups[1].Value
-    if ($result -eq "Success") {
-        Write-Host "PASS - $TestPath"
-        # Show step count
-        $steps = ([regex]::Matches($log, 'TestDriver::Status')).Count
-        Write-Host "  ($steps test steps executed)"
-        exit 0
-    } else {
-        Write-Host "FAIL - $TestPath (Result: $result)"
+$failedTests = @()
+foreach ($m in $completed) {
+    if ($m.Groups[1].Value -ne 'Success') {
+        $failedTests += "$($m.Groups[2].Value) (Result: $($m.Groups[1].Value))"
     }
-} else {
-    Write-Host "FAIL - $TestPath (no test result found in log)"
+}
+$incomplete = $started.Count - $completed.Count
+
+if (($started.Count -gt 0) -and ($failedTests.Count -eq 0) -and ($incomplete -eq 0) -and (-not $crashMatch.Success)) {
+    Write-Host "PASS - $TestPath"
+    Write-Host "  ($($completed.Count) test(s) passed)"
+    $steps = ([regex]::Matches($log, 'TestDriver::Status')).Count
+    Write-Host "  ($steps test steps executed)"
+    exit 0
+}
+
+Write-Host "FAIL - $TestPath"
+if ($started.Count -eq 0) {
+    Write-Host "  No tests ran (no 'Test Started' in log)."
+}
+if ($incomplete -gt 0) {
+    $startedNames = $started | ForEach-Object { $_.Groups[1].Value }
+    $completedNames = $completed | ForEach-Object { $_.Groups[2].Value }
+    $missing = @($startedNames | Where-Object { $completedNames -notcontains $_ })
+    Write-Host "  $incomplete test(s) started but never completed (crash/hang?): $($missing -join ', ')"
+}
+if ($crashMatch.Success) {
+    Write-Host "  Engine crash/fatal marker detected in log: '$($crashMatch.Value)'"
+}
+if ($failedTests.Count -gt 0) {
+    Write-Host "  Failed: $($failedTests -join ', ')"
 }
 
 # Print test errors from the log (skip the "Test Completed" summary line)
