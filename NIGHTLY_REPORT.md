@@ -2,7 +2,7 @@
 
 **Branch:** `overnight/2026-06-17` (off `June17`) · **Nothing merges to `June17` until you play the build and OK a squash-merge.**
 
-**Result:** all 6 (Foundation + 5 todos) green — 0 blocked, 0 skipped. One commit per item. The whole narrative chain works end to end: key breaks → both store TVs flip to a tornado warning → gazing at one unlocks the roadside pay-phone scene → Seneca's smoking dialogue gains a tornado-shelter tip → the pay phone plays static/voices once → a MISSING PERSON / SENECA poster hangs on the pole. One sub-deliverable deferred (your call): the poster uses a text placeholder, not a real Seneca-head render (item 3 note).
+**Result:** all 6 (Foundation + 5 todos) green — 0 blocked, 0 skipped. One commit per item. Final tip certified: the full **`Regression` suite is green — 14/14 tests, 280 steps** (the 5 new regression tests + the 9 pre-existing, all passing together). The whole narrative chain works end to end: key breaks → both store TVs flip to a tornado warning → gazing at one unlocks the roadside pay-phone scene → Seneca's smoking dialogue gains a tornado-shelter tip → the pay phone plays static/voices once → a MISSING PERSON / SENECA poster hangs on the pole. One sub-deliverable deferred (your call): the poster uses a text placeholder, not a real Seneca-head render (item 3 note).
 
 Order run: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the dependency chain, asset-heavy items last).
 
