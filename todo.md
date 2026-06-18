@@ -3,26 +3,27 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] broken key sound plays after broken key collection sound
-[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
+[x] broken key sound plays after broken key collection sound
     
 # Needs human
-[ ] replace gas pumps grey blocks
-[ ] phone booth
-[ ] telephone pole with "missing person" poster that looks like seneca
-[ ] tv shows tornado warning
-[ ] seneca tells you about tornado shelter in bathroo stall
+[x] replace gas pumps grey blocks
+[ ] TV shows tornado warning the next time you enter the store after bathroom key breaks
+[ ] BP_TelephoneScene should only appear after seeing tornado warning on tv
+[ ] add "missing person" poster that looks like seneca to telephone pole
+[ ] seneca tells you about tornado shelter in bathroom stall later
 [ ] hear stuff through static on pay phone
 [ ] clock that ticks with only one hand in both directions
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
-[ ] drop key
+[x] drop key
     [x] need better sfx
     [x] show broken key collection spinning like any other collected item
     [x] broken key mesh
     
 # Needs design
 [ ] Can't see items collected in dark. Illuminate them somehow
+    [x] add light
+    [ ] further test light with other items
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
     [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
     
@@ -39,6 +40,7 @@
     [ ] have random noises so the world feels more alive
 
 # Needs design
+[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
 [ ] decide what gaze rewards should be
 [ ] put in eye contact given by seneca
     [ ] maybe after friend talks to him
