@@ -1823,6 +1823,108 @@ private:
 	bool Expected;
 };
 
+// Assert an actor's root visibility (for the gated telephone scene).
+class FTD_AssertActorVisible : public FTD_Base
+{
+public:
+	FTD_AssertActorVisible(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' visible == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorVisible: no driver")); return true; }
+		const bool Actual = Driver->IsActorVisibleByLabel(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorVisible: '%s' visible=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Trigger the pay-phone pickup directly.
+class FTD_TriggerPayPhonePickup : public FTD_Base
+{
+public:
+	FTD_TriggerPayPhonePickup(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering pay-phone pickup"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerPayPhonePickup: no driver")); return true; }
+		Driver->TriggerPayPhonePickup();
+		return true;
+	}
+};
+
+// Assert whether the pay-phone audio bed is playing.
+class FTD_AssertPayPhoneAudioPlaying : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneAudioPlaying(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone audio playing == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneAudioPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsPayPhoneAudioPlaying();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneAudioPlaying: playing=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// Assert whether the pay-phone would accept an interact (gated + one-shot).
+class FTD_AssertPayPhoneCanInteract : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneCanInteract(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone can-interact == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneCanInteract: no driver")); return true; }
+		const bool Actual = Driver->CanPayPhoneInteract();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneCanInteract: canInteract=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 // =======================================================================
 // FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
 // must not) contain a substring. Drives the shelter-line gating check.

@@ -16,6 +16,7 @@
 #include "GazeRewardComponent.h"
 #include "StorySubsystem.h"
 #include "CRTTV.h"
+#include "PayPhone.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -99,6 +100,66 @@ bool UTestDriverSubsystem::IsTvShowingWarning(const FString& Label) const
 		return false;
 	}
 	return TV->IsShowingWarning();
+}
+
+bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorVisibleByLabel - no actor '%s'"), *Label);
+		return false;
+	}
+	USceneComponent* Root = Actor->GetRootComponent();
+	if (!Root)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorVisibleByLabel - '%s' has no root"), *Label);
+		return false;
+	}
+	return Root->IsVisible();
+}
+
+static APayPhone* FindPayPhoneInternal(UWorld* World)
+{
+	if (!World) { return nullptr; }
+	for (TActorIterator<APayPhone> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneAudioPlaying - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsAudioPlaying();
+}
+
+bool UTestDriverSubsystem::CanPayPhoneInteract() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::CanPayPhoneInteract - no APayPhone in level"));
+		return false;
+	}
+	return Phone->CanInteract();
+}
+
+void UTestDriverSubsystem::TriggerPayPhonePickup()
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhonePickup - no APayPhone in level"));
+		return;
+	}
+	Phone->Interact_Implementation();
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const

@@ -13,9 +13,9 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 | Foundation | central story-flag subsystem | `Regression.StoryFlags` | ✅ green |
 | 4 | Seneca tornado-shelter line | `Regression.SenecaShelterLine` | ✅ green |
 | 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | ✅ green |
-| 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | 🔨 in progress |
-| 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ⏳ |
-| 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | ⏳ |
+| 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | ✅ green |
+| 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ✅ green |
+| 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | 🔨 in progress |
 
 ---
 
@@ -67,6 +67,11 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
   `ACRTTV::ShowTornadoWarning()` closes the media feed and swaps the screen slot (found by the "Screen" material-name) to placeholder `M_TornadoWarning` (unlit red emissive, **divided by EyeAdaptation** so it doesn't blow out to white under the dark store's auto-exposure). `UStorySubsystem::HandleStoreEntry` switches **both** TVs + sets `TornadoWarningDisplayed` only when `KeyBroke && !TornadoWarningDisplayed`, then runs a 0.1s gaze-watch timer that sets `SeenTornadoWarning` after ~2s of looking at a warning TV. Gaze geometry extracted into shared `UGazeUtils::IsActorInPlayerGaze` (GazeRewardComponent re-pointed at it — gaze tests still green).
   RED→GREEN: TVs not switching first (HandleStoreEntry no-op) → both `bShowingWarning` asserts + flag failed; then the switch + gaze-watch landed green. CEF/libcef headed flake hit once on a re-run — retried, passed (known flake).
   **Verify in-game:** break the bathroom key, walk back into the store — both CRTs should flip to the red warning. Stare at one ~2s to "see" it (unlocks the telephone scene + Seneca's shelter line). Placeholder red screen; real broadcast feed is a later swap (`M_TornadoWarning`).
+
+- ✅ **Items 2 + 5 — Pay-phone scene gated + static audio** — `Regression.TelephoneGatedOnWarning` (7 steps) + `Regression.PayPhoneStatic` (14 steps) green; HappyPath regression gate green after the reparent. Screenshot `E2E_Telephone_Revealed.png` shows the revealed pole rendering with its material.
+  New C++ `APayPhone : AActor, IInteractable`; **`BP_TelephoneScene` reparented onto it** (asset query confirms `is_child_of_PayPhone=True` and both override materials intact — `MI_Telephone_Pole_01a`, `MI_Pay_Phone_NN_01a`). `BeginPlay` hides the root (`SetVisibility(false)`) and subscribes to `OnStoryFlagChanged`; reveals on `SeenTornadoWarning` (or immediately if already set). `Interact` plays a placeholder static (`WindInside`) + voices (`LowVoiceSoundCue`) bed **once**, gated on `SeenTornadoWarning`; `CanInteract` returns `SeenTornadoWarning && !bPlayedOnce`. Driven in tests via `TriggerPayPhonePickup`/`CanPayPhoneInteract`/`IsPayPhoneAudioPlaying` (not raw key — 5.7 input gotcha).
+  RED→GREEN: pre-reparent the scene is always visible + there's no `APayPhone` (both asserts failed); after reparent both green.
+  **Verify in-game:** the pay-phone + pole only appear after you've seen the tornado warning. Walk up and press E once — static + faint voices play (one-shot). **Audition** the placeholder sounds and swap real static/voice on the `APayPhone` BP (`StaticSound`/`VoiceSound`).
 
 ---
 

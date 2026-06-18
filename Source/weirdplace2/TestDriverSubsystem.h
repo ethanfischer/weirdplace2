@@ -88,6 +88,21 @@ public:
 	// screen. False (and logs) if no such TV exists.
 	bool IsTvShowingWarning(const FString& Label) const;
 
+	// --- Pay-phone (items 2/5) test helpers ---
+
+	// True if the actor found by editor label has a visible root component.
+	bool IsActorVisibleByLabel(const FString& Label) const;
+
+	// True while the pay-phone's static/voice bed is playing.
+	bool IsPayPhoneAudioPlaying() const;
+
+	// Whether the pay-phone would accept an interact right now (gated + one-shot).
+	bool CanPayPhoneInteract() const;
+
+	// Trigger the pay-phone pickup directly (5.7 simulated-input gotcha — drive
+	// via the subsystem, not a raw key).
+	void TriggerPayPhonePickup();
+
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.

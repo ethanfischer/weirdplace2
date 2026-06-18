@@ -807,4 +807,76 @@ bool FE2E_Level1_TornadoWarningOnStoreEntry::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// TelephoneGatedOnWarning (item 2) — the roadside telephone scene
+// (BP_TelephoneScene, reparented onto APayPhone) stays hidden until the
+// player has seen the tornado warning, then reveals.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TelephoneGatedOnWarning,
+	"Weirdplace2.E2E.Level1.Regression.TelephoneGatedOnWarning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TelephoneGatedOnWarning::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TelephoneGatedOnWarning")
+
+	// Gated: with SeenTornadoWarning unset, the scene root is hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, TEXT("BP_TelephoneScene"), false));
+
+	// Seeing the warning reveals it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, TEXT("BP_TelephoneScene"), true));
+
+	// Screenshot to eyeball pole + payphone materials after the reparent.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 450.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Telephone_Revealed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// PayPhoneStatic (item 5) — once revealed, pressing E on the pay phone
+// plays a static/voice bed exactly once, and only after SeenTornadoWarning.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_PayPhoneStatic,
+	"Weirdplace2.E2E.Level1.Regression.PayPhoneStatic",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_PayPhoneStatic::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("PayPhoneStatic")
+
+	// Without the flag: gated off, pickup does nothing.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, false));
+
+	// With the flag: pickup plays the bed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
+
+	// One-shot: can no longer interact, and a second pickup doesn't change state.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
+
+	// Screenshot of the phone on pickup.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneStatic_Pickup")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
