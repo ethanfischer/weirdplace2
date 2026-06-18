@@ -15,6 +15,7 @@
 #include "SpawnerActorComponent.h"
 #include "GazeRewardComponent.h"
 #include "StorySubsystem.h"
+#include "CRTTV.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -87,6 +88,17 @@ void UTestDriverSubsystem::TriggerStoreEntry()
 		return;
 	}
 	Story->HandleStoreEntry();
+}
+
+bool UTestDriverSubsystem::IsTvShowingWarning(const FString& Label) const
+{
+	ACRTTV* TV = Cast<ACRTTV>(FindActorByLabel(Label));
+	if (!TV)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsTvShowingWarning - no ACRTTV labeled '%s'"), *Label);
+		return false;
+	}
+	return TV->IsShowingWarning();
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const

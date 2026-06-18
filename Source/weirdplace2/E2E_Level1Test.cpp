@@ -764,4 +764,47 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// TornadoWarningOnStoreEntry (item 1) — re-entering the store after the
+// bathroom key breaks switches both store TVs to a tornado-warning screen,
+// and gazing at one for the dwell registers SeenTornadoWarning.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TornadoWarningOnStoreEntry,
+	"Weirdplace2.E2E.Level1.Regression.TornadoWarningOnStoreEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TornadoWarningOnStoreEntry::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TornadoWarningOnStoreEntry")
+
+	// Without KeyBroke, store entry must NOT switch the TVs.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV2"), false));
+
+	// After the key breaks, store entry switches BOTH TVs and records the beat.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV2"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("TornadoWarningDisplayed"), true));
+
+	// Not "seen" yet — the player hasn't looked at a warning TV.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+
+	// Screenshot the warning screen.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TV"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TV")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_TornadoWarning_Screen")));
+
+	// Holding the gaze on a warning TV for the dwell sets SeenTornadoWarning.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(this, FName("SeenTornadoWarning"), true, 8.0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

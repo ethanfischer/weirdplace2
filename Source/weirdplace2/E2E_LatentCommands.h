@@ -1742,6 +1742,87 @@ private:
 	bool Expected;
 };
 
+// Poll a story flag until it reaches the expected value (for gaze-driven flags
+// that flip after a dwell).
+class FTD_WaitForStoryFlag : public FTD_Base
+{
+public:
+	FTD_WaitForStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InExpected, double InTimeout = 8.0)
+		: FTD_Base(InTest), Flag(InFlag), Expected(InExpected), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for story flag '%s' == %s"), *Flag.ToString(), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForStoryFlag: no driver")); return true; }
+		if (Driver->IsStoryFlagSet(Flag) == Expected)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStoryFlag: '%s' never reached %s within %.0fs"),
+				*Flag.ToString(), Expected ? TEXT("true") : TEXT("false"), Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	FName Flag;
+	bool Expected;
+	double Timeout;
+};
+
+// Invoke the store-entry handler directly (no physical walk through the trigger).
+class FTD_TriggerStoreEntry : public FTD_Base
+{
+public:
+	FTD_TriggerStoreEntry(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering store entry"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerStoreEntry: no driver")); return true; }
+		Driver->TriggerStoreEntry();
+		return true;
+	}
+};
+
+// Assert an ACRTTV (by label) is / isn't showing its tornado-warning screen.
+class FTD_AssertTvShowingWarning : public FTD_Base
+{
+public:
+	FTD_AssertTvShowingWarning(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting TV '%s' showing warning == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertTvShowingWarning: no driver")); return true; }
+		const bool Actual = Driver->IsTvShowingWarning(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertTvShowingWarning: '%s' showing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
 // =======================================================================
 // FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
 // must not) contain a substring. Drives the shelter-line gating check.

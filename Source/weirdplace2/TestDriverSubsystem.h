@@ -84,6 +84,10 @@ public:
 	// overlap drives) without physically moving the player through the trigger.
 	void TriggerStoreEntry();
 
+	// True if the ACRTTV found by editor label has switched to its tornado-warning
+	// screen. False (and logs) if no such TV exists.
+	bool IsTvShowingWarning(const FString& Label) const;
+
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.

@@ -4,6 +4,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "StorySubsystem.generated.h"
 
+class ACRTTV;
+
 // Central narrative-state store for the tornado/telephone beat chain. Lives on
 // the world (not the game instance) so flags reset per-PIE — clean E2E isolation
 // in a single-level game. Items 1/2/4/5 all gate on flags held here.
@@ -52,6 +54,17 @@ private:
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
+	// Polls whether the player is gazing at a warning TV; sets SeenTornadoWarning
+	// after the dwell. Runs on a repeating timer only while the warning is up.
+	void TickGazeWatch();
+
 	// Membership == flag is true.
 	TSet<EStoryFlag> ActiveFlags;
+
+	// TVs switched to the warning screen, watched for the player's gaze.
+	UPROPERTY()
+	TArray<ACRTTV*> WarningTVs;
+
+	FTimerHandle GazeWatchTimer;
+	float GazeDwellSeconds = 0.f;
 };

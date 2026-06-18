@@ -1,8 +1,22 @@
 #include "StorySubsystem.h"
 
+#include "CRTTV.h"
+#include "GazeUtils.h"
 #include "Engine/TriggerBox.h"
+#include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "TimerManager.h"
+
+namespace StorySubsystemConst
+{
+	// Gaze watch: poll cadence + how long the player must look at a warning TV.
+	static constexpr float GazeWatchInterval = 0.1f;
+	static constexpr float GazeRequiredSeconds = 2.0f;
+	// TVs are small and close; keep the box-expand tight and the range modest.
+	static constexpr float GazeBoxExpand = 10.f;
+	static constexpr float GazeMaxDistance = 4000.f;
+}
 
 void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
@@ -74,9 +88,75 @@ bool UStorySubsystem::TryParseStoryFlag(FName Name, EStoryFlag& OutFlag)
 
 void UStorySubsystem::HandleStoreEntry()
 {
-	// Item 1 fills in the TV switch here. Foundation just records the beat.
-	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: HandleStoreEntry (KeyBroke=%d, TornadoWarningDisplayed=%d)"),
-		IsFlagSet(EStoryFlag::KeyBroke) ? 1 : 0, IsFlagSet(EStoryFlag::TornadoWarningDisplayed) ? 1 : 0);
+	// Only the first store entry after the key breaks flips the TVs.
+	if (!IsFlagSet(EStoryFlag::KeyBroke) || IsFlagSet(EStoryFlag::TornadoWarningDisplayed))
+	{
+		UE_LOG(LogTemp, Log, TEXT("StorySubsystem: HandleStoreEntry no-op (KeyBroke=%d, TornadoWarningDisplayed=%d)"),
+			IsFlagSet(EStoryFlag::KeyBroke) ? 1 : 0, IsFlagSet(EStoryFlag::TornadoWarningDisplayed) ? 1 : 0);
+		return;
+	}
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	WarningTVs.Reset();
+	for (TActorIterator<ACRTTV> It(World); It; ++It)
+	{
+		ACRTTV* TV = *It;
+		TV->ShowTornadoWarning();
+		WarningTVs.Add(TV);
+	}
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: store entry switched %d TV(s) to tornado warning"), WarningTVs.Num());
+
+	SetFlag(EStoryFlag::TornadoWarningDisplayed);
+
+	// Watch for the player to actually look at a warning TV → SeenTornadoWarning.
+	GazeDwellSeconds = 0.f;
+	World->GetTimerManager().SetTimer(GazeWatchTimer, this, &UStorySubsystem::TickGazeWatch,
+		StorySubsystemConst::GazeWatchInterval, /*bLoop*/ true);
+}
+
+void UStorySubsystem::TickGazeWatch()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	if (IsFlagSet(EStoryFlag::SeenTornadoWarning))
+	{
+		World->GetTimerManager().ClearTimer(GazeWatchTimer);
+		return;
+	}
+
+	bool bGazing = false;
+	for (ACRTTV* TV : WarningTVs)
+	{
+		if (TV && UGazeUtils::IsActorInPlayerGaze(TV, World,
+			StorySubsystemConst::GazeBoxExpand, StorySubsystemConst::GazeMaxDistance, /*bRequireLineOfSight*/ true))
+		{
+			bGazing = true;
+			break;
+		}
+	}
+
+	if (bGazing)
+	{
+		GazeDwellSeconds += StorySubsystemConst::GazeWatchInterval;
+		if (GazeDwellSeconds >= StorySubsystemConst::GazeRequiredSeconds)
+		{
+			SetFlag(EStoryFlag::SeenTornadoWarning);
+			World->GetTimerManager().ClearTimer(GazeWatchTimer);
+		}
+	}
+	else
+	{
+		GazeDwellSeconds = 0.f;
+	}
 }
 
 void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)

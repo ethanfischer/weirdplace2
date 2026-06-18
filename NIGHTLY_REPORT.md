@@ -12,8 +12,8 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 |------|------|------|--------|
 | Foundation | central story-flag subsystem | `Regression.StoryFlags` | ✅ green |
 | 4 | Seneca tornado-shelter line | `Regression.SenecaShelterLine` | ✅ green |
-| 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | 🔨 in progress |
-| 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | ⏳ |
+| 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | ✅ green |
+| 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | 🔨 in progress |
 | 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ⏳ |
 | 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | ⏳ |
 
@@ -62,6 +62,11 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 - ✅ **Item 4 — Seneca shelter line** — `Regression.SenecaShelterLine` green (14 steps, headed). Screenshot `E2E_SenecaShelterLine_Dialogue.png` shows Seneca smoking + the line *"…that twister's no joke. There's a shelter under the far stall…"* on the widget.
   Refactored the default-path line assembly into `ASeneca::BuildEffectiveDialogueLines(State, Out)` — single source of truth for `Interact_Implementation` and the test hook. It appends the shelter tip only when `State==Smoking && Story->IsFlagSet(SeenTornadoWarning)`. RED→GREEN: appended-line stubbed out first (set→contains assert failed), then enabled. Gating proven by the unset-→-omit assert in the same test. Drove the screenshot via new `ForceSenecaToSmoking` hook (jumps her into the beat) + `FTD_AdvanceDialogueUntilLineContains`.
   **Verify in-game:** the shelter line only appears if you actually watched the tornado warning on the TVs before reaching Seneca smoking outside. Placeholder wording — tweak in `Seneca.cpp` `BuildEffectiveDialogueLines`.
+
+- ✅ **Item 1 — TVs show tornado warning on store entry** — `Regression.TornadoWarningOnStoreEntry` green (14 steps, headed). Screenshot `E2E_TornadoWarning_Screen.png` shows a TV switched to a saturated red emergency-broadcast screen. Regression gate clean: HappyPath + GazeReward + GazeRewardReset all green.
+  `ACRTTV::ShowTornadoWarning()` closes the media feed and swaps the screen slot (found by the "Screen" material-name) to placeholder `M_TornadoWarning` (unlit red emissive, **divided by EyeAdaptation** so it doesn't blow out to white under the dark store's auto-exposure). `UStorySubsystem::HandleStoreEntry` switches **both** TVs + sets `TornadoWarningDisplayed` only when `KeyBroke && !TornadoWarningDisplayed`, then runs a 0.1s gaze-watch timer that sets `SeenTornadoWarning` after ~2s of looking at a warning TV. Gaze geometry extracted into shared `UGazeUtils::IsActorInPlayerGaze` (GazeRewardComponent re-pointed at it — gaze tests still green).
+  RED→GREEN: TVs not switching first (HandleStoreEntry no-op) → both `bShowingWarning` asserts + flag failed; then the switch + gaze-watch landed green. CEF/libcef headed flake hit once on a re-run — retried, passed (known flake).
+  **Verify in-game:** break the bathroom key, walk back into the store — both CRTs should flip to the red warning. Stare at one ~2s to "see" it (unlocks the telephone scene + Seneca's shelter line). Placeholder red screen; real broadcast feed is a later swap (`M_TornadoWarning`).
 
 ---
 
