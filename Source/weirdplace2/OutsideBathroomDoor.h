@@ -54,6 +54,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
 	USceneComponent* KeyLockSocket;
 
+	// Scene component where the broken key pickup spawns on the ground - place in BP
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
+	USceneComponent* BrokenKeyDropSocket;
+
 	// Timeline driving the key insert lerp (hand → lock)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
 	UTimelineComponent* KeyInsertTimeline;
@@ -90,12 +94,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	float KeyFallDelay = 1.0f;
 
-	// Seconds after the turn completes (== after KeyBreakSound fires) before
-	// the BrokenKey is granted to the player. Granting plays the Inventory
-	// CollectSound, so this delay separates the break sfx from the collect
-	// sfx (designer-tunable; default 3s).
+	// Seconds after the physics fall begins before the AnimKeyMesh is hidden
+	// and the collectable pickup is spawned at BrokenKeyDropSocket. Should be
+	// long enough for the broken half to visibly land and settle.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
-	float KeyCollectDelay = 3.0f;
+	float BrokenKeyLandDelay = 1.0f;
 
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
@@ -163,10 +166,10 @@ private:
 	void EnableKeyFall();
 
 	UFUNCTION()
-	void GrantBrokenKey();
+	void SpawnBrokenKeyPickup();
 
 	FTimerHandle KeyFallTimerHandle;
-	FTimerHandle KeyCollectTimerHandle;
+	FTimerHandle BrokenKeyLandTimerHandle;
 	FTimerHandle KeyInsertSoundTimerHandle;
 	FTimerHandle KeyTurnSoundTimerHandle;
 	FTimerHandle KeyBreakSoundTimerHandle;
