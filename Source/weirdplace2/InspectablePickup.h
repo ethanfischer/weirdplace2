@@ -32,6 +32,11 @@ public:
 	void RotateInspectedActor(float AxisValue);
 	void StopInspection();
 
+	// True while this pickup is pulled in front of the camera (between
+	// Interact and StopInspection). Mirrors AMovieBox::IsBeingInspected so
+	// the E2E TestDriver can find the pickup that's currently being inspected.
+	bool IsBeingInspected() const { return InspectedActor != nullptr; }
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
 	USphereComponent* CollisionSphere;

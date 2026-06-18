@@ -10,6 +10,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #endif
 #include "MovieBox.h"
+#include "InspectablePickup.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
 #include "GazeRewardComponent.h"
@@ -688,6 +689,33 @@ bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 		}
 	}
 	UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerCollectInspectedMovie - no MovieBox in inspection"));
+	return false;
+}
+
+// --- Inspectable pickup helpers ---
+
+AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup() const
+{
+	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::TriggerCollectInspectedPickup()
+{
+	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
+	{
+		AInspectablePickup* Pickup = *It;
+		if (Pickup && Pickup->IsBeingInspected())
+		{
+			UE_LOG(LogTemp, Log, TEXT("TestDriver::TriggerCollectInspectedPickup - %s"), *Pickup->GetName());
+			Pickup->CollectInspectedItem();
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerCollectInspectedPickup - no InspectablePickup in inspection"));
 	return false;
 }
 

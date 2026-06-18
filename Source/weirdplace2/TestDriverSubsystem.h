@@ -7,6 +7,7 @@ enum class EPlayerActivityState : uint8;
 #include "TestDriverSubsystem.generated.h"
 
 class AFirstPersonCharacter;
+class AInspectablePickup;
 class AMovieBox;
 class APropActor;
 class AHudson;
@@ -132,6 +133,21 @@ public:
 	// simulated input, so tests bypass the input layer here. Returns true if a
 	// MovieBox was found and collect was called.
 	bool TriggerCollectInspectedMovie();
+
+	// --- Inspectable pickup helpers ---
+
+	// Returns the first AInspectablePickup in the level (or nullptr). The
+	// key-break sequence spawns one of these on the ground instead of
+	// auto-adding the broken key to inventory; tests poll this to know the
+	// pickup has appeared.
+	AInspectablePickup* FindInspectablePickup() const;
+
+	// Test-only: invoke CollectInspectedItem directly on whichever
+	// AInspectablePickup is currently in inspection. Mirrors
+	// TriggerCollectInspectedMovie — the legacy "Collect Inspected Movie"
+	// binding is unreliable under simulated input in 5.7. Returns true if a
+	// pickup in inspection was found and collect was called.
+	bool TriggerCollectInspectedPickup();
 
 	// --- State queries ---
 
