@@ -1686,6 +1686,62 @@ private:
 	FName ItemId;
 };
 
+// =======================================================================
+// FTD_SetStoryFlag / FTD_AssertStoryFlag — drive and read the central
+// UStorySubsystem flags by name through the TestDriver.
+// =======================================================================
+
+class FTD_SetStoryFlag : public FTD_Base
+{
+public:
+	FTD_SetStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InValue)
+		: FTD_Base(InTest), Flag(InFlag), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting story flag '%s' = %s"), *Flag.ToString(), Value ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetStoryFlag: no driver")); return true; }
+		Driver->SetStoryFlag(Flag, Value);
+		return true;
+	}
+private:
+	FName Flag;
+	bool Value;
+};
+
+class FTD_AssertStoryFlag : public FTD_Base
+{
+public:
+	FTD_AssertStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InExpected)
+		: FTD_Base(InTest), Flag(InFlag), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting story flag '%s' == %s"), *Flag.ToString(), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertStoryFlag: no driver")); return true; }
+		const bool Actual = Driver->IsStoryFlagSet(Flag);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertStoryFlag: '%s' is %s, expected %s"),
+				*Flag.ToString(), Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FName Flag;
+	bool Expected;
+};
+
 // FTD_AssertGazeRewardSeconds — read the UGazeRewardComponent's dwell timer
 // and assert it's within [Min, Max]. For the GazeRewardReset test.
 class FTD_AssertGazeRewardSeconds : public FTD_Base

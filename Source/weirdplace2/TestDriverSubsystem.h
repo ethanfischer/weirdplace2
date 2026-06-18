@@ -70,6 +70,20 @@ public:
 	AHudson* FindHudson() const;
 	bool LookAtHudson();
 
+	// --- Story-flag test helpers ---
+
+	// Set/clear a story flag by name ("KeyBroke", "TornadoWarningDisplayed",
+	// "SeenTornadoWarning"). No-op + logs if the name doesn't resolve.
+	void SetStoryFlag(FName FlagName, bool bValue);
+
+	// True if the named story flag is set. False if unset OR the name/subsystem
+	// is missing (the meaningful red-phase failure).
+	bool IsStoryFlagSet(FName FlagName) const;
+
+	// Invoke the store-entry handler directly (same path the TriggerBox_Inside
+	// overlap drives) without physically moving the player through the trigger.
+	void TriggerStoreEntry();
+
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.

@@ -14,6 +14,7 @@
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
 #include "GazeRewardComponent.h"
+#include "StorySubsystem.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -41,6 +42,51 @@
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
 	return Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+}
+
+void UTestDriverSubsystem::SetStoryFlag(FName FlagName, bool bValue)
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetStoryFlag - no UStorySubsystem"));
+		return;
+	}
+	EStoryFlag Flag;
+	if (!UStorySubsystem::TryParseStoryFlag(FlagName, Flag))
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetStoryFlag - unknown flag '%s'"), *FlagName.ToString());
+		return;
+	}
+	Story->SetFlag(Flag, bValue);
+}
+
+bool UTestDriverSubsystem::IsStoryFlagSet(FName FlagName) const
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsStoryFlagSet - no UStorySubsystem"));
+		return false;
+	}
+	EStoryFlag Flag;
+	if (!UStorySubsystem::TryParseStoryFlag(FlagName, Flag))
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsStoryFlagSet - unknown flag '%s'"), *FlagName.ToString());
+		return false;
+	}
+	return Story->IsFlagSet(Flag);
+}
+
+void UTestDriverSubsystem::TriggerStoreEntry()
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerStoreEntry - no UStorySubsystem"));
+		return;
+	}
+	Story->HandleStoreEntry();
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const

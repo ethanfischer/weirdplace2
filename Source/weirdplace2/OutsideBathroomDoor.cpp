@@ -1,5 +1,6 @@
 #include "OutsideBathroomDoor.h"
 #include "Seneca.h"
+#include "StorySubsystem.h"
 #include "MyCharacter.h"
 #include "InspectablePickup.h"
 #include "Inventory.h"
@@ -335,6 +336,16 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 		*DropTransform.GetLocation().ToString());
 
 	bDidDropKey = true;
+
+	// Record the narrative beat for the tornado/telephone chain (additive —
+	// the Seneca-smoking path below is untouched). Items 1/2/4/5 read this.
+	if (UWorld* World = GetWorld())
+	{
+		if (UStorySubsystem* Story = World->GetSubsystem<UStorySubsystem>())
+		{
+			Story->SetFlag(EStoryFlag::KeyBroke);
+		}
+	}
 
 	if (SenecaRef)
 	{

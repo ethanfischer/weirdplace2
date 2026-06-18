@@ -688,4 +688,35 @@ bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// StoryFlags — minimal infra guard for the central UStorySubsystem. Set a
+// flag through the test hook and confirm IsStoryFlagSet reflects it. The
+// flags' gameplay *effects* are proven by items 1/2/4/5; this just guards
+// the store/read plumbing the whole chain depends on.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StoryFlags,
+	"Weirdplace2.E2E.Level1.Regression.StoryFlags",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StoryFlags::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StoryFlags")
+
+	// Fresh world: the flag starts clear.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+	// Set it through the hook, then it must read back true.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), true));
+	// A different flag set independently doesn't bleed across.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("KeyBroke"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), true));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
