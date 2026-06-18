@@ -103,6 +103,14 @@ public:
 	// via the subsystem, not a raw key).
 	void TriggerPayPhonePickup();
 
+	// --- Missing-person poster (item 3) test helpers ---
+
+	// True if an AMissingPersonPoster exists in the level (runtime-spawned at the pole).
+	bool DoesMissingPersonPosterExist() const;
+
+	// Location + outward face of the poster, for framing a screenshot. False if none.
+	bool GetMissingPersonPosterTransform(FVector& OutLocation, FVector& OutForward) const;
+
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.

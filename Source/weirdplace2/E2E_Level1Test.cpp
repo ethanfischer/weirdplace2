@@ -879,4 +879,36 @@ bool FE2E_Level1_PayPhoneStatic::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// MissingPersonPoster (item 3) — a "MISSING PERSON / SENECA" poster is
+// stapled to the telephone pole (a standalone actor, always present). Loose
+// diagnostic: hard-assert the actor exists, then screenshot it for eyeballing.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MissingPersonPoster,
+	"Weirdplace2.E2E.Level1.Diagnostic.MissingPersonPoster",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MissingPersonPoster::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MissingPersonPoster")
+
+	// Hard assert: the poster actor exists at the pole.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMissingPosterExists(this));
+
+	// Close-up of the poster face.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_FaceMissingPoster(this, 150.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_MissingPersonPoster_Front")));
+
+	// Wider shot showing it on the pole.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_FaceMissingPoster(this, 380.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_MissingPersonPoster_Wide")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

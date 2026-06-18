@@ -15,7 +15,7 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 | 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | ✅ green |
 | 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | ✅ green |
 | 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ✅ green |
-| 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | 🔨 in progress |
+| 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | ✅ green (placeholder) |
 
 ---
 
@@ -72,6 +72,11 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
   New C++ `APayPhone : AActor, IInteractable`; **`BP_TelephoneScene` reparented onto it** (asset query confirms `is_child_of_PayPhone=True` and both override materials intact — `MI_Telephone_Pole_01a`, `MI_Pay_Phone_NN_01a`). `BeginPlay` hides the root (`SetVisibility(false)`) and subscribes to `OnStoryFlagChanged`; reveals on `SeenTornadoWarning` (or immediately if already set). `Interact` plays a placeholder static (`WindInside`) + voices (`LowVoiceSoundCue`) bed **once**, gated on `SeenTornadoWarning`; `CanInteract` returns `SeenTornadoWarning && !bPlayedOnce`. Driven in tests via `TriggerPayPhonePickup`/`CanPayPhoneInteract`/`IsPayPhoneAudioPlaying` (not raw key — 5.7 input gotcha).
   RED→GREEN: pre-reparent the scene is always visible + there's no `APayPhone` (both asserts failed); after reparent both green.
   **Verify in-game:** the pay-phone + pole only appear after you've seen the tornado warning. Walk up and press E once — static + faint voices play (one-shot). **Audition** the placeholder sounds and swap real static/voice on the `APayPhone` BP (`StaticSound`/`VoiceSound`).
+
+- ✅ **Item 3 — "Missing person" poster of Seneca** — `Diagnostic.MissingPersonPoster` green (hard assert: poster actor exists). Screenshots `E2E_MissingPersonPoster_Front/Wide.png` read clearly: **MISSING PERSON** header + a dark photo silhouette + **SENECA**, on a self-lit aged-paper board, stapled to the pole.
+  New `AMissingPersonPoster` (paper board + diegetic text + silhouette block, all `M_PosterPaper` emissive/EyeAdaptation so it's legible day or night). `APayPhone` spawns it in `BeginPlay` as a **separate, unattached** world actor at the pole (so the SeenTornadoWarning hide on the telephone root doesn't take the poster down). Placement is `PosterRelativeOffset`/`PosterRelativeYaw` on the `APayPhone` BP — tune there.
+  ⚠️ **Head-render deferred (your call):** the plan allowed *attempting* a real Seneca-head render (SceneCapture→render-target→texture, max 5 tries) before falling back to this placeholder. I went straight to the placeholder — the render-target API is finicky headless in 5.7 (project memory), Seneca isn't posed for a clean head capture at the pole, and this item is screenshot-only. The placeholder reads well; the head-likeness is a clean follow-up if you want it (drop a texture onto the poster's `Photo` slot).
+  **Verify in-game:** walk to the telephone pole — a MISSING PERSON / SENECA poster is stapled to it (present whether or not the pole itself has revealed yet — see wrinkle below).
 
 ---
 

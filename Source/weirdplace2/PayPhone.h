@@ -7,6 +7,7 @@
 
 class USoundBase;
 class UAudioComponent;
+class AMissingPersonPoster;
 enum class EStoryFlag : uint8;
 
 // Roadside pay-phone scene. Hidden until the player has seen the tornado
@@ -34,6 +35,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* VoiceSound = nullptr;
 
+	// "Missing person" poster spawned on the pole as a SEPARATE actor (so the
+	// SeenTornadoWarning hide on this scene's root doesn't take it down too).
+	// Offset/yaw are relative to this actor — tune on the BP if placement drifts.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Poster")
+	FVector PosterRelativeOffset = FVector(25.f, 0.f, 150.f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Poster")
+	float PosterRelativeYaw = 0.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -47,6 +57,9 @@ private:
 
 	UPROPERTY()
 	UAudioComponent* VoiceAudio = nullptr;
+
+	UPROPERTY()
+	AMissingPersonPoster* Poster = nullptr;
 
 	bool bPlayedOnce = false;
 	FDelegateHandle FlagChangedHandle;

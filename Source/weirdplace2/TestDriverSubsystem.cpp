@@ -17,6 +17,7 @@
 #include "StorySubsystem.h"
 #include "CRTTV.h"
 #include "PayPhone.h"
+#include "MissingPersonPoster.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -160,6 +161,34 @@ void UTestDriverSubsystem::TriggerPayPhonePickup()
 		return;
 	}
 	Phone->Interact_Implementation();
+}
+
+static AMissingPersonPoster* FindPosterInternal(UWorld* World)
+{
+	if (!World) { return nullptr; }
+	for (TActorIterator<AMissingPersonPoster> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::DoesMissingPersonPosterExist() const
+{
+	return FindPosterInternal(GetWorld()) != nullptr;
+}
+
+bool UTestDriverSubsystem::GetMissingPersonPosterTransform(FVector& OutLocation, FVector& OutForward) const
+{
+	AMissingPersonPoster* Poster = FindPosterInternal(GetWorld());
+	if (!Poster)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetMissingPersonPosterTransform - no poster in level"));
+		return false;
+	}
+	OutLocation = Poster->GetActorLocation();
+	OutForward = Poster->GetPosterForward();
+	return true;
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const
