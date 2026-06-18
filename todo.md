@@ -4,14 +4,15 @@
 
 # Claude Friendly
 [x] broken key sound plays after broken key collection sound
+[x] TV shows tornado warning the next time you enter the store after bathroom key breaks
+[x] BP_TelephoneScene should only appear after seeing tornado warning on tv
+[x] add "missing person" poster that looks like seneca to telephone pole
+    [ ] placeholder MISSING PERSON/SENECA poster shipped; real Seneca-head likeness still TODO
+[x] seneca tells you about tornado shelter in bathroom stall later
+[x] hear stuff through static on pay phone
     
 # Needs human
 [x] replace gas pumps grey blocks
-[ ] TV shows tornado warning the next time you enter the store after bathroom key breaks
-[ ] BP_TelephoneScene should only appear after seeing tornado warning on tv
-[ ] add "missing person" poster that looks like seneca to telephone pole
-[ ] seneca tells you about tornado shelter in bathroom stall later
-[ ] hear stuff through static on pay phone
 [ ] clock that ticks with only one hand in both directions
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation

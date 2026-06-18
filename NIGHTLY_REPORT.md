@@ -2,7 +2,9 @@
 
 **Branch:** `overnight/2026-06-17` (off `June17`) · **Nothing merges to `June17` until you play the build and OK a squash-merge.**
 
-Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the dependency chain, asset-heavy items last).
+**Result:** all 6 (Foundation + 5 todos) green — 0 blocked, 0 skipped. One commit per item. The whole narrative chain works end to end: key breaks → both store TVs flip to a tornado warning → gazing at one unlocks the roadside pay-phone scene → Seneca's smoking dialogue gains a tornado-shelter tip → the pay phone plays static/voices once → a MISSING PERSON / SENECA poster hangs on the pole. One sub-deliverable deferred (your call): the poster uses a text placeholder, not a real Seneca-head render (item 3 note).
+
+Order run: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the dependency chain, asset-heavy items last).
 
 ---
 
@@ -82,12 +84,27 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 
 ## Known wrinkles to flag
 
-- **Item 3 poster vs item 2 gate:** the pole is hidden until `SeenTornadoWarning`, but the poster is always present. The area is reached late so both normally render together; gating the poster is a one-line follow-up if it reads oddly.
-- _(more added as encountered)_
+- **Item 3 poster vs item 2 gate:** the pole is hidden until `SeenTornadoWarning`, but the poster is always present (spawned unattached). The area is reached late, so in normal play both render together; if it reads oddly that the poster floats before the pole reveals, gating it is a one-line follow-up (subscribe the poster to the same flag).
+- **Poster is runtime-spawned**, not a placed level actor — you can't drag it in the viewport. Tune its position/facing via `PosterRelativeOffset` / `PosterRelativeYaw` on the `BP_TelephoneScene` (APayPhone) defaults. Current offset is a sensible guess; eyeball it in-game.
+- **Placeholder art/audio** swapped in later: TV warning = flat red `M_TornadoWarning`; pay-phone = `WindInside` (static) + `LowVoiceSoundCue` (voices); poster = text + silhouette (no head render); Seneca's shelter line is drafted prose.
+- **Headed E2E + Fab/CEF flake:** the automation editor restores the saved **Fab browser tab**, which asserts (`FFabBrowser::OpenTab` / `CEFWebBrowserWindowRHIHelper`) — fatal under `-NullRHI`, intermittent even headed. So every test here was run **`-Headed`**, and one run was retried past a CEF crash. Unrelated to game code; closing the Fab tab in your editor before an automation run would remove it entirely. I did **not** touch your global editor layout config (left it as-is).
+- **`TriggerBox_Inside` binding** uses the editor label (works in PIE) + a `StoreEntryTrigger` actor tag (not yet placed). For a packaged build, add that tag to the inside trigger; E2E drives `HandleStoreEntry` directly so it isn't on the test's critical path.
 
 ## Verify-in-game steps
 
-_(added per item)_
+Play from a fresh start and walk the chain:
+1. Do the bathroom-key beat until the key **snaps** in the lock (drops the broken-key pickup). → sets `KeyBroke`.
+2. Walk **back into the store** → both CRT TVs flip to a **red tornado-warning** screen. Stand and look at one for ~2s.
+3. Head out to the **roadside telephone pole** → the pole + pay phone are now **visible** (they were hidden before you saw the warning). A **MISSING PERSON / SENECA** poster is stapled to the pole.
+4. Press **E** on the pay phone → **static + faint voices** play (once only).
+5. Talk to **Seneca smoking outside** → her lines now include the **tornado-shelter** tip ("…shelter under the far stall…").
+
+(Reminder: the screens/audio/poster are placeholders — judge the *logic/flow*, not the final art.)
+
+## How to review this run
+- `git log --oneline June17..overnight/2026-06-17` — the per-item commits (5).
+- `git diff June17..overnight/2026-06-17` — the full change.
+- Screenshots: `Saved/Screenshots/WindowsEditor/E2E_{SenecaShelterLine,TornadoWarning,Telephone,PayPhoneStatic,MissingPersonPoster}_*.png`.
 
 ---
-**Not merged — waiting on your verification.** Green tests + screenshots got each item this far, but nothing lands on `June17` until you play it.
+**Not merged — waiting on your verification.** Green tests + screenshots got each item this far, but nothing lands on `June17` until you play it. Tell me how you want the merge handled (squash / cherry-pick / plain / leave / discard).
