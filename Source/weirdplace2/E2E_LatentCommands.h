@@ -1742,6 +1742,146 @@ private:
 	bool Expected;
 };
 
+// =======================================================================
+// FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
+// must not) contain a substring. Drives the shelter-line gating check.
+// =======================================================================
+
+class FTD_AssertSenecaSmokingLines : public FTD_Base
+{
+public:
+	FTD_AssertSenecaSmokingLines(FAutomationTestBase* InTest, FString InNeedle, bool bInShouldContain)
+		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), bShouldContain(bInShouldContain) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting Seneca smoking lines %s '%s'"),
+			bShouldContain ? TEXT("contain") : TEXT("omit"), *Needle);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no driver")); return true; }
+		FString Joined;
+		if (!Driver->GetSenecaSmokingLinesJoined(Joined))
+		{
+			Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no Seneca"));
+			return true;
+		}
+		const bool bContains = Joined.Contains(Needle, ESearchCase::IgnoreCase);
+		if (bContains != bShouldContain)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertSenecaSmokingLines: lines %s '%s' but expected %s. Lines: \"%s\""),
+				bContains ? TEXT("contain") : TEXT("omit"), *Needle,
+				bShouldContain ? TEXT("contain") : TEXT("omit"), *Joined));
+		}
+		return true;
+	}
+private:
+	FString Needle;
+	bool bShouldContain;
+};
+
+// =======================================================================
+// FTD_ForceSenecaSmoking — jump Seneca into the Smoking beat directly.
+// =======================================================================
+
+class FTD_ForceSenecaSmoking : public FTD_Base
+{
+public:
+	FTD_ForceSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Forcing Seneca into the smoking beat"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_ForceSenecaSmoking: no driver")); return true; }
+		Driver->ForceSenecaToSmoking();
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AdvanceDialogueUntilLineContains — press E until the displayed
+// dialogue body contains a substring (case-insensitive), then stop.
+// =======================================================================
+
+class FTD_AdvanceDialogueUntilLineContains : public FTD_Base
+{
+public:
+	FTD_AdvanceDialogueUntilLineContains(FAutomationTestBase* InTest, FString InNeedle,
+		double InLineDelay = 1.0, double InTimeoutSeconds = 20.0)
+		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), LineDelay(InLineDelay), Timeout(InTimeoutSeconds)
+		, LastPressTime(0.0), bWaitingForRelease(false) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Advancing dialogue until line contains '%s'"), *Needle);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		const EPlayerActivityState State = Driver->GetActivityState();
+		const bool bInDialogue =
+			State == EPlayerActivityState::InSimpleDialogue ||
+			State == EPlayerActivityState::InDialogue;
+
+		// Only read the widget while dialogue is actually up — otherwise the
+		// query spams "no active dialogue widget" every frame.
+		if (bInDialogue)
+		{
+			FString Speaker, Body;
+			if (Driver->GetDisplayedDialogue(Speaker, Body) && Body.Contains(Needle, ESearchCase::IgnoreCase))
+			{
+				if (bWaitingForRelease) { Driver->SimulateInteractRelease(); bWaitingForRelease = false; }
+				LastBody = Body;
+				return true;
+			}
+			LastBody = Body;
+		}
+
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AdvanceDialogueUntilLineContains: '%s' never shown (last body: \"%s\")"), *Needle, *LastBody));
+			return true;
+		}
+
+		if (!bInDialogue)
+		{
+			return false;
+		}
+
+		const double Now = FPlatformTime::Seconds();
+		if (bWaitingForRelease)
+		{
+			Driver->SimulateInteractRelease();
+			bWaitingForRelease = false;
+			LastPressTime = Now;
+			return false;
+		}
+		if (Now - LastPressTime < LineDelay)
+		{
+			return false;
+		}
+		Driver->SimulateInteractPress();
+		bWaitingForRelease = true;
+		return false;
+	}
+private:
+	FString Needle;
+	double LineDelay;
+	double Timeout;
+	double LastPressTime;
+	bool bWaitingForRelease;
+	FString LastBody;
+};
+
 // FTD_AssertGazeRewardSeconds — read the UGazeRewardComponent's dwell timer
 // and assert it's within [Min, Max]. For the GazeRewardReset test.
 class FTD_AssertGazeRewardSeconds : public FTD_Base

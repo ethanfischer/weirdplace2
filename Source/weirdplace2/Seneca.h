@@ -78,6 +78,12 @@ public:
 	// Called by FirstPersonCharacter when dialogue with Seneca ends
 	void OnDialogueEnded();
 
+	// Single source of truth for the lines spoken in a given state: copies the
+	// loaded lines for `State` and, for Smoking once the player has seen the
+	// tornado warning (UStorySubsystem SeenTornadoWarning), appends the
+	// shelter tip. Both Interact_Implementation and the E2E hook call this.
+	void BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const;
+
 	// Current quest state (read-only in editor for debugging)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
 	ESenecaState CurrentState = ESenecaState::WaitingForMovies;

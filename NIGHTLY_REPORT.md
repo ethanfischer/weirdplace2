@@ -11,8 +11,8 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
 | Item | Beat | Test | Result |
 |------|------|------|--------|
 | Foundation | central story-flag subsystem | `Regression.StoryFlags` | ✅ green |
-| 4 | Seneca tornado-shelter line | `Regression.SenecaShelterLine` | 🔨 in progress |
-| 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | ⏳ |
+| 4 | Seneca tornado-shelter line | `Regression.SenecaShelterLine` | ✅ green |
+| 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | 🔨 in progress |
 | 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | ⏳ |
 | 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ⏳ |
 | 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | ⏳ |
@@ -58,6 +58,10 @@ Order: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the d
   New `UStorySubsystem : UWorldSubsystem` (`StorySubsystem.h/.cpp`) holds `EStoryFlag { KeyBroke, TornadoWarningDisplayed, SeenTornadoWarning }` in a per-world `TSet`, with `SetFlag`/`IsFlagSet`/`OnStoryFlagChanged` (broadcasts on change). `OnWorldBeginPlay` binds `TriggerBox_Inside`'s `OnActorBeginOverlap` (player-only) → `HandleStoreEntry()` (TV logic filled in item 1). `AOutsideBathroomDoor::SpawnBrokenKeyPickup` now **additively** sets `KeyBroke` (Seneca-smoking path untouched). TestDriver hooks: `SetStoryFlag`/`IsStoryFlagSet`/`TriggerStoreEntry`; latent cmds `FTD_SetStoryFlag`/`FTD_AssertStoryFlag`.
   RED→GREEN: stubbed `IsFlagSet`→false first (assert failed exactly as designed), then real `TSet::Contains` → pass.
   **Run note:** the automation editor-cmd crashes at startup under `-NullRHI` restoring the saved **Fab browser tab** (`FFabBrowser::OpenTab` → invalid SharedPtr — web browser can't init without RHI). Worked around by running E2E **`-Headed`** (real RHI lets the Fab tab init). Deterministic, not flaky; unrelated to game code. *(This is why every test below is run headed.)*
+
+- ✅ **Item 4 — Seneca shelter line** — `Regression.SenecaShelterLine` green (14 steps, headed). Screenshot `E2E_SenecaShelterLine_Dialogue.png` shows Seneca smoking + the line *"…that twister's no joke. There's a shelter under the far stall…"* on the widget.
+  Refactored the default-path line assembly into `ASeneca::BuildEffectiveDialogueLines(State, Out)` — single source of truth for `Interact_Implementation` and the test hook. It appends the shelter tip only when `State==Smoking && Story->IsFlagSet(SeenTornadoWarning)`. RED→GREEN: appended-line stubbed out first (set→contains assert failed), then enabled. Gating proven by the unset-→-omit assert in the same test. Drove the screenshot via new `ForceSenecaToSmoking` hook (jumps her into the beat) + `FTD_AdvanceDialogueUntilLineContains`.
+  **Verify in-game:** the shelter line only appears if you actually watched the tornado warning on the TVs before reaching Seneca smoking outside. Placeholder wording — tweak in `Seneca.cpp` `BuildEffectiveDialogueLines`.
 
 ---
 

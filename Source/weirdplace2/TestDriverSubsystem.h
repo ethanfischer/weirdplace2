@@ -89,6 +89,16 @@ public:
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.
 	void FastForwardSenecaSmoking();
 
+	// Joins Seneca's effective Smoking-state lines (BuildEffectiveDialogueLines)
+	// into a single string. The shelter tip is included iff SeenTornadoWarning is
+	// set, so the test can assert presence/absence by flag. False if no Seneca.
+	bool GetSenecaSmokingLinesJoined(FString& Out) const;
+
+	// Jump Seneca straight into the Smoking beat (CurrentState=Smoking + teleport
+	// to the smoking spot + anim) so the shelter line can be screenshotted without
+	// replaying the whole quest.
+	void ForceSenecaToSmoking();
+
 	// True once Seneca has been re-teleported out of the hidden "below world"
 	// position back to the smoking spot (i.e., Z > -50000).
 	bool HasSenecaAppearedAtSmokingPos() const;

@@ -444,6 +444,38 @@ void UTestDriverSubsystem::FastForwardSenecaSmoking()
 	Seneca->FastForwardSmokingAppear();
 }
 
+bool UTestDriverSubsystem::GetSenecaSmokingLinesJoined(FString& Out) const
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetSenecaSmokingLinesJoined - no Seneca"));
+		return false;
+	}
+	TArray<FText> Lines;
+	Seneca->BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
+	TArray<FString> Strs;
+	for (const FText& L : Lines)
+	{
+		Strs.Add(L.ToString());
+	}
+	Out = FString::Join(Strs, TEXT(" "));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetSenecaSmokingLinesJoined: '%s'"), *Out);
+	return true;
+}
+
+void UTestDriverSubsystem::ForceSenecaToSmoking()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceSenecaToSmoking - no Seneca"));
+		return;
+	}
+	Seneca->CurrentState = ESenecaState::Smoking;
+	Seneca->ForceSmokingAppearance();
+}
+
 bool UTestDriverSubsystem::HasSenecaAppearedAtSmokingPos() const
 {
 	ASeneca* Seneca = FindSeneca();

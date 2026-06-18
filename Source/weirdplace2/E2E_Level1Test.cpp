@@ -719,4 +719,49 @@ bool FE2E_Level1_StoryFlags::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// SenecaShelterLine (item 4) — Seneca's Smoking dialogue gains a tornado-
+// shelter tip, but only once the player has seen the tornado warning
+// (SeenTornadoWarning). Hook-asserts presence/absence by flag, then drives
+// her into the Smoking beat to screenshot the line on the dialogue widget.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaShelterLine,
+	"Weirdplace2.E2E.Level1.Regression.SenecaShelterLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaShelterLine")
+
+	// Seneca's smoking mesh runs a single-node anim with no 'ShouldLookAtPlayer'
+	// var — entering her look-at sphere logs a benign error. Same as HappyPath.
+	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
+
+	// Gating: with the flag unset, the shelter tip is absent.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), false));
+
+	// Set SeenTornadoWarning → the shelter tip appears in the Smoking lines.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), true));
+
+	// Screenshot: drive Seneca into Smoking, open dialogue, advance to the
+	// shelter line, and capture it on the widget.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ForceSenecaSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("shelter")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

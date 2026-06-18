@@ -1,5 +1,6 @@
 #include "Seneca.h"
 #include "PropActor.h"
+#include "StorySubsystem.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
@@ -186,6 +187,28 @@ void ASeneca::BeginPlay()
 const TArray<FText>* ASeneca::GetDialogueLinesForCurrentState() const
 {
 	return DialogueLines.Find(CurrentState);
+}
+
+void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const
+{
+	Out.Reset();
+	if (const TArray<FText>* Lines = DialogueLines.Find(State))
+	{
+		Out = *Lines;
+	}
+
+	// Smoking gains a tornado-shelter tip once the player has actually seen the
+	// warning on the store TVs. Gated on SeenTornadoWarning so it never leaks
+	// into a playthrough where the TVs were never watched.
+	if (State == ESenecaState::Smoking)
+	{
+		const UWorld* World = GetWorld();
+		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
+		if (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning))
+		{
+			Out.Add(FText::FromString(TEXT("And listen -- that twister's no joke. There's a shelter under the far stall if it comes to that.")));
+		}
+	}
 }
 
 void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
@@ -495,14 +518,15 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
-	const TArray<FText>* Lines = GetDialogueLinesForCurrentState();
-	if (!Lines || Lines->Num() == 0)
+	TArray<FText> EffectiveLines;
+	BuildEffectiveDialogueLines(CurrentState, EffectiveLines);
+	if (EffectiveLines.Num() == 0)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Seneca::Interact - No dialogue for state %d"), static_cast<int32>(CurrentState));
 		return;
 	}
 
-	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
+	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), EffectiveLines, this);
 }
 
 // --- Key ---
