@@ -13,6 +13,7 @@
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/GameplayStatics.h"
@@ -160,12 +161,16 @@ void AFirstPersonCharacter::BeginPlay()
 		if (RectLight->GetFName() == TEXT("RectLight"))
 		{
 			InventoryFlashlightComponent = RectLight;
-			break;
+		}
+		else if (RectLight->GetFName() == TEXT("ItemHoldLight"))
+		{
+			ItemHoldLightComponent = RectLight;
 		}
 	}
 
-	// Ensure inventory light starts disabled at runtime.
+	// Ensure both lights start disabled at runtime.
 	SetInventoryFlashlightEnabled(false);
+	SetItemHoldLightEnabled(false);
 
 	// Add Input Mapping Context
 	if (APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -752,6 +757,18 @@ void AFirstPersonCharacter::SetInventoryFlashlightSize(float Width, float Height
 	InventoryFlashlightComponent->SetSourceHeight(FMath::Max(Height, 1.0f));
 }
 
+void AFirstPersonCharacter::SetItemHoldLightEnabled(bool bEnabled)
+{
+	if (!ItemHoldLightComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AFirstPersonCharacter::SetItemHoldLightEnabled: no RectLight named 'ItemHoldLight' on this pawn — add one in BP_FirstPersonCharacter"));
+		return;
+	}
+
+	ItemHoldLightComponent->SetVisibility(bEnabled);
+	ItemHoldLightComponent->SetHiddenInGame(!bEnabled);
+}
+
 void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemData, const FRotator& InitialRotation)
 {
 	if (!ItemNotificationMesh || !ItemData.Mesh)
@@ -1145,6 +1162,33 @@ void AFirstPersonCharacter::AdvanceDialogue()
 			Hudson->OnDialogueEnded();
 		}
 	}
+}
+
+void AFirstPersonCharacter::GiveItem(const FString& Name)
+{
+	if (Name.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GiveItem - usage: GiveItem <Name> (e.g. 'GiveItem Key')"));
+		return;
+	}
+
+	const FString AssetPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *Name, *Name);
+	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *AssetPath);
+	if (!Def)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveItem - no UItemDefinition at %s"), *AssetPath);
+		return;
+	}
+
+	UInventoryComponent* Inventory = GetInventoryComponent();
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveItem - no InventoryComponent"));
+		return;
+	}
+
+	Inventory->AddItemWithData(Def->ToInventoryItemData());
+	UE_LOG(LogTemp, Display, TEXT("GiveItem - granted '%s' (ItemID=%s)"), *Name, *Def->ItemID.ToString());
 }
 
 void AFirstPersonCharacter::SkipToSmoking()

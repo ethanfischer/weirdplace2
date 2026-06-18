@@ -1,6 +1,7 @@
 #include "OutsideBathroomDoor.h"
 #include "Seneca.h"
 #include "MyCharacter.h"
+#include "InspectablePickup.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "HeldItemComponent.h"
@@ -21,6 +22,10 @@ AOutsideBathroomDoor::AOutsideBathroomDoor()
 	// Scene component marking the keyhole position - designer positions this in BP
 	KeyLockSocket = CreateDefaultSubobject<USceneComponent>(TEXT("KeyLockSocket"));
 	KeyLockSocket->SetupAttachment(RootComponent);
+
+	// Scene component marking the broken-key pickup spawn position - designer positions this in BP
+	BrokenKeyDropSocket = CreateDefaultSubobject<USceneComponent>(TEXT("BrokenKeyDropSocket"));
+	BrokenKeyDropSocket->SetupAttachment(RootComponent);
 
 	// Persistent mesh used only during the animation (hidden until the sequence runs)
 	AnimKeyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("AnimKeyMesh"));
@@ -188,7 +193,14 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 
 	if (KeyInsertSound)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyInsertSound, KeyAnimStartPos);
+		if (KeyInsertSoundDelay <= 0.0f)
+		{
+			PlayKeyInsertSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyInsertSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyInsertSound, KeyInsertSoundDelay, false);
+		}
 	}
 
 	if (KeyInsertTimeline)
@@ -214,7 +226,14 @@ void AOutsideBathroomDoor::OnKeyInsertComplete()
 
 	if (KeyTurnSound && KeyLockSocket)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyTurnSound, KeyLockSocket->GetComponentLocation());
+		if (KeyTurnSoundDelay <= 0.0f)
+		{
+			PlayKeyTurnSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyTurnSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyTurnSound, KeyTurnSoundDelay, false);
+		}
 	}
 
 	if (KeyTurnTimeline)
@@ -239,7 +258,14 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 
 	if (KeyBreakSound && KeyLockSocket)
 	{
-		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
+		if (KeyBreakSoundDelay <= 0.0f)
+		{
+			PlayKeyBreakSound();
+		}
+		else
+		{
+			GetWorldTimerManager().SetTimer(KeyBreakSoundTimerHandle, this, &AOutsideBathroomDoor::PlayKeyBreakSound, KeyBreakSoundDelay, false);
+		}
 	}
 
 	// Swap to broken mesh immediately so the visual snap is instant
@@ -248,7 +274,6 @@ void AOutsideBathroomDoor::OnKeyTurnComplete()
 		AnimKeyMesh->SetStaticMesh(BrokenKeyDef->Mesh);
 	}
 
-	// Delay physics so the broken half hangs in the lock briefly before falling
 	GetWorldTimerManager().SetTimer(KeyFallTimerHandle, this, &AOutsideBathroomDoor::EnableKeyFall, KeyFallDelay, false);
 }
 
@@ -260,25 +285,54 @@ void AOutsideBathroomDoor::EnableKeyFall()
 		AnimKeyMesh->SetSimulatePhysics(true);
 	}
 
-	// Add broken key to inventory with the same materials but the broken mesh
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	if (MyCharacter)
+	GetWorldTimerManager().SetTimer(BrokenKeyLandTimerHandle, this, &AOutsideBathroomDoor::SpawnBrokenKeyPickup, BrokenKeyLandDelay, false);
+}
+
+void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
+{
+	if (!BrokenKeyDef || !BrokenKeyDef->Mesh)
 	{
-		UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-		if (Inventory && BrokenKeyDef && BrokenKeyDef->Mesh)
-		{
-			FInventoryItemData BrokenKeyData = BrokenKeyDef->ToInventoryItemData();
-			// Reuse the player's actual key materials so the inventory entry
-			// matches the original key visual rather than the def's defaults.
-			BrokenKeyData.Materials = KeyMaterials;
-			Inventory->AddItemWithData(BrokenKeyData);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::EnableKeyFall - missing Inventory or BrokenKeyDef"));
-		}
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - BrokenKeyDef missing or has no Mesh"));
+		return;
 	}
+
+	if (!BrokenKeyDropSocket)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - BrokenKeyDropSocket missing"));
+		return;
+	}
+
+	if (AnimKeyMesh)
+	{
+		AnimKeyMesh->SetSimulatePhysics(false);
+		AnimKeyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		AnimKeyMesh->SetVisibility(false);
+	}
+
+	const FTransform DropTransform = BrokenKeyDropSocket->GetComponentTransform();
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.Owner = this;
+
+	AInspectablePickup* Pickup = GetWorld()->SpawnActorDeferred<AInspectablePickup>(
+		AInspectablePickup::StaticClass(),
+		DropTransform,
+		this,
+		nullptr,
+		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+
+	if (!Pickup)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::SpawnBrokenKeyPickup - failed to spawn AInspectablePickup"));
+		return;
+	}
+
+	Pickup->SetItemDef(BrokenKeyDef);
+	UGameplayStatics::FinishSpawningActor(Pickup, DropTransform);
+
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Spawned broken-key pickup at %s (BrokenKeyDropSocket world loc)"),
+		*DropTransform.GetLocation().ToString());
 
 	bDidDropKey = true;
 
@@ -292,4 +346,28 @@ void AOutsideBathroomDoor::EnableKeyFall()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
+}
+
+void AOutsideBathroomDoor::PlayKeyInsertSound()
+{
+	if (KeyInsertSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyInsertSound, KeyAnimStartPos);
+	}
+}
+
+void AOutsideBathroomDoor::PlayKeyTurnSound()
+{
+	if (KeyTurnSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyTurnSound, KeyLockSocket->GetComponentLocation());
+	}
+}
+
+void AOutsideBathroomDoor::PlayKeyBreakSound()
+{
+	if (KeyBreakSound && KeyLockSocket)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, KeyBreakSound, KeyLockSocket->GetComponentLocation());
+	}
 }

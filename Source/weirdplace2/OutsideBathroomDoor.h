@@ -54,6 +54,10 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
 	USceneComponent* KeyLockSocket;
 
+	// Scene component where the broken key pickup spawns on the ground - place in BP
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
+	USceneComponent* BrokenKeyDropSocket;
+
 	// Timeline driving the key insert lerp (hand → lock)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor|KeyAnim")
 	UTimelineComponent* KeyInsertTimeline;
@@ -90,6 +94,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	float KeyFallDelay = 1.0f;
 
+	// Seconds after the physics fall begins before the AnimKeyMesh is hidden
+	// and the collectable pickup is spawned at BrokenKeyDropSocket. Should be
+	// long enough for the broken half to visibly land and settle.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
+	float BrokenKeyLandDelay = 1.0f;
+
 	// Easing curve for insert phase (ease-in, 0→1 over ~1.0s) - assign in BP
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|KeyAnim")
 	UCurveFloat* KeyInsertCurve;
@@ -109,11 +119,23 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyInsertSound;
 
+	// Seconds after the insert animation BEGINS before KeyInsertSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyInsertSoundDelay = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyTurnSound;
 
+	// Seconds after the turn animation BEGINS (== insert finished) before KeyTurnSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyTurnSoundDelay = 0.0f;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
 	USoundBase* KeyBreakSound;
+
+	// Seconds after the turn animation COMPLETES (visual snap) before KeyBreakSound plays.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor|Sounds")
+	float KeyBreakSoundDelay = 0.0f;
 
 private:
 	// World-space start position of the held item at sequence start
@@ -143,5 +165,16 @@ private:
 	UFUNCTION()
 	void EnableKeyFall();
 
+	UFUNCTION()
+	void SpawnBrokenKeyPickup();
+
 	FTimerHandle KeyFallTimerHandle;
+	FTimerHandle BrokenKeyLandTimerHandle;
+	FTimerHandle KeyInsertSoundTimerHandle;
+	FTimerHandle KeyTurnSoundTimerHandle;
+	FTimerHandle KeyBreakSoundTimerHandle;
+
+	UFUNCTION() void PlayKeyInsertSound();
+	UFUNCTION() void PlayKeyTurnSound();
+	UFUNCTION() void PlayKeyBreakSound();
 };

@@ -35,6 +35,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
 	FRotator NotificationRotation = FRotator::ZeroRotator;
 
+	// Local-space rotation applied on top of camera-facing when an
+	// AInspectablePickup pulls this item in front of the camera.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
+	FRotator InspectionRotation = FRotator::ZeroRotator;
+
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	FInventoryItemData ToInventoryItemData() const;
 };

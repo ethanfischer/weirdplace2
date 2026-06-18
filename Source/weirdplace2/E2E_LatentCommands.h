@@ -18,6 +18,7 @@
 #include "TestWaypoint.h"
 #include "Door.h"
 #include "MovieBox.h"
+#include "InspectablePickup.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -1366,6 +1367,130 @@ private:
 };
 
 // =======================================================================
+// FTD_WaitForInspectablePickupSpawned — poll the level until the key-break
+// sequence has spawned its AInspectablePickup (the collectable broken key).
+// =======================================================================
+
+class FTD_WaitForInspectablePickupSpawned : public FTD_Base
+{
+public:
+	FTD_WaitForInspectablePickupSpawned(FAutomationTestBase* InTest, double InTimeoutSeconds = 15.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Waiting for broken-key pickup to spawn"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		if (Driver->FindInspectablePickup())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForInspectablePickupSpawned: no AInspectablePickup spawned before timeout"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_TeleportNearInspectablePickupAndAim — walk up to the spawned pickup
+// and aim the camera at it so the next interact press hits it.
+// =======================================================================
+
+class FTD_TeleportNearInspectablePickupAndAim : public FTD_Base
+{
+public:
+	FTD_TeleportNearInspectablePickupAndAim(FAutomationTestBase* InTest, float InDistance = 150.f)
+		: FTD_Base(InTest), Distance(InDistance) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Teleporting to and aiming at broken-key pickup"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		AActor* Pickup = Driver->FindInspectablePickup();
+		if (!Pickup)
+		{
+			Test->AddError(TEXT("FTD_TeleportNearInspectablePickupAndAim: no pickup found"));
+			return true;
+		}
+		if (!Driver->TeleportNearActor(Pickup, Distance))
+		{
+			Test->AddError(TEXT("FTD_TeleportNearInspectablePickupAndAim: teleport failed"));
+			return true;
+		}
+		if (!Driver->LookAt(Pickup))
+		{
+			Test->AddError(TEXT("FTD_TeleportNearInspectablePickupAndAim: LookAt failed"));
+		}
+		return true;
+	}
+private:
+	float Distance;
+};
+
+// =======================================================================
+// FTD_CollectInspectedPickup — once a pickup is in inspection, collect it
+// directly via the TestDriver (the legacy "Collect Inspected Movie" binding
+// is unreliable under simulated input in 5.7, same as movie collection),
+// then wait for inspection to end. Mirrors FTD_RotateAndCollectMovie minus
+// the rotation step.
+// =======================================================================
+
+class FTD_CollectInspectedPickup : public FTD_Base
+{
+public:
+	FTD_CollectInspectedPickup(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds), FrameCount(0), bCollectTriggered(false) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Collecting inspected broken-key pickup"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		// CollectInspectedItem defers StopInspection one tick, which returns
+		// the player to FreeRoaming — that's our completion signal.
+		if (bCollectTriggered && Driver->GetActivityState() == EPlayerActivityState::FreeRoaming)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_CollectInspectedPickup: timed out"));
+			return true;
+		}
+
+		// Let inspection settle a couple frames, then collect directly.
+		FrameCount++;
+		if (FrameCount >= 2 && !bCollectTriggered)
+		{
+			if (!Driver->TriggerCollectInspectedPickup())
+			{
+				Test->AddError(TEXT("FTD_CollectInspectedPickup: no pickup in inspection to collect"));
+				return true;
+			}
+			bCollectTriggered = true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+	int32 FrameCount;
+	bool bCollectTriggered;
+};
+
+// =======================================================================
 // Screenshots.
 // =======================================================================
 
@@ -1733,8 +1858,8 @@ public:
 
 // =======================================================================
 // FTD_WaitForItemAdded — poll HasItem(Id) until it returns true.
-// Useful for waiting on async item grants (e.g. the key-break timeline
-// chain adds "BrokenKey" a few seconds after interact).
+// Useful for waiting on async item grants (e.g. collecting the broken-key
+// pickup the key-break sequence drops on the ground).
 // =======================================================================
 
 class FTD_WaitForItemAdded : public FTD_Base

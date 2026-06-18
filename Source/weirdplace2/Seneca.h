@@ -169,10 +169,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	UItemDefinition* KeyDef;
 
-	// Thumbnail shown in inventory after the key is dropped (broken key)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	UTexture2D* KeyBrokenThumbnail;
-
 	// Pre-placed key actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;

@@ -143,9 +143,26 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(T, FName("BrokenKey"), 8.0));
+
+		// The key-break sequence (insert → turn → break → fall) no longer
+		// auto-adds the broken key to inventory; it drops a collectable
+		// AInspectablePickup on the ground. Wait for that pickup to spawn.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(T, 15.0));
+		// The full Key is consumed by the break, and the broken half is NOT
+		// in inventory yet — it has to be picked up off the ground.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("Key")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16_KeyBroken")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("BrokenKey")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16_BrokenKeyDropped")));
+
+		// Walk up, inspect (pull to camera), and collect the broken key the
+		// same way any other inspectable item is collected.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::Interacting));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16b_InspectingBrokenKey")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectInspectedPickup(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(T, FName("BrokenKey"), 5.0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16c_BrokenKeyCollected")));
 	}
 
 	void FastForwardSenecaSmoking(FAutomationTestBase* T)

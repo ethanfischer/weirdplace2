@@ -4,14 +4,22 @@
 
 # Claude Friendly
 [ ] broken key sound plays after broken key collection sound
+[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
     
 # Needs human
 [ ] replace gas pumps grey blocks
+[ ] phone booth
+[ ] telephone pole with "missing person" poster that looks like seneca
+[ ] tv shows tornado warning
+[ ] seneca tells you about tornado shelter in bathroo stall
+[ ] hear stuff through static on pay phone
+[ ] clock that ticks with only one hand in both directions
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
 [ ] drop key
     [x] need better sfx
-    [ ] broken key mesh
+    [x] show broken key collection spinning like any other collected item
+    [x] broken key mesh
     
 # Needs design
 [ ] Can't see items collected in dark. Illuminate them somehow
@@ -25,6 +33,7 @@
 # Claude Friendly
 
 # Needs human
+[ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive

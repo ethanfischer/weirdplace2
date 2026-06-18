@@ -55,6 +55,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
 	URectLightComponent* InventoryFlashlightComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Lighting", meta = (AllowPrivateAccess = "true"))
+	URectLightComponent* ItemHoldLightComponent;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
 	UBladderUrgencyComponent* BladderUrgencyComponent;
 
@@ -172,6 +175,10 @@ public:
 	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
 	UFUNCTION(Exec) void SkipToSmoking();
 
+	// Dev: grant an item to the player inventory by short name. Looks up the
+	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
+	UFUNCTION(Exec) void GiveItem(const FString& Name);
+
 
 	// --- Interaction System ---
 
@@ -199,6 +206,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Lighting")
 	void SetInventoryFlashlightSize(float Width, float Height);
+
+	UFUNCTION(BlueprintCallable, Category = "Lighting")
+	void SetItemHoldLightEnabled(bool bEnabled);
 
 	// --- Item Notification ---
 
