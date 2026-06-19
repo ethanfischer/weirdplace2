@@ -7,6 +7,8 @@
 #include "UI_Dialogue.h"
 #include "Interactable.h"
 #include "Seneca.h"
+#include "StorySubsystem.h"
+#include "PayPhone.h"
 #include "Components/WidgetComponent.h"
 #include "Rick.h"
 #include "Hudson.h"
@@ -1201,5 +1203,54 @@ void AFirstPersonCharacter::SkipToSmoking()
 		return;
 	}
 	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
+}
+
+void AFirstPersonCharacter::TriggerTornadoWarning()
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TriggerTornadoWarning - no UStorySubsystem"));
+		return;
+	}
+	Story->SetFlag(EStoryFlag::KeyBroke, true);
+	Story->HandleStoreEntry();
+	UE_LOG(LogTemp, Warning, TEXT("TriggerTornadoWarning - KeyBroke set + store entry run (TVs flip to warning)"));
+}
+
+void AFirstPersonCharacter::RevealTelephone()
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - no UStorySubsystem"));
+		return;
+	}
+
+	// Teleport in front of the telephone scene first so you watch it pop in.
+	TArray<AActor*> Phones;
+	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APayPhone::StaticClass(), Phones);
+	if (Phones.Num() > 0)
+	{
+		AActor* Phone = Phones[0];
+		const FVector PhoneLoc = Phone->GetActorLocation();
+		FVector Fwd = Phone->GetActorForwardVector();
+		Fwd.Z = 0.f;
+		Fwd = Fwd.GetSafeNormal();
+		if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
+		const FVector NewLoc = PhoneLoc + Fwd * 500.f + FVector(0.f, 0.f, 100.f);
+		SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		{
+			PC->SetControlRotation((PhoneLoc + FVector(0.f, 0.f, 150.f) - NewLoc).Rotation());
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - no APayPhone found to teleport to; revealing in place"));
+	}
+
+	Story->SetFlag(EStoryFlag::SeenTornadoWarning, true);
+	UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - SeenTornadoWarning set (telephone pole + pay phone reveal)"));
 }
 
