@@ -105,3 +105,39 @@ Play from a fresh start and walk the chain:
 
 ---
 **Not merged — waiting on your verification.** Green tests + screenshots got each item this far, but nothing lands on `June17` until you play it. Tell me how you want the merge handled (squash / cherry-pick / plain / leave / discard).
+
+---
+
+# Addendum — Tornado warning "storm intensifies" (2026-06-18)
+
+**Branch:** `overnight/2026-06-17` (continued). Extends **item 1**: the tornado-warning beat now *feels* like the storm closing in. Three connected additions, all firing at the same existing `EStoryFlag::TornadoWarningDisplayed` moment.
+
+**Result:** new **`Regression.TornadoWarningStormBeat` green (17 steps, headed)**. Regression gate clean: **`TornadoWarningOnStoreEntry` (14)** + **`HappyPath` (131)** both green. Screenshot `E2E_TornadoStormBeat_Screen.png` shows a TV glowing storm-red in a darkened store (the red fallback — no designer texture assigned yet).
+
+The E2E self-configures a controller at runtime (PIE spawn is safe; it's *headless-editor* spawn of C++ classes that crashes in 5.7), so the whole **mechanism is proven**. The in-game beat still needs a one-time level wiring — see the **MANUAL SETUP** box below.
+
+## What landed (code — verified by E2E)
+1. **The store's TV ambient beds cease** — `Ambient_TV` + `Ambient_TV2` stop the moment the warning shows.
+2. **The TVs blare a looping tornado-alert siren** — `/Game/Sounds/tornadoalert` (CC0, *EAS Alarm* by mpaol2023 — credited) loops diegetically from each TV over the warning screen. The SoundWave is set `bLooping=true` (a `UAudioComponent` won't loop a one-shot wave on its own). The siren has an attenuation override so it's loudest at the TVs and falls off with distance (point source, not a level-wide blast).
+3. **The gas-station lights dim and stay dimmed** — each referenced light's intensity × an editor-set multiplier, applied once.
+
+### New / changed code
+- **`ACRTTV`** (`CRTTV.h/.cpp`) — new `WarningScreenTexture` (designer art slot) + `WarningSound` (defaults to `tornadoalert`) + a runtime `WarningAudio` component (spatialized, attenuated, built in `BeginPlay`). `ShowTornadoWarning` now builds a **MID** from `M_TornadoWarning` and plays the looping siren; `IsWarningAudioPlaying()` added for tests.
+- **`M_TornadoWarning`** regenerated (`scripts/local/gen_tornado_warning_material.py`) with a `ScreenTex` texture param + a `UseScreenTex` scalar switch: the material **lerps** the existing storm-red ↔ the texture (both still `/ EyeAdaptation` for stable brightness). Stays red until C++ binds `WarningScreenTexture` (then shows the art untinted) — no orphan placeholder texture asset needed.
+- **`AStormBeatController`** (new `StormBeatController.h/.cpp`) — a standalone placed actor: `LightsToDim` (array), `DimMultiplier` (0–1), `AmbientSoundsToSilence` (array). Subscribes to `OnStoryFlagChanged`; `ApplyStorm()` dims + silences once on `TornadoWarningDisplayed` (guards re-entry; subscribe/teardown mirrors `APayPhone`).
+- **`tornadoalert`** SoundWave set looping (`scripts/local/set_tornadoalert_looping.py`).
+- Test infra: 4 TestDriver hooks (`IsTvWarningAudioPlaying`, `IsAmbientSoundPlaying`, `GetActorMaxLightIntensity`, `SpawnAndConfigureStormBeat`), 5 latent commands, `Regression.TornadoWarningStormBeat`. `credits.md` updated.
+
+## ⚠️ MANUAL DESIGNER SETUP — required for the in-game beat
+The mechanism is E2E-proven, but the real beat needs you to wire the level **once**:
+
+1. **Place one `AStormBeatController`** in `FirstPersonMap` (anywhere — it has no mesh).
+2. On that controller's **Details panel (level instance)**:
+   - **`LightsToDim`** — drag in the exact gas-station light actors. Confirmed actors with a `ULightComponent`: `SpotLight3`, `SpotLight10`–`SpotLight17` (100 lm canopy spots), `OasisBigLight` (160 cd). ⚠️ The `gastationbarlights` / `outsidegastationlights` from the todo that are emissive **meshes** (no light component) **can't be dimmed this way** — only actors with a real light component respond. If you need those dimmed too, tell me and I'll add an emissive-material path.
+   - **`DimMultiplier`** — your storm-dim factor, 0–1 (the test used `0.3`).
+   - **`AmbientSoundsToSilence`** — drag in `Ambient_TV` and `Ambient_TV2`.
+3. **Assign the screen texture** — on **`BP_TV` class defaults**, set **`WarningScreenTexture`** to your "TORNADO WARNING" image (both TVs share the one assignment). Until you do, the screen shows the storm-red fallback (see screenshot).
+
+Then play it: break the bathroom key → re-enter the store → both CRTs blare the looping alarm over the warning texture, `Ambient_TV`/2 cut out, and your referenced lights drop to the multiplier and stay there.
+
+**Files:** `Source/weirdplace2/{CRTTV,StormBeatController,TestDriverSubsystem,E2E_LatentCommands,E2E_Level1Test}.*`, `scripts/local/{gen_tornado_warning_material,set_tornadoalert_looping}.py`, `credits.md`. Screenshot: `Saved/Screenshots/WindowsEditor/E2E_TornadoStormBeat_Screen.png`.

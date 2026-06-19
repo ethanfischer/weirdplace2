@@ -3,10 +3,10 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] TV shows tornado warning the next time you enter the store after bathroom key breaks
-    [ ] original tv sounds need to cease (Ambient_TV and Ambient_TV2)
-    [ ] tornado warning needs to play the creepy tornado warning sound and show a new texture on the tv screen that says tornado warning
-    [ ] gas station spotlights, gastationbarlights, and outsidegastationlights need to have their intensity reduced by a number I can set in editor at this story beat
+[ ] TV shows tornado warning the next time you enter the store after bathroom key breaks  (storm beat code + E2E done — needs editor wiring, see NIGHTLY_REPORT addendum 2026-06-18)
+    [x] original tv sounds need to cease (Ambient_TV and Ambient_TV2)
+    [x] tornado warning needs to play the creepy tornado warning sound and show a new texture on the tv screen that says tornado warning  (siren loops from TVs; ScreenTex slot added — assign your "TORNADO WARNING" texture on BP_TV)
+    [x] gas station spotlights, gastationbarlights, and outsidegastationlights need to have their intensity reduced by a number I can set in editor at this story beat  (AStormBeatController: drag light actors into LightsToDim + set DimMultiplier; emissive-mesh "lights" w/o a light component can't be dimmed this way)
      
 [x] BP_TelephoneScene should only appear after seeing tornado warning on tv
 [x] add "missing person" poster that looks like seneca to telephone pole
@@ -19,6 +19,7 @@
 [x] replace gas pumps grey blocks
 [ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
+    [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
 [x] drop key

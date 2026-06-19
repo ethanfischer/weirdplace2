@@ -808,6 +808,81 @@ bool FE2E_Level1_TornadoWarningOnStoreEntry::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// TornadoWarningStormBeat — when the store TVs switch to the tornado warning,
+// the storm closes in: both TVs blare a looping siren, the store's TV ambient
+// beds cut out, and the referenced gas-station light dims (and stays dimmed).
+// The placed AStormBeatController is designer config, so the test self-configures
+// one at runtime BEFORE triggering store entry (PIE spawn is safe; it's headless
+// EDITOR spawn of C++ classes that crashes in 5.7).
+// =======================================================================
+
+namespace
+{
+	static float StormBeat_BaselineLightIntensity = 0.f;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TornadoWarningStormBeat,
+	"Weirdplace2.E2E.Level1.Regression.TornadoWarningStormBeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TornadoWarningStormBeat")
+
+	// Reset the capture so re-runs in the same editor session don't compare
+	// against a previous run's leftover baseline.
+	StormBeat_BaselineLightIntensity = 0.f;
+
+	// A gas-station canopy spotlight (100 lm). Stable label confirmed in-level.
+	const TCHAR* GasLight = TEXT("SpotLight3");
+
+	// --- Baseline (before the beat) ---
+	// The store TV ambient beds are playing, neither TV is blaring its siren, and
+	// the gas-station light is at full intensity (captured for the dim assert).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureLightIntensity(this, GasLight, &StormBeat_BaselineLightIntensity));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
+
+	// Self-configure the storm controller BEFORE the flag fires so it's subscribed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SpawnStormBeat(this,
+		{ FString(GasLight) },
+		{ FString(TEXT("Ambient_TV")), FString(TEXT("Ambient_TV2")) },
+		/*Mult=*/0.3f));
+
+	// Fire the beat: key broke, then re-enter the store.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+
+	// Let the audio engine start the looping sirens and stop the ambient beds.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+
+	// (RED-defining) Both TVs blare the looping tornado-alert siren.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), true));
+
+	// (RED-defining) The store's TV ambient beds cut out.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), false));
+
+	// (RED-defining) The gas-station light dimmed to ~ baseline * 0.3 and stays there.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertLightDimmed(this, GasLight,
+		&StormBeat_BaselineLightIntensity, /*Mult=*/0.3f, /*Tolerance=*/1.0f));
+
+	// Document the alarm/dim moment (the screen texture is designer art → the red
+	// fallback shows here until the designer assigns WarningScreenTexture).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TV"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TV")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_TornadoStormBeat_Screen")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // TelephoneGatedOnWarning (item 2) — the roadside telephone scene
 // (BP_TelephoneScene, reparented onto APayPhone) stays hidden until the
 // player has seen the tornado warning, then reveals.

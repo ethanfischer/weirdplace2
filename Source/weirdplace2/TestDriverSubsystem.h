@@ -88,6 +88,25 @@ public:
 	// screen. False (and logs) if no such TV exists.
 	bool IsTvShowingWarning(const FString& Label) const;
 
+	// True if the ACRTTV found by editor label is playing its looping tornado-alert
+	// siren. False (and logs) if no such TV exists.
+	bool IsTvWarningAudioPlaying(const FString& Label) const;
+
+	// True if the AAmbientSound found by editor label has a playing audio
+	// component. False (and logs) if no such ambient-sound actor exists.
+	bool IsAmbientSoundPlaying(const FString& Label) const;
+
+	// Max intensity across all ULightComponents on the actor found by editor label
+	// (the storm-dim test compares this before/after). -1 (and logs) if no such
+	// actor or it has no light component.
+	float GetActorMaxLightIntensity(const FString& Label) const;
+
+	// Test hook for the storm beat: runtime-spawn an AStormBeatController and wire
+	// its light/ambient arrays from the given editor labels (the placed controller
+	// is designer config, so the E2E builds its own). Call before TriggerStoreEntry
+	// so it's subscribed when the flag fires.
+	void SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& AmbientLabels, float Multiplier);
+
 	// --- Pay-phone (items 2/5) test helpers ---
 
 	// True if the actor found by editor label has a visible root component.

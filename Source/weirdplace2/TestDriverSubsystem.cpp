@@ -16,7 +16,10 @@
 #include "GazeRewardComponent.h"
 #include "StorySubsystem.h"
 #include "CRTTV.h"
+#include "StormBeatController.h"
 #include "PayPhone.h"
+#include "Components/LightComponent.h"
+#include "Sound/AmbientSound.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -100,6 +103,103 @@ bool UTestDriverSubsystem::IsTvShowingWarning(const FString& Label) const
 		return false;
 	}
 	return TV->IsShowingWarning();
+}
+
+bool UTestDriverSubsystem::IsTvWarningAudioPlaying(const FString& Label) const
+{
+	ACRTTV* TV = Cast<ACRTTV>(FindActorByLabel(Label));
+	if (!TV)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsTvWarningAudioPlaying - no ACRTTV labeled '%s'"), *Label);
+		return false;
+	}
+	return TV->IsWarningAudioPlaying();
+}
+
+bool UTestDriverSubsystem::IsAmbientSoundPlaying(const FString& Label) const
+{
+	AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label));
+	if (!Ambient)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsAmbientSoundPlaying - no AAmbientSound labeled '%s'"), *Label);
+		return false;
+	}
+	UAudioComponent* AudioComp = Ambient->GetAudioComponent();
+	return AudioComp && AudioComp->IsPlaying();
+}
+
+float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetActorMaxLightIntensity - no actor '%s'"), *Label);
+		return -1.f;
+	}
+	TArray<ULightComponent*> LightComps;
+	Actor->GetComponents<ULightComponent>(LightComps);
+	if (LightComps.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetActorMaxLightIntensity - '%s' has no ULightComponent"), *Label);
+		return -1.f;
+	}
+	float MaxIntensity = 0.f;
+	for (const ULightComponent* Light : LightComps)
+	{
+		MaxIntensity = FMath::Max(MaxIntensity, Light->Intensity);
+	}
+	return MaxIntensity;
+}
+
+void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& AmbientLabels, float Multiplier)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no world"));
+		return;
+	}
+
+	TArray<AActor*> Lights;
+	for (const FString& Label : LightLabels)
+	{
+		if (AActor* Light = FindActorByLabel(Label))
+		{
+			Lights.Add(Light);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no light actor '%s'"), *Label);
+		}
+	}
+
+	TArray<AAmbientSound*> Ambients;
+	for (const FString& Label : AmbientLabels)
+	{
+		if (AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label)))
+		{
+			Ambients.Add(Ambient);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no AAmbientSound '%s'"), *Label);
+		}
+	}
+
+	// Spawn deferred so it's configured BEFORE BeginPlay subscribes to the flag.
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AStormBeatController* Controller = World->SpawnActorDeferred<AStormBeatController>(
+		AStormBeatController::StaticClass(), FTransform::Identity);
+	if (!Controller)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawn failed"));
+		return;
+	}
+	Controller->ConfigureForTest(Lights, Ambients, Multiplier);
+	Controller->FinishSpawning(FTransform::Identity);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawned controller with %d light(s), %d ambient(s), mult %.2f"),
+		Lights.Num(), Ambients.Num(), Multiplier);
 }
 
 bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const

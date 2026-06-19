@@ -1823,6 +1823,157 @@ private:
 	bool Expected;
 };
 
+// Assert an ACRTTV (by label) is / isn't blaring its looping tornado-alert siren.
+class FTD_AssertTvWarningAudio : public FTD_Base
+{
+public:
+	FTD_AssertTvWarningAudio(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting TV '%s' siren playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertTvWarningAudio: no driver")); return true; }
+		const bool Actual = Driver->IsTvWarningAudioPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertTvWarningAudio: '%s' siren playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Assert an AAmbientSound (by label) is / isn't playing (the store TV beds cut
+// out when the storm beat fires).
+class FTD_AssertAmbientPlaying : public FTD_Base
+{
+public:
+	FTD_AssertAmbientPlaying(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting ambient '%s' playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertAmbientPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsAmbientSoundPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientPlaying: '%s' playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Capture an actor's max light intensity into a shared float so a later
+// FTD_AssertLightDimmed can compare against it.
+class FTD_CaptureLightIntensity : public FTD_Base
+{
+public:
+	FTD_CaptureLightIntensity(FAutomationTestBase* InTest, FString InLabel, float* InOutIntensity)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), OutIntensity(InOutIntensity) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Capturing light intensity of '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !OutIntensity) { Test->AddError(TEXT("FTD_CaptureLightIntensity: missing driver/out")); return true; }
+		*OutIntensity = Driver->GetActorMaxLightIntensity(Label);
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureLightIntensity: '%s' = %.3f"), *Label, *OutIntensity);
+		if (*OutIntensity < 0.f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_CaptureLightIntensity: '%s' has no light intensity to capture"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* OutIntensity;
+};
+
+// Assert an actor's max light intensity has been dimmed to ~ baseline * Mult.
+class FTD_AssertLightDimmed : public FTD_Base
+{
+public:
+	FTD_AssertLightDimmed(FAutomationTestBase* InTest, FString InLabel, float* InBaseline, float InMult, float InTolerance)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Baseline(InBaseline), Mult(InMult), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' dimmed to x%.2f"), *Label, Mult);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Baseline) { Test->AddError(TEXT("FTD_AssertLightDimmed: missing driver/baseline")); return true; }
+
+		const float Now = Driver->GetActorMaxLightIntensity(Label);
+		const float Expected = *Baseline * Mult;
+		UE_LOG(LogTemp, Warning, TEXT("AssertLightDimmed[%s]: baseline=%.3f mult=%.2f expected=%.3f actual=%.3f tol=%.3f"),
+			*Label, *Baseline, Mult, Expected, Now, Tolerance);
+		if (!FMath::IsNearlyEqual(Now, Expected, Tolerance))
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertLightDimmed: '%s' intensity=%.3f, expected ~%.3f (baseline %.3f x %.2f, tol %.3f)"),
+				*Label, Now, Expected, *Baseline, Mult, Tolerance));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* Baseline;
+	float Mult;
+	float Tolerance;
+};
+
+// Runtime-spawn + configure an AStormBeatController (designer config is mirrored
+// at runtime by the E2E). Configure BEFORE triggering store entry so it's
+// subscribed when TornadoWarningDisplayed fires.
+class FTD_SpawnStormBeat : public FTD_Base
+{
+public:
+	FTD_SpawnStormBeat(FAutomationTestBase* InTest, TArray<FString> InLightLabels,
+		TArray<FString> InAmbientLabels, float InMult)
+		: FTD_Base(InTest), LightLabels(MoveTemp(InLightLabels))
+		, AmbientLabels(MoveTemp(InAmbientLabels)), Mult(InMult) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Spawning storm-beat controller"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SpawnStormBeat: no driver")); return true; }
+		Driver->SpawnAndConfigureStormBeat(LightLabels, AmbientLabels, Mult);
+		return true;
+	}
+private:
+	TArray<FString> LightLabels;
+	TArray<FString> AmbientLabels;
+	float Mult;
+};
+
 // Assert an actor's root visibility (for the gated telephone scene).
 class FTD_AssertActorVisible : public FTD_Base
 {

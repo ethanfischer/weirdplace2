@@ -72,6 +72,12 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **License:** Creative Commons 0
 - **Used in:** `Content/Sounds/dooropen.uasset` (suspected — only door-open sound in user's freesound history)
 
+### "EAS Alarm" — mpaol2023 (freesound)
+- **Author:** mpaol2023
+- **Source:** https://freesound.org/s/370184/
+- **License:** Creative Commons 0 (public domain — no attribution legally required)
+- **Used in:** `Content/Sounds/tornadoalert.uasset` — looping tornado-alert siren blared diegetically from the store TVs during the tornado-warning storm beat
+
 ### "Convenience Store Door Chime" — zebragrrl (freesound)
 - **Author:** zebragrrl
 - **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
