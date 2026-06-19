@@ -67,6 +67,15 @@ void ACRTTV::BeginPlay()
 	WarningAudio->AttenuationOverrides.bSpatialize = true;
 	WarningAudio->AttenuationOverrides.AttenuationShapeExtents = FVector(200.f, 0.f, 0.f);
 	WarningAudio->AttenuationOverrides.FalloffDistance = 2000.f;
+	// Occlusion so the store walls block the siren — without it the sound bleeds
+	// straight through to the parking lot. A Visibility line-trace from listener to
+	// source; when blocked, drop the volume hard and low-pass it so only a muffled
+	// hint leaks (and at the open doorway you still hear it, which is realistic).
+	WarningAudio->AttenuationOverrides.bEnableOcclusion = true;
+	WarningAudio->AttenuationOverrides.OcclusionTraceChannel = ECC_Visibility;
+	WarningAudio->AttenuationOverrides.OcclusionLowPassFilterFrequency = 500.f;
+	WarningAudio->AttenuationOverrides.OcclusionVolumeAttenuation = 0.1f;
+	WarningAudio->AttenuationOverrides.OcclusionInterpolationTime = 0.2f;
 	WarningAudio->RegisterComponent();
 
 	// The wave is a one-shot; re-fire it after the gap each time it finishes so
