@@ -58,23 +58,23 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 	}
 
 	AFirstPersonCharacter* Pawn = Cast<AFirstPersonCharacter>(PC->GetPawn());
-	if (FrameClass && Pawn)
-	{
-		TArray<AActor*> Found;
-		UGameplayStatics::GetAllActorsOfClass(World, FrameClass, Found);
-		if (Found.Num() > 0)
-		{
-			AActor* Tgt = Found[0];
-			const FVector TgtLoc = Tgt->GetActorLocation();
-			FVector Fwd = Tgt->GetActorForwardVector();
-			Fwd.Z = 0.f;
-			Fwd = Fwd.GetSafeNormal();
-			if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
-			const FVector NewLoc = TgtLoc + Fwd * 400.f + FVector(0.f, 0.f, 100.f);
-			Pawn->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
-			PC->SetControlRotation((TgtLoc - NewLoc).Rotation());
-		}
-	}
+	// if (FrameClass && Pawn)
+	// {
+	// 	TArray<AActor*> Found;
+	// 	UGameplayStatics::GetAllActorsOfClass(World, FrameClass, Found);
+	// 	if (Found.Num() > 0)
+	// 	{
+	// 		AActor* Tgt = Found[0];
+	// 		const FVector TgtLoc = Tgt->GetActorLocation();
+	// 		FVector Fwd = Tgt->GetActorForwardVector();
+	// 		Fwd.Z = 0.f;
+	// 		Fwd = Fwd.GetSafeNormal();
+	// 		if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
+	// 		const FVector NewLoc = TgtLoc + Fwd * 400.f + FVector(0.f, 0.f, 100.f);
+	// 		Pawn->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+	// 		PC->SetControlRotation((TgtLoc - NewLoc).Rotation());
+	// 	}
+	// }
 
 	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
 }
