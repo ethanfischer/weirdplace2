@@ -2,7 +2,7 @@
 
 **Branch:** `overnight/2026-06-17` (off `June17`) · **Nothing merges to `June17` until you play the build and OK a squash-merge.**
 
-**Result:** all 6 (Foundation + 5 todos) green — 0 blocked, 0 skipped. One commit per item. Final tip certified: the full **`Regression` suite is green — 14/14 tests, 280 steps** (the 5 new regression tests + the 9 pre-existing, all passing together). The whole narrative chain works end to end: key breaks → both store TVs flip to a tornado warning → gazing at one unlocks the roadside pay-phone scene → Seneca's smoking dialogue gains a tornado-shelter tip → the pay phone plays static/voices once → a MISSING PERSON / SENECA poster hangs on the pole. One sub-deliverable deferred (your call): the poster uses a text placeholder, not a real Seneca-head render (item 3 note).
+**Result:** all 6 (Foundation + 5 todos) green — 0 blocked, 0 skipped. One commit per item. Final tip certified: the full **`Regression` suite is green — 14/14 tests, 280 steps** (the 5 new regression tests + the 9 pre-existing, all passing together). The whole narrative chain works end to end: key breaks → both store TVs flip to a tornado warning → gazing at one unlocks the roadside pay-phone scene → Seneca's smoking dialogue gains a tornado-shelter tip → the pay phone plays static/voices once → a MISSING PERSON / SENECA poster hangs on the pole. **Update (you, post-run):** you authored that poster directly in `BP_TelephoneScene` with a real Seneca photo, so my placeholder runtime poster was removed — see item 3.
 
 Order run: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then the dependency chain, asset-heavy items last).
 
@@ -17,7 +17,7 @@ Order run: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then t
 | 1 | TVs show tornado warning on store entry | `Regression.TornadoWarningOnStoreEntry` | ✅ green |
 | 2 | Telephone scene gated on SeenTornadoWarning | `Regression.TelephoneGatedOnWarning` | ✅ green |
 | 5 | Pay phone static audio | `Regression.PayPhoneStatic` | ✅ green |
-| 3 | Missing-person poster of Seneca | `Diagnostic.MissingPersonPoster` | ✅ green (placeholder) |
+| 3 | Missing-person poster of Seneca | (designer-authored in BP) | ✅ done (your poster) |
 
 ---
 
@@ -75,18 +75,15 @@ Order run: Foundation → 4 → 1 → 2 → 5 → 3 (clean E2E win first, then t
   RED→GREEN: pre-reparent the scene is always visible + there's no `APayPhone` (both asserts failed); after reparent both green.
   **Verify in-game:** the pay-phone + pole only appear after you've seen the tornado warning. Walk up and press E once — static + faint voices play (one-shot). **Audition** the placeholder sounds and swap real static/voice on the `APayPhone` BP (`StaticSound`/`VoiceSound`).
 
-- ✅ **Item 3 — "Missing person" poster of Seneca** — `Diagnostic.MissingPersonPoster` green (hard assert: poster actor exists). Screenshots `E2E_MissingPersonPoster_Front/Wide.png` read clearly: **MISSING PERSON** header + a dark photo silhouette + **SENECA**, on a self-lit aged-paper board, stapled to the pole.
-  New `AMissingPersonPoster` (paper board + diegetic text + silhouette block, all `M_PosterPaper` emissive/EyeAdaptation so it's legible day or night). `APayPhone` spawns it in `BeginPlay` as a **separate, unattached** world actor at the pole (so the SeenTornadoWarning hide on the telephone root doesn't take the poster down). Placement is `PosterRelativeOffset`/`PosterRelativeYaw` on the `APayPhone` BP — tune there.
-  ⚠️ **Head-render deferred (your call):** the plan allowed *attempting* a real Seneca-head render (SceneCapture→render-target→texture, max 5 tries) before falling back to this placeholder. I went straight to the placeholder — the render-target API is finicky headless in 5.7 (project memory), Seneca isn't posed for a clean head capture at the pole, and this item is screenshot-only. The placeholder reads well; the head-likeness is a clean follow-up if you want it (drop a texture onto the poster's `Photo` slot).
-  **Verify in-game:** walk to the telephone pole — a MISSING PERSON / SENECA poster is stapled to it (present whether or not the pole itself has revealed yet — see wrinkle below).
+- ✅ **Item 3 — "Missing person" poster of Seneca** — **you authored this directly in `BP_TelephoneScene`** (a real `PosterSheet` plane with Seneca's photo, "MISSING", and "Last seen May 4, 1993 … call 217-312-1573", parented under the pole). My overnight placeholder (`AMissingPersonPoster` runtime actor + `M_PosterPaper` + the `Diagnostic.MissingPersonPoster` test + TestDriver/latent hooks) is **removed** at your request — your version is better and the head-likeness is real. Net: a clean deletion commit.
+  **Note on gating:** because your poster is a child of the telephone scene's root, `APayPhone::BeginPlay`'s `SetVisibility(false)` hides it along with the pole until `SeenTornadoWarning` — i.e. the poster now **reveals with the scene** rather than being always-present. That resolves the old "poster floats before the pole" wrinkle. If you ever want it visible *before* the warning, move it out from under the gated root.
 
 ---
 
 ## Known wrinkles to flag
 
-- **Item 3 poster vs item 2 gate:** the pole is hidden until `SeenTornadoWarning`, but the poster is always present (spawned unattached). The area is reached late, so in normal play both render together; if it reads oddly that the poster floats before the pole reveals, gating it is a one-line follow-up (subscribe the poster to the same flag).
-- **Poster is runtime-spawned**, not a placed level actor — you can't drag it in the viewport. Tune its position/facing via `PosterRelativeOffset` / `PosterRelativeYaw` on the `BP_TelephoneScene` (APayPhone) defaults. Current offset is a sensible guess; eyeball it in-game.
-- **Placeholder art/audio** swapped in later: TV warning = flat red `M_TornadoWarning`; pay-phone = `WindInside` (static) + `LowVoiceSoundCue` (voices); poster = text + silhouette (no head render); Seneca's shelter line is drafted prose.
+- **Item 3 poster (your BP version)** is parented under the telephone scene root, so it's hidden until `SeenTornadoWarning` and reveals with the pole. Move it out from under the gated root if you want it visible earlier.
+- **Placeholder art/audio** swapped in later: TV warning = flat red `M_TornadoWarning`; pay-phone = `WindInside` (static) + `LowVoiceSoundCue` (voices); Seneca's shelter line is drafted prose. (The poster art is now real — your work.)
 - **Headed E2E + Fab/CEF flake:** the automation editor restores the saved **Fab browser tab**, which asserts (`FFabBrowser::OpenTab` / `CEFWebBrowserWindowRHIHelper`) — fatal under `-NullRHI`, intermittent even headed. So every test here was run **`-Headed`**, and one run was retried past a CEF crash. Unrelated to game code; closing the Fab tab in your editor before an automation run would remove it entirely. I did **not** touch your global editor layout config (left it as-is).
 - **`TriggerBox_Inside` binding** uses the editor label (works in PIE) + a `StoreEntryTrigger` actor tag (not yet placed). For a packaged build, add that tag to the inside trigger; E2E drives `HandleStoreEntry` directly so it isn't on the test's critical path.
 

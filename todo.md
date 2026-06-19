@@ -7,7 +7,6 @@
 [x] TV shows tornado warning the next time you enter the store after bathroom key breaks
 [x] BP_TelephoneScene should only appear after seeing tornado warning on tv
 [x] add "missing person" poster that looks like seneca to telephone pole
-    [ ] placeholder MISSING PERSON/SENECA poster shipped; real Seneca-head likeness still TODO
 [x] seneca tells you about tornado shelter in bathroom stall later
 [x] hear stuff through static on pay phone
     

@@ -1925,67 +1925,6 @@ private:
 	bool Expected;
 };
 
-// Hard assert: the missing-person poster actor exists at the pole.
-class FTD_AssertMissingPosterExists : public FTD_Base
-{
-public:
-	FTD_AssertMissingPosterExists(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Asserting missing-person poster exists"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertMissingPosterExists: no driver")); return true; }
-		if (!Driver->DoesMissingPersonPosterExist())
-		{
-			Test->AddError(TEXT("FTD_AssertMissingPosterExists: no AMissingPersonPoster in level"));
-		}
-		return true;
-	}
-};
-
-// Teleport the player in front of the poster (movement stopped so the camera
-// doesn't fall) and look at it, for a screenshot.
-class FTD_FaceMissingPoster : public FTD_Base
-{
-public:
-	FTD_FaceMissingPoster(FAutomationTestBase* InTest, float InDistance = 160.f)
-		: FTD_Base(InTest), Distance(InDistance) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Facing missing-person poster from %.0fcm"), Distance);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_FaceMissingPoster: no driver")); return true; }
-		FVector Loc, Fwd;
-		if (!Driver->GetMissingPersonPosterTransform(Loc, Fwd))
-		{
-			Test->AddError(TEXT("FTD_FaceMissingPoster: no poster"));
-			return true;
-		}
-		AFirstPersonCharacter* Player = Driver->GetPlayer();
-		if (!Player) { Test->AddError(TEXT("FTD_FaceMissingPoster: no player")); return true; }
-
-		// Freeze movement so the camera holds the poster's height for the shot.
-		Player->GetCharacterMovement()->StopMovementImmediately();
-		Player->GetCharacterMovement()->SetMovementMode(MOVE_None);
-
-		const FVector NewLoc = Loc + Fwd * Distance;
-		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
-		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
-		{
-			PC->SetControlRotation((Loc - NewLoc).Rotation());
-		}
-		return true;
-	}
-private:
-	float Distance;
-};
 
 // =======================================================================
 // FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or

@@ -1,7 +1,6 @@
 #include "PayPhone.h"
 
 #include "StorySubsystem.h"
-#include "MissingPersonPoster.h"
 #include "Components/AudioComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
@@ -61,24 +60,6 @@ void APayPhone::BeginPlay()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no UStorySubsystem; will stay hidden"), *GetName());
-	}
-
-	// Staple the "missing person" poster to the pole as a SEPARATE world actor
-	// (NOT attached to this scene's root) so it stays present regardless of the
-	// SeenTornadoWarning reveal gate.
-	if (UWorld* World = GetWorld())
-	{
-		const FTransform ActorTM = GetActorTransform();
-		const FVector PosterLoc = ActorTM.TransformPosition(PosterRelativeOffset);
-		const FRotator PosterRot = GetActorRotation() + FRotator(0.f, PosterRelativeYaw, 0.f);
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		Poster = World->SpawnActor<AMissingPersonPoster>(AMissingPersonPoster::StaticClass(), PosterLoc, PosterRot, SpawnParams);
-		if (Poster)
-		{
-			UE_LOG(LogTemp, Log, TEXT("APayPhone %s: spawned missing-person poster at %s"), *GetName(), *PosterLoc.ToString());
-		}
 	}
 }
 
