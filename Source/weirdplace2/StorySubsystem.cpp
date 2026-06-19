@@ -86,6 +86,28 @@ bool UStorySubsystem::TryParseStoryFlag(FName Name, EStoryFlag& OutFlag)
 	return true;
 }
 
+void UStorySubsystem::SkipToBeat(EStoryFlag Target)
+{
+	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning),
+	// so "skip to Target" means apply every beat up to and including it.
+	const int32 T = static_cast<int32>(Target);
+
+	if (T >= static_cast<int32>(EStoryFlag::KeyBroke))
+	{
+		SetFlag(EStoryFlag::KeyBroke, true);
+	}
+	if (T >= static_cast<int32>(EStoryFlag::TornadoWarningDisplayed))
+	{
+		// Flips both store TVs + sets TornadoWarningDisplayed (self-guards if already done).
+		HandleStoreEntry();
+	}
+	if (T >= static_cast<int32>(EStoryFlag::SeenTornadoWarning))
+	{
+		SetFlag(EStoryFlag::SeenTornadoWarning, true);
+	}
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);
+}
+
 void UStorySubsystem::HandleStoreEntry()
 {
 	// Only the first store entry after the key breaks flips the TVs.

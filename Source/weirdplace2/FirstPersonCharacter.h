@@ -179,13 +179,13 @@ public:
 	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
 	UFUNCTION(Exec) void GiveItem(const FString& Name);
 
-	// Dev: set KeyBroke + run the store-entry beat so both store TVs flip to the
-	// tornado warning, without playing the key-break. Type `TriggerTornadoWarning`.
-	UFUNCTION(Exec) void TriggerTornadoWarning();
-
-	// Dev: set SeenTornadoWarning so the telephone pole + pay phone reveal (and the
-	// pay phone becomes usable, and Seneca's shelter line unlocks). Type `RevealTelephone`.
-	UFUNCTION(Exec) void RevealTelephone();
+	// Dev: jump the tornado/telephone story to a beat and teleport to look at it.
+	// Sets every UStorySubsystem flag up to that beat (running its side effects),
+	// then frames the relevant actor. Beats (case-insensitive, with aliases):
+	//   `SkipTo KeyBroke` (or `Key`)
+	//   `SkipTo TornadoWarning` (or `TornadoWarningDisplayed` / `TV`)  -> both store TVs flip
+	//   `SkipTo Telephone` (or `SeenTornadoWarning` / `PayPhone`)      -> pole + pay phone reveal
+	UFUNCTION(Exec) void SkipTo(const FString& BeatName);
 
 
 	// --- Interaction System ---

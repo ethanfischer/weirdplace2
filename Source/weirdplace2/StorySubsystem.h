@@ -44,6 +44,12 @@ public:
 	// Resolve the test-facing FName ("KeyBroke" etc.) to the enum. False on miss.
 	static bool TryParseStoryFlag(FName Name, EStoryFlag& OutFlag);
 
+	// Bring the world to the given beat: sets every flag up to and including
+	// Target and runs each beat's side effect (the store-entry TV flip), so the
+	// scene state matches having reached that point. Relies on EStoryFlag being
+	// declared in story order. Used by the `SkipTo` dev console command.
+	void SkipToBeat(EStoryFlag Target);
+
 	// The store-entry beat: player crossed TriggerBox_Inside. If the key has
 	// broken and the warning hasn't shown yet, switches both store TVs to the
 	// tornado-warning screen. Also invoked directly by the TestDriver so E2E

@@ -9,6 +9,7 @@
 #include "Seneca.h"
 #include "StorySubsystem.h"
 #include "PayPhone.h"
+#include "CRTTV.h"
 #include "Components/WidgetComponent.h"
 #include "Rick.h"
 #include "Hudson.h"
@@ -1205,52 +1206,64 @@ void AFirstPersonCharacter::SkipToSmoking()
 	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
 }
 
-void AFirstPersonCharacter::TriggerTornadoWarning()
+void AFirstPersonCharacter::SkipTo(const FString& BeatName)
 {
 	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
 	if (!Story)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("TriggerTornadoWarning - no UStorySubsystem"));
-		return;
-	}
-	Story->SetFlag(EStoryFlag::KeyBroke, true);
-	Story->HandleStoreEntry();
-	UE_LOG(LogTemp, Warning, TEXT("TriggerTornadoWarning - KeyBroke set + store entry run (TVs flip to warning)"));
-}
-
-void AFirstPersonCharacter::RevealTelephone()
-{
-	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	if (!Story)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - no UStorySubsystem"));
+		UE_LOG(LogTemp, Warning, TEXT("SkipTo - no UStorySubsystem"));
 		return;
 	}
 
-	// Teleport in front of the telephone scene first so you watch it pop in.
-	TArray<AActor*> Phones;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APayPhone::StaticClass(), Phones);
-	if (Phones.Num() > 0)
+	// Resolve the beat name (case-insensitive, with friendly aliases). The actor
+	// class, if any, is what we teleport to so the beat is on screen.
+	const FString B = BeatName.ToLower();
+	EStoryFlag Target;
+	UClass* FrameClass = nullptr;
+	if (B == TEXT("keybroke") || B == TEXT("key"))
 	{
-		AActor* Phone = Phones[0];
-		const FVector PhoneLoc = Phone->GetActorLocation();
-		FVector Fwd = Phone->GetActorForwardVector();
-		Fwd.Z = 0.f;
-		Fwd = Fwd.GetSafeNormal();
-		if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
-		const FVector NewLoc = PhoneLoc + Fwd * 500.f + FVector(0.f, 0.f, 100.f);
-		SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
-		if (APlayerController* PC = Cast<APlayerController>(GetController()))
+		Target = EStoryFlag::KeyBroke;
+	}
+	else if (B == TEXT("tornadowarning") || B == TEXT("tornadowarningdisplayed") || B == TEXT("tv") || B == TEXT("tvs"))
+	{
+		Target = EStoryFlag::TornadoWarningDisplayed;
+		FrameClass = ACRTTV::StaticClass();
+	}
+	else if (B == TEXT("seentornadowarning") || B == TEXT("telephone") || B == TEXT("phone") || B == TEXT("payphone"))
+	{
+		Target = EStoryFlag::SeenTornadoWarning;
+		FrameClass = APayPhone::StaticClass();
+	}
+	else if (!UStorySubsystem::TryParseStoryFlag(FName(*BeatName), Target))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone"), *BeatName);
+		return;
+	}
+
+	Story->SkipToBeat(Target);
+
+	// Teleport in front of the beat's actor so it's on screen as it changes.
+	if (FrameClass)
+	{
+		TArray<AActor*> Found;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), FrameClass, Found);
+		if (Found.Num() > 0)
 		{
-			PC->SetControlRotation((PhoneLoc + FVector(0.f, 0.f, 150.f) - NewLoc).Rotation());
+			AActor* Tgt = Found[0];
+			const FVector TgtLoc = Tgt->GetActorLocation();
+			FVector Fwd = Tgt->GetActorForwardVector();
+			Fwd.Z = 0.f;
+			Fwd = Fwd.GetSafeNormal();
+			if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
+			const FVector NewLoc = TgtLoc + Fwd * 400.f + FVector(0.f, 0.f, 100.f);
+			SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+			if (APlayerController* PC = Cast<APlayerController>(GetController()))
+			{
+				PC->SetControlRotation((TgtLoc - NewLoc).Rotation());
+			}
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - no APayPhone found to teleport to; revealing in place"));
-	}
 
-	Story->SetFlag(EStoryFlag::SeenTornadoWarning, true);
-	UE_LOG(LogTemp, Warning, TEXT("RevealTelephone - SeenTornadoWarning set (telephone pole + pay phone reveal)"));
+	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
 }
 
