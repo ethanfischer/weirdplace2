@@ -7,19 +7,14 @@
 #include "UI_Dialogue.h"
 #include "Interactable.h"
 #include "Seneca.h"
-#include "StorySubsystem.h"
-#include "PayPhone.h"
-#include "CRTTV.h"
 #include "Components/WidgetComponent.h"
 #include "Rick.h"
 #include "Hudson.h"
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
-#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -1165,105 +1160,5 @@ void AFirstPersonCharacter::AdvanceDialogue()
 			Hudson->OnDialogueEnded();
 		}
 	}
-}
-
-void AFirstPersonCharacter::GiveItem(const FString& Name)
-{
-	if (Name.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GiveItem - usage: GiveItem <Name> (e.g. 'GiveItem Key')"));
-		return;
-	}
-
-	const FString AssetPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *Name, *Name);
-	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *AssetPath);
-	if (!Def)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveItem - no UItemDefinition at %s"), *AssetPath);
-		return;
-	}
-
-	UInventoryComponent* Inventory = GetInventoryComponent();
-	if (!Inventory)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveItem - no InventoryComponent"));
-		return;
-	}
-
-	Inventory->AddItemWithData(Def->ToInventoryItemData());
-	UE_LOG(LogTemp, Display, TEXT("GiveItem - granted '%s' (ItemID=%s)"), *Name, *Def->ItemID.ToString());
-}
-
-void AFirstPersonCharacter::SkipToSmoking()
-{
-	TArray<AActor*> Senecas;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASeneca::StaticClass(), Senecas);
-	if (Senecas.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no ASeneca in world"));
-		return;
-	}
-	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
-}
-
-void AFirstPersonCharacter::SkipTo(const FString& BeatName)
-{
-	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	if (!Story)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipTo - no UStorySubsystem"));
-		return;
-	}
-
-	// Resolve the beat name (case-insensitive, with friendly aliases). The actor
-	// class, if any, is what we teleport to so the beat is on screen.
-	const FString B = BeatName.ToLower();
-	EStoryFlag Target;
-	UClass* FrameClass = nullptr;
-	if (B == TEXT("keybroke") || B == TEXT("key"))
-	{
-		Target = EStoryFlag::KeyBroke;
-	}
-	else if (B == TEXT("tornadowarning") || B == TEXT("tornadowarningdisplayed") || B == TEXT("tv") || B == TEXT("tvs"))
-	{
-		Target = EStoryFlag::TornadoWarningDisplayed;
-		FrameClass = ACRTTV::StaticClass();
-	}
-	else if (B == TEXT("seentornadowarning") || B == TEXT("telephone") || B == TEXT("phone") || B == TEXT("payphone"))
-	{
-		Target = EStoryFlag::SeenTornadoWarning;
-		FrameClass = APayPhone::StaticClass();
-	}
-	else if (!UStorySubsystem::TryParseStoryFlag(FName(*BeatName), Target))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone"), *BeatName);
-		return;
-	}
-
-	Story->SkipToBeat(Target);
-
-	// Teleport in front of the beat's actor so it's on screen as it changes.
-	if (FrameClass)
-	{
-		TArray<AActor*> Found;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), FrameClass, Found);
-		if (Found.Num() > 0)
-		{
-			AActor* Tgt = Found[0];
-			const FVector TgtLoc = Tgt->GetActorLocation();
-			FVector Fwd = Tgt->GetActorForwardVector();
-			Fwd.Z = 0.f;
-			Fwd = Fwd.GetSafeNormal();
-			if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
-			const FVector NewLoc = TgtLoc + Fwd * 400.f + FVector(0.f, 0.f, 100.f);
-			SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
-			if (APlayerController* PC = Cast<APlayerController>(GetController()))
-			{
-				PC->SetControlRotation((TgtLoc - NewLoc).Rotation());
-			}
-		}
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
 }
 

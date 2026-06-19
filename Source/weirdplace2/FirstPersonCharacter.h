@@ -171,23 +171,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
 
-	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
-	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
-	UFUNCTION(Exec) void SkipToSmoking();
-
-	// Dev: grant an item to the player inventory by short name. Looks up the
-	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
-	UFUNCTION(Exec) void GiveItem(const FString& Name);
-
-	// Dev: jump the tornado/telephone story to a beat and teleport to look at it.
-	// Sets every UStorySubsystem flag up to that beat (running its side effects),
-	// then frames the relevant actor. Beats (case-insensitive, with aliases):
-	//   `SkipTo KeyBroke` (or `Key`)
-	//   `SkipTo TornadoWarning` (or `TornadoWarningDisplayed` / `TV`)  -> both store TVs flip
-	//   `SkipTo Telephone` (or `SeenTornadoWarning` / `PayPhone`)      -> pole + pay phone reveal
-	UFUNCTION(Exec) void SkipTo(const FString& BeatName);
-
-
 	// --- Interaction System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")

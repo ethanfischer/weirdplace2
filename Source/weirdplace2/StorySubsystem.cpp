@@ -86,6 +86,73 @@ bool UStorySubsystem::TryParseStoryFlag(FName Name, EStoryFlag& OutFlag)
 	return true;
 }
 
+namespace
+{
+	// Single source of truth for beat naming: the friendly display name shown to
+	// the dev plus the space-separated lowercase aliases SkipTo accepts for each
+	// beat. The display name also matches case-insensitively.
+	struct FBeatAlias
+	{
+		EStoryFlag Flag;
+		const TCHAR* Display;
+		const TCHAR* Aliases;
+	};
+
+	static const FBeatAlias GBeatAliases[] = {
+		{ EStoryFlag::KeyBroke,                TEXT("KeyBroke"),       TEXT("key") },
+		{ EStoryFlag::TornadoWarningDisplayed, TEXT("TornadoWarning"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
+		{ EStoryFlag::SeenTornadoWarning,      TEXT("Telephone"),      TEXT("telephone phone payphone seentornadowarning") },
+	};
+}
+
+bool UStorySubsystem::ResolveBeat(const FString& Name, EStoryFlag& OutFlag)
+{
+	const FString Lower = Name.ToLower();
+	for (const FBeatAlias& Entry : GBeatAliases)
+	{
+		if (Lower == FString(Entry.Display).ToLower())
+		{
+			OutFlag = Entry.Flag;
+			return true;
+		}
+		TArray<FString> Aliases;
+		FString(Entry.Aliases).ParseIntoArray(Aliases, TEXT(" "), /*InCullEmpty*/ true);
+		if (Aliases.Contains(Lower))
+		{
+			OutFlag = Entry.Flag;
+			return true;
+		}
+	}
+
+	// Fall back to exact enum names (e.g. a beat not in the alias table).
+	return TryParseStoryFlag(FName(*Name), OutFlag);
+}
+
+FString UStorySubsystem::GetBeatDisplayName(EStoryFlag Flag)
+{
+	for (const FBeatAlias& Entry : GBeatAliases)
+	{
+		if (Entry.Flag == Flag)
+		{
+			return Entry.Display;
+		}
+	}
+	const UEnum* Enum = StaticEnum<EStoryFlag>();
+	return Enum ? Enum->GetNameStringByValue(static_cast<int64>(Flag)) : TEXT("?");
+}
+
+TArray<FString> UStorySubsystem::GetBeatDisplayNames()
+{
+	TArray<FString> Names;
+	const UEnum* Enum = StaticEnum<EStoryFlag>();
+	const int32 Num = Enum ? Enum->NumEnums() - 1 : 0; // last entry is the hidden _MAX
+	for (int32 i = 0; i < Num; ++i)
+	{
+		Names.Add(GetBeatDisplayName(static_cast<EStoryFlag>(Enum->GetValueByIndex(i))));
+	}
+	return Names;
+}
+
 void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 {
 	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning),

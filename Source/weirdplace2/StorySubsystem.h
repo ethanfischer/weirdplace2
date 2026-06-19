@@ -44,6 +44,19 @@ public:
 	// Resolve the test-facing FName ("KeyBroke" etc.) to the enum. False on miss.
 	static bool TryParseStoryFlag(FName Name, EStoryFlag& OutFlag);
 
+	// Resolve a user-typed beat name to the enum (case-insensitive), matching the
+	// friendly display name plus per-beat aliases, then falling back to exact enum
+	// names via TryParseStoryFlag. Single source of truth for beat naming, consumed
+	// by the SkipTo dev console command. False on miss.
+	static bool ResolveBeat(const FString& Name, EStoryFlag& OutFlag);
+
+	// The friendly one-per-beat display name (e.g. "Telephone" for SeenTornadoWarning).
+	static FString GetBeatDisplayName(EStoryFlag Flag);
+
+	// Friendly display names for every story beat, enum-ordered. Used by SkipTo's
+	// no-argument listing.
+	static TArray<FString> GetBeatDisplayNames();
+
 	// Bring the world to the given beat: sets every flag up to and including
 	// Target and runs each beat's side effect (the store-entry TV flip), so the
 	// scene state matches having reached that point. Relies on EStoryFlag being
