@@ -6,6 +6,8 @@
 #include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Texture2D.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Sound/SoundAttenuation.h"
@@ -66,6 +68,10 @@ void ACRTTV::BeginPlay()
 	WarningAudio->AttenuationOverrides.AttenuationShapeExtents = FVector(200.f, 0.f, 0.f);
 	WarningAudio->AttenuationOverrides.FalloffDistance = 2000.f;
 	WarningAudio->RegisterComponent();
+
+	// The wave is a one-shot; re-fire it after the gap each time it finishes so
+	// the siren loops with a designer-set silence between repeats.
+	WarningAudio->OnAudioFinished.AddDynamic(this, &ACRTTV::OnWarningAudioFinished);
 }
 
 void ACRTTV::ShowTornadoWarning()
@@ -136,7 +142,7 @@ void ACRTTV::ShowTornadoWarning()
 	if (WarningAudio && WarningSound)
 	{
 		WarningAudio->SetSound(WarningSound);
-		WarningAudio->Play();
+		PlayWarningLoop();
 	}
 	else
 	{
@@ -145,11 +151,46 @@ void ACRTTV::ShowTornadoWarning()
 	}
 
 	bShowingWarning = true;
-	UE_LOG(LogTemp, Log, TEXT("ACRTTV %s: tornado warning shown (screen slot %d), siren playing=%d"),
-		*GetName(), ScreenSlot, IsWarningAudioPlaying() ? 1 : 0);
+	UE_LOG(LogTemp, Log, TEXT("ACRTTV %s: tornado warning shown (screen slot %d), siren playing=%d, loop gap=%.2fs"),
+		*GetName(), ScreenSlot, IsWarningAudioPlaying() ? 1 : 0, WarningLoopGapSeconds);
+}
+
+void ACRTTV::PlayWarningLoop()
+{
+	if (WarningAudio)
+	{
+		WarningAudio->Play();
+	}
+}
+
+void ACRTTV::OnWarningAudioFinished()
+{
+	// Keep the siren going for the duration of the warning, with a silent gap so
+	// it doesn't loop instantly.
+	if (!bShowingWarning)
+	{
+		return;
+	}
+	if (WarningLoopGapSeconds <= 0.f)
+	{
+		PlayWarningLoop();
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(WarningLoopTimer, this, &ACRTTV::PlayWarningLoop,
+			WarningLoopGapSeconds, /*bLoop*/ false);
+	}
 }
 
 bool ACRTTV::IsWarningAudioPlaying() const
 {
-	return WarningAudio && WarningAudio->IsPlaying();
+	if (WarningAudio && WarningAudio->IsPlaying())
+	{
+		return true;
+	}
+	// During the inter-loop gap the component is silent, but the siren loop is
+	// still running — a replay timer is pending.
+	UWorld* World = GetWorld();
+	return bShowingWarning && World && World->GetTimerManager().IsTimerActive(WarningLoopTimer);
 }

@@ -118,14 +118,14 @@ The E2E self-configures a controller at runtime (PIE spawn is safe; it's *headle
 
 ## What landed (code — verified by E2E)
 1. **The store's TV ambient beds cease** — `Ambient_TV` + `Ambient_TV2` stop the moment the warning shows.
-2. **The TVs blare a looping tornado-alert siren** — `/Game/Sounds/tornadoalert` (CC0, *EAS Alarm* by mpaol2023 — credited) loops diegetically from each TV over the warning screen. The SoundWave is set `bLooping=true` (a `UAudioComponent` won't loop a one-shot wave on its own). The siren has an attenuation override so it's loudest at the TVs and falls off with distance (point source, not a level-wide blast).
+2. **The TVs blare a looping tornado-alert siren** — `/Game/Sounds/tornadoalert` (CC0, *EAS Alarm* by mpaol2023 — credited, 12.84s clip) plays diegetically from each TV over the warning screen. The wave is a **one-shot**; `ACRTTV` re-fires it after a **designer-set `WarningLoopGapSeconds`** silent gap (default 1.5s) so it doesn't loop instantly/seamlessly — tune the gap on `BP_TV` defaults. The siren has an attenuation override so it's loudest at the TVs and falls off with distance (point source, not a level-wide blast).
 3. **The gas-station lights dim and stay dimmed** — each referenced light's intensity × an editor-set multiplier, applied once.
 
 ### New / changed code
 - **`ACRTTV`** (`CRTTV.h/.cpp`) — new `WarningScreenTexture` (designer art slot) + `WarningSound` (defaults to `tornadoalert`) + a runtime `WarningAudio` component (spatialized, attenuated, built in `BeginPlay`). `ShowTornadoWarning` now builds a **MID** from `M_TornadoWarning` and plays the looping siren; `IsWarningAudioPlaying()` added for tests.
 - **`M_TornadoWarning`** regenerated (`scripts/local/gen_tornado_warning_material.py`) with a `ScreenTex` texture param + a `UseScreenTex` scalar switch: the material **lerps** the existing storm-red ↔ the texture (both still `/ EyeAdaptation` for stable brightness). Stays red until C++ binds `WarningScreenTexture` (then shows the art untinted) — no orphan placeholder texture asset needed.
 - **`AStormBeatController`** (new `StormBeatController.h/.cpp`) — a standalone placed actor: `LightsToDim` (array), `DimMultiplier` (0–1), `AmbientSoundsToSilence` (array). Subscribes to `OnStoryFlagChanged`; `ApplyStorm()` dims + silences once on `TornadoWarningDisplayed` (guards re-entry; subscribe/teardown mirrors `APayPhone`).
-- **`tornadoalert`** SoundWave set looping (`scripts/local/set_tornadoalert_looping.py`).
+- **`tornadoalert`** SoundWave set **non-looping** (`scripts/local/set_tornadoalert_nonlooping.py`) — C++ owns the gapped loop, so an asset-level loop (which never "finishes") would defeat the gap.
 - Test infra: 4 TestDriver hooks (`IsTvWarningAudioPlaying`, `IsAmbientSoundPlaying`, `GetActorMaxLightIntensity`, `SpawnAndConfigureStormBeat`), 5 latent commands, `Regression.TornadoWarningStormBeat`. `credits.md` updated.
 
 ## ⚠️ MANUAL DESIGNER SETUP — required for the in-game beat
@@ -137,7 +137,8 @@ The mechanism is E2E-proven, but the real beat needs you to wire the level **onc
    - **`DimMultiplier`** — your storm-dim factor, 0–1 (the test used `0.3`).
    - **`AmbientSoundsToSilence`** — drag in `Ambient_TV` and `Ambient_TV2`.
 3. **Assign the screen texture** — on **`BP_TV` class defaults**, set **`WarningScreenTexture`** to your "TORNADO WARNING" image (both TVs share the one assignment). Until you do, the screen shows the storm-red fallback (see screenshot).
+4. **(Optional) Tune the siren loop gap** — on **`BP_TV` class defaults**, set **`WarningLoopGapSeconds`** (default 1.5s) to the silence you want between siren repeats.
 
 Then play it: break the bathroom key → re-enter the store → both CRTs blare the looping alarm over the warning texture, `Ambient_TV`/2 cut out, and your referenced lights drop to the multiplier and stay there.
 
-**Files:** `Source/weirdplace2/{CRTTV,StormBeatController,TestDriverSubsystem,E2E_LatentCommands,E2E_Level1Test}.*`, `scripts/local/{gen_tornado_warning_material,set_tornadoalert_looping}.py`, `credits.md`. Screenshot: `Saved/Screenshots/WindowsEditor/E2E_TornadoStormBeat_Screen.png`.
+**Files:** `Source/weirdplace2/{CRTTV,StormBeatController,TestDriverSubsystem,E2E_LatentCommands,E2E_Level1Test}.*`, `scripts/local/{gen_tornado_warning_material,set_tornadoalert_nonlooping}.py`, `credits.md`. Screenshot: `Saved/Screenshots/WindowsEditor/E2E_TornadoStormBeat_Screen.png`.

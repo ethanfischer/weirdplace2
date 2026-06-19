@@ -41,10 +41,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TV")
 	UTexture2D* WarningScreenTexture = nullptr;
 
-	// Tornado-alert siren looped diegetically from the TV (default-loads
-	// /Game/Sounds/tornadoalert if unset).
+	// Tornado-alert siren played diegetically from the TV (default-loads
+	// /Game/Sounds/tornadoalert if unset). The wave is a one-shot; the looping
+	// (with a gap) is driven in C++ — see WarningLoopGapSeconds.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TV")
 	USoundBase* WarningSound = nullptr;
+
+	// Silent gap between siren loops, in seconds (set on BP_TV defaults). The clip
+	// plays through once, waits this long, then repeats — so it doesn't loop
+	// instantly. 0 = replay immediately (still a one-frame timer hop, not seamless).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0"), Category = "TV")
+	float WarningLoopGapSeconds = 1.5f;
 
 	// Stop the media feed, swap the screen slot to the warning material (with the
 	// designer texture if set), and blare the looping alarm. Idempotent. Drives
@@ -64,5 +71,13 @@ private:
 	UPROPERTY()
 	UAudioComponent* WarningAudio = nullptr;
 
+	// Re-fires the siren after WarningLoopGapSeconds once the one-shot finishes.
+	UFUNCTION()
+	void OnWarningAudioFinished();
+
+	// Start one play of the siren.
+	void PlayWarningLoop();
+
+	FTimerHandle WarningLoopTimer;
 	bool bShowingWarning = false;
 };
