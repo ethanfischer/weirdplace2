@@ -3,15 +3,21 @@
 ------------------------------------------
 
 # Claude Friendly
-[x] broken key sound plays after broken key collection sound
-[x] TV shows tornado warning the next time you enter the store after bathroom key breaks
+[ ] TV shows tornado warning the next time you enter the store after bathroom key breaks
+    [ ] original tv sounds need to cease (Ambient_TV and Ambient_TV2)
+    [ ] tornado warning needs to play the creepy tornado warning sound and show a new texture on the tv screen that says tornado warning
+    [ ] gas station spotlights, gastationbarlights, and outsidegastationlights need to have their intensity reduced by a number I can set in editor at this story beat
+     
 [x] BP_TelephoneScene should only appear after seeing tornado warning on tv
 [x] add "missing person" poster that looks like seneca to telephone pole
-[x] seneca tells you about tornado shelter in bathroom stall later
-[x] hear stuff through static on pay phone
+[ ] seneca tells you about tornado shelter in bathroom stall later
+[ ] hear stuff through static on pay phone
+[ ] door lock sound shouldn't play while the user is inserting the key. Also the key is really hard to see in this game we gotta do something about that
+
     
 # Needs human
 [x] replace gas pumps grey blocks
+[ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
