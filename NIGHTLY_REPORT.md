@@ -13,7 +13,7 @@ Two Claude-Friendly todos, both TDD'd red→green against the E2E harness.
 | Item | Todo | Test | Result |
 |------|------|------|--------|
 | 1 | door lock sound shouldn't play while inserting the key | `Regression.LockSoundDuringKeyInsert` | ✅ green |
-| 2 | held/inspected items hard to see in the dark | `Regression.HeldItemDarkGlow` | ⏳ in progress |
+| 2 | held/inspected items hard to see in the dark | `Regression.HeldItemDarkGlow` | ✅ green |
 
 ---
 
@@ -31,9 +31,24 @@ Files: `OutsideBathroomDoor.h/.cpp`, `TestDriverSubsystem.h/.cpp`, `E2E_LatentCo
 
 ---
 
-## Item 2 — Self-illuminating held/inspected items ⏳
+## Item 2 — Self-illuminating held/inspected items ✅
 
-(In progress — section will be filled on green.)
+**Approach (your call, mid-run).** You asked about an outline shader; we weighed a true post-process/inverted-hull outline (more readable but gamey, cuts against the diegetic rule) vs. a rim-heavy emissive glow (diegetic — the object emits light). You picked the **rim-heavy emissive**.
+
+**What it does.** New material `/Game/CreatedMaterials/M_ItemDarkGlow` — Unlit + Additive overlay, `Emissive = (EmissiveFloor + Fresnel*RimStrength) * GlowColor / EyeAdaptation`. The small floor (0.06) gives the item body so it's recognizable; the Fresnel rim (exp 4, strength 9) brightens the edges; the EyeAdaptation divide makes it render at constant brightness regardless of the scene's auto-exposure; warm color (1.0, 0.86, 0.6). Item-agnostic — applied as a component overlay (`SetOverlayMaterial`), no per-item base-material edits.
+
+**Where applied.** `HeldItemComponent::ShowHeldItem` sets the overlay, `HideHeldItem` clears it (nothing held → no glow). `InspectablePickup` sets it on the pickup mesh while inspected, clears on put-back. The environment receives no added light (emissive-only) — darkness preserved.
+
+**Assert seam.** Driver `GetHeldItemGlowActive()` (visible held mesh has a non-null overlay); latent cmd `FTD_AssertHeldItemGlow`.
+
+**TDD.** RED (no overlay code): `glow=false` ❌. GREEN: `glow=true` ✅ (6 steps, headed). **Visual proof:** `Saved/Screenshots/WindowsEditor/E2E_DarkGlow_KeyHeld.png` — a warm, fully-legible key in a pitch-black room, environment dark. (Held-item flatscreen pose tucks it lower-right; that's the production pose, not the glow.)
+
+**Tuning.** All glow values are baked defaults in `scripts/local/create_item_dark_glow.py` (the .uasset is a build artifact in `Content/CreatedMaterials/`). Re-run that script to retune floor/rim/exponent/color, then re-run the headed test — no C++ rebuild needed.
+
+Files: `M_ItemDarkGlow.uasset` (new), `HeldItemComponent.h/.cpp`, `InspectablePickup.h/.cpp`, `TestDriverSubsystem.h/.cpp`, `E2E_LatentCommands.h`, `E2E_Level1Test.cpp`.
+
+### If you'd prefer a true outline later
+Noted but not built: (2) custom-depth stencil + post-process edge-detect material — crisp, lighting-independent, but reads as a gamey UI highlight; (3) inverted-hull mesh outline — hard outline in world-space, fiddly on thin meshes. Say the word and I'll swap the overlay for one of these.
 
 ---
 

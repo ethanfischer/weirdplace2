@@ -1570,6 +1570,35 @@ private:
 	int32 Expected;
 };
 
+// Assert whether the visible held item has the self-illumination overlay
+// material. RED (no glow code): false. GREEN: true.
+class FTD_AssertHeldItemGlow : public FTD_Base
+{
+public:
+	FTD_AssertHeldItemGlow(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting held-item glow == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldItemGlow: no driver")); return true; }
+		const bool Actual = Driver->GetHeldItemGlowActive();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertHeldItemGlow: glow=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 // =======================================================================
 // FTD_AddTestItem — inject an item directly into the inventory by mesh path,
 // bypassing the gameplay flow that would normally grant it. For focused

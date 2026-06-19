@@ -4,7 +4,8 @@
 
 # Claude Friendly
 [x] door lock sound shouldn't play while the user is inserting the key. 
-[ ] The key is really hard to see in this game because this game has a lot of dark areas. Please brain storm some ways to make held, inspected, reward items more visible in dark conditions
+[x] The key is really hard to see in this game because this game has a lot of dark areas. Please brain storm some ways to make held, inspected, reward items more visible in dark conditions
+    -> M_ItemDarkGlow: emissive rim-glow overlay (Fresnel rim + small floor, /EyeAdaptation for constant brightness, warm). Applied to held items + inspected pickups. Diegetic (object self-illuminates), env stays dark. Tunable in scripts/local/create_item_dark_glow.py.
 
     
 # Needs human

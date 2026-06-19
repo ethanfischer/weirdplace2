@@ -1327,6 +1327,31 @@ bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVec
 	return true;
 }
 
+bool UTestDriverSubsystem::GetHeldItemGlowActive() const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemGlowActive - no player"));
+		return false;
+	}
+
+	// Mirror GetHeldItemBoxAxes: the pawn may carry more than one
+	// UHeldItemComponent; only the live one renders a visible held mesh.
+	TArray<UHeldItemComponent*> HeldComps;
+	Player->GetComponents<UHeldItemComponent>(HeldComps);
+	for (UHeldItemComponent* Comp : HeldComps)
+	{
+		UStaticMeshComponent* Mesh = Comp->GetHeldItemMeshComponent();
+		if (Mesh && Mesh->GetStaticMesh() && Mesh->IsVisible())
+		{
+			return Mesh->GetOverlayMaterial() != nullptr;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemGlowActive - no visible held item mesh"));
+	return false;
+}
+
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()
 {
 	for (TActorIterator<AActor> It(GetWorld()); It; ++It)

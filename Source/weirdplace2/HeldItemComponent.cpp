@@ -49,6 +49,13 @@ void UHeldItemComponent::BeginPlay()
 		}
 	}
 
+	// Self-illumination overlay so held items read in the game's dark areas.
+	GlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
+	if (!GlowMaterial)
+	{
+		UE_LOG(LogTemp, Error, TEXT("HeldItemComponent: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
+	}
+
 	// Create the mesh component
 	CreateHeldItemMesh();
 
@@ -226,6 +233,10 @@ void UHeldItemComponent::ShowHeldItem()
 	if (HeldItemMesh)
 	{
 		HeldItemMesh->SetVisibility(true);
+		if (GlowMaterial)
+		{
+			HeldItemMesh->SetOverlayMaterial(GlowMaterial);
+		}
 		FVector WorldLoc = HeldItemMesh->GetComponentLocation();
 		UE_LOG(LogTemp, Warning, TEXT("HeldItemComponent: Showing held item %s at world pos %s"), *CurrentItemID.ToString(), *WorldLoc.ToString());
 	}
@@ -240,6 +251,7 @@ void UHeldItemComponent::HideHeldItem()
 	if (HeldItemMesh)
 	{
 		HeldItemMesh->SetVisibility(false);
+		HeldItemMesh->SetOverlayMaterial(nullptr);
 		UE_LOG(LogTemp, Log, TEXT("HeldItemComponent: Hiding held item"));
 	}
 }

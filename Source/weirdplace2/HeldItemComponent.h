@@ -8,6 +8,7 @@ class UInventoryComponent;
 class UInventoryUIComponent;
 class UStaticMeshComponent;
 class UCameraComponent;
+class UMaterialInterface;
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UHeldItemComponent : public UActorComponent
@@ -53,6 +54,11 @@ private:
 	// Mesh component for the held VHS box
 	UPROPERTY()
 	UStaticMeshComponent* HeldItemMesh;
+
+	// Self-illumination overlay applied to the held mesh so items read in dark
+	// areas (M_ItemDarkGlow). Emissive-only — never lights the environment.
+	UPROPERTY()
+	UMaterialInterface* GlowMaterial = nullptr;
 
 	// Cached reference to owner's inventory component
 	UPROPERTY()

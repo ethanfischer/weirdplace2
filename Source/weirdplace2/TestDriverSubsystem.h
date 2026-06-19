@@ -277,6 +277,11 @@ public:
 	// nothing is held/visible.
 	bool GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const;
 
+	// True if the currently-visible held item mesh has a self-illumination
+	// overlay material applied (M_ItemDarkGlow). False (and logs) if nothing is
+	// held/visible — which is also the meaningful red-phase failure.
+	bool GetHeldItemGlowActive() const;
+
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.

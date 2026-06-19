@@ -9,6 +9,7 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UDiegeticTextComponent;
 class UItemDefinition;
+class UMaterialInterface;
 class USoundBase;
 class AMyCharacter;
 class APlayerController;
@@ -56,6 +57,11 @@ protected:
 private:
 	UPROPERTY()
 	UDiegeticTextComponent* PutBackPrompt = nullptr;
+
+	// Self-illumination overlay applied to the pickup mesh during inspection so
+	// reward/inspected items read in the dark (M_ItemDarkGlow). Emissive-only.
+	UPROPERTY()
+	UMaterialInterface* GlowMaterial = nullptr;
 
 	AActor* InspectedActor = nullptr;
 	FTransform OriginalActorTransform;

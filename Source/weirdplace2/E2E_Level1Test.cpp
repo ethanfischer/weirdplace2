@@ -415,6 +415,43 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// HeldItemDarkGlow — held items must self-illuminate so they're visible in the
+// game's many dark areas. A held item gets an emissive overlay material
+// (M_ItemDarkGlow) that reads at constant brightness regardless of scene
+// exposure and never lights the environment. Nothing held → no glow.
+//
+// RED (no overlay code): glow == false. GREEN (overlay applied): glow == true.
+// The dark-area screenshot is the subjective "looks right" check.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_HeldItemDarkGlow,
+	"Weirdplace2.E2E.Level1.Regression.HeldItemDarkGlow",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_HeldItemDarkGlow::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("HeldItemDarkGlow")
+
+	// Grant the Key and hold it. SetActiveItem drives OnActiveItemChanged →
+	// ShowHeldItem, which (GREEN) applies the glow overlay.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetActiveItem(this, FName("Key")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldItemGlow(this, true));
+
+	// Visual proof: hold the key in a dim interior and screenshot it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DarkGlow_KeyHeld")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // HeldItemRotationTour — grant the player every UItemDefinition under
 // /Game/Inventory, then cycle each one as the active (held) item with a
 // delay between cycles so the held mesh is visible in front of the camera.
