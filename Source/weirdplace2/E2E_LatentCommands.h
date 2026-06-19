@@ -2077,6 +2077,51 @@ private:
 	bool Expected;
 };
 
+// Hang up the pay-phone directly.
+class FTD_TriggerPayPhoneHangUp : public FTD_Base
+{
+public:
+	FTD_TriggerPayPhoneHangUp(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Hanging up the pay-phone"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerPayPhoneHangUp: no driver")); return true; }
+		Driver->TriggerPayPhoneHangUp();
+		return true;
+	}
+};
+
+// Assert whether the pay-phone dialtone loop is playing.
+class FTD_AssertPayPhoneDialtone : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneDialtone(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone dialtone == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneDialtone: no driver")); return true; }
+		const bool Actual = Driver->IsPayPhoneDialtonePlaying();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneDialtone: dialtone=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 
 // =======================================================================
 // FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or

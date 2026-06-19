@@ -116,12 +116,19 @@ public:
 	// True while the pay-phone's static/voice bed is playing.
 	bool IsPayPhoneAudioPlaying() const;
 
-	// Whether the pay-phone would accept an interact right now (gated + one-shot).
+	// Whether the pay-phone would accept an interact right now (gated; blocked
+	// while off the hook).
 	bool CanPayPhoneInteract() const;
+
+	// True while the pay-phone's dialtone loop is playing.
+	bool IsPayPhoneDialtonePlaying() const;
 
 	// Trigger the pay-phone pickup directly (5.7 simulated-input gotcha — drive
 	// via the subsystem, not a raw key).
 	void TriggerPayPhonePickup();
+
+	// Hang up the pay-phone directly (mirror of TriggerPayPhonePickup).
+	void TriggerPayPhoneHangUp();
 
 	// --- Seneca test helpers ---
 

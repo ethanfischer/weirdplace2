@@ -279,6 +279,17 @@ bool UTestDriverSubsystem::CanPayPhoneInteract() const
 	return Phone->CanInteract();
 }
 
+bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneDialtonePlaying - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsDialtonePlaying();
+}
+
 void UTestDriverSubsystem::TriggerPayPhonePickup()
 {
 	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
@@ -288,6 +299,17 @@ void UTestDriverSubsystem::TriggerPayPhonePickup()
 		return;
 	}
 	Phone->Interact_Implementation();
+}
+
+void UTestDriverSubsystem::TriggerPayPhoneHangUp()
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhoneHangUp - no APayPhone in level"));
+		return;
+	}
+	Phone->HangUp();
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const

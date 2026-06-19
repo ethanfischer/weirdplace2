@@ -1,10 +1,15 @@
 #include "PayPhone.h"
 
+#include "MyCharacter.h"
 #include "StorySubsystem.h"
 #include "Components/AudioComponent.h"
+#include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "TimerManager.h"
 
 APayPhone::APayPhone()
 {
@@ -26,6 +31,20 @@ void APayPhone::BeginPlay()
 		StaticSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/WindInside.WindInside"));
 	}
 
+	// Receiver SFX: pickup (one-shot) -> dialtone (looping) -> hangup (one-shot).
+	if (!PickupSound)
+	{
+		PickupSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_pickup.phone_pickup"));
+	}
+	if (!DialtoneSound)
+	{
+		DialtoneSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_dialtone.phone_dialtone"));
+	}
+	if (!HangupSound)
+	{
+		HangupSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_hangup.phone_hangup"));
+	}
+
 	USceneComponent* Root = GetRootComponent();
 	if (Root)
 	{
@@ -43,6 +62,24 @@ void APayPhone::BeginPlay()
 		VoiceAudio->bAutoActivate = false;
 		VoiceAudio->SetSound(VoiceSound);
 		VoiceAudio->RegisterComponent();
+
+		PickupAudio = NewObject<UAudioComponent>(this, TEXT("PayPhonePickupAudio"));
+		PickupAudio->SetupAttachment(Root);
+		PickupAudio->bAutoActivate = false;
+		PickupAudio->SetSound(PickupSound);
+		PickupAudio->RegisterComponent();
+
+		DialtoneAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneDialtoneAudio"));
+		DialtoneAudio->SetupAttachment(Root);
+		DialtoneAudio->bAutoActivate = false;
+		DialtoneAudio->SetSound(DialtoneSound);
+		DialtoneAudio->RegisterComponent();
+
+		HangupAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneHangupAudio"));
+		HangupAudio->SetupAttachment(Root);
+		HangupAudio->bAutoActivate = false;
+		HangupAudio->SetSound(HangupSound);
+		HangupAudio->RegisterComponent();
 	}
 	else
 	{
@@ -65,6 +102,18 @@ void APayPhone::BeginPlay()
 
 void APayPhone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// Level tearing down mid-call: don't leave the player movement-frozen or a
+	// dangling "Exit Interaction" binding on the controller.
+	if (bOffHook)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(DialtoneStartTimer);
+		}
+		ReleasePlayer();
+		bOffHook = false;
+	}
+
 	if (FlagChangedHandle.IsValid())
 	{
 		if (UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr)
@@ -96,13 +145,63 @@ void APayPhone::Reveal()
 void APayPhone::Interact_Implementation()
 {
 	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	if (!Story || !Story->IsFlagSet(EStoryFlag::SeenTornadoWarning) || bPlayedOnce)
+	if (!Story || !Story->IsFlagSet(EStoryFlag::SeenTornadoWarning) || bOffHook)
 	{
-		UE_LOG(LogTemp, Log, TEXT("APayPhone %s: interact ignored (seen=%d, playedOnce=%d)"),
-			*GetName(), (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning)) ? 1 : 0, bPlayedOnce ? 1 : 0);
+		UE_LOG(LogTemp, Log, TEXT("APayPhone %s: interact ignored (seen=%d, offHook=%d)"),
+			*GetName(), (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning)) ? 1 : 0, bOffHook ? 1 : 0);
 		return;
 	}
 
+	bOffHook = true;
+
+	// Hold the player at the phone — freeze movement and bind hang-up. Look
+	// stays free (VR owns the headset). Mirrors MovieBox inspection.
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PC->SetIgnoreMoveInput(true);
+		if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
+		{
+			Character->SetCanInteract(false);
+			Character->SetActivityState(EPlayerActivityState::Interacting);
+		}
+		if (!PC->InputComponent)
+		{
+			PC->InputComponent = NewObject<UInputComponent>(PC);
+			PC->InputComponent->RegisterComponent();
+		}
+		PC->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &APayPhone::HangUp);
+	}
+
+	if (PickupAudio)
+	{
+		PickupAudio->Play();
+	}
+
+	// Hand off to the dialtone once the pickup one-shot finishes. A timer (not
+	// OnAudioFinished) — deterministic and fires under headless PIE where the
+	// audio engine may not raise the finish event.
+	const float PickupDuration = PickupSound ? PickupSound->GetDuration() : 0.5f;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(DialtoneStartTimer, this, &APayPhone::StartDialtone, PickupDuration, false);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: picked up (pickup -> dialtone in %.2fs)"), *GetName(), PickupDuration);
+}
+
+void APayPhone::StartDialtone()
+{
+	if (!bOffHook)
+	{
+		return;
+	}
+
+	// Looping dialtone (seamless via the SoundWave's bLooping), with the
+	// static + voices bleeding over it.
+	if (DialtoneAudio)
+	{
+		DialtoneAudio->Play();
+	}
 	if (StaticAudio)
 	{
 		StaticAudio->Play();
@@ -111,17 +210,85 @@ void APayPhone::Interact_Implementation()
 	{
 		VoiceAudio->Play();
 	}
-	bPlayedOnce = true;
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: playing static + voices"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices over it)"), *GetName());
+}
+
+void APayPhone::HangUp()
+{
+	if (!bOffHook)
+	{
+		return;
+	}
+
+	// Covers hanging up during the pickup, before the dialtone timer fires.
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(DialtoneStartTimer);
+	}
+
+	if (DialtoneAudio)
+	{
+		DialtoneAudio->Stop();
+	}
+	if (StaticAudio)
+	{
+		StaticAudio->Stop();
+	}
+	if (VoiceAudio)
+	{
+		VoiceAudio->Stop();
+	}
+	if (PickupAudio)
+	{
+		PickupAudio->Stop();
+	}
+
+	if (HangupAudio)
+	{
+		HangupAudio->Play();
+	}
+
+	ReleasePlayer();
+
+	bOffHook = false;
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: hung up"), *GetName());
+}
+
+void APayPhone::ReleasePlayer()
+{
+	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+	if (!PC)
+	{
+		return;
+	}
+
+	PC->SetIgnoreMoveInput(false);
+	if (PC->InputComponent)
+	{
+		PC->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
+	}
+	if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
+	{
+		Character->SetCanInteract(true);
+		Character->SetActivityState(EPlayerActivityState::FreeRoaming);
+	}
 }
 
 bool APayPhone::CanInteract()
 {
 	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	return Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning) && !bPlayedOnce;
+	return Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning) && !bOffHook;
 }
 
 bool APayPhone::IsAudioPlaying() const
 {
-	return (StaticAudio && StaticAudio->IsPlaying()) || (VoiceAudio && VoiceAudio->IsPlaying());
+	return (PickupAudio && PickupAudio->IsPlaying())
+		|| (DialtoneAudio && DialtoneAudio->IsPlaying())
+		|| (StaticAudio && StaticAudio->IsPlaying())
+		|| (VoiceAudio && VoiceAudio->IsPlaying());
+}
+
+bool APayPhone::IsDialtonePlaying() const
+{
+	return DialtoneAudio && DialtoneAudio->IsPlaying();
 }

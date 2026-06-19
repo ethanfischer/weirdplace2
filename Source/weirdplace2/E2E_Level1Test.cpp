@@ -923,40 +923,50 @@ bool FE2E_Level1_TelephoneGatedOnWarning::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// PayPhoneStatic (item 5) — once revealed, pressing E on the pay phone
-// plays a static/voice bed exactly once, and only after SeenTornadoWarning.
+// PayPhoneDialtone (item 5) — once revealed (SeenTornadoWarning), interacting
+// picks up the receiver: a one-shot pickup, then a looping dialtone (with the
+// static/voices over it). The player is held at the phone until "Exit
+// Interaction" hangs up — stopping the dialtone and releasing them. Repeatable.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_PayPhoneStatic,
-	"Weirdplace2.E2E.Level1.Regression.PayPhoneStatic",
+	FE2E_Level1_PayPhoneDialtone,
+	"Weirdplace2.E2E.Level1.Regression.PayPhoneDialtone",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FE2E_Level1_PayPhoneStatic::RunTest(const FString& Parameters)
+bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 {
-	E2E_TEST_PREAMBLE("PayPhoneStatic")
+	E2E_TEST_PREAMBLE("PayPhoneDialtone")
 
 	// Without the flag: gated off, pickup does nothing.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, false));
 
-	// With the flag: pickup plays the bed.
+	// With the flag: can pick up.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
+
+	// Pick up: pickup one-shot plays immediately, and we're now off the hook
+	// so a re-pickup is blocked.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
-
-	// One-shot: can no longer interact, and a second pickup doesn't change state.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
 
-	// Screenshot of the phone on pickup.
+	// After the 0.52s pickup, the dialtone loop has started.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, true));
+
+	// Hang up: dialtone stops and we can pick up again (repeatable).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhoneHangUp(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
+
+	// Screenshot of the revealed phone.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneStatic_Pickup")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneDialtone")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
