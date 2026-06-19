@@ -2,7 +2,7 @@
 
 **Branch:** `overnight/2026-06-19` (cut off `overnight/2026-06-17`) · **Nothing merges to `overnight/2026-06-17` until you OK it.** One commit per item = restore point.
 
-Two Claude-Friendly todos, both TDD'd red→green against the E2E harness.
+Two Claude-Friendly todos, both TDD'd red→green against the E2E harness. **Both green, one commit each. Final tip certified: full `Regression` suite green — 17/17 tests, 316 steps** (the 2 new regression tests + 15 pre-existing, all passing together).
 
 > The previous 2026-06-17 nightly report (Tornado/Telephone beats) is preserved in git history on `overnight/2026-06-17`; this file was overwritten for tonight's run.
 
@@ -55,3 +55,13 @@ Noted but not built: (2) custom-depth stencil + post-process edge-detect materia
 ## Verification method
 - Editor closed before every `Build.bat weirdplace2Editor Win64 Development`.
 - `run_e2e.ps1 -TestName <Name>`; results read from `Saved/Logs/E2ETest.log` scoped to the latest `=== E2E TEST START ===`.
+- Final gate: `run_e2e.ps1 -TestName Regression -Headed -TimeoutMinutes 60` → **17/17 green, 316 steps.**
+
+## Commits (on `overnight/2026-06-19`)
+- `af1ba47e` — Item 1: guard bathroom door against re-entrant interact during key-break
+- `98396938` — Item 2: self-illuminating glow overlay for held/inspected items
+
+## Open decisions for you
+- **Material recipe location.** `scripts/local/create_item_dark_glow.py` (the glow generator/tuner) is in gitignored `scripts/local/`, so the committed record is the `.uasset`. Move it to `scripts/` if you want the recipe version-controlled.
+- **Outline alternative.** If the rim-glow isn't enough in-game, I can swap to a custom-depth stencil post-process outline or an inverted-hull outline (details in the Item 2 section).
+- Nothing merged. Merge target in the morning is `overnight/2026-06-17`.
