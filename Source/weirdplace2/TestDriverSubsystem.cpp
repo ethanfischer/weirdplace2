@@ -151,13 +151,28 @@ float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) cons
 	return MaxIntensity;
 }
 
-void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& AmbientLabels, float Multiplier)
+void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
+	const TArray<FString>& AmbientLabels, float Multiplier)
 {
 	UWorld* World = GetWorld();
 	if (!World)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no world"));
 		return;
+	}
+
+	// Isolate the test: destroy any designer-placed AStormBeatController in the PIE
+	// copy so only this test's controller (known lights/mult) reacts to the flag.
+	// Otherwise a placed controller's own multiplier/targets contaminate the asserts.
+	int32 Removed = 0;
+	for (TActorIterator<AStormBeatController> It(World); It; ++It)
+	{
+		It->Destroy();
+		++Removed;
+	}
+	if (Removed > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - removed %d pre-placed controller(s) for test isolation"), Removed);
 	}
 
 	TArray<AActor*> Lights;
@@ -170,6 +185,19 @@ void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& Lig
 		else
 		{
 			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no light actor '%s'"), *Label);
+		}
+	}
+
+	TArray<AActor*> Hide;
+	for (const FString& Label : HideLabels)
+	{
+		if (AActor* Actor = FindActorByLabel(Label))
+		{
+			Hide.Add(Actor);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no hide actor '%s'"), *Label);
 		}
 	}
 
@@ -196,10 +224,10 @@ void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& Lig
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawn failed"));
 		return;
 	}
-	Controller->ConfigureForTest(Lights, Ambients, Multiplier);
+	Controller->ConfigureForTest(Lights, Hide, Ambients, Multiplier);
 	Controller->FinishSpawning(FTransform::Identity);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawned controller with %d light(s), %d ambient(s), mult %.2f"),
-		Lights.Num(), Ambients.Num(), Multiplier);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawned controller with %d light(s), %d hide, %d ambient(s), mult %.2f"),
+		Lights.Num(), Hide.Num(), Ambients.Num(), Multiplier);
 }
 
 bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const

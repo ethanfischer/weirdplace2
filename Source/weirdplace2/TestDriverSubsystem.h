@@ -102,10 +102,11 @@ public:
 	float GetActorMaxLightIntensity(const FString& Label) const;
 
 	// Test hook for the storm beat: runtime-spawn an AStormBeatController and wire
-	// its light/ambient arrays from the given editor labels (the placed controller
-	// is designer config, so the E2E builds its own). Call before TriggerStoreEntry
-	// so it's subscribed when the flag fires.
-	void SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& AmbientLabels, float Multiplier);
+	// its light/hide/ambient arrays from the given editor labels (the placed
+	// controller is designer config, so the E2E builds its own). Call before
+	// TriggerStoreEntry so it's subscribed when the flag fires.
+	void SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
+		const TArray<FString>& AmbientLabels, float Multiplier);
 
 	// --- Pay-phone (items 2/5) test helpers ---
 

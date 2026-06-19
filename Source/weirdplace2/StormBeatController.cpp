@@ -3,6 +3,7 @@
 #include "StorySubsystem.h"
 #include "Components/AudioComponent.h"
 #include "Components/LightComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/World.h"
 #include "Sound/AmbientSound.h"
 
@@ -44,9 +45,11 @@ void AStormBeatController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-void AStormBeatController::ConfigureForTest(const TArray<AActor*>& InLights, const TArray<AAmbientSound*>& InAmbients, float InMultiplier)
+void AStormBeatController::ConfigureForTest(const TArray<AActor*>& InLights, const TArray<AActor*>& InHide,
+	const TArray<AAmbientSound*>& InAmbients, float InMultiplier)
 {
 	LightsToDim = InLights;
+	ActorsToHide = InHide;
 	AmbientSoundsToSilence = InAmbients;
 	DimMultiplier = InMultiplier;
 }
@@ -86,6 +89,23 @@ void AStormBeatController::ApplyStorm()
 		}
 	}
 
+	// Hide the emissive "light" meshes (no light component to dim). Per project
+	// convention, drive visibility on the root component — SetActorHiddenInGame is
+	// unreliable because the component's own bVisible takes precedence.
+	int32 HiddenActors = 0;
+	for (AActor* Actor : ActorsToHide)
+	{
+		if (!Actor)
+		{
+			continue;
+		}
+		if (USceneComponent* Root = Actor->GetRootComponent())
+		{
+			Root->SetVisibility(false, /*bPropagateToChildren*/ true);
+			++HiddenActors;
+		}
+	}
+
 	// Cut the store's TV ambient beds.
 	int32 SilencedBeds = 0;
 	for (AAmbientSound* Ambient : AmbientSoundsToSilence)
@@ -101,6 +121,6 @@ void AStormBeatController::ApplyStorm()
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("AStormBeatController %s: storm applied — dimmed %d light(s) x%.2f, silenced %d ambient bed(s)"),
-		*GetName(), DimmedLights, DimMultiplier, SilencedBeds);
+	UE_LOG(LogTemp, Log, TEXT("AStormBeatController %s: storm applied — dimmed %d light(s) x%.2f, hid %d mesh(es), silenced %d ambient bed(s)"),
+		*GetName(), DimmedLights, DimMultiplier, HiddenActors, SilencedBeds);
 }

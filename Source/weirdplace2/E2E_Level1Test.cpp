@@ -836,19 +836,24 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 
 	// A gas-station canopy spotlight (100 lm). Stable label confirmed in-level.
 	const TCHAR* GasLight = TEXT("SpotLight3");
+	// An emissive "light" mesh (no light component) — hidden, not dimmed.
+	const TCHAR* GlowMesh = TEXT("outsidegastationlights");
 
 	// --- Baseline (before the beat) ---
-	// The store TV ambient beds are playing, neither TV is blaring its siren, and
-	// the gas-station light is at full intensity (captured for the dim assert).
+	// The store TV ambient beds are playing, neither TV is blaring its siren, the
+	// gas-station light is at full intensity (captured for the dim assert), and the
+	// emissive glow mesh is still visible.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureLightIntensity(this, GasLight, &StormBeat_BaselineLightIntensity));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
 
 	// Self-configure the storm controller BEFORE the flag fires so it's subscribed.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SpawnStormBeat(this,
 		{ FString(GasLight) },
+		{ FString(GlowMesh) },
 		{ FString(TEXT("Ambient_TV")), FString(TEXT("Ambient_TV2")) },
 		/*Mult=*/0.3f));
 
@@ -870,6 +875,9 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	// (RED-defining) The gas-station light dimmed to ~ baseline * 0.3 and stays there.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertLightDimmed(this, GasLight,
 		&StormBeat_BaselineLightIntensity, /*Mult=*/0.3f, /*Tolerance=*/1.0f));
+
+	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
 
 	// Document the alarm/dim moment (the screen texture is designer art → the red
 	// fallback shows here until the designer assigns WarningScreenTexture).

@@ -32,6 +32,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0"), Category = "Storm|Lights")
 	float DimMultiplier = 0.3f;
 
+	// "Lights" that are emissive meshes with no light component (gas-station bar /
+	// outside glow planes) — these can't be dimmed via intensity, so hide them
+	// outright when the storm hits. Set on the level instance.
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Storm|Lights")
+	TArray<AActor*> ActorsToHide;
+
 	// The store's TV ambient beds (Ambient_TV, Ambient_TV2) to silence when the
 	// warning shows. Set on the level instance.
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Storm|Audio")
@@ -39,7 +45,8 @@ public:
 
 	// Test hook: configure the controller at runtime (the E2E self-configures one
 	// since the placed controller is designer config). Call before the flag fires.
-	void ConfigureForTest(const TArray<AActor*>& InLights, const TArray<AAmbientSound*>& InAmbients, float InMultiplier);
+	void ConfigureForTest(const TArray<AActor*>& InLights, const TArray<AActor*>& InHide,
+		const TArray<AAmbientSound*>& InAmbients, float InMultiplier);
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,8 +55,8 @@ protected:
 private:
 	void OnStoryFlagChanged(EStoryFlag Flag, bool bValue);
 
-	// Dim the referenced lights (multiply-once → stays dimmed) and stop the
-	// referenced ambient beds. Guarded so it only runs once.
+	// Dim the referenced lights (multiply-once → stays dimmed), hide the emissive
+	// "light" meshes, and stop the referenced ambient beds. Guarded to run once.
 	void ApplyStorm();
 
 	bool bApplied = false;

@@ -119,7 +119,9 @@ The E2E self-configures a controller at runtime (PIE spawn is safe; it's *headle
 ## What landed (code — verified by E2E)
 1. **The store's TV ambient beds cease** — `Ambient_TV` + `Ambient_TV2` stop the moment the warning shows.
 2. **The TVs blare a looping tornado-alert siren** — `/Game/Sounds/tornadoalert` (CC0, *EAS Alarm* by mpaol2023 — credited, 12.84s clip) plays diegetically from each TV over the warning screen. The wave is a **one-shot**; `ACRTTV` re-fires it after a **designer-set `WarningLoopGapSeconds`** silent gap (default 1.5s) so it doesn't loop instantly/seamlessly — tune the gap on `BP_TV` defaults. The siren has an attenuation override so it's loudest at the TVs and falls off with distance (point source, not a level-wide blast).
-3. **The gas-station lights dim and stay dimmed** — each referenced light's intensity × an editor-set multiplier, applied once.
+3. **The gas-station lights dim and stay dimmed** — each referenced light's intensity × an editor-set multiplier, applied once. The "lights" that are emissive **meshes** (no light component — e.g. `gasstationbarlight*`, `outsidegastationlights`) can't be dimmed by intensity, so a separate **`ActorsToHide`** array hides them outright (root `SetVisibility(false)`, per project convention).
+
+   ⚠️ **Light mobility matters:** runtime `SetIntensity` only shows on **Movable** lights. **Static** lights are baked (zero visible change) and **Stationary** only change their direct contribution. Set the gas-station spotlights to **Movable** if the dim isn't visible.
 
 ### New / changed code
 - **`ACRTTV`** (`CRTTV.h/.cpp`) — new `WarningScreenTexture` (designer art slot) + `WarningSound` (defaults to `tornadoalert`) + a runtime `WarningAudio` component (spatialized, attenuated, built in `BeginPlay`). `ShowTornadoWarning` now builds a **MID** from `M_TornadoWarning` and plays the looping siren; `IsWarningAudioPlaying()` added for tests.
@@ -133,8 +135,9 @@ The mechanism is E2E-proven, but the real beat needs you to wire the level **onc
 
 1. **Place one `AStormBeatController`** in `FirstPersonMap` (anywhere — it has no mesh).
 2. On that controller's **Details panel (level instance)**:
-   - **`LightsToDim`** — drag in the exact gas-station light actors. Confirmed actors with a `ULightComponent`: `SpotLight3`, `SpotLight10`–`SpotLight17` (100 lm canopy spots), `OasisBigLight` (160 cd). ⚠️ The `gastationbarlights` / `outsidegastationlights` from the todo that are emissive **meshes** (no light component) **can't be dimmed this way** — only actors with a real light component respond. If you need those dimmed too, tell me and I'll add an emissive-material path.
-   - **`DimMultiplier`** — your storm-dim factor, 0–1 (the test used `0.3`).
+   - **`LightsToDim`** — drag in the exact gas-station light actors that have a `ULightComponent` (e.g. `SpotLight3`, `SpotLight10`–`SpotLight17`, `OasisBigLight`). **Set those lights to `Mobility = Movable`** or the runtime dim won't show (Static = baked).
+   - **`ActorsToHide`** — drag in the emissive-mesh "lights" (`gasstationbarlight1-5`, `outsidegastationlights`) — these have no light component, so they're hidden instead of dimmed.
+   - **`DimMultiplier`** — your storm-dim factor, 0–1 (the test used `0.3`; `0.0` = fully off).
    - **`AmbientSoundsToSilence`** — drag in `Ambient_TV` and `Ambient_TV2`.
 3. **Assign the screen texture** — on **`BP_TV` class defaults**, set **`WarningScreenTexture`** to your "TORNADO WARNING" image (both TVs share the one assignment). Until you do, the screen shows the storm-red fallback (see screenshot).
 4. **(Optional) Tune the siren loop gap** — on **`BP_TV` class defaults**, set **`WarningLoopGapSeconds`** (default 1.5s) to the silence you want between siren repeats.

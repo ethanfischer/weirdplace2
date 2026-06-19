@@ -1955,8 +1955,8 @@ class FTD_SpawnStormBeat : public FTD_Base
 {
 public:
 	FTD_SpawnStormBeat(FAutomationTestBase* InTest, TArray<FString> InLightLabels,
-		TArray<FString> InAmbientLabels, float InMult)
-		: FTD_Base(InTest), LightLabels(MoveTemp(InLightLabels))
+		TArray<FString> InHideLabels, TArray<FString> InAmbientLabels, float InMult)
+		: FTD_Base(InTest), LightLabels(MoveTemp(InLightLabels)), HideLabels(MoveTemp(InHideLabels))
 		, AmbientLabels(MoveTemp(InAmbientLabels)), Mult(InMult) {}
 
 	virtual FString GetStatusText() const override { return TEXT("Spawning storm-beat controller"); }
@@ -1965,11 +1965,12 @@ public:
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("FTD_SpawnStormBeat: no driver")); return true; }
-		Driver->SpawnAndConfigureStormBeat(LightLabels, AmbientLabels, Mult);
+		Driver->SpawnAndConfigureStormBeat(LightLabels, HideLabels, AmbientLabels, Mult);
 		return true;
 	}
 private:
 	TArray<FString> LightLabels;
+	TArray<FString> HideLabels;
 	TArray<FString> AmbientLabels;
 	float Mult;
 };
