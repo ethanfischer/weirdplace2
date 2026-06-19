@@ -1605,6 +1605,37 @@ private:
 };
 
 // =======================================================================
+// FTD_SetActiveItem — set the active (held) inventory item directly, driving
+// the OnActiveItemChanged path (held-item view + door active-item check). Use
+// after FTD_AddTestItem, which only adds to the bag.
+// =======================================================================
+
+class FTD_SetActiveItem : public FTD_Base
+{
+public:
+	FTD_SetActiveItem(FAutomationTestBase* InTest, FName InItemId)
+		: FTD_Base(InTest), ItemId(InItemId) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting active item '%s'"), *ItemId.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetActiveItem: no driver")); return true; }
+		if (!Driver->SetActiveTestItem(ItemId))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_SetActiveItem: failed for '%s'"), *ItemId.ToString()));
+		}
+		return true;
+	}
+private:
+	FName ItemId;
+};
+
+// =======================================================================
 // FTD_AddAllItemDefsFromFolder — load every UItemDefinition under a content
 // path (e.g. "/Game/Inventory") and grant each to the player. For tour-style
 // tests that want to visualize every item without playing through gameplay.
@@ -2047,6 +2078,35 @@ public:
 	}
 private:
 	bool Expected;
+};
+
+// Assert the OutsideBathroomDoor's locked-rattle play-count. Used by the
+// re-entrancy guard test: a re-entrant interact mid key-break must NOT bump it.
+class FTD_AssertBathroomDoorLockedSoundCount : public FTD_Base
+{
+public:
+	FTD_AssertBathroomDoorLockedSoundCount(FAutomationTestBase* InTest, int32 InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting bathroom-door locked-sound count == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertBathroomDoorLockedSoundCount: no driver")); return true; }
+		const int32 Actual = Driver->GetBathroomDoorLockedSoundCount();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertBathroomDoorLockedSoundCount: count=%d, expected %d"),
+				Actual, Expected));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
 };
 
 // Assert whether the pay-phone would accept an interact (gated + one-shot).

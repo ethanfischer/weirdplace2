@@ -11,6 +11,7 @@
 #endif
 #include "MovieBox.h"
 #include "InspectablePickup.h"
+#include "OutsideBathroomDoor.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
 #include "GazeRewardComponent.h"
@@ -310,6 +311,16 @@ void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 		return;
 	}
 	Phone->HangUp();
+}
+
+int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
+{
+	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
+	{
+		return It->GetLockedSoundPlayCount();
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorLockedSoundCount - no AOutsideBathroomDoor in level"));
+	return -1;
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const
@@ -1366,6 +1377,23 @@ bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPat
 		Data.Materials.Add(Mesh->GetMaterial(i));
 	}
 	Inv->AddItemWithData(Data);
+	return true;
+}
+
+bool UTestDriverSubsystem::SetActiveTestItem(FName ItemId)
+{
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetActiveTestItem: no inventory component"));
+		return false;
+	}
+	if (!Inv->HasItem(ItemId))
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetActiveTestItem: inventory has no item '%s'"), *ItemId.ToString());
+		return false;
+	}
+	Inv->SetActiveItem(ItemId);
 	return true;
 }
 

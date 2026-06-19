@@ -3,7 +3,7 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] door lock sound shouldn't play while the user is inserting the key. 
+[x] door lock sound shouldn't play while the user is inserting the key. 
 [ ] The key is really hard to see in this game because this game has a lot of dark areas. Please brain storm some ways to make held, inspected, reward items more visible in dark conditions
 
     

@@ -127,8 +127,15 @@ public:
 	// via the subsystem, not a raw key).
 	void TriggerPayPhonePickup();
 
-	// Hang up the pay-phone directly (mirror of TriggerPayPhonePickup).
+	// Hang up the pay-phone directly (mirror of TriggerPayPhoneHangUp).
 	void TriggerPayPhoneHangUp();
+
+	// --- Bathroom-door (item 1) test helpers ---
+
+	// Number of times the OutsideBathroomDoor has played its locked-rattle
+	// branch. -1 (and logs) if no such door exists. The re-entrancy guard test
+	// asserts this stays 0 across a mid-key-break re-entrant interact.
+	int32 GetBathroomDoorLockedSoundCount() const;
 
 	// --- Seneca test helpers ---
 
@@ -274,6 +281,12 @@ public:
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.
 	bool AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale = FVector(1.0f));
+
+	// Test-only: set the active (held) inventory item directly. AddTestItem only
+	// adds to the bag; this drives the OnActiveItemChanged path the held-item
+	// view and the door's active-item check both read. Returns false if no item
+	// matches or there's no inventory.
+	bool SetActiveTestItem(FName ItemId);
 
 	// Test-only: add every UItemDefinition asset under FolderPath (e.g.
 	// "/Game/Inventory") to the inventory. Returns count added.

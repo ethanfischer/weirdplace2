@@ -73,6 +73,17 @@ void AOutsideBathroomDoor::Interact_Implementation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor::Interact_Implementation CALLED. bDidDropKey=%d, IsLocked=%d"), bDidDropKey, IsLocked);
 
+	// Re-entrancy guard: while the key-break sequence is running, the Key has
+	// already been removed and the active item cleared, but bDidDropKey isn't set
+	// until the broken half spawns ~3s later. A re-entrant interact in that window
+	// (the UE5.7 double-fire input quirk) would otherwise rattle the locked door.
+	// Ignore it.
+	if (bKeyBreakInProgress && !bDidDropKey)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - key-break in progress, ignoring re-entrant interact"));
+		return;
+	}
+
 	// If key was already dropped, behave as a normal locked door
 	if (bDidDropKey)
 	{
@@ -105,6 +116,7 @@ void AOutsideBathroomDoor::Interact_Implementation()
 	if (ActiveItem != KeyToRemove)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Active item does not match key, playing locked sound"));
+		LockedSoundPlayCount++;
 		if (LockedDoorSound)
 		{
 			UGameplayStatics::PlaySound2D(this, LockedDoorSound);
@@ -117,6 +129,10 @@ void AOutsideBathroomDoor::Interact_Implementation()
 
 void AOutsideBathroomDoor::StartKeyBreakSequence()
 {
+	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
+	// interact is ignored (see Interact_Implementation).
+	bKeyBreakInProgress = true;
+
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
 	if (!MyCharacter)

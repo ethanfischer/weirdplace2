@@ -27,10 +27,23 @@ public:
 	// Override interact for bathroom-specific behavior
 	virtual void Interact_Implementation() override;
 
+	// Test seam: number of times the "wrong/no active item" locked-rattle branch
+	// has been taken. The re-entrancy bug shows up here — a re-entrant interact
+	// mid key-break used to fall into this branch and bump the count.
+	int32 GetLockedSoundPlayCount() const { return LockedSoundPlayCount; }
+
 protected:
 	// Tracks whether the key has been dropped
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor")
 	bool bDidDropKey = false;
+
+	// True from the moment the key-break sequence starts until bDidDropKey takes
+	// over. Guards against re-entrant interacts (the UE5.7 double-fire input
+	// quirk fires a single key-insert press twice) playing the locked rattle.
+	bool bKeyBreakInProgress = false;
+
+	// See GetLockedSoundPlayCount().
+	int32 LockedSoundPlayCount = 0;
 
 	// Reference to Seneca so we can notify her when the key is dropped
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "OutsideBathroomDoor")

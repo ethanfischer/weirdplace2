@@ -73,6 +73,51 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// LockSoundDuringKeyInsert — re-entrancy guard regression. A repeated interact
+// fired WHILE the key-break sequence is running (the UE5.7 double-fire input
+// quirk turns one key-insert press into two) must NOT fall into the locked
+// rattle branch. The break sequence removes the Key + clears the active item
+// immediately, but doesn't set bDidDropKey until ~3s later; without the guard
+// the re-entrant interact sees "no active key" and plays LockedDoorSound.
+//
+// RED (no guard): locked-sound count == 1 after the re-entrant interact.
+// GREEN (guard):  count stays 0.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_LockSoundDuringKeyInsert,
+	"Weirdplace2.E2E.Level1.Regression.LockSoundDuringKeyInsert",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("LockSoundDuringKeyInsert")
+
+	// Grant the Key and make it the active (held) item so the first interact
+	// starts the break sequence instead of rattling.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetActiveItem(this, FName("Key")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+
+	// Interact #1: starts the key-break sequence (removes Key, clears active).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	// Mid-sequence — bDidDropKey is still false (set ~3s in on broken-key spawn).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.4f));
+	// Interact #2: the re-entrant press. RED falls into the locked rattle.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_LockSound_MidKeyBreak")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorLockedSoundCount(this, 0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // SenecaSmokingAnim — diagnostic for the smoking animation failing to
 // play on the natural quest path (works via SkipToSmoking console cmd).
 // Lingers around Seneca's appear-at-smoking-spot moment and takes
