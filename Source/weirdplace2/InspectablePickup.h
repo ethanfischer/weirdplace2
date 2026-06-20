@@ -38,6 +38,11 @@ public:
 	// the E2E TestDriver can find the pickup that's currently being inspected.
 	bool IsBeingInspected() const { return InspectedActor != nullptr; }
 
+	// Test seam: true if the pickup mesh currently carries the self-illumination
+	// glow overlay (always-on while the pickup exists, so it reads on the ground
+	// in the dark, not just while inspected).
+	bool IsGlowActive() const;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
 	USphereComponent* CollisionSphere;

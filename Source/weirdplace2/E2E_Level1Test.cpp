@@ -83,8 +83,9 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 // RED (no guard): locked-sound count == 1 after the re-entrant interact.
 // GREEN (guard):  count stays 0.
 //
-// Also verifies the animated key carries the self-illumination glow overlay
-// while inserted (matching the held-item glow), so it reads in the dark.
+// Also verifies the self-illumination glow follows the key through the whole
+// sequence: on the animated key while inserted, and on the dropped broken-key
+// pickup where it lands, so both read in the dark.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -119,6 +120,15 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_LockSound_MidKeyBreak")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorLockedSoundCount(this, 0));
+
+	// Let the sequence finish and drop the broken-key pickup, then confirm it
+	// glows where it lands so it's findable on the dark floor (not just once
+	// it's pulled in to inspect).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(this, 15.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupGlow(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BrokenKey_GroundGlow")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

@@ -50,11 +50,16 @@ void AInspectablePickup::BeginPlay()
 
 	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 
-	// Self-illumination overlay so the item reads in the dark while inspected.
+	// Self-illumination overlay, applied from spawn so the dropped item reads on
+	// the dark floor — not just once it's pulled in to inspect.
 	GlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
 	if (!GlowMaterial)
 	{
 		UE_LOG(LogTemp, Error, TEXT("InspectablePickup: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
+	}
+	else if (PickupMesh)
+	{
+		PickupMesh->SetOverlayMaterial(GlowMaterial);
 	}
 
 	TArray<UDiegeticTextComponent*> AllDiegeticText;
@@ -116,11 +121,6 @@ void AInspectablePickup::Interact_Implementation()
 	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 	{
 		FPChar->SetItemHoldLightEnabled(true);
-	}
-
-	if (GlowMaterial && PickupMesh)
-	{
-		PickupMesh->SetOverlayMaterial(GlowMaterial);
 	}
 
 	if (!PlayerController->InputComponent)
@@ -197,6 +197,11 @@ void AInspectablePickup::CollectInspectedItem()
 		}));
 }
 
+bool AInspectablePickup::IsGlowActive() const
+{
+	return PickupMesh && PickupMesh->GetOverlayMaterial() != nullptr;
+}
+
 void AInspectablePickup::StopInspection()
 {
 	if (!InspectedActor) return;
@@ -221,8 +226,6 @@ void AInspectablePickup::StopInspection()
 	}
 
 	if (PutBackPrompt) PutBackPrompt->SetVisibility(false);
-
-	if (PickupMesh) PickupMesh->SetOverlayMaterial(nullptr);
 
 	InspectedActor = nullptr;
 

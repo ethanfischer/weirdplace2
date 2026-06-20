@@ -2167,6 +2167,35 @@ private:
 	bool Expected;
 };
 
+// Assert whether the level's inspectable pickup (e.g. the dropped broken key)
+// carries the glow overlay — i.e. it's visible on the ground in the dark.
+class FTD_AssertInspectablePickupGlow : public FTD_Base
+{
+public:
+	FTD_AssertInspectablePickupGlow(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting dropped-pickup glow == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertInspectablePickupGlow: no driver")); return true; }
+		const bool Actual = Driver->GetInspectablePickupGlowActive();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertInspectablePickupGlow: glow=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 // Assert whether the pay-phone would accept an interact (gated + one-shot).
 class FTD_AssertPayPhoneCanInteract : public FTD_Base
 {

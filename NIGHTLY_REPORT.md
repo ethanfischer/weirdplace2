@@ -6,7 +6,11 @@ Two Claude-Friendly todos, both TDD'd red→green against the E2E harness. **Bot
 
 > The previous 2026-06-17 nightly report (Tornado/Telephone beats) is preserved in git history on `overnight/2026-06-17`; this file was overwritten for tonight's run.
 
-**Follow-up (morning 2026-06-20, your request):** extended the same `M_ItemDarkGlow` glow to the key *during the door-lock insert animation* (the door's `AnimKeyMesh`), so it stays lit hand → lock → broken-half pickup. RED→GREEN added to `LockSoundDuringKeyInsert` (new `FTD_AssertBathroomDoorAnimKeyGlow`); visual proof `E2E_KeyInsert_Glow.png` — the warm key glows inside the dark keyhole. (See Commits section below.)
+**Follow-ups (morning 2026-06-20, your requests):** extended the same `M_ItemDarkGlow` glow so it follows the key end to end —
+1. *During the door-lock insert animation* (the door's `AnimKeyMesh`): RED→GREEN on `LockSoundDuringKeyInsert` (new `FTD_AssertBathroomDoorAnimKeyGlow`); proof `E2E_KeyInsert_Glow.png` — warm key glowing inside the dark keyhole.
+2. *On the dropped broken-key pickup, on the ground* — previously it only glowed once you were inspecting it, so it was invisible on the dark floor. `AInspectablePickup` now applies the overlay from spawn (BeginPlay) instead of on inspect, so it's findable where it lands. RED→GREEN (`FTD_AssertInspectablePickupGlow`); proof `E2E_BrokenKey_GroundGlow.png` — warm glow on the floor at the door base.
+
+(See Commits section below.)
 
 ---
 

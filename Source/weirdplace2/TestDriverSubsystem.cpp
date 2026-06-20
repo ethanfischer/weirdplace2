@@ -1337,6 +1337,17 @@ bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVec
 	return true;
 }
 
+bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
+{
+	AInspectablePickup* Pickup = FindInspectablePickup();
+	if (!Pickup)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetInspectablePickupGlowActive - no AInspectablePickup in level"));
+		return false;
+	}
+	return Pickup->IsGlowActive();
+}
+
 bool UTestDriverSubsystem::GetHeldItemGlowActive() const
 {
 	AFirstPersonCharacter* Player = GetPlayer();
