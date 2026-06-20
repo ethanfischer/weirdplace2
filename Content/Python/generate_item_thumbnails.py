@@ -56,7 +56,7 @@ ITEM_REGISTRY = [
     },
 ]
 
-THUMB_W, THUMB_H = 1024, 1440
+THUMB_W, THUMB_H = 1024, 1024
 # Far from any FirstPerson map geometry — guaranteed empty space.
 BOOTH_LOC = unreal.Vector(9999.0, 9999.0, 9999.0)
 CAMERA_FOV = 35.0

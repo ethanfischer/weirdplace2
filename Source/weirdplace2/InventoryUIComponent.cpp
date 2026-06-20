@@ -58,11 +58,8 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EInventoryUIState::Open;
-
-			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
-			{
-				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
-			}
+			// The inventory UI is fully self-illuminated (all materials unlit/
+			// emissive), so the player's inventory RectLight is no longer needed.
 		}
 		UpdateInventoryPosition();
 		break;
@@ -153,7 +150,8 @@ void UInventoryUIComponent::OpenInventoryUI()
 		const float ThumbnailSize = 8.0f;
 		const float ThumbnailSpacing = 2.0f;
 		const float GridWidth = GridColumns * ThumbnailSize + (GridColumns - 1) * ThumbnailSpacing;
-		const float GridHeight = GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+		// Square cells: grid height uses ThumbnailSize directly (see AInventoryUIActor::SlotHeightAspect).
+		const float GridHeight = GridRows * ThumbnailSize + (GridRows - 1) * ThumbnailSpacing;
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}
 

@@ -58,6 +58,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UTextRenderComponent* ItemNameTextTop;
 
+	// Cell height-to-width aspect for slots/thumbnails/borders. 1.0 = square.
+	static constexpr float SlotHeightAspect = 1.0f;
+
 	// Size of each thumbnail
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	float ThumbnailSize = 8.0f;

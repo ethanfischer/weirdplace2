@@ -68,7 +68,7 @@ def create_item_thumbnail_material():
     # Exposure multiplier — black stays black, key brightness is tunable
     exposure = mel.create_material_expression(material, unreal.MaterialExpressionScalarParameter, -50, 80)
     exposure.set_editor_property("parameter_name", "Exposure")
-    exposure.set_editor_property("default_value", 0.25)
+    exposure.set_editor_property("default_value", 0.6)
 
     multiply = mel.create_material_expression(material, unreal.MaterialExpressionMultiply, 100, 0)
     mel.connect_material_expressions(texture_param, "RGB", multiply, "A")

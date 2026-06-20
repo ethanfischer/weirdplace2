@@ -108,8 +108,25 @@ def create_vhs_front_material():
     # Connect to texture sampler UVs
     mel.connect_material_expressions(add, "", texture_param, "UVs")
 
-    # Connect texture to Base Color (standard lit material)
-    mel.connect_material_property(texture_param, "RGB", unreal.MaterialProperty.MP_BASE_COLOR)
+    # Self-illuminated (unlit) so VHS-cover thumbnails don't depend on the
+    # inventory RectLight. Mirrors M_ItemThumbnail: texture * Exposure, then
+    # divide by EyeAdaptation to cancel tonemapper auto-exposure so brightness
+    # stays constant regardless of how dim/bright the surrounding scene is.
+    exposure = mel.create_material_expression(material, unreal.MaterialExpressionScalarParameter, -300, 200)
+    exposure.set_editor_property("parameter_name", "Exposure")
+    exposure.set_editor_property("default_value", 0.6)
+
+    multiply_exposure = mel.create_material_expression(material, unreal.MaterialExpressionMultiply, -150, 0)
+    mel.connect_material_expressions(texture_param, "RGB", multiply_exposure, "A")
+    mel.connect_material_expressions(exposure, "", multiply_exposure, "B")
+
+    eye_adapt = mel.create_material_expression(material, unreal.MaterialExpressionEyeAdaptation, -150, 200)
+    divide = mel.create_material_expression(material, unreal.MaterialExpressionDivide, 50, 0)
+    mel.connect_material_expressions(multiply_exposure, "", divide, "A")
+    mel.connect_material_expressions(eye_adapt, "", divide, "B")
+
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    mel.connect_material_property(divide, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
     # Recompile and save
     mel.recompile_material(material)

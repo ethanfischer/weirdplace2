@@ -346,9 +346,10 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// PauseMenuLight — verify the player's RectLight (the same one the
-// inventory uses) is enabled while the pause menu is open and disabled
-// after it closes.
+// PauseMenuLight — the menu/inventory UI is now fully self-illuminated
+// (all materials unlit/emissive), so the player's inventory RectLight is
+// intentionally never enabled. This guards that the menu does NOT turn the
+// light on; the screenshot confirms the menu still reads with the light off.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -364,14 +365,15 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_01_Before")));
 
-	// Open the menu and wait past the open animation so the light has flipped on.
+	// Open the menu and wait past the open animation. The light must stay OFF —
+	// the menu self-illuminates, so it's never enabled.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_02_MenuOpenLightOn")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_02_MenuOpenLightOff")));
 
-	// Close the menu — light should disable immediately on close.
+	// Close the menu — light stays off.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
@@ -410,7 +412,12 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
 		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+	// A movie item: its ItemID resolves to /Game/VHSCovers/<ItemID>, exercising
+	// the M_VHSCoverFront thumbnail material (the mesh path is irrelevant to the
+	// thumbnail). Verifies VHS covers self-illuminate without the inventory light.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BATMAN-THE-MOVIE"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
 
 	// Bright outdoor — open inventory + screenshot.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
