@@ -82,6 +82,9 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 //
 // RED (no guard): locked-sound count == 1 after the re-entrant interact.
 // GREEN (guard):  count stays 0.
+//
+// Also verifies the animated key carries the self-illumination glow overlay
+// while inserted (matching the held-item glow), so it reads in the dark.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -104,8 +107,12 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 
 	// Interact #1: starts the key-break sequence (removes Key, clears active).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	// Mid-sequence — bDidDropKey is still false (set ~3s in on broken-key spawn).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.4f));
+	// Let the animated key appear at the lock — it should carry the same glow
+	// overlay the held key had, so it reads in the dark while inserted.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorAnimKeyGlow(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_KeyInsert_Glow")));
+	// Still mid-sequence — bDidDropKey is false (set ~3s in on broken-key spawn).
 	// Interact #2: the re-entrant press. RED falls into the locked rattle.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));

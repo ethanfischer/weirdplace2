@@ -44,6 +44,14 @@ void AOutsideBathroomDoor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Same self-illumination overlay the held key uses, so the key keeps glowing
+	// as it's inserted into the lock.
+	GlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
+	if (!GlowMaterial)
+	{
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
+	}
+
 	if (KeyInsertCurve && KeyInsertTimeline)
 	{
 		FOnTimelineFloat InsertCallback;
@@ -206,6 +214,12 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		AnimKeyMesh->SetWorldLocation(KeyAnimStartPos);
 		AnimKeyMesh->SetWorldRotation(KeyAnimStartRot);
 		AnimKeyMesh->SetVisibility(true);
+		// Keep the held-key glow on the key as it's inserted into the lock. The
+		// overlay persists across the later broken-mesh swap.
+		if (GlowMaterial)
+		{
+			AnimKeyMesh->SetOverlayMaterial(GlowMaterial);
+		}
 	}
 
 	if (KeyInsertSound)
@@ -373,6 +387,11 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
+}
+
+bool AOutsideBathroomDoor::IsAnimKeyGlowActive() const
+{
+	return AnimKeyMesh && AnimKeyMesh->GetOverlayMaterial() != nullptr;
 }
 
 void AOutsideBathroomDoor::PlayKeyInsertSound()

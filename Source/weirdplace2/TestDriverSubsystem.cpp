@@ -323,6 +323,16 @@ int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
 	return -1;
 }
 
+bool UTestDriverSubsystem::GetBathroomDoorAnimKeyGlowActive() const
+{
+	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
+	{
+		return It->IsAnimKeyGlowActive();
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorAnimKeyGlowActive - no AOutsideBathroomDoor in level"));
+	return false;
+}
+
 bool UTestDriverSubsystem::IsPlayerReady() const
 {
 	AFirstPersonCharacter* Player = GetPlayer();

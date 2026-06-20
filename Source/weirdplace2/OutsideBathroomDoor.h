@@ -32,6 +32,10 @@ public:
 	// mid key-break used to fall into this branch and bump the count.
 	int32 GetLockedSoundPlayCount() const { return LockedSoundPlayCount; }
 
+	// Test seam: true while the animated key mesh carries the self-illumination
+	// glow overlay (during the insert/turn/break sequence).
+	bool IsAnimKeyGlowActive() const;
+
 protected:
 	// Tracks whether the key has been dropped
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor")
@@ -160,6 +164,11 @@ private:
 	// Materials captured from the key's inventory data (reused for BrokenKey entry)
 	UPROPERTY()
 	TArray<UMaterialInterface*> KeyMaterials;
+
+	// Self-illumination overlay applied to the animated key so it reads in the
+	// dark during the insert sequence, matching the held-item glow. M_ItemDarkGlow.
+	UPROPERTY()
+	UMaterialInterface* GlowMaterial = nullptr;
 
 	void StartKeyBreakSequence();
 

@@ -6,6 +6,8 @@ Two Claude-Friendly todos, both TDD'd red→green against the E2E harness. **Bot
 
 > The previous 2026-06-17 nightly report (Tornado/Telephone beats) is preserved in git history on `overnight/2026-06-17`; this file was overwritten for tonight's run.
 
+**Follow-up (morning 2026-06-20, your request):** extended the same `M_ItemDarkGlow` glow to the key *during the door-lock insert animation* (the door's `AnimKeyMesh`), so it stays lit hand → lock → broken-half pickup. RED→GREEN added to `LockSoundDuringKeyInsert` (new `FTD_AssertBathroomDoorAnimKeyGlow`); visual proof `E2E_KeyInsert_Glow.png` — the warm key glows inside the dark keyhole. (See Commits section below.)
+
 ---
 
 ## Status at a glance

@@ -2138,6 +2138,35 @@ private:
 	int32 Expected;
 };
 
+// Assert whether the bathroom door's animated key carries the glow overlay
+// during the insert sequence.
+class FTD_AssertBathroomDoorAnimKeyGlow : public FTD_Base
+{
+public:
+	FTD_AssertBathroomDoorAnimKeyGlow(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inserted-key glow == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: no driver")); return true; }
+		const bool Actual = Driver->GetBathroomDoorAnimKeyGlowActive();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: glow=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
 // Assert whether the pay-phone would accept an interact (gated + one-shot).
 class FTD_AssertPayPhoneCanInteract : public FTD_Base
 {
