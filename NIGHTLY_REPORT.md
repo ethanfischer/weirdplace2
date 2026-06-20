@@ -62,6 +62,8 @@ Noted but not built: (2) custom-depth stencil + post-process edge-detect materia
 ## Commits (on `overnight/2026-06-19`)
 - `af1ba47e` — Item 1: guard bathroom door against re-entrant interact during key-break
 - `98396938` — Item 2: self-illuminating glow overlay for held/inspected items
+- `d9109eea` — Nightly report: certify full Regression suite green (17/17, 316 steps)
+- `75b69c16` — Follow-up: keep the glow on the key during the door-lock insert animation (re-verified: HappyPath green, 131 steps)
 
 ## Open decisions for you
 - **Material recipe location.** `scripts/local/create_item_dark_glow.py` (the glow generator/tuner) is in gitignored `scripts/local/`, so the committed record is the `.uasset`. Move it to `scripts/` if you want the recipe version-controlled.
