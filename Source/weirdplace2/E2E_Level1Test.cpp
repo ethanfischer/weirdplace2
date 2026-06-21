@@ -346,10 +346,10 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// PauseMenuLight — the menu/inventory UI is now fully self-illuminated
-// (all materials unlit/emissive), so the player's inventory RectLight is
-// intentionally never enabled. This guards that the menu does NOT turn the
-// light on; the screenshot confirms the menu still reads with the light off.
+// PauseMenuLight — the menu/inventory UI is fully self-illuminated (emissive
+// panels/thumbnails + unlit M_UnlitText for the labels), so the player's
+// inventory RectLight is intentionally never enabled. This guards that the menu
+// does NOT turn the light on; the screenshot confirms it reads with the light off.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -366,7 +366,7 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_01_Before")));
 
 	// Open the menu and wait past the open animation. The light must stay OFF —
-	// the menu self-illuminates, so it's never enabled.
+	// the menu self-illuminates (unlit text material), so it's never enabled.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
@@ -409,7 +409,7 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
-		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
+		TEXT("/Game/Import/cash/money.money"), FVector(1.0f)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
 		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	// A movie item: its ItemID resolves to /Game/VHSCovers/<ItemID>, exercising

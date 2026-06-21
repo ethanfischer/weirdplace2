@@ -58,8 +58,8 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EInventoryUIState::Open;
-			// The inventory UI is fully self-illuminated (all materials unlit/
-			// emissive), so the player's inventory RectLight is no longer needed.
+			// The inventory UI is fully self-illuminated (thumbnails/slots emissive,
+			// text uses the unlit M_UnlitText), so no inventory RectLight is needed.
 		}
 		UpdateInventoryPosition();
 		break;

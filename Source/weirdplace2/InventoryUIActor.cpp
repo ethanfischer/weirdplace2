@@ -50,6 +50,23 @@ void AInventoryUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// The UI is self-illuminated (no inventory RectLight). Give the item-name text
+	// an unlit material so it stays readable in dark areas; the engine's default
+	// TextRender material is lit and would render near-black.
+	if (UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText")))
+	{
+		TArray<UTextRenderComponent*> TextComps;
+		GetComponents<UTextRenderComponent>(TextComps);
+		for (UTextRenderComponent* TextComp : TextComps)
+		{
+			TextComp->SetTextMaterial(TextMat);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: M_UnlitText not found; item text may be dark."));
+	}
+
 	// Create dynamic material instance from the material set on BackgroundPanel in Blueprint
 	if (BackgroundPanel)
 	{

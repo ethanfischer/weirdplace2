@@ -184,3 +184,7 @@ Do not use `--file <path>` — the wrapper ships file contents, but 5.7's MODE_E
 `scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
 
 **Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
+
+
+## Ending your turn
+If you've made changes that I need to manually verify, please use Rider to launch unreal for me so it's ready to go when I return to my computer

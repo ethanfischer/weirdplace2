@@ -14,6 +14,7 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStaticMeshComponent;
+class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
 class UMenuUIComponent;
 class APlayerController;
@@ -251,6 +252,12 @@ private:
 	// Dynamically spawned mesh components for stacked item notifications
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> StackNotificationMeshes;
+
+	// Self-illumination overlay (M_ItemDarkGlow) applied to notification popups so
+	// received items (e.g. Seneca's key) read in the game's dark areas, matching
+	// held items / inspected pickups. Emissive-only — never lights the environment.
+	UPROPERTY()
+	UMaterialInterface* NotificationGlowMaterial = nullptr;
 
 	void ClearItemNotificationStack();
 

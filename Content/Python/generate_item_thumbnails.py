@@ -29,7 +29,7 @@ import unreal
 ITEM_REGISTRY = [
     {
         "id": "Money",
-        "mesh": "/Game/Import/cash/cash",
+        "mesh": "/Game/Import/cash/money",
         # Pitch=-90 rotates the cash so its bill face presents to the camera.
         "rotation": (-90.0, 0.0, 0.0),
     },

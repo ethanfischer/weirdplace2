@@ -137,6 +137,14 @@ void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Self-illumination overlay for item-notification popups so received items
+	// read in the game's dark areas (same material held items / pickups use).
+	NotificationGlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
+	if (!NotificationGlowMaterial)
+	{
+		UE_LOG(LogTemp, Error, TEXT("AFirstPersonCharacter: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
+	}
+
 	// Sprite icons (trigger boxes, empty actors, etc.) are editor-only but leak into PIE
 	// when the viewport show flags get reset by Blueprint recompiles. Suppress them here
 	// so rebuilds can't re-enable them.
@@ -790,6 +798,7 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
 
 	ItemNotificationMesh->SetRelativeRotation(InitialRotation);
+	ItemNotificationMesh->SetOverlayMaterial(NotificationGlowMaterial);
 	ItemNotificationMesh->SetVisibility(true);
 
 	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
@@ -843,6 +852,7 @@ void AFirstPersonCharacter::ShowItemNotificationStack(const TArray<FInventoryIte
 		MeshComp->SetRelativeLocation(BaseOffset + FVector(0.0f, 0.0f, CurrentZ));
 		MeshComp->SetRelativeRotation(ItemRotation);
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComp->SetOverlayMaterial(NotificationGlowMaterial);
 		MeshComp->SetVisibility(true);
 		MeshComp->RegisterComponent();
 
