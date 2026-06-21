@@ -30,4 +30,8 @@ public:
 	// Dev: grant an item to the player inventory by short name. Looks up the
 	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
 	UFUNCTION(Exec) void GiveItem(const FString& Name);
+
+	// Dev: grant every UItemDefinition under /Game/Inventory and open the inventory.
+	// Skips items already held, so repeated runs don't create duplicate slots.
+	UFUNCTION(Exec) void GiveAll();
 };

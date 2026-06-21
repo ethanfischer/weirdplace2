@@ -195,6 +195,11 @@ public:
 	// camera at the right spot). Confirmation still goes through E key input.
 	bool SetSelectedSlot(int32 Index);
 
+	// Inventory UI selection state (absolute item index + horizontal scroll window).
+	int32 GetSelectedSlot() const;
+	int32 GetScrollOffset() const;
+	int32 GetVisibleColumns() const;
+
 	// --- Movie helpers ---
 
 	// Returns the next uncollected MovieBox in the level, or nullptr.

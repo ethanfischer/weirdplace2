@@ -52,7 +52,13 @@ public:
 
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
-	int32 GetSelectedIndex() const { return SelectedIndex; }
+	int32 GetSelectedIndex() const { return AbsoluteSelectedIndex; }
+
+	// For tests: current leftmost-visible item index.
+	int32 GetScrollOffsetForTest() const { return ScrollOffset; }
+
+	// For tests: width of the visible window (columns in the single-row strip).
+	int32 GetVisibleColumnsForTest() const { return GridColumns; }
 
 	// Test-only: force the selected inventory slot, bypassing reticle-driven selection.
 	// Used by the E2E TestDriver so tests can deterministically pick a slot without
@@ -125,8 +131,14 @@ private:
 	// Animation progress (0 = closed, 1 = open)
 	float AnimationProgress = 0.0f;
 
-	// Currently selected grid index
-	int32 SelectedIndex = 0;
+	// Currently selected item index, ABSOLUTE over the (unbounded) item list —
+	// not a visible-slot index. The visible strip is a horizontally-scrolling
+	// window of GridColumns items starting at ScrollOffset.
+	int32 AbsoluteSelectedIndex = 0;
+
+	// Index of the leftmost item currently visible in the strip. The window shows
+	// items [ScrollOffset, ScrollOffset + GridColumns).
+	int32 ScrollOffset = 0;
 
 	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
 	FVector StoredUIPosition;
@@ -170,6 +182,13 @@ private:
 
 	// Clamp selected index to valid range
 	void ClampSelectedIndex();
+
+	// Number of item slots (including sparse NAME_None holes), i.e. Items.Num().
+	int32 GetItemCount() const;
+
+	// Slide ScrollOffset so AbsoluteSelectedIndex stays inside the visible window
+	// [ScrollOffset, ScrollOffset + GridColumns), clamped to the item list.
+	void RecomputeScrollOffset();
 
 	// Dirty flag - true when inventory changed and UI needs refresh
 	bool bInventoryNeedsRefresh = true;

@@ -6,12 +6,15 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
 #include "Seneca.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "AssetRegistry/IAssetRegistry.h"
 
 void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 {
@@ -132,4 +135,59 @@ void UWeirdplaceCheatManager::GiveItem(const FString& Name)
 
 	Inventory->AddItemWithData(Def->ToInventoryItemData());
 	UE_LOG(LogTemp, Display, TEXT("GiveItem - granted '%s' (ItemID=%s)"), *Name, *Def->ItemID.ToString());
+}
+
+void UWeirdplaceCheatManager::GiveAll()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	AMyCharacter* Character = PC ? Cast<AMyCharacter>(PC->GetPawn()) : nullptr;
+	if (!Character)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveAll - no AMyCharacter pawn"));
+		return;
+	}
+
+	UInventoryComponent* Inventory = Character->GetInventoryComponent();
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GiveAll - no InventoryComponent"));
+		return;
+	}
+
+	// Enumerate every UItemDefinition under /Game/Inventory. ScanPathsSynchronous
+	// ensures the registry knows the path in packaged non-shipping builds too (not
+	// just the editor), so the cheat isn't editor-only.
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+	const FString Folder = TEXT("/Game/Inventory");
+	AssetRegistry.ScanPathsSynchronous({ Folder }, /*bForceRescan*/ false);
+
+	TArray<FAssetData> AssetDatas;
+	AssetRegistry.GetAssetsByPath(FName(*Folder), AssetDatas, /*bRecursive*/ true);
+
+	int32 Granted = 0;
+	for (const FAssetData& AD : AssetDatas)
+	{
+		UItemDefinition* Def = Cast<UItemDefinition>(AD.GetAsset());
+		if (!Def || Def->ItemID.IsNone() || !Def->Mesh)
+		{
+			continue;
+		}
+		if (Inventory->HasItem(Def->ItemID))
+		{
+			continue;
+		}
+		Inventory->AddItemWithData(Def->ToInventoryItemData());
+		++Granted;
+	}
+
+	if (UInventoryUIComponent* UI = Character->GetInventoryUIComponent())
+	{
+		UI->OpenInventoryUI();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("GiveAll - no InventoryUIComponent; items granted but UI not opened"));
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("GiveAll - granted %d new item(s) from %s"), Granted, *Folder);
 }

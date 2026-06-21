@@ -1570,6 +1570,108 @@ private:
 	int32 Expected;
 };
 
+// Assert the absolute selected item index in the inventory strip.
+class FTD_AssertSelectedSlot : public FTD_Base
+{
+public:
+	FTD_AssertSelectedSlot(FAutomationTestBase* InTest, int32 InExpected) : FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting selected slot == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertSelectedSlot: no driver")); return true; }
+		const int32 Actual = Driver->GetSelectedSlot();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertSelectedSlot: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// Assert the horizontal scroll offset (leftmost visible item index). Proves the
+// strip actually scrolled rather than clamping the selection at the window edge.
+class FTD_AssertScrollOffset : public FTD_Base
+{
+public:
+	FTD_AssertScrollOffset(FAutomationTestBase* InTest, int32 InExpected) : FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting scroll offset == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertScrollOffset: no driver")); return true; }
+		const int32 Actual = Driver->GetScrollOffset();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollOffset: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// Assert the horizontal-scroll window invariant at runtime (independent of the
+// BP's column count): the selection is inside the visible window, the window is
+// right-aligned to the selection (offset == clamp(sel - cols + 1, 0, count-cols)),
+// and — when bExpectScrolled — the strip actually scrolled (offset > 0).
+class FTD_AssertScrollWindow : public FTD_Base
+{
+public:
+	FTD_AssertScrollWindow(FAutomationTestBase* InTest, int32 InExpectedSel, bool bInExpectScrolled)
+		: FTD_Base(InTest), ExpectedSel(InExpectedSel), bExpectScrolled(bInExpectScrolled) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting scroll window for selection %d"), ExpectedSel);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertScrollWindow: no driver")); return true; }
+		const int32 Sel = Driver->GetSelectedSlot();
+		const int32 Off = Driver->GetScrollOffset();
+		const int32 Cols = Driver->GetVisibleColumns();
+		const int32 Count = Driver->GetInventoryCount();
+
+		if (Sel != ExpectedSel)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: selected %d, expected %d"), Sel, ExpectedSel));
+		}
+		const int32 ExpectedOff = FMath::Clamp(Sel - Cols + 1, 0, FMath::Max(0, Count - Cols));
+		if (Off != ExpectedOff)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: offset %d, expected %d (sel=%d cols=%d count=%d)"),
+				Off, ExpectedOff, Sel, Cols, Count));
+		}
+		if (Sel < Off || Sel >= Off + Cols)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: selection %d outside window [%d,%d)"), Sel, Off, Off + Cols));
+		}
+		if (bExpectScrolled && Off <= 0)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: expected scrolling but offset is %d (cols=%d count=%d)"), Off, Cols, Count));
+		}
+		return true;
+	}
+private:
+	int32 ExpectedSel;
+	bool bExpectScrolled;
+};
+
 // Assert whether the visible held item has the self-illumination overlay
 // material. RED (no glow code): false. GREEN: true.
 class FTD_AssertHeldItemGlow : public FTD_Base

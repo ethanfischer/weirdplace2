@@ -29,7 +29,12 @@ public:
 	// Set number of grid rows
 	void SetGridRows(int32 Rows);
 
-	// Get total slot count
+	// Set the horizontal scroll offset (absolute index of the leftmost visible
+	// item). The strip shows items [ScrollOffset, ScrollOffset + GetTotalSlots()).
+	// Rebuilds the thumbnail window when the offset changes.
+	void SetScrollOffset(int32 Offset);
+
+	// Get total slot count (the fixed visible window: GridColumns x GridRows)
 	int32 GetTotalSlots() const { return GridColumns * GridRows; }
 
 	// Refresh the display
@@ -155,6 +160,10 @@ private:
 
 	// Index of currently active item (-1 if none)
 	int32 ActiveItemIndex = -1;
+
+	// Absolute index of the leftmost visible item; the visible window maps slot p
+	// to inventory item (ScrollOffset + p).
+	int32 ScrollOffset = 0;
 
 	// Cached plane mesh
 	UPROPERTY()

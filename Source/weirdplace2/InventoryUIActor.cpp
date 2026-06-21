@@ -98,6 +98,20 @@ void AInventoryUIActor::SetGridRows(int32 Rows)
 	GridRows = FMath::Max(1, Rows);
 }
 
+void AInventoryUIActor::SetScrollOffset(int32 Offset)
+{
+	const int32 NewOffset = FMath::Max(0, Offset);
+	if (NewOffset == ScrollOffset)
+	{
+		return;
+	}
+	ScrollOffset = NewOffset;
+	// Only the thumbnails depend on the window; slots, highlight, and the panel are
+	// window-relative (fixed positions), so just re-map the visible item slice.
+	ClearThumbnails();
+	CreateThumbnails();
+}
+
 void AInventoryUIActor::RefreshDisplay()
 {
 	ClearSlots();
@@ -323,12 +337,15 @@ void AInventoryUIActor::CreateThumbnails()
 		UE_LOG(LogTemp, Warning, TEXT("M_ItemThumbnail not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_item_thumbnail_material.py\""));
 	}
 
-	// Create thumbnail for each collected item
-	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
+	// Create one thumbnail per VISIBLE slot, mapping slot p to the absolute item at
+	// (ScrollOffset + p). ThumbnailMeshes stays indexed by visible slot so the
+	// selection highlight / hover animation (which index by visible slot) line up.
+	for (int32 p = 0; p < GetTotalSlots(); p++)
 	{
-		const FName& ItemID = Items[i];
-		// Sparse storage: empty slots stay in the array as NAME_None to preserve grid positions.
-		// ThumbnailMeshes must stay slot-aligned so SelectedIndex addresses the right entry.
+		const int32 AbsIndex = ScrollOffset + p;
+		// Sparse storage: empty/absent slots get a nullptr placeholder to keep
+		// ThumbnailMeshes slot-aligned with the visible window.
+		const FName ItemID = Items.IsValidIndex(AbsIndex) ? Items[AbsIndex] : NAME_None;
 		if (ItemID.IsNone())
 		{
 			ThumbnailMeshes.Add(nullptr);
@@ -341,8 +358,8 @@ void AInventoryUIActor::CreateThumbnails()
 		Thumbnail->RegisterComponent();
 		Thumbnail->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-		// Position in grid (on top of slot)
-		FVector Position = CalculateSlotPosition(i);
+		// Position in grid (on top of slot) — visible slot p, not absolute index
+		FVector Position = CalculateSlotPosition(p);
 		Thumbnail->SetRelativeLocation(Position);
 		Thumbnail->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
@@ -489,18 +506,21 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 		ItemNameTextTop->SetText(FText::FromString(WrappedText));
 	}
 
-	// Update active item border
+	// Update active item border. ItemIndex is ABSOLUTE; translate to the visible
+	// slot and hide the border when the active item is scrolled out of the window.
 	ActiveItemIndex = ItemIndex;
+	const int32 VisibleSlot = ItemIndex - ScrollOffset;
+	const bool bInWindow = VisibleSlot >= 0 && VisibleSlot < GetTotalSlots();
 	if (ActiveItemBorder)
 	{
-		if (ItemID.IsNone() || ItemIndex < 0)
+		if (ItemID.IsNone() || ItemIndex < 0 || !bInWindow)
 		{
 			ActiveItemBorder->SetVisibility(false);
-			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item)"));
+			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item or scrolled out)"));
 		}
 		else
 		{
-			FVector Position = CalculateSlotPosition(ItemIndex);
+			FVector Position = CalculateSlotPosition(VisibleSlot);
 			Position.X += 0.1f; // Slightly behind thumbnail so it frames it
 			ActiveItemBorder->SetRelativeLocation(Position);
 			ActiveItemBorder->SetVisibility(true);

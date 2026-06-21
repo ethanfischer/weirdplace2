@@ -1072,6 +1072,24 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 	return Inv ? Inv->GetItemCount() : 0;
 }
 
+int32 UTestDriverSubsystem::GetSelectedSlot() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetSelectedIndex() : -1;
+}
+
+int32 UTestDriverSubsystem::GetScrollOffset() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetScrollOffsetForTest() : -1;
+}
+
+int32 UTestDriverSubsystem::GetVisibleColumns() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetVisibleColumnsForTest() : 0;
+}
+
 namespace
 {
 	// The reusable UGazeRewardComponent can now live on many actors (the user

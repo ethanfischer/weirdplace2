@@ -439,6 +439,91 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// InventoryHorizontalScroll — the inventory is an unbounded single-row strip
+// that scrolls horizontally. Inject more items than the visible window, then
+// jump the cursor to the last item and back, asserting the scroll window
+// follows the selection (proves it scrolls rather than clamping at the edge).
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InventoryHorizontalScroll,
+	"Weirdplace2.E2E.Level1.Regression.InventoryHorizontalScroll",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InventoryHorizontalScroll::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InventoryHorizontalScroll")
+
+	// Inject more items than any reasonable visible window so the strip must scroll.
+	const int32 NumItems = 12;
+	for (int32 i = 0; i < NumItems; ++i)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this,
+			FName(*FString::Printf(TEXT("ScrollItem%02d"), i)),
+			TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, NumItems));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	// Window starts at the left edge: selection 0, no scroll.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSelectedSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollOffset(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_01_Start")));
+
+	// Jump to the last item — the strip must scroll right to keep it visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, NumItems - 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollWindow(this, NumItems - 1, /*bExpectScrolled*/ true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_02_Scrolled")));
+
+	// Jump back to the first item — window snaps back to the left.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSelectedSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollOffset(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_03_BackToStart")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// VhsCoverLetterbox — VHS movie covers are portrait but the inventory slots are
+// square (1:1). M_VHSCoverFront pillarboxes the cover (fit to height, black bars
+// left/right) so it isn't stretched. Inject a few real covers and screenshot;
+// each should be upright, undistorted (taller than wide), with side bars.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_VhsCoverLetterbox,
+	"Weirdplace2.E2E.Level1.Diagnostic.VhsCoverLetterbox",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_VhsCoverLetterbox::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("VhsCoverLetterbox")
+
+	// ItemID resolves to /Game/VHSCovers/<ItemID> -> M_VHSCoverFront. The mesh
+	// path is irrelevant to the thumbnail (reuse the key mesh).
+	const TCHAR* Covers[] = { TEXT("BATMAN-THE-MOVIE"), TEXT("RIVALS"), TEXT("ABRAXAS") };
+	for (const TCHAR* Cover : Covers)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName(Cover),
+			TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VhsLetterbox")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // HeldItemDarkGlow — held items must self-illuminate so they're visible in the
 // game's many dark areas. A held item gets an emissive overlay material
 // (M_ItemDarkGlow) that reads at constant brightness regardless of scene
@@ -499,10 +584,10 @@ bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
 
-	// Currently 4 defs in /Game/Inventory; bump if you add more. Each loop
-	// iteration: open inventory, select slot, close, wait, screenshot the
-	// held mesh in front of the camera.
-	const int32 NumSlots = 4;
+	// 5 defs in /Game/Inventory (Key, BrokenKey, Money, CombinedTape, BlankVHS);
+	// bump if you add more. Each loop iteration: open inventory, select slot,
+	// close, wait, screenshot the held mesh in front of the camera.
+	const int32 NumSlots = 5;
 	for (int32 i = 0; i < NumSlots; ++i)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
