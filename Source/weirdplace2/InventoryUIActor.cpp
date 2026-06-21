@@ -487,9 +487,23 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 	FText ActiveItemText = FText::FromString(TEXT(""));
 	if (!ItemID.IsNone())
 	{
-		FString ItemName = ItemID.ToString();
-		ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
-		ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
+		FString Raw = ItemID.ToString();
+		Raw = Raw.Replace(TEXT("_"), TEXT(" "));
+		Raw = Raw.Replace(TEXT("-"), TEXT(" "));
+
+		// Split camelCase so e.g. "BrokenKey" -> "Broken Key", "BlankVHS" -> "Blank VHS":
+		// insert a space before an uppercase letter that follows a lowercase letter or
+		// digit. Runs of capitals (acronyms) and already-spaced titles are left intact.
+		FString ItemName;
+		for (int32 i = 0; i < Raw.Len(); ++i)
+		{
+			const TCHAR C = Raw[i];
+			if (i > 0 && FChar::IsUpper(C) && (FChar::IsLower(Raw[i - 1]) || FChar::IsDigit(Raw[i - 1])))
+			{
+				ItemName.AppendChar(TEXT(' '));
+			}
+			ItemName.AppendChar(C);
+		}
 		ActiveItemText = FText::FromString(ItemName);
 	}
 
