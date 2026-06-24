@@ -60,6 +60,10 @@ public:
 
 	bool IsShowingWarning() const { return bShowingWarning; }
 
+	// Silence the looping siren for good while leaving the warning screen up.
+	// Driven by the StorySubsystem once the player uses the payphone. Idempotent.
+	void StopWarningAudio();
+
 	// True while the looping tornado-alert siren is playing (test query).
 	bool IsWarningAudioPlaying() const;
 
@@ -80,4 +84,6 @@ private:
 
 	FTimerHandle WarningLoopTimer;
 	bool bShowingWarning = false;
+	// Set by StopWarningAudio; blocks any further siren replays.
+	bool bWarningAudioStopped = false;
 };

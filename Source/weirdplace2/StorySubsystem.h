@@ -17,7 +17,10 @@ enum class EStoryFlag : uint8
 	// The store TVs have switched to the tornado-warning screen (set once).
 	TornadoWarningDisplayed,
 	// Player has actually gazed at a warning TV long enough to register it.
-	SeenTornadoWarning
+	SeenTornadoWarning,
+	// Player has picked up the payphone at least once (gates Seneca's smoking
+	// appearance outside). Set by APayPhone on the first off-hook.
+	UsedPayPhone
 };
 
 // Broadcast whenever a flag's value changes. APayPhone subscribes to drive its
@@ -72,6 +75,10 @@ public:
 private:
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
+
+	// Reacts to our own flag changes: when UsedPayPhone is set, silences the
+	// warning sirens on the TVs (the screens stay up).
+	void OnStoryFlagSet(EStoryFlag Flag, bool bValue);
 
 	// Polls whether the player is gazing at a warning TV; sets SeenTornadoWarning
 	// after the dwell. Runs on a repeating timer only while the warning is up.

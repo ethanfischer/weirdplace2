@@ -170,6 +170,10 @@ namespace E2ESteps
 
 	void FastForwardSenecaSmoking(FAutomationTestBase* T)
 	{
+		// Seneca won't appear outside smoking until the player has used the
+		// payphone at least once. The happy path doesn't otherwise walk the
+		// tornado/payphone beat, so set the gating flag directly here.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(T, FName("UsedPayPhone"), true));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 	}
 

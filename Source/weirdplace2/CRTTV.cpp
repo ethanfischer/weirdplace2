@@ -166,8 +166,28 @@ void ACRTTV::ShowTornadoWarning()
 		*GetName(), ScreenSlot, IsWarningAudioPlaying() ? 1 : 0, WarningLoopGapSeconds);
 }
 
+void ACRTTV::StopWarningAudio()
+{
+	// Silence the siren but leave the warning screen up — the player has used the
+	// payphone, so the alarm has served its purpose.
+	bWarningAudioStopped = true;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WarningLoopTimer);
+	}
+	if (WarningAudio)
+	{
+		WarningAudio->Stop();
+	}
+	UE_LOG(LogTemp, Log, TEXT("ACRTTV %s: warning siren stopped (screen stays)"), *GetName());
+}
+
 void ACRTTV::PlayWarningLoop()
 {
+	if (bWarningAudioStopped)
+	{
+		return;
+	}
 	if (WarningAudio)
 	{
 		WarningAudio->Play();
@@ -177,8 +197,9 @@ void ACRTTV::PlayWarningLoop()
 void ACRTTV::OnWarningAudioFinished()
 {
 	// Keep the siren going for the duration of the warning, with a silent gap so
-	// it doesn't loop instantly.
-	if (!bShowingWarning)
+	// it doesn't loop instantly. Stopping the audio also fires this — bail so a
+	// post-stop OnAudioFinished can't reschedule the loop.
+	if (!bShowingWarning || bWarningAudioStopped)
 	{
 		return;
 	}

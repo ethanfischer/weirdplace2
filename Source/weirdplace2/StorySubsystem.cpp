@@ -22,6 +22,8 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
+	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
+
 	// Bind the store-entry trigger so real gameplay (player walking in) drives
 	// the TV switch. E2E goes through HandleStoreEntry directly. There are two
 	// trigger boxes in the level (Inside/Outside) so we disambiguate by the
@@ -102,6 +104,7 @@ namespace
 		{ EStoryFlag::KeyBroke,                TEXT("KeyBroke"),       TEXT("key") },
 		{ EStoryFlag::TornadoWarningDisplayed, TEXT("TornadoWarning"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
 		{ EStoryFlag::SeenTornadoWarning,      TEXT("Telephone"),      TEXT("telephone phone payphone seentornadowarning") },
+		{ EStoryFlag::UsedPayPhone,            TEXT("PhoneUsed"),      TEXT("phoneused usedpayphone calledphone offhook") },
 	};
 }
 
@@ -155,8 +158,8 @@ TArray<FString> UStorySubsystem::GetBeatDisplayNames()
 
 void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 {
-	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning),
-	// so "skip to Target" means apply every beat up to and including it.
+	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning
+	// -> UsedPayPhone), so "skip to Target" means apply every beat up to and including it.
 	const int32 T = static_cast<int32>(Target);
 
 	if (T >= static_cast<int32>(EStoryFlag::KeyBroke))
@@ -171,6 +174,10 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 	if (T >= static_cast<int32>(EStoryFlag::SeenTornadoWarning))
 	{
 		SetFlag(EStoryFlag::SeenTornadoWarning, true);
+	}
+	if (T >= static_cast<int32>(EStoryFlag::UsedPayPhone))
+	{
+		SetFlag(EStoryFlag::UsedPayPhone, true);
 	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);
 }
@@ -246,6 +253,23 @@ void UStorySubsystem::TickGazeWatch()
 	{
 		GazeDwellSeconds = 0.f;
 	}
+}
+
+void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
+{
+	if (Flag != EStoryFlag::UsedPayPhone || !bValue)
+	{
+		return;
+	}
+
+	for (ACRTTV* TV : WarningTVs)
+	{
+		if (TV)
+		{
+			TV->StopWarningAudio();
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: payphone used, silenced %d warning siren(s)"), WarningTVs.Num());
 }
 
 void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)

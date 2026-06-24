@@ -931,6 +931,16 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
 
+	// --- Using the payphone silences the sirens (screens stay up) ---
+	// The phone only answers once the warning's been seen; set that, pick it up,
+	// and both sirens cut out. The warning screens are a material swap on the
+	// always-visible TV actors, so they remain — documented by the screenshot below.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
+
 	// Document the alarm/dim moment (the screen texture is designer art → the red
 	// fallback shows here until the designer assigns WarningScreenTexture).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TV"), 250.f));

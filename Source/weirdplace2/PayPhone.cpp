@@ -154,6 +154,10 @@ void APayPhone::Interact_Implementation()
 
 	bOffHook = true;
 
+	// Record that the player has used the phone at least once. Seneca's smoking
+	// appearance outside gates on this flag, so it persists past hang-up.
+	Story->SetFlag(EStoryFlag::UsedPayPhone, true);
+
 	// Hold the player at the phone — freeze movement and bind hang-up. Look
 	// stays free (VR owns the headset). Mirrors MovieBox inspection.
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))

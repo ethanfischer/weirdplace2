@@ -578,9 +578,18 @@ void ASeneca::Tick(float DeltaTime)
 		}
 	}
 
-	// Waiting to appear at smoking position — teleport when player isn't looking at that spot
+	// Waiting to appear at smoking position — teleport when player isn't looking at
+	// that spot, but only once the player has used the payphone at least once.
+	// (Key drop and payphone use can happen in either order; Tick keeps polling
+	// until both conditions hold.)
 	if (bWaitingToAppear && SmokingPositionTarget)
 	{
+		const UWorld* World = GetWorld();
+		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
+		if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone))
+		{
+			return;
+		}
 		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
 		{
 			MoveToTarget(SmokingPositionTarget);

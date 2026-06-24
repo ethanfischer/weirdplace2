@@ -3,28 +3,17 @@
 ------------------------------------------
 
 # Claude Friendly
-[x] door lock sound shouldn't play while the user is inserting the key. 
-[x] The key is really hard to see in this game because this game has a lot of dark areas. Please brain storm some ways to make held, inspected, reward items more visible in dark conditions
-    -> M_ItemDarkGlow: emissive rim-glow overlay (Fresnel rim + small floor, /EyeAdaptation for constant brightness, warm). Applied to held items + inspected pickups. Diegetic (object self-illuminates), env stays dark. Tunable in scripts/local/create_item_dark_glow.py.
-
+[ ] make seneca only smoke after interacting with payphone
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later
-[x] replace gas pumps grey blocks
 [ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
     [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
-[x] drop key
-    [x] need better sfx
-    [x] show broken key collection spinning like any other collected item
-    [x] broken key mesh
     
 # Needs design
-[ ] Can't see items collected in dark. Illuminate them somehow
-    [x] add light
-    [ ] further test light with other items
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
     [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
     
