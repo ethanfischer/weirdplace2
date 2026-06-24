@@ -14,6 +14,7 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStaticMeshComponent;
+class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
 class UMenuUIComponent;
 class APlayerController;
@@ -171,15 +172,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Menu")
 	UMenuUIComponent* GetMenuUIComponent() const { return MenuUIComponent; }
 
-	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
-	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
-	UFUNCTION(Exec) void SkipToSmoking();
-
-	// Dev: grant an item to the player inventory by short name. Looks up the
-	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
-	UFUNCTION(Exec) void GiveItem(const FString& Name);
-
-
 	// --- Interaction System ---
 
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
@@ -260,6 +252,12 @@ private:
 	// Dynamically spawned mesh components for stacked item notifications
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> StackNotificationMeshes;
+
+	// Self-illumination overlay (M_ItemDarkGlow) applied to notification popups so
+	// received items (e.g. Seneca's key) read in the game's dark areas, matching
+	// held items / inspected pickups. Emissive-only — never lights the environment.
+	UPROPERTY()
+	UMaterialInterface* NotificationGlowMaterial = nullptr;
 
 	void ClearItemNotificationStack();
 

@@ -58,11 +58,8 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EInventoryUIState::Open;
-
-			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
-			{
-				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
-			}
+			// The inventory UI is fully self-illuminated (thumbnails/slots emissive,
+			// text uses the unlit M_UnlitText), so no inventory RectLight is needed.
 		}
 		UpdateInventoryPosition();
 		break;
@@ -116,6 +113,43 @@ void UInventoryUIComponent::ToggleInventoryUI()
 	}
 }
 
+void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate)
+{
+	GiveDelegate = InDelegate;
+	bGiveMode = true;
+	OpenInventoryUI();
+}
+
+void UInventoryUIComponent::ConfirmGiveSelection()
+{
+	if (!bGiveMode)
+	{
+		return;
+	}
+
+	FName Selected = NAME_None;
+	if (InventoryComponent)
+	{
+		const TArray<FName> Items = InventoryComponent->GetItems();
+		Selected = Items.IsValidIndex(AbsoluteSelectedIndex) ? Items[AbsoluteSelectedIndex] : NAME_None;
+	}
+
+	const bool bAccepted = !Selected.IsNone() && GiveDelegate.IsBound() && GiveDelegate.Execute(Selected);
+	if (bAccepted)
+	{
+		// Close here so each receiver doesn't re-resolve the player to close the
+		// very component that invoked it. CloseInventoryUI only starts the
+		// (non-blocking) close animation and leaves activity state untouched, so a
+		// receiver's dialogue/sequence started during Execute still stands.
+		CloseInventoryUI();
+	}
+	else if (MenuCloseSound)
+	{
+		// Empty slot or rejected offer: deny feedback, stay open to pick again.
+		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+	}
+}
+
 void UInventoryUIComponent::OpenInventoryUI()
 {
 	if (CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening)
@@ -153,7 +187,8 @@ void UInventoryUIComponent::OpenInventoryUI()
 		const float ThumbnailSize = 8.0f;
 		const float ThumbnailSpacing = 2.0f;
 		const float GridWidth = GridColumns * ThumbnailSize + (GridColumns - 1) * ThumbnailSpacing;
-		const float GridHeight = GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+		// Square cells: grid height uses ThumbnailSize directly.
+		const float GridHeight = GridRows * ThumbnailSize + (GridRows - 1) * ThumbnailSpacing;
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}
 
@@ -177,6 +212,9 @@ void UInventoryUIComponent::OpenInventoryUI()
 	// Update UI with current selection and active item
 	if (InventoryUIActor)
 	{
+		// Push the scroll window before any rebuild so thumbnails render the right slice.
+		InventoryUIActor->SetScrollOffset(ScrollOffset);
+
 		// Only refresh display if inventory changed since last open
 		if (bInventoryNeedsRefresh)
 		{
@@ -184,7 +222,7 @@ void UInventoryUIComponent::OpenInventoryUI()
 			bInventoryNeedsRefresh = false;
 		}
 
-		// Sync selection highlight + active item border to the current SelectedIndex.
+		// Sync selection highlight + active item border to the current selection.
 		UpdateSelectedSlot();
 	}
 
@@ -205,6 +243,10 @@ void UInventoryUIComponent::CloseInventoryUI()
 	}
 
 	CurrentState = EInventoryUIState::Closing;
+
+	// Closing always returns to a plain browse state — clear any give binding.
+	bGiveMode = false;
+	GiveDelegate.Unbind();
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
@@ -249,6 +291,7 @@ void UInventoryUIComponent::SpawnInventoryUIActor()
 		InventoryUIActor->SetInventoryComponent(InventoryComponent);
 		InventoryUIActor->SetGridColumns(GridColumns);
 		InventoryUIActor->SetGridRows(GridRows);
+		InventoryUIActor->SetScrollOffset(ScrollOffset);
 		UE_LOG(LogTemp, Log, TEXT("Spawned InventoryUIActor"));
 	}
 }
@@ -357,14 +400,15 @@ void UInventoryUIComponent::UnfreezePlayerMovement()
 
 bool UInventoryUIComponent::SetSelectedIndexForTest(int32 Index)
 {
-	const int32 TotalSlots = GridColumns * GridRows;
-	if (Index < 0 || Index >= TotalSlots)
+	const int32 Count = GetItemCount();
+	if (Index < 0 || Index >= Count)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("SetSelectedIndexForTest - index %d out of range [0, %d)"), Index, TotalSlots);
+		UE_LOG(LogTemp, Warning, TEXT("SetSelectedIndexForTest - index %d out of range [0, %d)"), Index, Count);
 		return false;
 	}
 
-	SelectedIndex = Index;
+	AbsoluteSelectedIndex = Index;
+	RecomputeScrollOffset();
 	UpdateSelectedSlot();
 	return true;
 }
@@ -407,34 +451,36 @@ void UInventoryUIComponent::NavigateRight()
 
 void UInventoryUIComponent::StepSelection(int32 DeltaCol, int32 DeltaRow)
 {
-	const int32 TotalSlots = GridColumns * GridRows;
-	if (TotalSlots <= 0)
+	// Single-row horizontal strip: only DeltaCol moves the selection. Selection is
+	// an absolute index over the whole item list; the window scrolls to follow it.
+	const int32 Count = GetItemCount();
+	if (Count <= 0)
 	{
 		return;
 	}
 
-	const int32 CurCol = SelectedIndex % GridColumns;
-	const int32 CurRow = SelectedIndex / GridColumns;
-	const int32 NewCol = FMath::Clamp(CurCol + DeltaCol, 0, GridColumns - 1);
-	const int32 NewRow = FMath::Clamp(CurRow + DeltaRow, 0, GridRows - 1);
-	const int32 NewIndex = NewRow * GridColumns + NewCol;
-
-	if (NewIndex == SelectedIndex)
+	const int32 NewIndex = FMath::Clamp(AbsoluteSelectedIndex + DeltaCol, 0, Count - 1);
+	if (NewIndex == AbsoluteSelectedIndex)
 	{
 		return;
 	}
 
-	SelectedIndex = NewIndex;
+	AbsoluteSelectedIndex = NewIndex;
+	RecomputeScrollOffset();
 	UpdateSelectedSlot();
 }
 
 void UInventoryUIComponent::UpdateSelectedSlot()
 {
-	// Move the hover highlight, then set the active item to whatever lives at this slot
-	// (NAME_None for empty slots clears the active item via SetActiveItem).
+	// Browse-only viewer: push the scroll window first (rebuilds thumbnails only if
+	// the offset moved), position the hover highlight at the selected VISIBLE slot,
+	// and show the selected item's name. There is no "active/equipped" item anymore
+	// (interactions check inventory possession), so no active-item border.
+	const int32 VisibleSlot = AbsoluteSelectedIndex - ScrollOffset;
 	if (InventoryUIActor)
 	{
-		InventoryUIActor->SetSelectedIndex(SelectedIndex);
+		InventoryUIActor->SetScrollOffset(ScrollOffset);
+		InventoryUIActor->SetSelectedIndex(VisibleSlot);
 	}
 
 	if (!InventoryComponent)
@@ -443,14 +489,15 @@ void UInventoryUIComponent::UpdateSelectedSlot()
 	}
 
 	const TArray<FName> Items = InventoryComponent->GetItems();
-	const FName ItemAtSlot = Items.IsValidIndex(SelectedIndex) ? Items[SelectedIndex] : NAME_None;
+	const FName ItemAtSlot = Items.IsValidIndex(AbsoluteSelectedIndex) ? Items[AbsoluteSelectedIndex] : NAME_None;
 
-	const bool bChanged = InventoryComponent->GetActiveItem() != ItemAtSlot;
-	InventoryComponent->SetActiveItem(ItemAtSlot);
+	const bool bChanged = LastDisplayedSlotItem != ItemAtSlot;
+	LastDisplayedSlotItem = ItemAtSlot;
 
 	if (InventoryUIActor)
 	{
-		InventoryUIActor->SetActiveItem(ItemAtSlot, ItemAtSlot.IsNone() ? -1 : SelectedIndex);
+		// ItemIndex < 0 -> show the name label but keep the active-item border hidden.
+		InventoryUIActor->SetActiveItem(ItemAtSlot, -1);
 	}
 
 	if (bChanged && !ItemAtSlot.IsNone() && MenuItemSelectedSound)
@@ -468,22 +515,45 @@ void UInventoryUIComponent::OnInventoryChanged(const TArray<FName>& CurrentItems
 	if (InventoryUIActor && IsInventoryOpen())
 	{
 		ClampSelectedIndex();
+		InventoryUIActor->SetScrollOffset(ScrollOffset);
 		InventoryUIActor->RefreshDisplay();
 		bInventoryNeedsRefresh = false;
 		UpdateSelectedSlot();
 	}
 }
 
+int32 UInventoryUIComponent::GetItemCount() const
+{
+	return InventoryComponent ? InventoryComponent->GetItems().Num() : 0;
+}
+
+void UInventoryUIComponent::RecomputeScrollOffset()
+{
+	const int32 Count = GetItemCount();
+	const int32 VisibleColumns = FMath::Max(1, GridColumns);
+
+	// Slide the window minimally so the selection stays visible.
+	if (AbsoluteSelectedIndex < ScrollOffset)
+	{
+		ScrollOffset = AbsoluteSelectedIndex;
+	}
+	else if (AbsoluteSelectedIndex >= ScrollOffset + VisibleColumns)
+	{
+		ScrollOffset = AbsoluteSelectedIndex - VisibleColumns + 1;
+	}
+
+	// Keep the window within the list: never scroll past the point where the last
+	// item sits at the right edge, and never go negative.
+	const int32 MaxOffset = FMath::Max(0, Count - VisibleColumns);
+	ScrollOffset = FMath::Clamp(ScrollOffset, 0, MaxOffset);
+}
+
 void UInventoryUIComponent::ClampSelectedIndex()
 {
-	// Clamp to total slots (not item count, since we now have fixed grid)
-	int32 TotalSlots = GridColumns * GridRows;
-	if (SelectedIndex >= TotalSlots)
-	{
-		SelectedIndex = TotalSlots - 1;
-	}
-	if (SelectedIndex < 0)
-	{
-		SelectedIndex = 0;
-	}
+	// Selection is an absolute index over the (unbounded) item list. Reconcile it
+	// and the scroll window against the current count (e.g. items removed while
+	// the UI was closed, or persisted cursor from a previous open).
+	const int32 Count = GetItemCount();
+	AbsoluteSelectedIndex = (Count <= 0) ? 0 : FMath::Clamp(AbsoluteSelectedIndex, 0, Count - 1);
+	RecomputeScrollOffset();
 }

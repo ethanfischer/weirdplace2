@@ -29,7 +29,7 @@ import unreal
 ITEM_REGISTRY = [
     {
         "id": "Money",
-        "mesh": "/Game/Import/cash/cash",
+        "mesh": "/Game/Import/cash/money",
         # Pitch=-90 rotates the cash so its bill face presents to the camera.
         "rotation": (-90.0, 0.0, 0.0),
     },
@@ -56,7 +56,7 @@ ITEM_REGISTRY = [
     },
 ]
 
-THUMB_W, THUMB_H = 1024, 1440
+THUMB_W, THUMB_H = 1024, 1024
 # Far from any FirstPerson map geometry — guaranteed empty space.
 BOOTH_LOC = unreal.Vector(9999.0, 9999.0, 9999.0)
 CAMERA_FOV = 35.0

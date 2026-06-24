@@ -67,11 +67,6 @@ bool UInventoryComponent::RemoveItem(const FName& ItemID) {
             Items.Pop(EAllowShrinking::No);
         }
 
-        // Clear active item if it was the removed item
-        if (ActiveItem == ItemID) {
-            ClearActiveItem();
-        }
-
         OnInventoryChanged.Broadcast(Items);
         return true;
     }
@@ -104,33 +99,6 @@ int32 UInventoryComponent::GetItemCount() const {
     return Count;
 }
 
-void UInventoryComponent::SetActiveItem(const FName& ItemID) {
-    // Only set active if item is in inventory (or allow None to clear)
-    if (ItemID.IsNone() || Items.Contains(ItemID)) {
-        if (ActiveItem != ItemID) {
-            ActiveItem = ItemID;
-            OnActiveItemChanged.Broadcast(ActiveItem);
-        }
-    } else {
-        UE_LOG(LogTemp, Warning, TEXT("Cannot set active item '%s' - not in inventory"), *ItemID.ToString());
-    }
-}
-
-FName UInventoryComponent::GetActiveItem() const {
-    return ActiveItem;
-}
-
-FInventoryItemData UInventoryComponent::GetActiveItemData() const {
-    return GetItemData(ActiveItem);
-}
-
-void UInventoryComponent::ClearActiveItem() {
-    if (!ActiveItem.IsNone()) {
-        ActiveItem = NAME_None;
-        OnActiveItemChanged.Broadcast(ActiveItem);
-    }
-}
-
 void UInventoryComponent::UpdateItemThumbnail(const FName& ItemID, UTexture2D* NewThumbnail)
 {
     FInventoryItemData* Data = ItemDataMap.Find(ItemID);
@@ -150,7 +118,6 @@ FInventoryItemData UInventoryComponent::CreateItemDataFromMeshComponent(const FN
     if (MeshComponent) {
         Data.Mesh = MeshComponent->GetStaticMesh();
         Data.Scale = MeshComponent->GetRelativeScale3D();
-        Data.Rotation = MeshComponent->GetRelativeRotation();
 
         // Capture all materials
         int32 NumMaterials = MeshComponent->GetNumMaterials();

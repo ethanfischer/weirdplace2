@@ -209,6 +209,23 @@ void AMenuUIActor::BeginPlay()
 	UpdateBackgroundSize();
 	ApplyPageVisibility();
 	UpdateFocusColors();
+
+	// Self-illuminated UI (no RectLight): unlit text material so all menu labels
+	// stay readable in dark areas. M_UnlitText tints by vertex color, so
+	// UpdateFocusColors' per-option highlight colors still show.
+	if (UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText")))
+	{
+		TArray<UTextRenderComponent*> TextComps;
+		GetComponents<UTextRenderComponent>(TextComps);
+		for (UTextRenderComponent* TextComp : TextComps)
+		{
+			TextComp->SetTextMaterial(TextMat);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor: M_UnlitText not found; menu text may be dark."));
+	}
 }
 
 // ---------------------------------------------------------------------------

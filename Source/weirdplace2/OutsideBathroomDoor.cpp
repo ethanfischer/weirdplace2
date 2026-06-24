@@ -1,10 +1,12 @@
 #include "OutsideBathroomDoor.h"
 #include "Seneca.h"
+#include "StorySubsystem.h"
 #include "MyCharacter.h"
+#include "InventoryUIComponent.h"
 #include "InspectablePickup.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
-#include "HeldItemComponent.h"
+#include "ItemGlow.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
@@ -43,6 +45,10 @@ void AOutsideBathroomDoor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Same self-illumination overlay the held key uses, so the key keeps glowing
+	// as it's inserted into the lock.
+	GlowMaterial = ItemGlow::GetItemGlowMaterial();
+
 	if (KeyInsertCurve && KeyInsertTimeline)
 	{
 		FOnTimelineFloat InsertCallback;
@@ -72,6 +78,17 @@ void AOutsideBathroomDoor::Interact_Implementation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor::Interact_Implementation CALLED. bDidDropKey=%d, IsLocked=%d"), bDidDropKey, IsLocked);
 
+	// Re-entrancy guard: while the key-break sequence is running, the Key has
+	// already been removed from inventory, but bDidDropKey isn't set
+	// until the broken half spawns ~3s later. A re-entrant interact in that window
+	// (the UE5.7 double-fire input quirk) would otherwise rattle the locked door.
+	// Ignore it.
+	if (bKeyBreakInProgress && !bDidDropKey)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - key-break in progress, ignoring re-entrant interact"));
+		return;
+	}
+
 	// If key was already dropped, behave as a normal locked door
 	if (bDidDropKey)
 	{
@@ -97,13 +114,13 @@ void AOutsideBathroomDoor::Interact_Implementation()
 		return;
 	}
 
-	FName ActiveItem = Inventory->GetActiveItem();
-	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - ActiveItem='%s', KeyToRemove='%s', HasKey=%d"),
-		*ActiveItem.ToString(), *KeyToRemove.ToString(), Inventory->HasItem(KeyToRemove));
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - KeyToRemove='%s', HasKey=%d"),
+		*KeyToRemove.ToString(), Inventory->HasItem(KeyToRemove));
 
-	if (ActiveItem != KeyToRemove)
+	if (!Inventory->HasItem(KeyToRemove))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Active item does not match key, playing locked sound"));
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - player does not have the key, playing locked sound"));
+		LockedSoundPlayCount++;
 		if (LockedDoorSound)
 		{
 			UGameplayStatics::PlaySound2D(this, LockedDoorSound);
@@ -111,11 +128,36 @@ void AOutsideBathroomDoor::Interact_Implementation()
 		return;
 	}
 
+	// Have the key: pop the inventory so the player picks it and presses E to give.
+	if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
+	{
+		InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &AOutsideBathroomDoor::OnKeyOffered));
+	}
+	else
+	{
+		StartKeyBreakSequence();
+	}
+}
+
+bool AOutsideBathroomDoor::OnKeyOffered(FName ItemID)
+{
+	if (ItemID != KeyToRemove)
+	{
+		return false; // wrong item — keep the inventory open
+	}
+
+	// ConfirmGiveSelection closes the UI on accept; just run the break sequence
+	// (which removes the key).
 	StartKeyBreakSequence();
+	return true;
 }
 
 void AOutsideBathroomDoor::StartKeyBreakSequence()
 {
+	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
+	// interact is ignored (see Interact_Implementation).
+	bKeyBreakInProgress = true;
+
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
 	if (!MyCharacter)
@@ -124,11 +166,10 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		return;
 	}
 
-	UHeldItemComponent* HeldItem = MyCharacter->GetHeldItemComponent();
 	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-	if (!HeldItem || !Inventory)
+	if (!Inventory)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - Missing HeldItem or Inventory"));
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - Missing Inventory"));
 		return;
 	}
 
@@ -160,16 +201,12 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 	KeyAnimStartPos = KeyLockSocket->GetComponentLocation() + WorldApproachDir * KeyInsertStartOffset;
 	KeyAnimStartRot = KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset;
 
-	// Hide the real held item immediately - seamless hand-off to AnimKeyMesh
-	HeldItem->HideHeldItem();
-
 	// Capture materials from key's inventory data before removing it
 	FInventoryItemData KeyData = Inventory->GetItemData(KeyToRemove);
 	KeyMaterials = KeyData.Materials;
 
-	// Remove key from inventory and clear active item so HeldItemComponent stops tracking it
+	// Remove the key from inventory; the animated AnimKeyMesh takes over visually.
 	Inventory->RemoveItem(KeyToRemove);
-	Inventory->ClearActiveItem();
 
 	// Set up the animated key mesh at the hand position
 	if (AnimKeyMesh)
@@ -189,6 +226,12 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		AnimKeyMesh->SetWorldLocation(KeyAnimStartPos);
 		AnimKeyMesh->SetWorldRotation(KeyAnimStartRot);
 		AnimKeyMesh->SetVisibility(true);
+		// Keep the held-key glow on the key as it's inserted into the lock. The
+		// overlay persists across the later broken-mesh swap.
+		if (GlowMaterial)
+		{
+			AnimKeyMesh->SetOverlayMaterial(GlowMaterial);
+		}
 	}
 
 	if (KeyInsertSound)
@@ -336,6 +379,16 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 
 	bDidDropKey = true;
 
+	// Record the narrative beat for the tornado/telephone chain (additive —
+	// the Seneca-smoking path below is untouched). Items 1/2/4/5 read this.
+	if (UWorld* World = GetWorld())
+	{
+		if (UStorySubsystem* Story = World->GetSubsystem<UStorySubsystem>())
+		{
+			Story->SetFlag(EStoryFlag::KeyBroke);
+		}
+	}
+
 	if (SenecaRef)
 	{
 		SenecaRef->OnKeyDropped();
@@ -346,6 +399,11 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
+}
+
+bool AOutsideBathroomDoor::IsAnimKeyGlowActive() const
+{
+	return AnimKeyMesh && AnimKeyMesh->GetOverlayMaterial() != nullptr;
 }
 
 void AOutsideBathroomDoor::PlayKeyInsertSound()

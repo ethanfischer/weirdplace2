@@ -3,6 +3,23 @@
 #include "MediaPlayer.h"
 #include "MediaSource.h"
 #include "MediaSoundComponent.h"
+#include "Components/AudioComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/Texture2D.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+#include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundClass.h"
+
+namespace CRTTVConst
+{
+	static const TCHAR* WarningSoundPath = TEXT("/Game/Sounds/tornadoalert.tornadoalert");
+	static const FName ScreenTexParam(TEXT("ScreenTex"));
+	static const FName UseScreenTexParam(TEXT("UseScreenTex"));
+}
 
 ACRTTV::ACRTTV()
 {
@@ -34,4 +51,171 @@ void ACRTTV::BeginPlay()
 		*GetName(), *MediaSource->GetName(), bOpened ? TEXT("OK") : TEXT("FAILED"));
 
 	MediaSound->SetMediaPlayer(MediaPlayer);
+
+	// Build the siren audio at runtime (an actor component owned by this actor),
+	// attached to the screen mesh and spatialized so it's loudest right at the TV.
+	// Silent until ShowTornadoWarning plays it. Mirrors UGazeRewardComponent's
+	// runtime-audio pattern.
+	WarningAudio = NewObject<UAudioComponent>(this, TEXT("WarningAudio"));
+	WarningAudio->SetupAttachment(GetStaticMeshComponent());
+	WarningAudio->bAutoActivate = false;
+	WarningAudio->bAllowSpatialization = true;
+	// Override attenuation so the siren is a real point source (falls off with
+	// distance) instead of blasting at full volume across the whole level — it
+	// should be loudest right at the TVs and fade as the player walks away.
+	WarningAudio->bOverrideAttenuation = true;
+	WarningAudio->AttenuationOverrides.bAttenuate = true;
+	WarningAudio->AttenuationOverrides.bSpatialize = true;
+	WarningAudio->AttenuationOverrides.AttenuationShapeExtents = FVector(200.f, 0.f, 0.f);
+	// Generous falloff so the siren fills the store; the AV_VideoStore audio volume
+	// (not occlusion) is what confines it — interior shelves/pillars were false-
+	// occluding the line trace, so occlusion is gone.
+	WarningAudio->AttenuationOverrides.FalloffDistance = 3000.f;
+	// Route through SC_Ambient (bApplyAmbientVolumes=true) so the AV_VideoStore
+	// AudioVolume's exterior volume governs it: inside the store = full, outside the
+	// volume = silenced. bAllowSpatialization (above) is the other required gate.
+	if (USoundClass* AmbientClass = LoadObject<USoundClass>(nullptr, TEXT("/Game/Sounds/SC_Ambient.SC_Ambient")))
+	{
+		WarningAudio->SoundClassOverride = AmbientClass;
+	}
+	WarningAudio->RegisterComponent();
+
+	// The wave is a one-shot; re-fire it after the gap each time it finishes so
+	// the siren loops with a designer-set silence between repeats.
+	WarningAudio->OnAudioFinished.AddDynamic(this, &ACRTTV::OnWarningAudioFinished);
+}
+
+void ACRTTV::ShowTornadoWarning()
+{
+	if (bShowingWarning)
+	{
+		return;
+	}
+
+	if (MediaPlayer)
+	{
+		MediaPlayer->Close();
+	}
+
+	if (!WarningScreenMaterial)
+	{
+		WarningScreenMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_TornadoWarning.M_TornadoWarning"));
+	}
+	if (!WarningScreenMaterial)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - M_TornadoWarning material not found"), *GetName());
+		return;
+	}
+
+	UStaticMeshComponent* Mesh = GetStaticMeshComponent();
+	if (!Mesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - no static mesh component"), *GetName());
+		return;
+	}
+
+	// The screen slot is configured on the BP defaults (ScreenMaterialSlot) — the
+	// other slots are the bezel/back casing. Inferring it from the material name
+	// silently broke when a material was renamed; require the explicit index.
+	const int32 ScreenSlot = ScreenMaterialSlot;
+	if (ScreenSlot < 0 || ScreenSlot >= Mesh->GetNumMaterials())
+	{
+		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - ScreenMaterialSlot %d is invalid (%d slots); set it on the TV BP defaults"),
+			*GetName(), ScreenSlot, Mesh->GetNumMaterials());
+		return;
+	}
+
+	// Drive the screen through a MID so the designer's "TORNADO WARNING" texture
+	// can be fed into the material's ScreenTex param. The material lerps between a
+	// storm-red fallback and ScreenTex on the UseScreenTex switch, so the screen
+	// stays red until WarningScreenTexture is assigned, then shows the art untinted.
+	UMaterialInstanceDynamic* ScreenMID = UMaterialInstanceDynamic::Create(WarningScreenMaterial, this);
+	if (ScreenMID && WarningScreenTexture)
+	{
+		ScreenMID->SetTextureParameterValue(CRTTVConst::ScreenTexParam, WarningScreenTexture);
+		ScreenMID->SetScalarParameterValue(CRTTVConst::UseScreenTexParam, 1.f);
+	}
+	Mesh->SetMaterial(ScreenSlot, ScreenMID ? static_cast<UMaterialInterface*>(ScreenMID) : WarningScreenMaterial);
+
+	// Blare the looping tornado-alert siren from the TV. MediaPlayer->Close()
+	// above already silenced the TV's own media audio.
+	if (!WarningSound)
+	{
+		WarningSound = LoadObject<USoundBase>(nullptr, CRTTVConst::WarningSoundPath);
+	}
+	if (WarningAudio && WarningSound)
+	{
+		WarningAudio->SetSound(WarningSound);
+		PlayWarningLoop();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - missing WarningAudio(%d)/WarningSound(%d), no siren"),
+			*GetName(), WarningAudio ? 1 : 0, WarningSound ? 1 : 0);
+	}
+
+	bShowingWarning = true;
+	UE_LOG(LogTemp, Log, TEXT("ACRTTV %s: tornado warning shown (screen slot %d), siren playing=%d, loop gap=%.2fs"),
+		*GetName(), ScreenSlot, IsWarningAudioPlaying() ? 1 : 0, WarningLoopGapSeconds);
+}
+
+void ACRTTV::StopWarningAudio()
+{
+	// Silence the siren but leave the warning screen up — the player has used the
+	// payphone, so the alarm has served its purpose.
+	bWarningAudioStopped = true;
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WarningLoopTimer);
+	}
+	if (WarningAudio)
+	{
+		WarningAudio->Stop();
+	}
+	UE_LOG(LogTemp, Log, TEXT("ACRTTV %s: warning siren stopped (screen stays)"), *GetName());
+}
+
+void ACRTTV::PlayWarningLoop()
+{
+	if (bWarningAudioStopped)
+	{
+		return;
+	}
+	if (WarningAudio)
+	{
+		WarningAudio->Play();
+	}
+}
+
+void ACRTTV::OnWarningAudioFinished()
+{
+	// Keep the siren going for the duration of the warning, with a silent gap so
+	// it doesn't loop instantly. Stopping the audio also fires this — bail so a
+	// post-stop OnAudioFinished can't reschedule the loop.
+	if (!bShowingWarning || bWarningAudioStopped)
+	{
+		return;
+	}
+	if (WarningLoopGapSeconds <= 0.f)
+	{
+		PlayWarningLoop();
+		return;
+	}
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().SetTimer(WarningLoopTimer, this, &ACRTTV::PlayWarningLoop,
+			WarningLoopGapSeconds, /*bLoop*/ false);
+	}
+}
+
+bool ACRTTV::IsWarningAudioPlaying() const
+{
+	if (WarningAudio && WarningAudio->IsPlaying())
+	{
+		return true;
+	}
+	// During the inter-loop gap the component is silent, but the siren loop is
+	// still running — a replay timer is pending.
+	UWorld* World = GetWorld();
+	return bShowingWarning && World && World->GetTimerManager().IsTimerActive(WarningLoopTimer);
 }

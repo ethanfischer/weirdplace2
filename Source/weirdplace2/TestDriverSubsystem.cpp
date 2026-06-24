@@ -4,16 +4,22 @@
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
-#include "HeldItemComponent.h"
 #if WITH_EDITOR
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #endif
 #include "MovieBox.h"
 #include "InspectablePickup.h"
+#include "OutsideBathroomDoor.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
 #include "GazeRewardComponent.h"
+#include "StorySubsystem.h"
+#include "CRTTV.h"
+#include "StormBeatController.h"
+#include "PayPhone.h"
+#include "Components/LightComponent.h"
+#include "Sound/AmbientSound.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -41,6 +47,289 @@
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
 	return Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+}
+
+void UTestDriverSubsystem::SetStoryFlag(FName FlagName, bool bValue)
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetStoryFlag - no UStorySubsystem"));
+		return;
+	}
+	EStoryFlag Flag;
+	if (!UStorySubsystem::TryParseStoryFlag(FlagName, Flag))
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SetStoryFlag - unknown flag '%s'"), *FlagName.ToString());
+		return;
+	}
+	Story->SetFlag(Flag, bValue);
+}
+
+bool UTestDriverSubsystem::IsStoryFlagSet(FName FlagName) const
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsStoryFlagSet - no UStorySubsystem"));
+		return false;
+	}
+	EStoryFlag Flag;
+	if (!UStorySubsystem::TryParseStoryFlag(FlagName, Flag))
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsStoryFlagSet - unknown flag '%s'"), *FlagName.ToString());
+		return false;
+	}
+	return Story->IsFlagSet(Flag);
+}
+
+void UTestDriverSubsystem::TriggerStoreEntry()
+{
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerStoreEntry - no UStorySubsystem"));
+		return;
+	}
+	Story->HandleStoreEntry();
+}
+
+bool UTestDriverSubsystem::IsTvShowingWarning(const FString& Label) const
+{
+	ACRTTV* TV = Cast<ACRTTV>(FindActorByLabel(Label));
+	if (!TV)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsTvShowingWarning - no ACRTTV labeled '%s'"), *Label);
+		return false;
+	}
+	return TV->IsShowingWarning();
+}
+
+bool UTestDriverSubsystem::IsTvWarningAudioPlaying(const FString& Label) const
+{
+	ACRTTV* TV = Cast<ACRTTV>(FindActorByLabel(Label));
+	if (!TV)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsTvWarningAudioPlaying - no ACRTTV labeled '%s'"), *Label);
+		return false;
+	}
+	return TV->IsWarningAudioPlaying();
+}
+
+bool UTestDriverSubsystem::IsAmbientSoundPlaying(const FString& Label) const
+{
+	AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label));
+	if (!Ambient)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsAmbientSoundPlaying - no AAmbientSound labeled '%s'"), *Label);
+		return false;
+	}
+	UAudioComponent* AudioComp = Ambient->GetAudioComponent();
+	return AudioComp && AudioComp->IsPlaying();
+}
+
+float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetActorMaxLightIntensity - no actor '%s'"), *Label);
+		return -1.f;
+	}
+	TArray<ULightComponent*> LightComps;
+	Actor->GetComponents<ULightComponent>(LightComps);
+	if (LightComps.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetActorMaxLightIntensity - '%s' has no ULightComponent"), *Label);
+		return -1.f;
+	}
+	float MaxIntensity = 0.f;
+	for (const ULightComponent* Light : LightComps)
+	{
+		MaxIntensity = FMath::Max(MaxIntensity, Light->Intensity);
+	}
+	return MaxIntensity;
+}
+
+void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
+	const TArray<FString>& AmbientLabels, float Multiplier)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no world"));
+		return;
+	}
+
+	// Isolate the test: destroy any designer-placed AStormBeatController in the PIE
+	// copy so only this test's controller (known lights/mult) reacts to the flag.
+	// Otherwise a placed controller's own multiplier/targets contaminate the asserts.
+	int32 Removed = 0;
+	for (TActorIterator<AStormBeatController> It(World); It; ++It)
+	{
+		It->Destroy();
+		++Removed;
+	}
+	if (Removed > 0)
+	{
+		UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - removed %d pre-placed controller(s) for test isolation"), Removed);
+	}
+
+	TArray<AActor*> Lights;
+	for (const FString& Label : LightLabels)
+	{
+		if (AActor* Light = FindActorByLabel(Label))
+		{
+			Lights.Add(Light);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no light actor '%s'"), *Label);
+		}
+	}
+
+	TArray<AActor*> Hide;
+	for (const FString& Label : HideLabels)
+	{
+		if (AActor* Actor = FindActorByLabel(Label))
+		{
+			Hide.Add(Actor);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no hide actor '%s'"), *Label);
+		}
+	}
+
+	TArray<AAmbientSound*> Ambients;
+	for (const FString& Label : AmbientLabels)
+	{
+		if (AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label)))
+		{
+			Ambients.Add(Ambient);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no AAmbientSound '%s'"), *Label);
+		}
+	}
+
+	// Spawn deferred so it's configured BEFORE BeginPlay subscribes to the flag.
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AStormBeatController* Controller = World->SpawnActorDeferred<AStormBeatController>(
+		AStormBeatController::StaticClass(), FTransform::Identity);
+	if (!Controller)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawn failed"));
+		return;
+	}
+	Controller->ConfigureForTest(Lights, Hide, Ambients, Multiplier);
+	Controller->FinishSpawning(FTransform::Identity);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawned controller with %d light(s), %d hide, %d ambient(s), mult %.2f"),
+		Lights.Num(), Hide.Num(), Ambients.Num(), Multiplier);
+}
+
+bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorVisibleByLabel - no actor '%s'"), *Label);
+		return false;
+	}
+	USceneComponent* Root = Actor->GetRootComponent();
+	if (!Root)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorVisibleByLabel - '%s' has no root"), *Label);
+		return false;
+	}
+	return Root->IsVisible();
+}
+
+static APayPhone* FindPayPhoneInternal(UWorld* World)
+{
+	if (!World) { return nullptr; }
+	for (TActorIterator<APayPhone> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneAudioPlaying - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsAudioPlaying();
+}
+
+bool UTestDriverSubsystem::CanPayPhoneInteract() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::CanPayPhoneInteract - no APayPhone in level"));
+		return false;
+	}
+	return Phone->CanInteract();
+}
+
+bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneDialtonePlaying - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsDialtonePlaying();
+}
+
+void UTestDriverSubsystem::TriggerPayPhonePickup()
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhonePickup - no APayPhone in level"));
+		return;
+	}
+	Phone->Interact_Implementation();
+}
+
+void UTestDriverSubsystem::TriggerPayPhoneHangUp()
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhoneHangUp - no APayPhone in level"));
+		return;
+	}
+	Phone->HangUp();
+}
+
+int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
+{
+	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
+	{
+		return It->GetLockedSoundPlayCount();
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorLockedSoundCount - no AOutsideBathroomDoor in level"));
+	return -1;
+}
+
+bool UTestDriverSubsystem::GetBathroomDoorAnimKeyGlowActive() const
+{
+	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
+	{
+		return It->IsAnimKeyGlowActive();
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorAnimKeyGlowActive - no AOutsideBathroomDoor in level"));
+	return false;
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const
@@ -398,6 +687,38 @@ void UTestDriverSubsystem::FastForwardSenecaSmoking()
 	Seneca->FastForwardSmokingAppear();
 }
 
+bool UTestDriverSubsystem::GetSenecaSmokingLinesJoined(FString& Out) const
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetSenecaSmokingLinesJoined - no Seneca"));
+		return false;
+	}
+	TArray<FText> Lines;
+	Seneca->BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
+	TArray<FString> Strs;
+	for (const FText& L : Lines)
+	{
+		Strs.Add(L.ToString());
+	}
+	Out = FString::Join(Strs, TEXT(" "));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetSenecaSmokingLinesJoined: '%s'"), *Out);
+	return true;
+}
+
+void UTestDriverSubsystem::ForceSenecaToSmoking()
+{
+	ASeneca* Seneca = FindSeneca();
+	if (!Seneca)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceSenecaToSmoking - no Seneca"));
+		return;
+	}
+	Seneca->CurrentState = ESenecaState::Smoking;
+	Seneca->ForceSmokingAppearance();
+}
+
 bool UTestDriverSubsystem::HasSenecaAppearedAtSmokingPos() const
 {
 	ASeneca* Seneca = FindSeneca();
@@ -750,6 +1071,24 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 	return Inv ? Inv->GetItemCount() : 0;
 }
 
+int32 UTestDriverSubsystem::GetSelectedSlot() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetSelectedIndex() : -1;
+}
+
+int32 UTestDriverSubsystem::GetScrollOffset() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetScrollOffsetForTest() : -1;
+}
+
+int32 UTestDriverSubsystem::GetVisibleColumns() const
+{
+	UInventoryUIComponent* UI = GetInventoryUIComponent();
+	return UI ? UI->GetVisibleColumnsForTest() : 0;
+}
+
 namespace
 {
 	// The reusable UGazeRewardComponent can now live on many actors (the user
@@ -933,86 +1272,15 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	return true;
 }
 
-bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const
+bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
 {
-	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
+	AInspectablePickup* Pickup = FindInspectablePickup();
+	if (!Pickup)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no player"));
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetInspectablePickupGlowActive - no AInspectablePickup in level"));
 		return false;
 	}
-
-	// The pawn can carry more than one UHeldItemComponent (C++ default
-	// subobject + BP-added); only the live one owns a held mesh. Use that one.
-	UStaticMeshComponent* Mesh = nullptr;
-	TArray<UHeldItemComponent*> HeldComps;
-	Player->GetComponents<UHeldItemComponent>(HeldComps);
-	for (UHeldItemComponent* Comp : HeldComps)
-	{
-		if (Comp->GetHeldItemMeshComponent())
-		{
-			Mesh = Comp->GetHeldItemMeshComponent();
-			break;
-		}
-	}
-	if (!Mesh || !Mesh->GetStaticMesh() || !Mesh->IsVisible())
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no visible held item mesh (comps=%d mesh=%d staticmesh=%d isvisible=%d)"),
-			HeldComps.Num(),
-			Mesh != nullptr,
-			Mesh && Mesh->GetStaticMesh() != nullptr,
-			Mesh && Mesh->IsVisible());
-		return false;
-	}
-
-	// Identify the mesh's longest and shortest local axes after scale. When
-	// two scaled extents are within 20% (the blank tape's box is nearly
-	// square at gameplay scale), fall back to the authored extents, which
-	// are unambiguous.
-	const FVector Authored = Mesh->GetStaticMesh()->GetBoundingBox().GetExtent();
-	const FVector Ext = Authored * Mesh->GetComponentScale().GetAbs();
-	int32 LongIdx = 0, ShortIdx = 0;
-	for (int32 i = 1; i < 3; ++i)
-	{
-		if (Ext[i] > Ext[LongIdx]) { LongIdx = i; }
-		if (Ext[i] < Ext[ShortIdx]) { ShortIdx = i; }
-	}
-	for (int32 i = 0; i < 3; ++i)
-	{
-		if (i != LongIdx && i != ShortIdx
-			&& Ext[i] > Ext[LongIdx] * 0.8f
-			&& Authored[i] > Authored[LongIdx])
-		{
-			LongIdx = i;
-		}
-	}
-	OutMaxExtent = Ext[LongIdx];
-	FVector LocalLong = FVector::ZeroVector;
-	FVector LocalShort = FVector::ZeroVector;
-	LocalLong[LongIdx] = 1.f;
-	LocalShort[ShortIdx] = 1.f;
-
-	FVector CamLoc;
-	FRotator CamRot;
-	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
-	const FQuat CamQ = CamRot.Quaternion();
-	const FQuat MeshQ = Mesh->GetComponentQuat();
-	OutLongAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalLong));
-	OutShortAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalShort));
-
-	const FVector WorldCenter = Mesh->GetComponentTransform().TransformPosition(
-		Mesh->GetStaticMesh()->GetBoundingBox().GetCenter());
-	OutCenterCamSpace = CamQ.UnrotateVector(WorldCenter - CamLoc);
-
-	// Full local->camera mapping, for diagnosing pose-correction values.
-	const FQuat MeshToCam = CamQ.Inverse() * MeshQ;
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetHeldItemBoxAxes - ext=%s X->%s Y->%s Z->%s relrot=%s"),
-		*Ext.ToString(),
-		*MeshToCam.RotateVector(FVector::XAxisVector).ToString(),
-		*MeshToCam.RotateVector(FVector::YAxisVector).ToString(),
-		*MeshToCam.RotateVector(FVector::ZAxisVector).ToString(),
-		*Mesh->GetRelativeRotation().ToString());
-	return true;
+	return Pickup->IsGlowActive();
 }
 
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()

@@ -1,62 +1,76 @@
-# Nightly Report — 2026-06-09
+# Nightly Report — 2026-06-19
 
-**Home branch:** `May31`
-**Overnight branch:** `overnight/2026-06-09`
-**Scope agreed (plan-mode approved):** 1) gas-station light gaze → cash (ONE light, rising hum; TV sub-item deferred by your call) · 2) "Rick:" prefix loader-parse fix · 3) movie put-back prompt + text faces player · 4) blank VHS held pose
-**Result:** 4 done · 0 blocked · 0 skipped (+1 bonus: pre-existing HappyPath flake diagnosed and fixed). Final tip: HappyPath green ×3 + all four item tests green.
+**Branch:** `overnight/2026-06-19` (cut off `overnight/2026-06-17`) · **Nothing merges to `overnight/2026-06-17` until you OK it.** One commit per item = restore point.
 
-## Done — needs your eyes before merge
-- ✅ **Gas-station light gaze reward → cash** — `Weirdplace2.E2E.Level1.GazeReward` green (13 steps).
-  Screenshots: `E2E_GazeReward_01_StaringAtLight.png` (camera locked on the glowing canopy bar light at night), `E2E_GazeReward_02_CashGranted.png` (same view + the spinning cash notification mesh in front of the camera).
-  **Verify in-game:** the rigged bar is the one **just outside the store door** (level actor `gasstationbarlight`, X≈5000 — not the ones over the pumps). Stare at **any point along the bar** for 30 uninterrupted seconds — the hum fading in is your confirmation you're on the right bar; at 30s you get cash (standard pickup popup + inventory slot). Look away mid-stare → hum cuts out, timer resets. Other bars do nothing. **Audition the hum** — it's a generated 120 Hz electric-hum loop at `/Game/Sounds/gazehum`; swap `HumSoundPath` in `DefaultGame.ini` for different vibes.
-  *(Morning fix after your report: the original check was a 10° cone around the bar's center POINT — fine for the test driver, useless for a human staring at a 30m fixture. Now the gaze counts when your camera ray crosses the bar's bounding box anywhere, with a proper occlusion trace.)*
-  Notes / decisions made solo:
-  - Editor-time placement via Python **crashes UE 5.7 headless** (`EXCEPTION_INT_DIVIDE_BY_ZERO` in the actor-factory path), so the rig is: a `GazeRewardTarget` tag on the light actor + `UGazeRewardSubsystem` spawns `AGazeRewardActor` at the light's bounds center at runtime, configured from `DefaultGame.ini` (item/sound/duration). Saved to project memory.
-  - Hum is non-spatialized; volume is purely stare-progress (5% floor → 100% at 30s).
-  - Gaze = 10° cone + line-of-sight trace (a hit in the last 10% of the ray counts as the fixture itself).
-  - TV/movie sub-item deferred per your kickoff answer; todo sub-line left open.
+Two Claude-Friendly todos, both TDD'd red→green against the E2E harness. **Both green, one commit each. Final tip certified: full `Regression` suite green — 17/17 tests, 316 steps** (the 2 new regression tests + 15 pre-existing, all passing together).
 
-- ✅ **"Rick:" prefix out of dialogue body** — `Weirdplace2.E2E.Level1.RickDialoguePrefix` green (8 steps).
-  Screenshot: `E2E_RickPrefix_DialogueShown.png` (Rick by his car, line reads "I'll meet you inside once I'm done here" — no prefix).
-  **Verify in-game:** at the gas station start, walk up to Rick outside and interact — the bubble should show the line without `Rick:`.
-  Notes / decisions made solo:
-  - Root cause: `ARick::LoadOutsideDialogue`'s idle branch loaded lines raw while every sibling loader parses `Speaker:` — fixed the idle branch to match (loader-parse, your ratified choice).
-  - The displayed-dialogue assert reads the live `UUI_Dialogue` widget (new tiny getters + driver method) — reusable for any future dialogue test.
-  - First red failed for the wrong reason: `FTD_TeleportNearRick`'s spot doesn't put Rick's interactable geometry on the interact ray; switched to the HappyPath's `RickApproach` waypoint. Other NPC-prefix files (Hudson/Seneca) weren't touched — this todo named Rick's idle line only.
+> The previous 2026-06-17 nightly report (Tornado/Telephone beats) is preserved in git history on `overnight/2026-06-17`; this file was overwritten for tonight's run.
 
-- ✅ **Movie put-back prompt + always faces player** — `Weirdplace2.E2E.Level1.MoviePutBackPrompt` green (13 steps).
-  Screenshots: `E2E_PutBack_01_PromptShown.png` / `E2E_PutBack_02_AfterRotate.png` — "Q / B  put back" floats below the inspected box and holds its facing while the box spins.
-  **Verify in-game:** inspect any shelf movie — white text under the box should read `Q / B  put back`, stay readable as you rotate the box, and pressing Q (or gamepad B) should return the movie to the shelf.
-  Notes / decisions made solo:
-  - Prompt is a runtime-created `UTextRenderComponent` on every MovieBox (no Blueprint edit), text composed live from the `Exit Interaction` mappings — rebind the key and the prompt follows.
-  - First green's screenshot showed the text occluded by the box itself; pulled it 18cm toward the camera. The component-flag assert can't catch occlusion — the screenshot did.
-  - Diegetic 3D text per the VR rule; world size 4cm.
+**Follow-ups (morning 2026-06-20, your requests):** extended the same `M_ItemDarkGlow` glow so it follows the key end to end —
+1. *During the door-lock insert animation* (the door's `AnimKeyMesh`): RED→GREEN on `LockSoundDuringKeyInsert` (new `FTD_AssertBathroomDoorAnimKeyGlow`); proof `E2E_KeyInsert_Glow.png` — warm key glowing inside the dark keyhole.
+2. *On the dropped broken-key pickup, on the ground* — previously it only glowed once you were inspecting it, so it was invisible on the dark floor. `AInspectablePickup` now applies the overlay from spawn (BeginPlay) instead of on inspect, so it's findable where it lands. RED→GREEN (`FTD_AssertInspectablePickupGlow`); proof `E2E_BrokenKey_GroundGlow.png` — warm glow on the floor at the door base.
 
-- ✅ **Blank VHS held pose matches other movies** — `Weirdplace2.E2E.Level1.BlankVHSHeldPose` green (24 steps).
-  Screenshots: `E2E_VHSPose_01_MovieHeld.png` / `E2E_VHSPose_02_BlankHeld.png` — movie and blank ride the hand slot with the same tilt, size, and spot.
-  **Verify in-game:** collect a movie and the blank tape, hold each from the inventory — the blank should sit in your hand like any movie (it used to be a giant box lying sideways, half off-screen).
-  Notes / decisions made solo:
-  - Three fixes: capture **world** scale at collect (not relative — the Memphis mesh gets its size from ancestor scaling, so the held blank was giant), a per-class `HeldPoseCorrection` rotation on MovieBox (BP_BlankVHS CDO = 180° yaw, solved from logged camera-space axis mappings), and `HeldItemComponent` now holds meshes by **bounds center** instead of pivot (the Memphis pivot is way off-mesh; centered-pivot meshes unaffected).
-  - The pose assert compares camera-space box axes + size + center between held movie and held blank — mesh-authoring agnostic, reusable.
-
-- ✅ **Bonus: HappyPath de-flaked** (not a todo item — surfaced by item 4's regression gate).
-  `Weirdplace2.E2E.Level1.HappyPath` green ×3 consecutive (different random tape slots), plus all four item tests green on the final tip.
-  What was wrong: the blank-tape collect has always been **slot-dependent** — `ActivateChosenTape` swaps a *random* top-shelf box each run, and the test aimed at the actor's render-bounds center, which the Tape child mesh skews off the Memphis envelope's collision. On bad slots the interact ray slipped past the box (or hit a neighbor) and the back half of HappyPath cascaded. Base `May31` passed only because it rolled a friendly slot.
-  Fixes: (a) `FTD_TeleportNearBlankTape` probes both sides with the interact-trace object types and aims at the **verified-hittable surface point**; (b) restored `ChosenForwardOffset` 0→10cm on the `BP_Spawner1` instance (the C++ default — the chosen tape now stands proud of the row, which also telegraphs it visually; **eyeball this on the shelf in-game**); (c) the new put-back prompt contributes no phantom bounds (`bUseAttachParentBound`).
-
-## Blocked / WIP
-<!-- parked attempts land here -->
-
-## Skipped
-<!-- items that turned out not autonomously verifiable -->
-
-## How to review this run
-- `git log --oneline May31..overnight/2026-06-09` — the per-item commits
-- `git diff May31..overnight/2026-06-09` — the full change
-- Screenshots: `Saved/Screenshots/WindowsEditor/E2E_*.png`
-- Parked attempts: `git branch --list 'wip/*'`
-
-→ **Next:** the deferred "watching the movie rewards you too" sub-item is a one-evening follow-up — the gaze mechanic is built; it's one more `GazeRewardTarget`-style rig pointed at the TV (decide reward + whether it should require the movie actually playing).
+(See Commits section below.)
 
 ---
-**Not merged — waiting on your verification.** Green tests and screenshots I checked got each item this far, but nothing lands on `May31` until *you* play it and confirm. Walk the **Verify in-game** steps above, then tell me how you want the merge handled (squash / cherry-pick / plain / leave / discard).
+
+## Status at a glance
+
+| Item | Todo | Test | Result |
+|------|------|------|--------|
+| 1 | door lock sound shouldn't play while inserting the key | `Regression.LockSoundDuringKeyInsert` | ✅ green |
+| 2 | held/inspected items hard to see in the dark | `Regression.HeldItemDarkGlow` | ✅ green |
+
+---
+
+## Item 1 — Re-entrancy guard on the bathroom-door key-break ✅
+
+**Root cause.** `AOutsideBathroomDoor::StartKeyBreakSequence()` removes the Key + clears the active item *immediately*, but `bDidDropKey` isn't set until the broken-key pickup spawns ~3s later. Any interact in that window hit the `ActiveItem != KeyToRemove` branch and played `LockedDoorSound`. Under the UE5.7 double-fire input quirk a single key-insert press fires twice, so the locked rattle played on a normal insertion.
+
+**Fix.** Added `bKeyBreakInProgress` (armed at the top of `StartKeyBreakSequence`). At the top of `Interact_Implementation`, `if (bKeyBreakInProgress && !bDidDropKey) return;` — ignores the re-entrant interact. No clear needed; once `bDidDropKey` flips the door behaves as a normal locked door again. Single guard branch, no fallback logic.
+
+**Test seam.** `LockedSoundPlayCount` increments in the locked-rattle branch (regardless of whether `LockedDoorSound` is assigned, so RED is genuine); public `GetLockedSoundPlayCount()`. Driver `GetBathroomDoorLockedSoundCount()` + `SetActiveTestItem()`; latent cmds `FTD_AssertBathroomDoorLockedSoundCount` + `FTD_SetActiveItem`.
+
+**TDD.** RED (no guard): `count=1, expected 0` ❌ — confirms the test reproduces the bug. GREEN (guard): `count==0` ✅ (9 steps, headless). **Regression:** `HappyPath` ✅ green (131 steps) — the `UseKeyOnDoor` path is unaffected.
+
+Files: `OutsideBathroomDoor.h/.cpp`, `TestDriverSubsystem.h/.cpp`, `E2E_LatentCommands.h`, `E2E_Level1Test.cpp`.
+
+---
+
+## Item 2 — Self-illuminating held/inspected items ✅
+
+**Approach (your call, mid-run).** You asked about an outline shader; we weighed a true post-process/inverted-hull outline (more readable but gamey, cuts against the diegetic rule) vs. a rim-heavy emissive glow (diegetic — the object emits light). You picked the **rim-heavy emissive**.
+
+**What it does.** New material `/Game/CreatedMaterials/M_ItemDarkGlow` — Unlit + Additive overlay, `Emissive = (EmissiveFloor + Fresnel*RimStrength) * GlowColor / EyeAdaptation`. The small floor (0.06) gives the item body so it's recognizable; the Fresnel rim (exp 4, strength 9) brightens the edges; the EyeAdaptation divide makes it render at constant brightness regardless of the scene's auto-exposure; warm color (1.0, 0.86, 0.6). Item-agnostic — applied as a component overlay (`SetOverlayMaterial`), no per-item base-material edits.
+
+**Where applied.** `HeldItemComponent::ShowHeldItem` sets the overlay, `HideHeldItem` clears it (nothing held → no glow). `InspectablePickup` sets it on the pickup mesh while inspected, clears on put-back. The environment receives no added light (emissive-only) — darkness preserved.
+
+**Assert seam.** Driver `GetHeldItemGlowActive()` (visible held mesh has a non-null overlay); latent cmd `FTD_AssertHeldItemGlow`.
+
+**TDD.** RED (no overlay code): `glow=false` ❌. GREEN: `glow=true` ✅ (6 steps, headed). **Visual proof:** `Saved/Screenshots/WindowsEditor/E2E_DarkGlow_KeyHeld.png` — a warm, fully-legible key in a pitch-black room, environment dark. (Held-item flatscreen pose tucks it lower-right; that's the production pose, not the glow.)
+
+**Tuning.** All glow values are baked defaults in `scripts/local/create_item_dark_glow.py` (the .uasset is a build artifact in `Content/CreatedMaterials/`). Re-run that script to retune floor/rim/exponent/color, then re-run the headed test — no C++ rebuild needed.
+
+Files: `M_ItemDarkGlow.uasset` (new), `HeldItemComponent.h/.cpp`, `InspectablePickup.h/.cpp`, `TestDriverSubsystem.h/.cpp`, `E2E_LatentCommands.h`, `E2E_Level1Test.cpp`.
+
+### If you'd prefer a true outline later
+Noted but not built: (2) custom-depth stencil + post-process edge-detect material — crisp, lighting-independent, but reads as a gamey UI highlight; (3) inverted-hull mesh outline — hard outline in world-space, fiddly on thin meshes. Say the word and I'll swap the overlay for one of these.
+
+---
+
+## Verification method
+- Editor closed before every `Build.bat weirdplace2Editor Win64 Development`.
+- `run_e2e.ps1 -TestName <Name>`; results read from `Saved/Logs/E2ETest.log` scoped to the latest `=== E2E TEST START ===`.
+- Final gate: `run_e2e.ps1 -TestName Regression -Headed -TimeoutMinutes 60` → **17/17 green, 316 steps.**
+
+## Commits (on `overnight/2026-06-19`)
+- `af1ba47e` — Item 1: guard bathroom door against re-entrant interact during key-break
+- `98396938` — Item 2: self-illuminating glow overlay for held/inspected items
+- `d9109eea` — Nightly report: certify full Regression suite green (17/17, 316 steps)
+- `75b69c16` — Follow-up: keep the glow on the key during the door-lock insert animation (re-verified: HappyPath green, 131 steps)
+- `856a0b85` — Follow-up: make the dropped broken-key pickup glow on the ground, not just inspected (re-verified: HappyPath green, 131 steps)
+
+## Open decisions for you
+- **Material recipe location.** `scripts/local/create_item_dark_glow.py` (the glow generator/tuner) is in gitignored `scripts/local/`, so the committed record is the `.uasset`. Move it to `scripts/` if you want the recipe version-controlled.
+- **Outline alternative.** If the rim-glow isn't enough in-game, I can swap to a custom-depth stencil post-process outline or an inverted-hull outline (details in the Item 2 section).
+- Nothing merged. Merge target in the morning is `overnight/2026-06-17`.

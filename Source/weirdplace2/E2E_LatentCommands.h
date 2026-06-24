@@ -1570,6 +1570,108 @@ private:
 	int32 Expected;
 };
 
+// Assert the absolute selected item index in the inventory strip.
+class FTD_AssertSelectedSlot : public FTD_Base
+{
+public:
+	FTD_AssertSelectedSlot(FAutomationTestBase* InTest, int32 InExpected) : FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting selected slot == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertSelectedSlot: no driver")); return true; }
+		const int32 Actual = Driver->GetSelectedSlot();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertSelectedSlot: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// Assert the horizontal scroll offset (leftmost visible item index). Proves the
+// strip actually scrolled rather than clamping the selection at the window edge.
+class FTD_AssertScrollOffset : public FTD_Base
+{
+public:
+	FTD_AssertScrollOffset(FAutomationTestBase* InTest, int32 InExpected) : FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting scroll offset == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertScrollOffset: no driver")); return true; }
+		const int32 Actual = Driver->GetScrollOffset();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollOffset: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// Assert the horizontal-scroll window invariant at runtime (independent of the
+// BP's column count): the selection is inside the visible window, the window is
+// right-aligned to the selection (offset == clamp(sel - cols + 1, 0, count-cols)),
+// and — when bExpectScrolled — the strip actually scrolled (offset > 0).
+class FTD_AssertScrollWindow : public FTD_Base
+{
+public:
+	FTD_AssertScrollWindow(FAutomationTestBase* InTest, int32 InExpectedSel, bool bInExpectScrolled)
+		: FTD_Base(InTest), ExpectedSel(InExpectedSel), bExpectScrolled(bInExpectScrolled) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting scroll window for selection %d"), ExpectedSel);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertScrollWindow: no driver")); return true; }
+		const int32 Sel = Driver->GetSelectedSlot();
+		const int32 Off = Driver->GetScrollOffset();
+		const int32 Cols = Driver->GetVisibleColumns();
+		const int32 Count = Driver->GetInventoryCount();
+
+		if (Sel != ExpectedSel)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: selected %d, expected %d"), Sel, ExpectedSel));
+		}
+		const int32 ExpectedOff = FMath::Clamp(Sel - Cols + 1, 0, FMath::Max(0, Count - Cols));
+		if (Off != ExpectedOff)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: offset %d, expected %d (sel=%d cols=%d count=%d)"),
+				Off, ExpectedOff, Sel, Cols, Count));
+		}
+		if (Sel < Off || Sel >= Off + Cols)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: selection %d outside window [%d,%d)"), Sel, Off, Off + Cols));
+		}
+		if (bExpectScrolled && Off <= 0)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertScrollWindow: expected scrolling but offset is %d (cols=%d count=%d)"), Off, Cols, Count));
+		}
+		return true;
+	}
+private:
+	int32 ExpectedSel;
+	bool bExpectScrolled;
+};
+
 // =======================================================================
 // FTD_AddTestItem — inject an item directly into the inventory by mesh path,
 // bypassing the gameplay flow that would normally grant it. For focused
@@ -1684,6 +1786,670 @@ public:
 	}
 private:
 	FName ItemId;
+};
+
+// =======================================================================
+// FTD_SetStoryFlag / FTD_AssertStoryFlag — drive and read the central
+// UStorySubsystem flags by name through the TestDriver.
+// =======================================================================
+
+class FTD_SetStoryFlag : public FTD_Base
+{
+public:
+	FTD_SetStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InValue)
+		: FTD_Base(InTest), Flag(InFlag), Value(InValue) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting story flag '%s' = %s"), *Flag.ToString(), Value ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetStoryFlag: no driver")); return true; }
+		Driver->SetStoryFlag(Flag, Value);
+		return true;
+	}
+private:
+	FName Flag;
+	bool Value;
+};
+
+class FTD_AssertStoryFlag : public FTD_Base
+{
+public:
+	FTD_AssertStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InExpected)
+		: FTD_Base(InTest), Flag(InFlag), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting story flag '%s' == %s"), *Flag.ToString(), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertStoryFlag: no driver")); return true; }
+		const bool Actual = Driver->IsStoryFlagSet(Flag);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertStoryFlag: '%s' is %s, expected %s"),
+				*Flag.ToString(), Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FName Flag;
+	bool Expected;
+};
+
+// Poll a story flag until it reaches the expected value (for gaze-driven flags
+// that flip after a dwell).
+class FTD_WaitForStoryFlag : public FTD_Base
+{
+public:
+	FTD_WaitForStoryFlag(FAutomationTestBase* InTest, FName InFlag, bool InExpected, double InTimeout = 8.0)
+		: FTD_Base(InTest), Flag(InFlag), Expected(InExpected), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for story flag '%s' == %s"), *Flag.ToString(), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForStoryFlag: no driver")); return true; }
+		if (Driver->IsStoryFlagSet(Flag) == Expected)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStoryFlag: '%s' never reached %s within %.0fs"),
+				*Flag.ToString(), Expected ? TEXT("true") : TEXT("false"), Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	FName Flag;
+	bool Expected;
+	double Timeout;
+};
+
+// Invoke the store-entry handler directly (no physical walk through the trigger).
+class FTD_TriggerStoreEntry : public FTD_Base
+{
+public:
+	FTD_TriggerStoreEntry(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering store entry"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerStoreEntry: no driver")); return true; }
+		Driver->TriggerStoreEntry();
+		return true;
+	}
+};
+
+// Assert an ACRTTV (by label) is / isn't showing its tornado-warning screen.
+class FTD_AssertTvShowingWarning : public FTD_Base
+{
+public:
+	FTD_AssertTvShowingWarning(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting TV '%s' showing warning == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertTvShowingWarning: no driver")); return true; }
+		const bool Actual = Driver->IsTvShowingWarning(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertTvShowingWarning: '%s' showing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Assert an ACRTTV (by label) is / isn't blaring its looping tornado-alert siren.
+class FTD_AssertTvWarningAudio : public FTD_Base
+{
+public:
+	FTD_AssertTvWarningAudio(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting TV '%s' siren playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertTvWarningAudio: no driver")); return true; }
+		const bool Actual = Driver->IsTvWarningAudioPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertTvWarningAudio: '%s' siren playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Assert an AAmbientSound (by label) is / isn't playing (the store TV beds cut
+// out when the storm beat fires).
+class FTD_AssertAmbientPlaying : public FTD_Base
+{
+public:
+	FTD_AssertAmbientPlaying(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting ambient '%s' playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertAmbientPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsAmbientSoundPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientPlaying: '%s' playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Capture an actor's max light intensity into a shared float so a later
+// FTD_AssertLightDimmed can compare against it.
+class FTD_CaptureLightIntensity : public FTD_Base
+{
+public:
+	FTD_CaptureLightIntensity(FAutomationTestBase* InTest, FString InLabel, float* InOutIntensity)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), OutIntensity(InOutIntensity) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Capturing light intensity of '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !OutIntensity) { Test->AddError(TEXT("FTD_CaptureLightIntensity: missing driver/out")); return true; }
+		*OutIntensity = Driver->GetActorMaxLightIntensity(Label);
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureLightIntensity: '%s' = %.3f"), *Label, *OutIntensity);
+		if (*OutIntensity < 0.f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_CaptureLightIntensity: '%s' has no light intensity to capture"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* OutIntensity;
+};
+
+// Assert an actor's max light intensity has been dimmed to ~ baseline * Mult.
+class FTD_AssertLightDimmed : public FTD_Base
+{
+public:
+	FTD_AssertLightDimmed(FAutomationTestBase* InTest, FString InLabel, float* InBaseline, float InMult, float InTolerance)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Baseline(InBaseline), Mult(InMult), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' dimmed to x%.2f"), *Label, Mult);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Baseline) { Test->AddError(TEXT("FTD_AssertLightDimmed: missing driver/baseline")); return true; }
+
+		const float Now = Driver->GetActorMaxLightIntensity(Label);
+		const float Expected = *Baseline * Mult;
+		UE_LOG(LogTemp, Warning, TEXT("AssertLightDimmed[%s]: baseline=%.3f mult=%.2f expected=%.3f actual=%.3f tol=%.3f"),
+			*Label, *Baseline, Mult, Expected, Now, Tolerance);
+		if (!FMath::IsNearlyEqual(Now, Expected, Tolerance))
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertLightDimmed: '%s' intensity=%.3f, expected ~%.3f (baseline %.3f x %.2f, tol %.3f)"),
+				*Label, Now, Expected, *Baseline, Mult, Tolerance));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* Baseline;
+	float Mult;
+	float Tolerance;
+};
+
+// Runtime-spawn + configure an AStormBeatController (designer config is mirrored
+// at runtime by the E2E). Configure BEFORE triggering store entry so it's
+// subscribed when TornadoWarningDisplayed fires.
+class FTD_SpawnStormBeat : public FTD_Base
+{
+public:
+	FTD_SpawnStormBeat(FAutomationTestBase* InTest, TArray<FString> InLightLabels,
+		TArray<FString> InHideLabels, TArray<FString> InAmbientLabels, float InMult)
+		: FTD_Base(InTest), LightLabels(MoveTemp(InLightLabels)), HideLabels(MoveTemp(InHideLabels))
+		, AmbientLabels(MoveTemp(InAmbientLabels)), Mult(InMult) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Spawning storm-beat controller"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SpawnStormBeat: no driver")); return true; }
+		Driver->SpawnAndConfigureStormBeat(LightLabels, HideLabels, AmbientLabels, Mult);
+		return true;
+	}
+private:
+	TArray<FString> LightLabels;
+	TArray<FString> HideLabels;
+	TArray<FString> AmbientLabels;
+	float Mult;
+};
+
+// Assert an actor's root visibility (for the gated telephone scene).
+class FTD_AssertActorVisible : public FTD_Base
+{
+public:
+	FTD_AssertActorVisible(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' visible == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorVisible: no driver")); return true; }
+		const bool Actual = Driver->IsActorVisibleByLabel(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorVisible: '%s' visible=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
+// Trigger the pay-phone pickup directly.
+class FTD_TriggerPayPhonePickup : public FTD_Base
+{
+public:
+	FTD_TriggerPayPhonePickup(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering pay-phone pickup"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerPayPhonePickup: no driver")); return true; }
+		Driver->TriggerPayPhonePickup();
+		return true;
+	}
+};
+
+// Assert whether the pay-phone audio bed is playing.
+class FTD_AssertPayPhoneAudioPlaying : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneAudioPlaying(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone audio playing == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneAudioPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsPayPhoneAudioPlaying();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneAudioPlaying: playing=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// Assert the OutsideBathroomDoor's locked-rattle play-count. Used by the
+// re-entrancy guard test: a re-entrant interact mid key-break must NOT bump it.
+class FTD_AssertBathroomDoorLockedSoundCount : public FTD_Base
+{
+public:
+	FTD_AssertBathroomDoorLockedSoundCount(FAutomationTestBase* InTest, int32 InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting bathroom-door locked-sound count == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertBathroomDoorLockedSoundCount: no driver")); return true; }
+		const int32 Actual = Driver->GetBathroomDoorLockedSoundCount();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertBathroomDoorLockedSoundCount: count=%d, expected %d"),
+				Actual, Expected));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// Assert whether the bathroom door's animated key carries the glow overlay
+// during the insert sequence.
+class FTD_AssertBathroomDoorAnimKeyGlow : public FTD_Base
+{
+public:
+	FTD_AssertBathroomDoorAnimKeyGlow(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inserted-key glow == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: no driver")); return true; }
+		const bool Actual = Driver->GetBathroomDoorAnimKeyGlowActive();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: glow=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// Assert whether the level's inspectable pickup (e.g. the dropped broken key)
+// carries the glow overlay — i.e. it's visible on the ground in the dark.
+class FTD_AssertInspectablePickupGlow : public FTD_Base
+{
+public:
+	FTD_AssertInspectablePickupGlow(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting dropped-pickup glow == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertInspectablePickupGlow: no driver")); return true; }
+		const bool Actual = Driver->GetInspectablePickupGlowActive();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertInspectablePickupGlow: glow=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// Assert whether the pay-phone would accept an interact (gated + one-shot).
+class FTD_AssertPayPhoneCanInteract : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneCanInteract(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone can-interact == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneCanInteract: no driver")); return true; }
+		const bool Actual = Driver->CanPayPhoneInteract();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneCanInteract: canInteract=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// Hang up the pay-phone directly.
+class FTD_TriggerPayPhoneHangUp : public FTD_Base
+{
+public:
+	FTD_TriggerPayPhoneHangUp(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Hanging up the pay-phone"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerPayPhoneHangUp: no driver")); return true; }
+		Driver->TriggerPayPhoneHangUp();
+		return true;
+	}
+};
+
+// Assert whether the pay-phone dialtone loop is playing.
+class FTD_AssertPayPhoneDialtone : public FTD_Base
+{
+public:
+	FTD_AssertPayPhoneDialtone(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pay-phone dialtone == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPayPhoneDialtone: no driver")); return true; }
+		const bool Actual = Driver->IsPayPhoneDialtonePlaying();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPayPhoneDialtone: dialtone=%s, expected %s"),
+				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+
+// =======================================================================
+// FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
+// must not) contain a substring. Drives the shelter-line gating check.
+// =======================================================================
+
+class FTD_AssertSenecaSmokingLines : public FTD_Base
+{
+public:
+	FTD_AssertSenecaSmokingLines(FAutomationTestBase* InTest, FString InNeedle, bool bInShouldContain)
+		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), bShouldContain(bInShouldContain) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting Seneca smoking lines %s '%s'"),
+			bShouldContain ? TEXT("contain") : TEXT("omit"), *Needle);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no driver")); return true; }
+		FString Joined;
+		if (!Driver->GetSenecaSmokingLinesJoined(Joined))
+		{
+			Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no Seneca"));
+			return true;
+		}
+		const bool bContains = Joined.Contains(Needle, ESearchCase::IgnoreCase);
+		if (bContains != bShouldContain)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertSenecaSmokingLines: lines %s '%s' but expected %s. Lines: \"%s\""),
+				bContains ? TEXT("contain") : TEXT("omit"), *Needle,
+				bShouldContain ? TEXT("contain") : TEXT("omit"), *Joined));
+		}
+		return true;
+	}
+private:
+	FString Needle;
+	bool bShouldContain;
+};
+
+// =======================================================================
+// FTD_ForceSenecaSmoking — jump Seneca into the Smoking beat directly.
+// =======================================================================
+
+class FTD_ForceSenecaSmoking : public FTD_Base
+{
+public:
+	FTD_ForceSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Forcing Seneca into the smoking beat"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_ForceSenecaSmoking: no driver")); return true; }
+		Driver->ForceSenecaToSmoking();
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AdvanceDialogueUntilLineContains — press E until the displayed
+// dialogue body contains a substring (case-insensitive), then stop.
+// =======================================================================
+
+class FTD_AdvanceDialogueUntilLineContains : public FTD_Base
+{
+public:
+	FTD_AdvanceDialogueUntilLineContains(FAutomationTestBase* InTest, FString InNeedle,
+		double InLineDelay = 1.0, double InTimeoutSeconds = 20.0)
+		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), LineDelay(InLineDelay), Timeout(InTimeoutSeconds)
+		, LastPressTime(0.0), bWaitingForRelease(false) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Advancing dialogue until line contains '%s'"), *Needle);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+
+		const EPlayerActivityState State = Driver->GetActivityState();
+		const bool bInDialogue =
+			State == EPlayerActivityState::InSimpleDialogue ||
+			State == EPlayerActivityState::InDialogue;
+
+		// Only read the widget while dialogue is actually up — otherwise the
+		// query spams "no active dialogue widget" every frame.
+		if (bInDialogue)
+		{
+			FString Speaker, Body;
+			if (Driver->GetDisplayedDialogue(Speaker, Body) && Body.Contains(Needle, ESearchCase::IgnoreCase))
+			{
+				if (bWaitingForRelease) { Driver->SimulateInteractRelease(); bWaitingForRelease = false; }
+				LastBody = Body;
+				return true;
+			}
+			LastBody = Body;
+		}
+
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AdvanceDialogueUntilLineContains: '%s' never shown (last body: \"%s\")"), *Needle, *LastBody));
+			return true;
+		}
+
+		if (!bInDialogue)
+		{
+			return false;
+		}
+
+		const double Now = FPlatformTime::Seconds();
+		if (bWaitingForRelease)
+		{
+			Driver->SimulateInteractRelease();
+			bWaitingForRelease = false;
+			LastPressTime = Now;
+			return false;
+		}
+		if (Now - LastPressTime < LineDelay)
+		{
+			return false;
+		}
+		Driver->SimulateInteractPress();
+		bWaitingForRelease = true;
+		return false;
+	}
+private:
+	FString Needle;
+	double LineDelay;
+	double Timeout;
+	double LastPressTime;
+	bool bWaitingForRelease;
+	FString LastBody;
 };
 
 // FTD_AssertGazeRewardSeconds — read the UGazeRewardComponent's dwell timer
@@ -2097,100 +2863,6 @@ public:
 		}
 		return true;
 	}
-};
-
-// =======================================================================
-// FTD_CaptureHeldBoxAxes / FTD_AssertHeldBoxAxesMatch — record the held
-// item's camera-space long/short box axes into caller-owned vectors, then
-// later assert the currently held item's axes match (same "pose" for two
-// box-shaped items regardless of mesh authoring). Abs dots: a box flipped
-// 180° reads as the same held pose.
-// =======================================================================
-
-class FTD_CaptureHeldBoxAxes : public FTD_Base
-{
-public:
-	FTD_CaptureHeldBoxAxes(FAutomationTestBase* InTest, FVector* InOutLong, FVector* InOutShort, float* InOutMaxExtent, FVector* InOutCenter)
-		: FTD_Base(InTest), OutLong(InOutLong), OutShort(InOutShort), OutMaxExtent(InOutMaxExtent), OutCenter(InOutCenter) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Capturing held item box axes"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no driver")); return true; }
-		if (!Driver->GetHeldItemBoxAxes(*OutLong, *OutShort, *OutMaxExtent, *OutCenter))
-		{
-			Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no visible held item"));
-		}
-		return true;
-	}
-private:
-	FVector* OutLong;
-	FVector* OutShort;
-	float* OutMaxExtent;
-	FVector* OutCenter;
-};
-
-class FTD_AssertHeldBoxAxesMatch : public FTD_Base
-{
-public:
-	FTD_AssertHeldBoxAxesMatch(FAutomationTestBase* InTest, const FVector* InLong, const FVector* InShort,
-		const float* InMaxExtent, const FVector* InCenter,
-		float InMinLongDot = 0.95f, float InMinShortDot = 0.90f, float InMaxSizeRatio = 2.0f, float InMaxCenterDelta = 15.f)
-		: FTD_Base(InTest), RefLong(InLong), RefShort(InShort), RefMaxExtent(InMaxExtent), RefCenter(InCenter)
-		, MinLongDot(InMinLongDot), MinShortDot(InMinShortDot), MaxSizeRatio(InMaxSizeRatio), MaxCenterDelta(InMaxCenterDelta) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Asserting held item pose matches captured axes"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no driver")); return true; }
-
-		FVector Long, Short, Center;
-		float MaxExtent = 0.f;
-		if (!Driver->GetHeldItemBoxAxes(Long, Short, MaxExtent, Center))
-		{
-			Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no visible held item"));
-			return true;
-		}
-
-		const float LongDot = FMath::Abs(FVector::DotProduct(Long, *RefLong));
-		const float ShortDot = FMath::Abs(FVector::DotProduct(Short, *RefShort));
-		if (LongDot < MinLongDot || ShortDot < MinShortDot)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: pose differs (longDot=%.3f need>=%.2f, shortDot=%.3f need>=%.2f; held long=%s ref long=%s)"),
-				LongDot, MinLongDot, ShortDot, MinShortDot, *Long.ToString(), *RefLong->ToString()));
-		}
-
-		const float SizeRatio = (*RefMaxExtent > KINDA_SMALL_NUMBER) ? (MaxExtent / *RefMaxExtent) : 0.f;
-		if (SizeRatio < 1.f / MaxSizeRatio || SizeRatio > MaxSizeRatio)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: size differs (held extent %.1fcm vs ref %.1fcm, ratio %.2f outside 1/%.1f..%.1f)"),
-				MaxExtent, *RefMaxExtent, SizeRatio, MaxSizeRatio, MaxSizeRatio));
-		}
-
-		const float CenterDelta = FVector::Dist(Center, *RefCenter);
-		if (CenterDelta > MaxCenterDelta)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: held position differs (center %s vs ref %s, delta %.1fcm > %.1fcm)"),
-				*Center.ToString(), *RefCenter->ToString(), CenterDelta, MaxCenterDelta));
-		}
-		return true;
-	}
-private:
-	const FVector* RefLong;
-	const FVector* RefShort;
-	const float* RefMaxExtent;
-	const FVector* RefCenter;
-	float MinLongDot;
-	float MinShortDot;
-	float MaxSizeRatio;
-	float MaxCenterDelta;
 };
 
 // =======================================================================

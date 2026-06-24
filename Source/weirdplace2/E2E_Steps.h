@@ -54,17 +54,19 @@ namespace E2ESteps
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 
-		// Slots are persistent (OoT-style): movie i stays at slot i even after earlier movies are given.
+		// Give-mode: interacting with Seneca pops the inventory; select the movie
+		// slot and press E to hand it over. Slots are persistent (OoT-style): movie
+		// i stays at slot i even after earlier movies are given.
 		for (int32 i = 0; i < 3; ++i)
 		{
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
-			if (i == 0)
-				ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // opens give inventory
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));                 // wait for open animation
+			if (i == 0)
+				ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));  // select movie slot
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E confirms the give
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_%02d_GaveMovie%d"), 7 + i, i + 1)));
 		}
@@ -90,13 +92,13 @@ namespace E2ESteps
 	void GiveMoneyAskForBlank(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_12_InventoryWithMoney")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // opens give inventory
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_12_InventoryWithMoney")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // Money at slot 0
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the money
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_AskedForBlank")));
 	}
@@ -115,12 +117,12 @@ namespace E2ESteps
 	void GiveBlankTapeGetKey(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));   // BlankVHS at slot 0 (Money is gone)
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // opens give inventory
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // BlankVHS at slot 0 (Money is gone)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the blank tape
 		// Advance through the merged burn-flavor + key-handoff lines until the
 		// [Give key] cue fires the key item notification.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
@@ -135,14 +137,15 @@ namespace E2ESteps
 	void UseKeyOnDoor(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("OutsideBathroom")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // door pops the inventory (give mode)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15_InventoryWithKey")));
 		// Key lands in slot 0 now that the combined-tape movie stack is gone —
 		// the post-key inventory only contains the Key.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the key -> break sequence
 
 		// The key-break sequence (insert → turn → break → fall) no longer
 		// auto-adds the broken key to inventory; it drops a collectable
@@ -167,6 +170,10 @@ namespace E2ESteps
 
 	void FastForwardSenecaSmoking(FAutomationTestBase* T)
 	{
+		// Seneca won't appear outside smoking until the player has used the
+		// payphone at least once. The happy path doesn't otherwise walk the
+		// tornado/payphone beat, so set the gating flag directly here.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(T, FName("UsedPayPhone"), true));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 	}
 

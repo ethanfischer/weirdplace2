@@ -73,6 +73,71 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// LockSoundDuringKeyInsert — re-entrancy guard regression. A repeated interact
+// fired WHILE the key-break sequence is running (the UE5.7 double-fire input
+// quirk turns one key-insert press into two) must NOT fall into the locked
+// rattle branch. The break sequence removes the Key + clears the active item
+// immediately, but doesn't set bDidDropKey until ~3s later; without the guard
+// the re-entrant interact sees "no active key" and plays LockedDoorSound.
+//
+// RED (no guard): locked-sound count == 1 after the re-entrant interact.
+// GREEN (guard):  count stays 0.
+//
+// Also verifies the self-illumination glow follows the key through the whole
+// sequence: on the animated key while inserted, and on the dropped broken-key
+// pickup where it lands, so both read in the dark.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_LockSoundDuringKeyInsert,
+	"Weirdplace2.E2E.Level1.Regression.LockSoundDuringKeyInsert",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("LockSoundDuringKeyInsert")
+
+	// Grant the Key; having it in inventory is enough — the first interact starts
+	// the break sequence instead of rattling.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+
+	// Interact #1 pops the inventory (give mode); select the Key and press E to
+	// give it, which starts the key-break sequence (removes Key).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	// Let the animated key appear at the lock — it should carry the same glow
+	// overlay the held key had, so it reads in the dark while inserted.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorAnimKeyGlow(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_KeyInsert_Glow")));
+	// Still mid-sequence — bDidDropKey is false (set ~3s in on broken-key spawn).
+	// Interact #2: the re-entrant press. RED falls into the locked rattle.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_LockSound_MidKeyBreak")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorLockedSoundCount(this, 0));
+
+	// Let the sequence finish and drop the broken-key pickup, then confirm it
+	// glows where it lands so it's findable on the dark floor (not just once
+	// it's pulled in to inspect).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(this, 15.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupGlow(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BrokenKey_GroundGlow")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // SenecaSmokingAnim — diagnostic for the smoking animation failing to
 // play on the natural quest path (works via SkipToSmoking console cmd).
 // Lingers around Seneca's appear-at-smoking-spot moment and takes
@@ -284,9 +349,10 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// PauseMenuLight — verify the player's RectLight (the same one the
-// inventory uses) is enabled while the pause menu is open and disabled
-// after it closes.
+// PauseMenuLight — the menu/inventory UI is fully self-illuminated (emissive
+// panels/thumbnails + unlit M_UnlitText for the labels), so the player's
+// inventory RectLight is intentionally never enabled. This guards that the menu
+// does NOT turn the light on; the screenshot confirms it reads with the light off.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -302,14 +368,15 @@ bool FE2E_Level1_PauseMenuLight::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_01_Before")));
 
-	// Open the menu and wait past the open animation so the light has flipped on.
+	// Open the menu and wait past the open animation. The light must stay OFF —
+	// the menu self-illuminates (unlit text material), so it's never enabled.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_02_MenuOpenLightOn")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryFlashlight(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PauseMenuLight_02_MenuOpenLightOff")));
 
-	// Close the menu — light should disable immediately on close.
+	// Close the menu — light stays off.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
@@ -345,10 +412,15 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
-		TEXT("/Game/Import/cash/cash.cash"), FVector(1.0f)));
+		TEXT("/Game/Import/cash/money.money"), FVector(1.0f)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
 		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+	// A movie item: its ItemID resolves to /Game/VHSCovers/<ItemID>, exercising
+	// the M_VHSCoverFront thumbnail material (the mesh path is irrelevant to the
+	// thumbnail). Verifies VHS covers self-illuminate without the inventory light.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BATMAN-THE-MOVIE"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
 
 	// Bright outdoor — open inventory + screenshot.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
@@ -370,42 +442,85 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// HeldItemRotationTour — grant the player every UItemDefinition under
-// /Game/Inventory, then cycle each one as the active (held) item with a
-// delay between cycles so the held mesh is visible in front of the camera.
-// Use the screenshots to eyeball each item's HeldRotation on its data asset.
-//
-// Add a new DA_*.uasset under /Game/Inventory and rerun — it'll show up
-// automatically (just bump NumExpected if you want to assert the count).
+// InventoryHorizontalScroll — the inventory is an unbounded single-row strip
+// that scrolls horizontally. Inject more items than the visible window, then
+// jump the cursor to the last item and back, asserting the scroll window
+// follows the selection (proves it scrolls rather than clamping at the edge).
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_HeldItemRotationTour,
-	"Weirdplace2.E2E.Level1.Diagnostic.HeldItemRotationTour",
+	FE2E_Level1_InventoryHorizontalScroll,
+	"Weirdplace2.E2E.Level1.Regression.InventoryHorizontalScroll",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
+bool FE2E_Level1_InventoryHorizontalScroll::RunTest(const FString& Parameters)
 {
-	E2E_TEST_PREAMBLE("HeldItemRotationTour")
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
+	E2E_TEST_PREAMBLE("InventoryHorizontalScroll")
 
-	// Lit interior so the small held meshes are visible.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-
-	// Currently 4 defs in /Game/Inventory; bump if you add more. Each loop
-	// iteration: open inventory, select slot, close, wait, screenshot the
-	// held mesh in front of the camera.
-	const int32 NumSlots = 4;
-	for (int32 i = 0; i < NumSlots; ++i)
+	// Inject more items than any reasonable visible window so the strip must scroll.
+	const int32 NumItems = 12;
+	for (int32 i = 0; i < NumItems; ++i)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, i));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_HeldTour_%02d"), i)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this,
+			FName(*FString::Printf(TEXT("ScrollItem%02d"), i)),
+			TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, NumItems));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	// Window starts at the left edge: selection 0, no scroll.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSelectedSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollOffset(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_01_Start")));
+
+	// Jump to the last item — the strip must scroll right to keep it visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, NumItems - 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollWindow(this, NumItems - 1, /*bExpectScrolled*/ true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_02_Scrolled")));
+
+	// Jump back to the first item — window snaps back to the left.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSelectedSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertScrollOffset(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Scroll_03_BackToStart")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// VhsCoverLetterbox — VHS movie covers are portrait but the inventory slots are
+// square (1:1). M_VHSCoverFront pillarboxes the cover (fit to height, black bars
+// left/right) so it isn't stretched. Inject a few real covers and screenshot;
+// each should be upright, undistorted (taller than wide), with side bars.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_VhsCoverLetterbox,
+	"Weirdplace2.E2E.Level1.Diagnostic.VhsCoverLetterbox",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_VhsCoverLetterbox::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("VhsCoverLetterbox")
+
+	// ItemID resolves to /Game/VHSCovers/<ItemID> -> M_VHSCoverFront. The mesh
+	// path is irrelevant to the thumbnail (reuse the key mesh).
+	const TCHAR* Covers[] = { TEXT("BATMAN-THE-MOVIE"), TEXT("RIVALS"), TEXT("ABRAXAS") };
+	for (const TCHAR* Cover : Covers)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName(Cover),
+			TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VhsLetterbox")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -573,69 +688,6 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// BlankVHSHeldPose — the held blank tape must sit in the hand the same
-// way a regular movie does. Pose equality is asserted as matching
-// camera-space long/short box axes (mesh-authoring agnostic), plus
-// side-by-side screenshots.
-// =======================================================================
-
-namespace
-{
-	static FVector CapturedMovieLongAxis = FVector::ZeroVector;
-	static FVector CapturedMovieShortAxis = FVector::ZeroVector;
-	static float CapturedMovieMaxExtent = 0.f;
-	static FVector CapturedMovieCenter = FVector::ZeroVector;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_BlankVHSHeldPose,
-	"Weirdplace2.E2E.Level1.Diagnostic.BlankVHSHeldPose",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
-
-	// Collect a regular shelf movie (slot 0).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
-
-	// The blank tape only exists after Seneca's money beat swaps it onto the
-	// shelf — trigger the swap, then collect it through the production
-	// capture path (slot 1). Shelf aiming at the randomly-placed blank is
-	// flaky and isn't what this test is about.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectBlankTape(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BlankVHS")));
-
-	// Hold the movie; capture its pose axes.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_01_MovieHeld")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureHeldBoxAxes(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
-
-	// Hold the blank tape; its pose must match.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 1));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_02_BlankHeld")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldBoxAxesMatch(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // BlankVhsGazeSweep — diagnostic. Activate the blank tape, stand in front
 // of it, then sweep the reticle across a grid over its face, logging what
 // the chord gaze trace hits at each point (and screenshotting the corners).
@@ -683,6 +735,300 @@ bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Open")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// StoryFlags — minimal infra guard for the central UStorySubsystem. Set a
+// flag through the test hook and confirm IsStoryFlagSet reflects it. The
+// flags' gameplay *effects* are proven by items 1/2/4/5; this just guards
+// the store/read plumbing the whole chain depends on.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StoryFlags,
+	"Weirdplace2.E2E.Level1.Regression.StoryFlags",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StoryFlags::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StoryFlags")
+
+	// Fresh world: the flag starts clear.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+	// Set it through the hook, then it must read back true.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), true));
+	// A different flag set independently doesn't bleed across.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("KeyBroke"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), true));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// SenecaShelterLine (item 4) — Seneca's Smoking dialogue gains a tornado-
+// shelter tip, but only once the player has seen the tornado warning
+// (SeenTornadoWarning). Hook-asserts presence/absence by flag, then drives
+// her into the Smoking beat to screenshot the line on the dialogue widget.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaShelterLine,
+	"Weirdplace2.E2E.Level1.Regression.SenecaShelterLine",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaShelterLine")
+
+	// Seneca's smoking mesh runs a single-node anim with no 'ShouldLookAtPlayer'
+	// var — entering her look-at sphere logs a benign error. Same as HappyPath.
+	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
+
+	// Gating: with the flag unset, the shelter tip is absent.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), false));
+
+	// Set SeenTornadoWarning → the shelter tip appears in the Smoking lines.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), true));
+
+	// Screenshot: drive Seneca into Smoking, open dialogue, advance to the
+	// shelter line, and capture it on the widget.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ForceSenecaSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("shelter")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// TornadoWarningOnStoreEntry (item 1) — re-entering the store after the
+// bathroom key breaks switches both store TVs to a tornado-warning screen,
+// and gazing at one for the dwell registers SeenTornadoWarning.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TornadoWarningOnStoreEntry,
+	"Weirdplace2.E2E.Level1.Regression.TornadoWarningOnStoreEntry",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TornadoWarningOnStoreEntry::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TornadoWarningOnStoreEntry")
+
+	// Without KeyBroke, store entry must NOT switch the TVs.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV2"), false));
+
+	// After the key breaks, store entry switches BOTH TVs and records the beat.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvShowingWarning(this, TEXT("BP_TV2"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("TornadoWarningDisplayed"), true));
+
+	// Not "seen" yet — the player hasn't looked at a warning TV.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+
+	// Screenshot the warning screen.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TV"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TV")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_TornadoWarning_Screen")));
+
+	// Holding the gaze on a warning TV for the dwell sets SeenTornadoWarning.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(this, FName("SeenTornadoWarning"), true, 8.0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// TornadoWarningStormBeat — when the store TVs switch to the tornado warning,
+// the storm closes in: both TVs blare a looping siren, the store's TV ambient
+// beds cut out, and the referenced gas-station light dims (and stays dimmed).
+// The placed AStormBeatController is designer config, so the test self-configures
+// one at runtime BEFORE triggering store entry (PIE spawn is safe; it's headless
+// EDITOR spawn of C++ classes that crashes in 5.7).
+// =======================================================================
+
+namespace
+{
+	static float StormBeat_BaselineLightIntensity = 0.f;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TornadoWarningStormBeat,
+	"Weirdplace2.E2E.Level1.Regression.TornadoWarningStormBeat",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TornadoWarningStormBeat")
+
+	// Reset the capture so re-runs in the same editor session don't compare
+	// against a previous run's leftover baseline.
+	StormBeat_BaselineLightIntensity = 0.f;
+
+	// A gas-station canopy spotlight (100 lm). Stable label confirmed in-level.
+	const TCHAR* GasLight = TEXT("SpotLight3");
+	// An emissive "light" mesh (no light component) — hidden, not dimmed.
+	const TCHAR* GlowMesh = TEXT("outsidegastationlights");
+
+	// --- Baseline (before the beat) ---
+	// The store TV ambient beds are playing, neither TV is blaring its siren, the
+	// gas-station light is at full intensity (captured for the dim assert), and the
+	// emissive glow mesh is still visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureLightIntensity(this, GasLight, &StormBeat_BaselineLightIntensity));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
+
+	// Self-configure the storm controller BEFORE the flag fires so it's subscribed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SpawnStormBeat(this,
+		{ FString(GasLight) },
+		{ FString(GlowMesh) },
+		{ FString(TEXT("Ambient_TV")), FString(TEXT("Ambient_TV2")) },
+		/*Mult=*/0.3f));
+
+	// Fire the beat: key broke, then re-enter the store.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+
+	// Let the audio engine start the looping sirens and stop the ambient beds.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+
+	// (RED-defining) Both TVs blare the looping tornado-alert siren.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), true));
+
+	// (RED-defining) The store's TV ambient beds cut out.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), false));
+
+	// (RED-defining) The gas-station light dimmed to ~ baseline * 0.3 and stays there.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertLightDimmed(this, GasLight,
+		&StormBeat_BaselineLightIntensity, /*Mult=*/0.3f, /*Tolerance=*/1.0f));
+
+	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
+
+	// --- Using the payphone silences the sirens (screens stay up) ---
+	// The phone only answers once the warning's been seen; set that, pick it up,
+	// and both sirens cut out. The warning screens are a material swap on the
+	// always-visible TV actors, so they remain — documented by the screenshot below.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
+
+	// Document the alarm/dim moment (the screen texture is designer art → the red
+	// fallback shows here until the designer assigns WarningScreenTexture).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TV"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TV")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_TornadoStormBeat_Screen")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// TelephoneGatedOnWarning (item 2) — the roadside telephone scene
+// (BP_TelephoneScene, reparented onto APayPhone) stays hidden until the
+// player has seen the tornado warning, then reveals.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TelephoneGatedOnWarning,
+	"Weirdplace2.E2E.Level1.Regression.TelephoneGatedOnWarning",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TelephoneGatedOnWarning::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TelephoneGatedOnWarning")
+
+	// Gated: with SeenTornadoWarning unset, the scene root is hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, TEXT("BP_TelephoneScene"), false));
+
+	// Seeing the warning reveals it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, TEXT("BP_TelephoneScene"), true));
+
+	// Screenshot to eyeball pole + payphone materials after the reparent.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 450.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Telephone_Revealed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// PayPhoneDialtone (item 5) — once revealed (SeenTornadoWarning), interacting
+// picks up the receiver: a one-shot pickup, then a looping dialtone (with the
+// static/voices over it). The player is held at the phone until "Exit
+// Interaction" hangs up — stopping the dialtone and releasing them. Repeatable.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_PayPhoneDialtone,
+	"Weirdplace2.E2E.Level1.Regression.PayPhoneDialtone",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("PayPhoneDialtone")
+
+	// Without the flag: gated off, pickup does nothing.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, false));
+
+	// With the flag: can pick up.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
+
+	// Pick up: pickup one-shot plays immediately, and we're now off the hook
+	// so a re-pickup is blocked.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
+
+	// After the 0.52s pickup, the dialtone loop has started.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, true));
+
+	// Hang up: dialtone stops and we can pick up again (repeatable).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhoneHangUp(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
+
+	// Screenshot of the revealed phone.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneDialtone")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

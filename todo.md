@@ -3,26 +3,26 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] broken key sound plays after broken key collection sound
-[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
+[ ] make seneca only smoke after interacting with payphone
+    [ ] on second thought, maybe we drop the seneca smoking thing. or at least make it so he appears whereever you look for him. I don't want players getting frustrated running around aimlessly.
     
 # Needs human
-[ ] replace gas pumps grey blocks
-[ ] phone booth
-[ ] telephone pole with "missing person" poster that looks like seneca
-[ ] tv shows tornado warning
-[ ] seneca tells you about tornado shelter in bathroo stall
-[ ] hear stuff through static on pay phone
+[ ] seneca tells you about tornado shelter in bathroom stall later
+[ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
+    [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
-[ ] drop key
-    [x] need better sfx
-    [x] show broken key collection spinning like any other collected item
-    [x] broken key mesh
+[ ] more weather sounds
+[ ] more weather effects
+[ ] sound mixing (tornado alert too loud)
+    
     
 # Needs design
-[ ] Can't see items collected in dark. Illuminate them somehow
+[ ] use weather plugin 
+[ ] message on payphone is code to employee bathroom
+    [ ] you write it down (wrongly)
+    [ ] you enter it wrongly, but it works
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
     [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
     
@@ -39,6 +39,7 @@
     [ ] have random noises so the world feels more alive
 
 # Needs design
+[ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
 [ ] decide what gaze rewards should be
 [ ] put in eye contact given by seneca
     [ ] maybe after friend talks to him

@@ -27,10 +27,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Visual")
 	FVector Scale = FVector::OneVector;
 
-	// Composed with HeldItemComponent::HeldItemRotation when this item is held.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
-	FRotator HeldRotation = FRotator::ZeroRotator;
-
 	// Rotation for the pickup-notification mesh popup.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
 	FRotator NotificationRotation = FRotator::ZeroRotator;

@@ -16,6 +16,7 @@ class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
+class AMyCharacter;
 class UInventoryComponent;
 class USpawnerActorComponent;
 
@@ -77,6 +78,12 @@ public:
 
 	// Called by FirstPersonCharacter when dialogue with Seneca ends
 	void OnDialogueEnded();
+
+	// Single source of truth for the lines spoken in a given state: copies the
+	// loaded lines for `State` and, for Smoking once the player has seen the
+	// tornado warning (UStorySubsystem SeenTornadoWarning), appends the
+	// shelter tip. Both Interact_Implementation and the E2E hook call this.
+	void BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const;
 
 	// Current quest state (read-only in editor for debugging)
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Quest")
@@ -321,6 +328,20 @@ private:
 	void HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID);
 	void StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar);
 
+	// Returns the first inventory item that is a movie (not a fixed tool/quest
+	// item), or NAME_None. Movies are handed to Seneca one per interact.
+	static FName FindFirstMovie(UInventoryComponent* Inventory);
+
+	// True if ItemID is a movie (any item that isn't a fixed tool/quest item).
+	static bool IsMovieItem(FName ItemID);
+
+	// Open the inventory in give-mode bound to OnInventoryItemOffered.
+	void OpenGiveForOffer(AMyCharacter* MyCharacter);
+
+	// Inventory give-mode callback: validates the offered item for the current
+	// give-state, consumes + advances on accept (returns true), else false.
+	bool OnInventoryItemOffered(FName ItemID);
+
 	// --- Blank Tape Beat ---
 
 	UPROPERTY()
@@ -329,7 +350,7 @@ private:
 	TArray<FText> WaitingForBlankTapeReminderLines;
 
 	void StartWaitingForBlankTapeDialogue(AFirstPersonCharacter* FPChar);
-	void HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory);
+	void HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName BlankTapeID);
 	void StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar);
 
 	// --- Combined Tape Beat ---

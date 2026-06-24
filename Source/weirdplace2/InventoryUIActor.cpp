@@ -50,6 +50,23 @@ void AInventoryUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// The UI is self-illuminated (no inventory RectLight). Give the item-name text
+	// an unlit material so it stays readable in dark areas; the engine's default
+	// TextRender material is lit and would render near-black.
+	if (UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText")))
+	{
+		TArray<UTextRenderComponent*> TextComps;
+		GetComponents<UTextRenderComponent>(TextComps);
+		for (UTextRenderComponent* TextComp : TextComps)
+		{
+			TextComp->SetTextMaterial(TextMat);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("InventoryUIActor: M_UnlitText not found; item text may be dark."));
+	}
+
 	// Create dynamic material instance from the material set on BackgroundPanel in Blueprint
 	if (BackgroundPanel)
 	{
@@ -96,6 +113,20 @@ void AInventoryUIActor::SetGridColumns(int32 Columns)
 void AInventoryUIActor::SetGridRows(int32 Rows)
 {
 	GridRows = FMath::Max(1, Rows);
+}
+
+void AInventoryUIActor::SetScrollOffset(int32 Offset)
+{
+	const int32 NewOffset = FMath::Max(0, Offset);
+	if (NewOffset == ScrollOffset)
+	{
+		return;
+	}
+	ScrollOffset = NewOffset;
+	// Only the thumbnails depend on the window; slots, highlight, and the panel are
+	// window-relative (fixed positions), so just re-map the visible item slice.
+	ClearThumbnails();
+	CreateThumbnails();
 }
 
 void AInventoryUIActor::RefreshDisplay()
@@ -198,7 +229,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Scale for slot size (slightly larger than thumbnail for border effect)
 		float Width = ThumbnailSize * 1.05f;
-		float Height = ThumbnailSize * 1.4f * 1.05f;
+		float Height = ThumbnailSize * 1.05f;
 		SlotMesh->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
 		// Create empty slot material
@@ -228,7 +259,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Slightly larger than slot for highlight border
 		float HighlightWidth = ThumbnailSize * 1.15f;
-		float HighlightHeight = ThumbnailSize * 1.4f * 1.15f;
+		float HighlightHeight = ThumbnailSize * 1.15f;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
@@ -254,7 +285,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Larger than thumbnail to create a visible border frame
 		float BorderWidth = ThumbnailSize * 1.2f;
-		float BorderHeight = ThumbnailSize * 1.4f * 1.2f;
+		float BorderHeight = ThumbnailSize * 1.2f;
 		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
 		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
@@ -323,12 +354,15 @@ void AInventoryUIActor::CreateThumbnails()
 		UE_LOG(LogTemp, Warning, TEXT("M_ItemThumbnail not found! Run: py \"C:/Users/ethan/repos/weirdplace2/Content/Python/create_item_thumbnail_material.py\""));
 	}
 
-	// Create thumbnail for each collected item
-	for (int32 i = 0; i < Items.Num() && i < GetTotalSlots(); i++)
+	// Create one thumbnail per VISIBLE slot, mapping slot p to the absolute item at
+	// (ScrollOffset + p). ThumbnailMeshes stays indexed by visible slot so the
+	// selection highlight / hover animation (which index by visible slot) line up.
+	for (int32 p = 0; p < GetTotalSlots(); p++)
 	{
-		const FName& ItemID = Items[i];
-		// Sparse storage: empty slots stay in the array as NAME_None to preserve grid positions.
-		// ThumbnailMeshes must stay slot-aligned so SelectedIndex addresses the right entry.
+		const int32 AbsIndex = ScrollOffset + p;
+		// Sparse storage: empty/absent slots get a nullptr placeholder to keep
+		// ThumbnailMeshes slot-aligned with the visible window.
+		const FName ItemID = Items.IsValidIndex(AbsIndex) ? Items[AbsIndex] : NAME_None;
 		if (ItemID.IsNone())
 		{
 			ThumbnailMeshes.Add(nullptr);
@@ -341,14 +375,14 @@ void AInventoryUIActor::CreateThumbnails()
 		Thumbnail->RegisterComponent();
 		Thumbnail->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-		// Position in grid (on top of slot)
-		FVector Position = CalculateSlotPosition(i);
+		// Position in grid (on top of slot) — visible slot p, not absolute index
+		FVector Position = CalculateSlotPosition(p);
 		Thumbnail->SetRelativeLocation(Position);
 		Thumbnail->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
 		// Scale for thumbnail size
 		float Width = ThumbnailSize;
-		float Height = ThumbnailSize * 1.4f;
+		float Height = ThumbnailSize;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
 		// Check for runtime thumbnail override on the item data first
@@ -453,9 +487,23 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 	FText ActiveItemText = FText::FromString(TEXT(""));
 	if (!ItemID.IsNone())
 	{
-		FString ItemName = ItemID.ToString();
-		ItemName = ItemName.Replace(TEXT("_"), TEXT(" "));
-		ItemName = ItemName.Replace(TEXT("-"), TEXT(" "));
+		FString Raw = ItemID.ToString();
+		Raw = Raw.Replace(TEXT("_"), TEXT(" "));
+		Raw = Raw.Replace(TEXT("-"), TEXT(" "));
+
+		// Split camelCase so e.g. "BrokenKey" -> "Broken Key", "BlankVHS" -> "Blank VHS":
+		// insert a space before an uppercase letter that follows a lowercase letter or
+		// digit. Runs of capitals (acronyms) and already-spaced titles are left intact.
+		FString ItemName;
+		for (int32 i = 0; i < Raw.Len(); ++i)
+		{
+			const TCHAR C = Raw[i];
+			if (i > 0 && FChar::IsUpper(C) && (FChar::IsLower(Raw[i - 1]) || FChar::IsDigit(Raw[i - 1])))
+			{
+				ItemName.AppendChar(TEXT(' '));
+			}
+			ItemName.AppendChar(C);
+		}
 		ActiveItemText = FText::FromString(ItemName);
 	}
 
@@ -489,18 +537,21 @@ void AInventoryUIActor::SetActiveItem(const FName& ItemID, int32 ItemIndex)
 		ItemNameTextTop->SetText(FText::FromString(WrappedText));
 	}
 
-	// Update active item border
+	// Update active item border. ItemIndex is ABSOLUTE; translate to the visible
+	// slot and hide the border when the active item is scrolled out of the window.
 	ActiveItemIndex = ItemIndex;
+	const int32 VisibleSlot = ItemIndex - ScrollOffset;
+	const bool bInWindow = VisibleSlot >= 0 && VisibleSlot < GetTotalSlots();
 	if (ActiveItemBorder)
 	{
-		if (ItemID.IsNone() || ItemIndex < 0)
+		if (ItemID.IsNone() || ItemIndex < 0 || !bInWindow)
 		{
 			ActiveItemBorder->SetVisibility(false);
-			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item)"));
+			UE_LOG(LogTemp, Log, TEXT("ActiveItemBorder hidden (no item or scrolled out)"));
 		}
 		else
 		{
-			FVector Position = CalculateSlotPosition(ItemIndex);
+			FVector Position = CalculateSlotPosition(VisibleSlot);
 			Position.X += 0.1f; // Slightly behind thumbnail so it frames it
 			ActiveItemBorder->SetRelativeLocation(Position);
 			ActiveItemBorder->SetVisibility(true);
@@ -559,7 +610,7 @@ FVector AInventoryUIActor::CalculateSlotPosition(int32 Index) const
 	int32 Col = Index % GridColumns;
 
 	float SlotWidth = ThumbnailSize + ThumbnailSpacing;
-	float SlotHeight = ThumbnailSize * 1.4f + ThumbnailSpacing;
+	float SlotHeight = ThumbnailSize + ThumbnailSpacing;
 
 	// Center the grid
 	float TotalWidth = (GridColumns - 1) * SlotWidth;
@@ -578,7 +629,7 @@ float AInventoryUIActor::GetGridWidth() const
 
 float AInventoryUIActor::GetGridHeight() const
 {
-	return GridRows * (ThumbnailSize * 1.4f) + (GridRows - 1) * ThumbnailSpacing;
+	return GridRows * (ThumbnailSize) + (GridRows - 1) * ThumbnailSpacing;
 }
 
 void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
@@ -602,7 +653,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		if (SelectedSlot)
 		{
 			float Width = ThumbnailSize * 1.05f * CurrentScale;
-			float Height = ThumbnailSize * 1.4f * 1.05f * CurrentScale;
+			float Height = ThumbnailSize * 1.05f * CurrentScale;
 			SelectedSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 		}
 	}
@@ -614,7 +665,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		if (SelectedThumbnail)
 		{
 			float Width = ThumbnailSize * CurrentScale;
-			float Height = ThumbnailSize * 1.4f * CurrentScale;
+			float Height = ThumbnailSize * CurrentScale;
 			SelectedThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 		}
 	}
@@ -628,7 +679,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 			if (PrevSlot)
 			{
 				float Width = ThumbnailSize * 1.05f;
-				float Height = ThumbnailSize * 1.4f * 1.05f;
+				float Height = ThumbnailSize * 1.05f;
 				PrevSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 			}
 		}
@@ -639,7 +690,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 			if (PrevThumbnail)
 			{
 				float Width = ThumbnailSize;
-				float Height = ThumbnailSize * 1.4f;
+				float Height = ThumbnailSize;
 				PrevThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 			}
 		}
@@ -653,7 +704,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		// Scale the highlight with hover + pulse
 		float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
 		float HighlightWidth = ThumbnailSize * HighlightScale;
-		float HighlightHeight = ThumbnailSize * 1.4f * HighlightScale;
+		float HighlightHeight = ThumbnailSize * HighlightScale;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 	}
 }

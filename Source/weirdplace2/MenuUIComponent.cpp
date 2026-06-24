@@ -60,11 +60,8 @@ void UMenuUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		{
 			AnimationProgress = 1.0f;
 			CurrentState = EMenuUIState::Open;
-
-			if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
-			{
-				FirstPersonCharacter->SetInventoryFlashlightEnabled(true);
-			}
+			// The menu UI is fully self-illuminated (panels emissive, text uses the
+			// unlit M_UnlitText), so no inventory RectLight is needed.
 		}
 		UpdateMenuPosition();
 		break;

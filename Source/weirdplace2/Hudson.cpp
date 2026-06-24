@@ -2,6 +2,7 @@
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "InventoryUIComponent.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "Components/ChildActorComponent.h"
@@ -115,12 +116,13 @@ void AHudson::Interact_Implementation()
 		break;
 
 	case EHudsonState::AwaitingDecision:
-		if (Inventory->GetActiveItem() == FName("Money"))
+		if (Inventory->HasItem(FName("Money")))
 		{
-			Inventory->RemoveItem(FName("Money"));
-			CurrentState = EHudsonState::GaveMoney;
-			bLastDialogueWasBeg = false;
-			FPChar->StartSimpleDialogue(FText::FromString(TEXT("Hudson")), ThankYouLines, this);
+			// Pop the inventory; the player picks Money and presses E to hand it over.
+			if (UInventoryUIComponent* InvUI = MyChar->GetInventoryUIComponent())
+			{
+				InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &AHudson::OnMoneyOffered));
+			}
 		}
 		else
 		{
@@ -133,6 +135,30 @@ void AHudson::Interact_Implementation()
 		FPChar->StartSimpleDialogue(FText::FromString(TEXT("Hudson")), ThankYouLines, this);
 		break;
 	}
+}
+
+bool AHudson::OnMoneyOffered(FName ItemID)
+{
+	if (ItemID != FName("Money"))
+	{
+		return false; // wrong item — keep the inventory open
+	}
+
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
+	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	if (!Inventory || !FPChar)
+	{
+		return false;
+	}
+
+	// Consume + thank the player; ConfirmGiveSelection closes the UI on accept.
+	Inventory->RemoveItem(FName("Money"));
+	CurrentState = EHudsonState::GaveMoney;
+	bLastDialogueWasBeg = false;
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Hudson")), ThankYouLines, this);
+	return true;
 }
 
 void AHudson::OnDialogueEnded()

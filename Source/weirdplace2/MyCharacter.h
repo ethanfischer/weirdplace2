@@ -8,7 +8,6 @@
 
 class UInventoryComponent;
 class UInventoryUIComponent;
-class UHeldItemComponent;
 class UStaticMeshComponent;
 struct FInventoryItemData;
 
@@ -42,6 +41,17 @@ public:
 	bool IsInAnyDialogue() const;
 	bool IsDialogueCooldownActive() const;
 
+	// Enter an interaction "hold": freeze movement (and look if bFreezeLook),
+	// disable environment interaction, set Interacting, and ensure the player
+	// controller has an InputComponent so the caller can bind its own exit/rotate
+	// actions. Shared by PayPhone / MovieBox / InspectablePickup; each caller still
+	// binds its own actions afterward. No-op without a player controller.
+	void BeginInteractionHold(bool bFreezeLook);
+
+	// Reverse of BeginInteractionHold: unfreeze movement (and look if
+	// bUnfreezeLook), re-enable interaction, return to FreeRoaming.
+	void EndInteractionHold(bool bUnfreezeLook);
+
 	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
 	// Locks movie collection (called by Seneca when checkout begins)
@@ -68,9 +78,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryUIComponent* GetInventoryUIComponent() const { return InventoryUIComponent; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	UHeldItemComponent* GetHeldItemComponent() const { return HeldItemComponent; }
-
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
@@ -92,7 +99,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryUIComponent* InventoryUIComponent;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	UHeldItemComponent* HeldItemComponent;
 };

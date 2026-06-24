@@ -7,6 +7,12 @@
 class UInventoryComponent;
 class AInventoryUIActor;
 
+// Called when the player confirms (presses E on) a slot while the inventory is
+// open in "give mode". Param is the selected ItemID (NAME_None if empty slot).
+// Return true if the offer was accepted (the receiver consumes + proceeds and is
+// responsible for closing the inventory); false to reject and keep it open.
+DECLARE_DELEGATE_RetVal_OneParam(bool, FInventoryGiveDelegate, FName);
+
 // State machine for inventory UI animation
 UENUM(BlueprintType)
 enum class EInventoryUIState : uint8
@@ -37,6 +43,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void CloseInventoryUI();
 
+	// Open the inventory in "give mode": the player navigates and presses E to
+	// offer the selected item to InDelegate. Used by gated interactions (door/NPC).
+	void OpenForGive(const FInventoryGiveDelegate& InDelegate);
+
+	// True while the inventory is open as a give prompt (E confirms a give).
+	bool IsGiveMode() const { return bGiveMode; }
+
+	// Offer the currently-selected item to the bound give delegate (called when E
+	// is pressed while in give mode). No-op outside give mode.
+	void ConfirmGiveSelection();
+
 	// Check if inventory UI is currently open (or opening)
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryOpen() const;
@@ -52,7 +69,13 @@ public:
 
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
-	int32 GetSelectedIndex() const { return SelectedIndex; }
+	int32 GetSelectedIndex() const { return AbsoluteSelectedIndex; }
+
+	// For tests: current leftmost-visible item index.
+	int32 GetScrollOffsetForTest() const { return ScrollOffset; }
+
+	// For tests: width of the visible window (columns in the single-row strip).
+	int32 GetVisibleColumnsForTest() const { return GridColumns; }
 
 	// Test-only: force the selected inventory slot, bypassing reticle-driven selection.
 	// Used by the E2E TestDriver so tests can deterministically pick a slot without
@@ -125,8 +148,22 @@ private:
 	// Animation progress (0 = closed, 1 = open)
 	float AnimationProgress = 0.0f;
 
-	// Currently selected grid index
-	int32 SelectedIndex = 0;
+	// Currently selected item index, ABSOLUTE over the (unbounded) item list —
+	// not a visible-slot index. The visible strip is a horizontally-scrolling
+	// window of GridColumns items starting at ScrollOffset.
+	int32 AbsoluteSelectedIndex = 0;
+
+	// Index of the leftmost item currently visible in the strip. The window shows
+	// items [ScrollOffset, ScrollOffset + GridColumns).
+	int32 ScrollOffset = 0;
+
+	// Last item whose name was shown, so the select sound only plays on change.
+	FName LastDisplayedSlotItem = NAME_None;
+
+	// Give mode: when open via OpenForGive, E offers the selected item to this
+	// delegate instead of doing nothing. Cleared on close.
+	bool bGiveMode = false;
+	FInventoryGiveDelegate GiveDelegate;
 
 	// Stored UI position when opened (UI stays fixed, doesn't follow camera)
 	FVector StoredUIPosition;
@@ -170,6 +207,13 @@ private:
 
 	// Clamp selected index to valid range
 	void ClampSelectedIndex();
+
+	// Number of item slots (including sparse NAME_None holes), i.e. Items.Num().
+	int32 GetItemCount() const;
+
+	// Slide ScrollOffset so AbsoluteSelectedIndex stays inside the visible window
+	// [ScrollOffset, ScrollOffset + GridColumns), clamped to the item list.
+	void RecomputeScrollOffset();
 
 	// Dirty flag - true when inventory changed and UI needs refresh
 	bool bInventoryNeedsRefresh = true;

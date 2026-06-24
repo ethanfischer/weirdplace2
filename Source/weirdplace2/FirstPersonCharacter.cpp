@@ -13,10 +13,9 @@
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
-#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
+#include "ItemGlow.h"
 #include "Kismet/KismetSystemLibrary.h"
-#include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -138,6 +137,10 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 void AFirstPersonCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Self-illumination overlay for item-notification popups so received items
+	// read in the game's dark areas (same material held items / pickups use).
+	NotificationGlowMaterial = ItemGlow::GetItemGlowMaterial();
 
 	// Sprite icons (trigger boxes, empty actors, etc.) are editor-only but leak into PIE
 	// when the viewport show flags get reset by Blueprint recompiles. Suppress them here
@@ -622,6 +625,17 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		return;
 	}
 
+	// While the inventory is open in "give mode" (opened by a gated interaction),
+	// Interact offers the selected item to the requesting door/NPC.
+	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
+	{
+		if (InvUI->IsInventoryFullyOpen() && InvUI->IsGiveMode())
+		{
+			InvUI->ConfirmGiveSelection();
+			return;
+		}
+	}
+
 	// If in dialogue, advance it instead of raycasting
 	EPlayerActivityState State = GetActivityState();
 	if (State == EPlayerActivityState::InSimpleDialogue)
@@ -792,6 +806,7 @@ void AFirstPersonCharacter::ShowItemNotification(const FInventoryItemData& ItemD
 	ItemNotificationMesh->SetRelativeScale3D(FVector(UniformScale));
 
 	ItemNotificationMesh->SetRelativeRotation(InitialRotation);
+	ItemNotificationMesh->SetOverlayMaterial(NotificationGlowMaterial);
 	ItemNotificationMesh->SetVisibility(true);
 
 	GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
@@ -845,6 +860,7 @@ void AFirstPersonCharacter::ShowItemNotificationStack(const TArray<FInventoryIte
 		MeshComp->SetRelativeLocation(BaseOffset + FVector(0.0f, 0.0f, CurrentZ));
 		MeshComp->SetRelativeRotation(ItemRotation);
 		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComp->SetOverlayMaterial(NotificationGlowMaterial);
 		MeshComp->SetVisibility(true);
 		MeshComp->RegisterComponent();
 
@@ -1162,44 +1178,5 @@ void AFirstPersonCharacter::AdvanceDialogue()
 			Hudson->OnDialogueEnded();
 		}
 	}
-}
-
-void AFirstPersonCharacter::GiveItem(const FString& Name)
-{
-	if (Name.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GiveItem - usage: GiveItem <Name> (e.g. 'GiveItem Key')"));
-		return;
-	}
-
-	const FString AssetPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *Name, *Name);
-	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *AssetPath);
-	if (!Def)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveItem - no UItemDefinition at %s"), *AssetPath);
-		return;
-	}
-
-	UInventoryComponent* Inventory = GetInventoryComponent();
-	if (!Inventory)
-	{
-		UE_LOG(LogTemp, Error, TEXT("GiveItem - no InventoryComponent"));
-		return;
-	}
-
-	Inventory->AddItemWithData(Def->ToInventoryItemData());
-	UE_LOG(LogTemp, Display, TEXT("GiveItem - granted '%s' (ItemID=%s)"), *Name, *Def->ItemID.ToString());
-}
-
-void AFirstPersonCharacter::SkipToSmoking()
-{
-	TArray<AActor*> Senecas;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASeneca::StaticClass(), Senecas);
-	if (Senecas.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no ASeneca in world"));
-		return;
-	}
-	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
 }
 

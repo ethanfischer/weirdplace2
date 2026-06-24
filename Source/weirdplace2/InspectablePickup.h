@@ -9,6 +9,7 @@ class USphereComponent;
 class UStaticMeshComponent;
 class UDiegeticTextComponent;
 class UItemDefinition;
+class UMaterialInterface;
 class USoundBase;
 class AMyCharacter;
 class APlayerController;
@@ -37,6 +38,11 @@ public:
 	// the E2E TestDriver can find the pickup that's currently being inspected.
 	bool IsBeingInspected() const { return InspectedActor != nullptr; }
 
+	// Test seam: true if the pickup mesh currently carries the self-illumination
+	// glow overlay (always-on while the pickup exists, so it reads on the ground
+	// in the dark, not just while inspected).
+	bool IsGlowActive() const;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
 	USphereComponent* CollisionSphere;
@@ -56,6 +62,11 @@ protected:
 private:
 	UPROPERTY()
 	UDiegeticTextComponent* PutBackPrompt = nullptr;
+
+	// Self-illumination overlay applied to the pickup mesh during inspection so
+	// reward/inspected items read in the dark (M_ItemDarkGlow). Emissive-only.
+	UPROPERTY()
+	UMaterialInterface* GlowMaterial = nullptr;
 
 	AActor* InspectedActor = nullptr;
 	FTransform OriginalActorTransform;

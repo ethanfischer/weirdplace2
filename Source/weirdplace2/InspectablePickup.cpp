@@ -3,12 +3,14 @@
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
+#include "ItemGlow.h"
 #include "MyCharacter.h"
 #include "Components/InputComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "Sound/SoundBase.h"
 
 AInspectablePickup::AInspectablePickup()
@@ -48,6 +50,14 @@ void AInspectablePickup::BeginPlay()
 	}
 
 	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+
+	// Self-illumination overlay, applied from spawn so the dropped item reads on
+	// the dark floor — not just once it's pulled in to inspect.
+	GlowMaterial = ItemGlow::GetItemGlowMaterial();
+	if (GlowMaterial && PickupMesh)
+	{
+		PickupMesh->SetOverlayMaterial(GlowMaterial);
+	}
 
 	TArray<UDiegeticTextComponent*> AllDiegeticText;
 	GetComponents<UDiegeticTextComponent>(AllDiegeticText);
@@ -99,21 +109,11 @@ void AInspectablePickup::Interact_Implementation()
 
 	InspectedActor = this;
 
-	PlayerController->SetIgnoreLookInput(true);
-	PlayerController->SetIgnoreMoveInput(true);
-
-	MyCharacter->SetCanInteract(false);
-	MyCharacter->SetActivityState(EPlayerActivityState::Interacting);
+	MyCharacter->BeginInteractionHold(/*bFreezeLook*/ true);
 
 	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 	{
 		FPChar->SetItemHoldLightEnabled(true);
-	}
-
-	if (!PlayerController->InputComponent)
-	{
-		PlayerController->InputComponent = NewObject<UInputComponent>(PlayerController);
-		PlayerController->InputComponent->RegisterComponent();
 	}
 
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AInspectablePickup::RotateInspectedActor);
@@ -184,6 +184,11 @@ void AInspectablePickup::CollectInspectedItem()
 		}));
 }
 
+bool AInspectablePickup::IsGlowActive() const
+{
+	return PickupMesh && PickupMesh->GetOverlayMaterial() != nullptr;
+}
+
 void AInspectablePickup::StopInspection()
 {
 	if (!InspectedActor) return;
@@ -192,9 +197,6 @@ void AInspectablePickup::StopInspection()
 	if (!PlayerController) return;
 
 	InspectedActor->SetActorTransform(OriginalActorTransform);
-
-	PlayerController->SetIgnoreLookInput(false);
-	PlayerController->SetIgnoreMoveInput(false);
 
 	if (PlayerController->InputComponent)
 	{
@@ -213,8 +215,7 @@ void AInspectablePickup::StopInspection()
 
 	if (MyCharacter)
 	{
-		MyCharacter->SetCanInteract(true);
-		MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
+		MyCharacter->EndInteractionHold(/*bUnfreezeLook*/ true);
 
 		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 		{

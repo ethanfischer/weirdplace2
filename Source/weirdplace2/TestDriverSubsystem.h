@@ -70,10 +70,95 @@ public:
 	AHudson* FindHudson() const;
 	bool LookAtHudson();
 
+	// --- Story-flag test helpers ---
+
+	// Set/clear a story flag by name ("KeyBroke", "TornadoWarningDisplayed",
+	// "SeenTornadoWarning"). No-op + logs if the name doesn't resolve.
+	void SetStoryFlag(FName FlagName, bool bValue);
+
+	// True if the named story flag is set. False if unset OR the name/subsystem
+	// is missing (the meaningful red-phase failure).
+	bool IsStoryFlagSet(FName FlagName) const;
+
+	// Invoke the store-entry handler directly (same path the TriggerBox_Inside
+	// overlap drives) without physically moving the player through the trigger.
+	void TriggerStoreEntry();
+
+	// True if the ACRTTV found by editor label has switched to its tornado-warning
+	// screen. False (and logs) if no such TV exists.
+	bool IsTvShowingWarning(const FString& Label) const;
+
+	// True if the ACRTTV found by editor label is playing its looping tornado-alert
+	// siren. False (and logs) if no such TV exists.
+	bool IsTvWarningAudioPlaying(const FString& Label) const;
+
+	// True if the AAmbientSound found by editor label has a playing audio
+	// component. False (and logs) if no such ambient-sound actor exists.
+	bool IsAmbientSoundPlaying(const FString& Label) const;
+
+	// Max intensity across all ULightComponents on the actor found by editor label
+	// (the storm-dim test compares this before/after). -1 (and logs) if no such
+	// actor or it has no light component.
+	float GetActorMaxLightIntensity(const FString& Label) const;
+
+	// Test hook for the storm beat: runtime-spawn an AStormBeatController and wire
+	// its light/hide/ambient arrays from the given editor labels (the placed
+	// controller is designer config, so the E2E builds its own). Call before
+	// TriggerStoreEntry so it's subscribed when the flag fires.
+	void SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
+		const TArray<FString>& AmbientLabels, float Multiplier);
+
+	// --- Pay-phone (items 2/5) test helpers ---
+
+	// True if the actor found by editor label has a visible root component.
+	bool IsActorVisibleByLabel(const FString& Label) const;
+
+	// True while the pay-phone's static/voice bed is playing.
+	bool IsPayPhoneAudioPlaying() const;
+
+	// Whether the pay-phone would accept an interact right now (gated; blocked
+	// while off the hook).
+	bool CanPayPhoneInteract() const;
+
+	// True while the pay-phone's dialtone loop is playing.
+	bool IsPayPhoneDialtonePlaying() const;
+
+	// Trigger the pay-phone pickup directly (5.7 simulated-input gotcha — drive
+	// via the subsystem, not a raw key).
+	void TriggerPayPhonePickup();
+
+	// Hang up the pay-phone directly (mirror of TriggerPayPhoneHangUp).
+	void TriggerPayPhoneHangUp();
+
+	// --- Bathroom-door (item 1) test helpers ---
+
+	// Number of times the OutsideBathroomDoor has played its locked-rattle
+	// branch. -1 (and logs) if no such door exists. The re-entrancy guard test
+	// asserts this stays 0 across a mid-key-break re-entrant interact.
+	int32 GetBathroomDoorLockedSoundCount() const;
+
+	// True while the OutsideBathroomDoor's animated key carries the glow overlay
+	// (during the insert sequence). False (and logs) if no such door exists.
+	bool GetBathroomDoorAnimKeyGlowActive() const;
+
+	// True if the level's AInspectablePickup (e.g. the dropped broken key) has
+	// the self-illumination glow overlay. False (and logs) if none exists.
+	bool GetInspectablePickupGlowActive() const;
+
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.
 	void FastForwardSenecaSmoking();
+
+	// Joins Seneca's effective Smoking-state lines (BuildEffectiveDialogueLines)
+	// into a single string. The shelter tip is included iff SeenTornadoWarning is
+	// set, so the test can assert presence/absence by flag. False if no Seneca.
+	bool GetSenecaSmokingLinesJoined(FString& Out) const;
+
+	// Jump Seneca straight into the Smoking beat (CurrentState=Smoking + teleport
+	// to the smoking spot + anim) so the shelter line can be screenshotted without
+	// replaying the whole quest.
+	void ForceSenecaToSmoking();
 
 	// True once Seneca has been re-teleported out of the hidden "below world"
 	// position back to the smoking spot (i.e., Z > -50000).
@@ -109,6 +194,11 @@ public:
 	// Sets the inventory cursor to a slot index (equivalent to aiming the
 	// camera at the right spot). Confirmation still goes through E key input.
 	bool SetSelectedSlot(int32 Index);
+
+	// Inventory UI selection state (absolute item index + horizontal scroll window).
+	int32 GetSelectedSlot() const;
+	int32 GetScrollOffset() const;
+	int32 GetVisibleColumns() const;
 
 	// --- Movie helpers ---
 
@@ -192,14 +282,6 @@ public:
 	// nothing is inspected or the inspected box has no 'PutBackPromptText'.
 	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
 
-	// Camera-space directions of the held item's longest and shortest local
-	// bounding-box axes, the scaled length of the longest half-extent in cm,
-	// and the bounds center in camera space. Two box-shaped items "held in
-	// the same pose" have matching axes, comparable size, and the same
-	// center, regardless of how their meshes were authored. Returns false if
-	// nothing is held/visible.
-	bool GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const;
-
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.
@@ -208,11 +290,6 @@ public:
 	// Test-only: add every UItemDefinition asset under FolderPath (e.g.
 	// "/Game/Inventory") to the inventory. Returns count added.
 	int32 AddAllItemDefsFromFolder(const FString& FolderPath);
-
-	// Test-only: override the held-item slot pose (relative to camera) so the
-	// item is visible during a screenshot tour, regardless of the production
-	// hand-rig position.
-	bool SetHeldItemSlotPose(FVector Offset, FRotator Rotation);
 
 	// Test-only: activate the blank tape without playing through the money
 	// beat. Finds the level's USpawnerActorComponent and calls
