@@ -3,6 +3,7 @@
 #include "StorySubsystem.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
+#include "InventoryUIComponent.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "Door.h"
@@ -419,14 +420,15 @@ void ASeneca::Interact_Implementation()
 			return;
 		}
 
-		FName ActiveItem = Inventory->GetActiveItem();
-		if (ActiveItem.IsNone() || ActiveItem == FName("Key") || ActiveItem == FName("BrokenKey"))
+		// Have a movie? Pop the inventory so the player picks which one to hand over
+		// (one per interact). Otherwise remind them. A "movie" is any non-tool item.
+		if (FindFirstMovie(Inventory).IsNone())
 		{
 			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), WaitingForMoviePurchaseReminderLines, this);
 		}
 		else
 		{
-			HandleMovieGive(FPCharacter, Inventory, ActiveItem);
+			OpenGiveForOffer(MyCharacter);
 		}
 		return;
 	}
@@ -435,26 +437,9 @@ void ASeneca::Interact_Implementation()
 	{
 		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
-		if (Inventory && Inventory->GetActiveItem() == FName("Money"))
+		if (Inventory && Inventory->HasItem(FName("Money")))
 		{
-			if (!Inventory->RemoveItem(FName("Money")))
-			{
-				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to remove Money from inventory"));
-				return;
-			}
-			Inventory->ClearActiveItem();
-			CurrentState = ESenecaState::WaitingForBlankTape;
-			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> WaitingForBlankTape (money received)"));
-			if (CachedMovieSpawner)
-			{
-				UE_LOG(LogTemp, Log, TEXT("Seneca - Activating chord-spawner chosen tape"));
-				CachedMovieSpawner->ActivateChosenTape();
-			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("Seneca - CachedMovieSpawner not set; cannot activate chosen tape"));
-			}
-			StartWaitingForBlankTapeDialogue(FPCharacter);
+			OpenGiveForOffer(MyCharacter);
 		}
 		else
 		{
@@ -483,11 +468,10 @@ void ASeneca::Interact_Implementation()
 			return;
 		}
 
-		const FName ActiveItem = Inventory->GetActiveItem();
 		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
-		if (!ActiveItem.IsNone() && !ChosenID.IsNone() && ActiveItem == ChosenID)
+		if (!ChosenID.IsNone() && Inventory->HasItem(ChosenID))
 		{
-			HandleBlankTapeGive(FPCharacter, Inventory);
+			OpenGiveForOffer(MyCharacter);
 		}
 		else
 		{
@@ -880,7 +864,6 @@ void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent
 	PlaceMovieOnCounter(TakenMovies.Last());
 
 	Inventory->RemoveItem(MovieID);
-	Inventory->ClearActiveItem();
 	MoviesGivenCount++;
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::HandleMovieGive - Received '%s', MoviesGivenCount=%d"), *MovieID.ToString(), MoviesGivenCount);
@@ -943,20 +926,111 @@ void ASeneca::StartWaitingForBlankTapeDialogue(AFirstPersonCharacter* FPChar)
 	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 }
 
-void ASeneca::HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory)
+void ASeneca::HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName BlankTapeID)
 {
-	const FName ActiveItem = Inventory->GetActiveItem();
-	if (!Inventory->RemoveItem(ActiveItem))
+	if (!Inventory->RemoveItem(BlankTapeID))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::HandleBlankTapeGive - Failed to remove '%s' from inventory"), *ActiveItem.ToString());
+		UE_LOG(LogTemp, Error, TEXT("Seneca::HandleBlankTapeGive - Failed to remove '%s' from inventory"), *BlankTapeID.ToString());
 		return;
 	}
-	Inventory->ClearActiveItem();
 
 	CurrentState = ESenecaState::ReadyToGiveKey;
-	UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForBlankTape -> ReadyToGiveKey (blank tape '%s' received; burn off-screen)"), *ActiveItem.ToString());
+	UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForBlankTape -> ReadyToGiveKey (blank tape '%s' received; burn off-screen)"), *BlankTapeID.ToString());
 
 	StartReadyToGiveKeyDialogue(FPChar);
+}
+
+bool ASeneca::IsMovieItem(FName ItemID)
+{
+	// A "movie" is any inventory item that isn't one of the fixed tool/quest items.
+	static const TSet<FName> ToolItems = {
+		FName("Key"), FName("BrokenKey"), FName("Money"), FName("BlankVHS"), FName("CombinedTape")
+	};
+	return !ItemID.IsNone() && !ToolItems.Contains(ItemID);
+}
+
+FName ASeneca::FindFirstMovie(UInventoryComponent* Inventory)
+{
+	if (!Inventory)
+	{
+		return NAME_None;
+	}
+	for (const FName& ItemID : Inventory->GetItems())
+	{
+		if (IsMovieItem(ItemID))
+		{
+			return ItemID;
+		}
+	}
+	return NAME_None;
+}
+
+void ASeneca::OpenGiveForOffer(AMyCharacter* MyCharacter)
+{
+	if (!MyCharacter)
+	{
+		return;
+	}
+	if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
+	{
+		InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &ASeneca::OnInventoryItemOffered));
+	}
+}
+
+bool ASeneca::OnInventoryItemOffered(FName ItemID)
+{
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
+	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
+	UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+	if (!FPChar || !Inventory)
+	{
+		return false;
+	}
+	UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent();
+
+	// Validate the offered item for the current state; on accept, close the
+	// inventory FIRST (so any dialogue/sequence starts after the close), then
+	// consume + advance. Wrong item -> return false (stay open).
+	switch (CurrentState)
+	{
+	case ESenecaState::WaitingForMoviePurchase:
+		if (IsMovieItem(ItemID) && Inventory->HasItem(ItemID))
+		{
+			if (InvUI) { InvUI->CloseInventoryUI(); }
+			HandleMovieGive(FPChar, Inventory, ItemID);
+			return true;
+		}
+		return false;
+
+	case ESenecaState::WaitingForMoney:
+		if (ItemID == FName("Money"))
+		{
+			if (InvUI) { InvUI->CloseInventoryUI(); }
+			Inventory->RemoveItem(FName("Money"));
+			CurrentState = ESenecaState::WaitingForBlankTape;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> WaitingForBlankTape (money received)"));
+			if (CachedMovieSpawner)
+			{
+				CachedMovieSpawner->ActivateChosenTape();
+			}
+			StartWaitingForBlankTapeDialogue(FPChar);
+			return true;
+		}
+		return false;
+
+	case ESenecaState::WaitingForBlankTape:
+		if (CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
+		{
+			if (InvUI) { InvUI->CloseInventoryUI(); }
+			HandleBlankTapeGive(FPChar, Inventory, ItemID);
+			return true;
+		}
+		return false;
+
+	default:
+		return false;
+	}
 }
 
 void ASeneca::StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar)

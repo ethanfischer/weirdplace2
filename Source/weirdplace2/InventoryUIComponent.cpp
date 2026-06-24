@@ -113,6 +113,37 @@ void UInventoryUIComponent::ToggleInventoryUI()
 	}
 }
 
+void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate)
+{
+	GiveDelegate = InDelegate;
+	bGiveMode = true;
+	OpenInventoryUI();
+}
+
+void UInventoryUIComponent::ConfirmGiveSelection()
+{
+	if (!bGiveMode)
+	{
+		return;
+	}
+
+	FName Selected = NAME_None;
+	if (InventoryComponent)
+	{
+		const TArray<FName> Items = InventoryComponent->GetItems();
+		Selected = Items.IsValidIndex(AbsoluteSelectedIndex) ? Items[AbsoluteSelectedIndex] : NAME_None;
+	}
+
+	// Empty slot or rejected offer: deny feedback, stay open so the player can
+	// pick again. On accept the receiver consumes/proceeds and closes the UI
+	// itself (so its dialogue/sequence starts after the close).
+	const bool bAccepted = !Selected.IsNone() && GiveDelegate.IsBound() && GiveDelegate.Execute(Selected);
+	if (!bAccepted && MenuCloseSound)
+	{
+		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+	}
+}
+
 void UInventoryUIComponent::OpenInventoryUI()
 {
 	if (CurrentState == EInventoryUIState::Open || CurrentState == EInventoryUIState::Opening)
@@ -206,6 +237,10 @@ void UInventoryUIComponent::CloseInventoryUI()
 	}
 
 	CurrentState = EInventoryUIState::Closing;
+
+	// Closing always returns to a plain browse state — clear any give binding.
+	bGiveMode = false;
+	GiveDelegate.Unbind();
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
@@ -431,9 +466,10 @@ void UInventoryUIComponent::StepSelection(int32 DeltaCol, int32 DeltaRow)
 
 void UInventoryUIComponent::UpdateSelectedSlot()
 {
-	// Push the scroll window first (rebuilds thumbnails only if the offset moved),
-	// then position the hover highlight at the selected VISIBLE slot, then set the
-	// active item to whatever lives at the absolute slot (NAME_None clears it).
+	// Browse-only viewer: push the scroll window first (rebuilds thumbnails only if
+	// the offset moved), position the hover highlight at the selected VISIBLE slot,
+	// and show the selected item's name. There is no "active/equipped" item anymore
+	// (interactions check inventory possession), so no active-item border.
 	const int32 VisibleSlot = AbsoluteSelectedIndex - ScrollOffset;
 	if (InventoryUIActor)
 	{
@@ -449,14 +485,13 @@ void UInventoryUIComponent::UpdateSelectedSlot()
 	const TArray<FName> Items = InventoryComponent->GetItems();
 	const FName ItemAtSlot = Items.IsValidIndex(AbsoluteSelectedIndex) ? Items[AbsoluteSelectedIndex] : NAME_None;
 
-	const bool bChanged = InventoryComponent->GetActiveItem() != ItemAtSlot;
-	InventoryComponent->SetActiveItem(ItemAtSlot);
+	const bool bChanged = LastDisplayedSlotItem != ItemAtSlot;
+	LastDisplayedSlotItem = ItemAtSlot;
 
 	if (InventoryUIActor)
 	{
-		// Pass the ABSOLUTE index; the actor translates to a visible slot and hides
-		// the border when the active item is scrolled out of view.
-		InventoryUIActor->SetActiveItem(ItemAtSlot, ItemAtSlot.IsNone() ? -1 : AbsoluteSelectedIndex);
+		// ItemIndex < 0 -> show the name label but keep the active-item border hidden.
+		InventoryUIActor->SetActiveItem(ItemAtSlot, -1);
 	}
 
 	if (bChanged && !ItemAtSlot.IsNone() && MenuItemSelectedSound)

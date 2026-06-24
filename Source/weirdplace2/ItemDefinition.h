@@ -27,7 +27,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Visual")
 	FVector Scale = FVector::OneVector;
 
-	// Composed with HeldItemComponent::HeldItemRotation when this item is held.
+	// Legacy held-item rotation (the held-item view was removed). Retained for
+	// data compatibility; no longer drives any in-game rendering.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
 	FRotator HeldRotation = FRotator::ZeroRotator;
 

@@ -97,16 +97,19 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("LockSoundDuringKeyInsert")
 
-	// Grant the Key and make it the active (held) item so the first interact
-	// starts the break sequence instead of rattling.
+	// Grant the Key; having it in inventory is enough — the first interact starts
+	// the break sequence instead of rattling.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
 		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetActiveItem(this, FName("Key")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
 
-	// Interact #1: starts the key-break sequence (removes Key, clears active).
+	// Interact #1 pops the inventory (give mode); select the Key and press E to
+	// give it, which starts the key-break sequence (removes Key).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	// Let the animated key appear at the lock — it should carry the same glow
 	// overlay the held key had, so it reads in the dark while inserted.
@@ -524,85 +527,6 @@ bool FE2E_Level1_VhsCoverLetterbox::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// HeldItemDarkGlow — held items must self-illuminate so they're visible in the
-// game's many dark areas. A held item gets an emissive overlay material
-// (M_ItemDarkGlow) that reads at constant brightness regardless of scene
-// exposure and never lights the environment. Nothing held → no glow.
-//
-// RED (no overlay code): glow == false. GREEN (overlay applied): glow == true.
-// The dark-area screenshot is the subjective "looks right" check.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_HeldItemDarkGlow,
-	"Weirdplace2.E2E.Level1.Regression.HeldItemDarkGlow",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_HeldItemDarkGlow::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("HeldItemDarkGlow")
-
-	// Grant the Key and hold it. SetActiveItem drives OnActiveItemChanged →
-	// ShowHeldItem, which (GREEN) applies the glow overlay.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"),
-		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetActiveItem(this, FName("Key")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldItemGlow(this, true));
-
-	// Visual proof: hold the key in a dim interior and screenshot it.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DarkGlow_KeyHeld")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
-// HeldItemRotationTour — grant the player every UItemDefinition under
-// /Game/Inventory, then cycle each one as the active (held) item with a
-// delay between cycles so the held mesh is visible in front of the camera.
-// Use the screenshots to eyeball each item's HeldRotation on its data asset.
-//
-// Add a new DA_*.uasset under /Game/Inventory and rerun — it'll show up
-// automatically (just bump NumExpected if you want to assert the count).
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_HeldItemRotationTour,
-	"Weirdplace2.E2E.Level1.Diagnostic.HeldItemRotationTour",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_HeldItemRotationTour::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("HeldItemRotationTour")
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddAllItemDefsFromFolder(this, TEXT("/Game/Inventory"), /*ExpectedMin*/ 1));
-
-	// Lit interior so the small held meshes are visible.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-
-	// 5 defs in /Game/Inventory (Key, BrokenKey, Money, CombinedTape, BlankVHS);
-	// bump if you add more. Each loop iteration: open inventory, select slot,
-	// close, wait, screenshot the held mesh in front of the camera.
-	const int32 NumSlots = 5;
-	for (int32 i = 0; i < NumSlots; ++i)
-	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, i));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_HeldTour_%02d"), i)));
-	}
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // GazeReward — staring at the one rigged gas-station canopy light
 // ('gasstationbarlight') for 30 continuous seconds grants more cash
 // (the Money item). While the gaze is held, a hum swells toward the
@@ -758,69 +682,6 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	// The prompted key really does put the movie back.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::Q));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
-// BlankVHSHeldPose — the held blank tape must sit in the hand the same
-// way a regular movie does. Pose equality is asserted as matching
-// camera-space long/short box axes (mesh-authoring agnostic), plus
-// side-by-side screenshots.
-// =======================================================================
-
-namespace
-{
-	static FVector CapturedMovieLongAxis = FVector::ZeroVector;
-	static FVector CapturedMovieShortAxis = FVector::ZeroVector;
-	static float CapturedMovieMaxExtent = 0.f;
-	static FVector CapturedMovieCenter = FVector::ZeroVector;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_BlankVHSHeldPose,
-	"Weirdplace2.E2E.Level1.Diagnostic.BlankVHSHeldPose",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_BlankVHSHeldPose::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("BlankVHSHeldPose")
-
-	// Collect a regular shelf movie (slot 0).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
-
-	// The blank tape only exists after Seneca's money beat swaps it onto the
-	// shelf — trigger the swap, then collect it through the production
-	// capture path (slot 1). Shelf aiming at the randomly-placed blank is
-	// flaky and isn't what this test is about.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ActivateBlankTape(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectBlankTape(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BlankVHS")));
-
-	// Hold the movie; capture its pose axes.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_01_MovieHeld")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureHeldBoxAxes(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
-
-	// Hold the blank tape; its pose must match.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 1));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_VHSPose_02_BlankHeld")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHeldBoxAxesMatch(this, &CapturedMovieLongAxis, &CapturedMovieShortAxis, &CapturedMovieMaxExtent, &CapturedMovieCenter));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

@@ -8,7 +8,6 @@
 
 class UInventoryComponent;
 class UInventoryUIComponent;
-class UHeldItemComponent;
 class UStaticMeshComponent;
 struct FInventoryItemData;
 
@@ -68,9 +67,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryUIComponent* GetInventoryUIComponent() const { return InventoryUIComponent; }
 
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	UHeldItemComponent* GetHeldItemComponent() const { return HeldItemComponent; }
-
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
@@ -92,7 +88,4 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryUIComponent* InventoryUIComponent;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
-	UHeldItemComponent* HeldItemComponent;
 };

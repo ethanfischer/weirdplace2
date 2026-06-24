@@ -2,10 +2,10 @@
 #include "Seneca.h"
 #include "StorySubsystem.h"
 #include "MyCharacter.h"
+#include "InventoryUIComponent.h"
 #include "InspectablePickup.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
-#include "HeldItemComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
@@ -82,7 +82,7 @@ void AOutsideBathroomDoor::Interact_Implementation()
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor::Interact_Implementation CALLED. bDidDropKey=%d, IsLocked=%d"), bDidDropKey, IsLocked);
 
 	// Re-entrancy guard: while the key-break sequence is running, the Key has
-	// already been removed and the active item cleared, but bDidDropKey isn't set
+	// already been removed from inventory, but bDidDropKey isn't set
 	// until the broken half spawns ~3s later. A re-entrant interact in that window
 	// (the UE5.7 double-fire input quirk) would otherwise rattle the locked door.
 	// Ignore it.
@@ -117,13 +117,12 @@ void AOutsideBathroomDoor::Interact_Implementation()
 		return;
 	}
 
-	FName ActiveItem = Inventory->GetActiveItem();
-	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - ActiveItem='%s', KeyToRemove='%s', HasKey=%d"),
-		*ActiveItem.ToString(), *KeyToRemove.ToString(), Inventory->HasItem(KeyToRemove));
+	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - KeyToRemove='%s', HasKey=%d"),
+		*KeyToRemove.ToString(), Inventory->HasItem(KeyToRemove));
 
-	if (ActiveItem != KeyToRemove)
+	if (!Inventory->HasItem(KeyToRemove))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - Active item does not match key, playing locked sound"));
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - player does not have the key, playing locked sound"));
 		LockedSoundPlayCount++;
 		if (LockedDoorSound)
 		{
@@ -132,7 +131,35 @@ void AOutsideBathroomDoor::Interact_Implementation()
 		return;
 	}
 
+	// Have the key: pop the inventory so the player picks it and presses E to give.
+	if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
+	{
+		InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &AOutsideBathroomDoor::OnKeyOffered));
+	}
+	else
+	{
+		StartKeyBreakSequence();
+	}
+}
+
+bool AOutsideBathroomDoor::OnKeyOffered(FName ItemID)
+{
+	if (ItemID != KeyToRemove)
+	{
+		return false; // wrong item — keep the inventory open
+	}
+
+	// Close the inventory first, then run the break sequence (which removes the key).
+	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
+	{
+		if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
+		{
+			InvUI->CloseInventoryUI();
+		}
+	}
 	StartKeyBreakSequence();
+	return true;
 }
 
 void AOutsideBathroomDoor::StartKeyBreakSequence()
@@ -149,11 +176,10 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 		return;
 	}
 
-	UHeldItemComponent* HeldItem = MyCharacter->GetHeldItemComponent();
 	UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent();
-	if (!HeldItem || !Inventory)
+	if (!Inventory)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - Missing HeldItem or Inventory"));
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - Missing Inventory"));
 		return;
 	}
 
@@ -185,16 +211,12 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 	KeyAnimStartPos = KeyLockSocket->GetComponentLocation() + WorldApproachDir * KeyInsertStartOffset;
 	KeyAnimStartRot = KeyLockSocket->GetComponentRotation() + KeyMeshRotationOffset;
 
-	// Hide the real held item immediately - seamless hand-off to AnimKeyMesh
-	HeldItem->HideHeldItem();
-
 	// Capture materials from key's inventory data before removing it
 	FInventoryItemData KeyData = Inventory->GetItemData(KeyToRemove);
 	KeyMaterials = KeyData.Materials;
 
-	// Remove key from inventory and clear active item so HeldItemComponent stops tracking it
+	// Remove the key from inventory; the animated AnimKeyMesh takes over visually.
 	Inventory->RemoveItem(KeyToRemove);
-	Inventory->ClearActiveItem();
 
 	// Set up the animated key mesh at the hand position
 	if (AnimKeyMesh)

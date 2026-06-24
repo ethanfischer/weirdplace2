@@ -27,6 +27,10 @@ public:
 	// Override interact for bathroom-specific behavior
 	virtual void Interact_Implementation() override;
 
+	// Inventory give-mode callback: accepts the key when offered, then runs the
+	// break sequence. Returns true if the offered item was the key.
+	bool OnKeyOffered(FName ItemID);
+
 	// Test seam: number of times the "wrong/no active item" locked-rattle branch
 	// has been taken. The re-entrancy bug shows up here — a re-entrant interact
 	// mid key-break used to fall into this branch and bump the count.

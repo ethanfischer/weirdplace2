@@ -4,7 +4,6 @@
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
-#include "HeldItemComponent.h"
 #if WITH_EDITOR
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetRegistry/IAssetRegistry.h"
@@ -1273,88 +1272,6 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	return true;
 }
 
-bool UTestDriverSubsystem::GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const
-{
-	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no player"));
-		return false;
-	}
-
-	// The pawn can carry more than one UHeldItemComponent (C++ default
-	// subobject + BP-added); only the live one owns a held mesh. Use that one.
-	UStaticMeshComponent* Mesh = nullptr;
-	TArray<UHeldItemComponent*> HeldComps;
-	Player->GetComponents<UHeldItemComponent>(HeldComps);
-	for (UHeldItemComponent* Comp : HeldComps)
-	{
-		if (Comp->GetHeldItemMeshComponent())
-		{
-			Mesh = Comp->GetHeldItemMeshComponent();
-			break;
-		}
-	}
-	if (!Mesh || !Mesh->GetStaticMesh() || !Mesh->IsVisible())
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemBoxAxes - no visible held item mesh (comps=%d mesh=%d staticmesh=%d isvisible=%d)"),
-			HeldComps.Num(),
-			Mesh != nullptr,
-			Mesh && Mesh->GetStaticMesh() != nullptr,
-			Mesh && Mesh->IsVisible());
-		return false;
-	}
-
-	// Identify the mesh's longest and shortest local axes after scale. When
-	// two scaled extents are within 20% (the blank tape's box is nearly
-	// square at gameplay scale), fall back to the authored extents, which
-	// are unambiguous.
-	const FVector Authored = Mesh->GetStaticMesh()->GetBoundingBox().GetExtent();
-	const FVector Ext = Authored * Mesh->GetComponentScale().GetAbs();
-	int32 LongIdx = 0, ShortIdx = 0;
-	for (int32 i = 1; i < 3; ++i)
-	{
-		if (Ext[i] > Ext[LongIdx]) { LongIdx = i; }
-		if (Ext[i] < Ext[ShortIdx]) { ShortIdx = i; }
-	}
-	for (int32 i = 0; i < 3; ++i)
-	{
-		if (i != LongIdx && i != ShortIdx
-			&& Ext[i] > Ext[LongIdx] * 0.8f
-			&& Authored[i] > Authored[LongIdx])
-		{
-			LongIdx = i;
-		}
-	}
-	OutMaxExtent = Ext[LongIdx];
-	FVector LocalLong = FVector::ZeroVector;
-	FVector LocalShort = FVector::ZeroVector;
-	LocalLong[LongIdx] = 1.f;
-	LocalShort[ShortIdx] = 1.f;
-
-	FVector CamLoc;
-	FRotator CamRot;
-	GetWorld()->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
-	const FQuat CamQ = CamRot.Quaternion();
-	const FQuat MeshQ = Mesh->GetComponentQuat();
-	OutLongAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalLong));
-	OutShortAxisCamSpace = CamQ.UnrotateVector(MeshQ.RotateVector(LocalShort));
-
-	const FVector WorldCenter = Mesh->GetComponentTransform().TransformPosition(
-		Mesh->GetStaticMesh()->GetBoundingBox().GetCenter());
-	OutCenterCamSpace = CamQ.UnrotateVector(WorldCenter - CamLoc);
-
-	// Full local->camera mapping, for diagnosing pose-correction values.
-	const FQuat MeshToCam = CamQ.Inverse() * MeshQ;
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetHeldItemBoxAxes - ext=%s X->%s Y->%s Z->%s relrot=%s"),
-		*Ext.ToString(),
-		*MeshToCam.RotateVector(FVector::XAxisVector).ToString(),
-		*MeshToCam.RotateVector(FVector::YAxisVector).ToString(),
-		*MeshToCam.RotateVector(FVector::ZAxisVector).ToString(),
-		*Mesh->GetRelativeRotation().ToString());
-	return true;
-}
-
 bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
 {
 	AInspectablePickup* Pickup = FindInspectablePickup();
@@ -1364,31 +1281,6 @@ bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
 		return false;
 	}
 	return Pickup->IsGlowActive();
-}
-
-bool UTestDriverSubsystem::GetHeldItemGlowActive() const
-{
-	AFirstPersonCharacter* Player = GetPlayer();
-	if (!Player)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemGlowActive - no player"));
-		return false;
-	}
-
-	// Mirror GetHeldItemBoxAxes: the pawn may carry more than one
-	// UHeldItemComponent; only the live one renders a visible held mesh.
-	TArray<UHeldItemComponent*> HeldComps;
-	Player->GetComponents<UHeldItemComponent>(HeldComps);
-	for (UHeldItemComponent* Comp : HeldComps)
-	{
-		UStaticMeshComponent* Mesh = Comp->GetHeldItemMeshComponent();
-		if (Mesh && Mesh->GetStaticMesh() && Mesh->IsVisible())
-		{
-			return Mesh->GetOverlayMaterial() != nullptr;
-		}
-	}
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetHeldItemGlowActive - no visible held item mesh"));
-	return false;
 }
 
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()
@@ -1441,23 +1333,6 @@ bool UTestDriverSubsystem::AddTestItem(FName ItemId, const FString& MeshAssetPat
 		Data.Materials.Add(Mesh->GetMaterial(i));
 	}
 	Inv->AddItemWithData(Data);
-	return true;
-}
-
-bool UTestDriverSubsystem::SetActiveTestItem(FName ItemId)
-{
-	UInventoryComponent* Inv = GetInventoryComponent();
-	if (!Inv)
-	{
-		UE_LOG(LogTemp, Error, TEXT("SetActiveTestItem: no inventory component"));
-		return false;
-	}
-	if (!Inv->HasItem(ItemId))
-	{
-		UE_LOG(LogTemp, Error, TEXT("SetActiveTestItem: inventory has no item '%s'"), *ItemId.ToString());
-		return false;
-	}
-	Inv->SetActiveItem(ItemId);
 	return true;
 }
 

@@ -40,9 +40,6 @@ struct FInventoryItemData
 // Delegate for inventory change notifications - Blueprint-bindable
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnInventoryChanged, const TArray<FName>&, CurrentItems);
 
-// Delegate for active item change notifications
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActiveItemChanged, const FName&, NewActiveItem);
-
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UInventoryComponent : public UActorComponent {
 	GENERATED_BODY()
@@ -57,10 +54,6 @@ public:
 	// Delegate that fires when inventory contents change
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnInventoryChanged OnInventoryChanged;
-
-	// Delegate that fires when active item changes
-	UPROPERTY(BlueprintAssignable, Category = "Inventory")
-	FOnActiveItemChanged OnActiveItemChanged;
 
 protected:
 	virtual void BeginPlay() override;
@@ -95,22 +88,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	int32 GetItemCount() const;
 
-	// Sets the currently active (selected) item
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void SetActiveItem(const FName& ItemID);
-
-	// Gets the currently active (selected) item
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	FName GetActiveItem() const;
-
-	// Gets visual data for the active item
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
-	FInventoryItemData GetActiveItemData() const;
-
-	// Clears the active item selection
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void ClearActiveItem();
-
 	// Overrides the thumbnail for an existing inventory item and broadcasts OnInventoryChanged
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void UpdateItemThumbnail(const FName& ItemID, UTexture2D* NewThumbnail);
@@ -128,8 +105,4 @@ private:
 	// Visual data for each item
 	UPROPERTY(VisibleAnywhere, Category = "Inventory")
 	TMap<FName, FInventoryItemData> ItemDataMap;
-
-	// Currently selected/active item
-	UPROPERTY(VisibleAnywhere, Category = "Inventory")
-	FName ActiveItem;
 };

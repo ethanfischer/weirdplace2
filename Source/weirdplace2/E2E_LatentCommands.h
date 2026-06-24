@@ -1672,35 +1672,6 @@ private:
 	bool bExpectScrolled;
 };
 
-// Assert whether the visible held item has the self-illumination overlay
-// material. RED (no glow code): false. GREEN: true.
-class FTD_AssertHeldItemGlow : public FTD_Base
-{
-public:
-	FTD_AssertHeldItemGlow(FAutomationTestBase* InTest, bool InExpected)
-		: FTD_Base(InTest), Expected(InExpected) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting held-item glow == %s"), Expected ? TEXT("true") : TEXT("false"));
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldItemGlow: no driver")); return true; }
-		const bool Actual = Driver->GetHeldItemGlowActive();
-		if (Actual != Expected)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertHeldItemGlow: glow=%s, expected %s"),
-				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
-		}
-		return true;
-	}
-private:
-	bool Expected;
-};
-
 // =======================================================================
 // FTD_AddTestItem — inject an item directly into the inventory by mesh path,
 // bypassing the gameplay flow that would normally grant it. For focused
@@ -1733,37 +1704,6 @@ private:
 	FName ItemId;
 	FString MeshPath;
 	FVector Scale;
-};
-
-// =======================================================================
-// FTD_SetActiveItem — set the active (held) inventory item directly, driving
-// the OnActiveItemChanged path (held-item view + door active-item check). Use
-// after FTD_AddTestItem, which only adds to the bag.
-// =======================================================================
-
-class FTD_SetActiveItem : public FTD_Base
-{
-public:
-	FTD_SetActiveItem(FAutomationTestBase* InTest, FName InItemId)
-		: FTD_Base(InTest), ItemId(InItemId) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Setting active item '%s'"), *ItemId.ToString());
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_SetActiveItem: no driver")); return true; }
-		if (!Driver->SetActiveTestItem(ItemId))
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_SetActiveItem: failed for '%s'"), *ItemId.ToString()));
-		}
-		return true;
-	}
-private:
-	FName ItemId;
 };
 
 // =======================================================================
@@ -2923,100 +2863,6 @@ public:
 		}
 		return true;
 	}
-};
-
-// =======================================================================
-// FTD_CaptureHeldBoxAxes / FTD_AssertHeldBoxAxesMatch — record the held
-// item's camera-space long/short box axes into caller-owned vectors, then
-// later assert the currently held item's axes match (same "pose" for two
-// box-shaped items regardless of mesh authoring). Abs dots: a box flipped
-// 180° reads as the same held pose.
-// =======================================================================
-
-class FTD_CaptureHeldBoxAxes : public FTD_Base
-{
-public:
-	FTD_CaptureHeldBoxAxes(FAutomationTestBase* InTest, FVector* InOutLong, FVector* InOutShort, float* InOutMaxExtent, FVector* InOutCenter)
-		: FTD_Base(InTest), OutLong(InOutLong), OutShort(InOutShort), OutMaxExtent(InOutMaxExtent), OutCenter(InOutCenter) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Capturing held item box axes"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no driver")); return true; }
-		if (!Driver->GetHeldItemBoxAxes(*OutLong, *OutShort, *OutMaxExtent, *OutCenter))
-		{
-			Test->AddError(TEXT("FTD_CaptureHeldBoxAxes: no visible held item"));
-		}
-		return true;
-	}
-private:
-	FVector* OutLong;
-	FVector* OutShort;
-	float* OutMaxExtent;
-	FVector* OutCenter;
-};
-
-class FTD_AssertHeldBoxAxesMatch : public FTD_Base
-{
-public:
-	FTD_AssertHeldBoxAxesMatch(FAutomationTestBase* InTest, const FVector* InLong, const FVector* InShort,
-		const float* InMaxExtent, const FVector* InCenter,
-		float InMinLongDot = 0.95f, float InMinShortDot = 0.90f, float InMaxSizeRatio = 2.0f, float InMaxCenterDelta = 15.f)
-		: FTD_Base(InTest), RefLong(InLong), RefShort(InShort), RefMaxExtent(InMaxExtent), RefCenter(InCenter)
-		, MinLongDot(InMinLongDot), MinShortDot(InMinShortDot), MaxSizeRatio(InMaxSizeRatio), MaxCenterDelta(InMaxCenterDelta) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Asserting held item pose matches captured axes"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no driver")); return true; }
-
-		FVector Long, Short, Center;
-		float MaxExtent = 0.f;
-		if (!Driver->GetHeldItemBoxAxes(Long, Short, MaxExtent, Center))
-		{
-			Test->AddError(TEXT("FTD_AssertHeldBoxAxesMatch: no visible held item"));
-			return true;
-		}
-
-		const float LongDot = FMath::Abs(FVector::DotProduct(Long, *RefLong));
-		const float ShortDot = FMath::Abs(FVector::DotProduct(Short, *RefShort));
-		if (LongDot < MinLongDot || ShortDot < MinShortDot)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: pose differs (longDot=%.3f need>=%.2f, shortDot=%.3f need>=%.2f; held long=%s ref long=%s)"),
-				LongDot, MinLongDot, ShortDot, MinShortDot, *Long.ToString(), *RefLong->ToString()));
-		}
-
-		const float SizeRatio = (*RefMaxExtent > KINDA_SMALL_NUMBER) ? (MaxExtent / *RefMaxExtent) : 0.f;
-		if (SizeRatio < 1.f / MaxSizeRatio || SizeRatio > MaxSizeRatio)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: size differs (held extent %.1fcm vs ref %.1fcm, ratio %.2f outside 1/%.1f..%.1f)"),
-				MaxExtent, *RefMaxExtent, SizeRatio, MaxSizeRatio, MaxSizeRatio));
-		}
-
-		const float CenterDelta = FVector::Dist(Center, *RefCenter);
-		if (CenterDelta > MaxCenterDelta)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertHeldBoxAxesMatch: held position differs (center %s vs ref %s, delta %.1fcm > %.1fcm)"),
-				*Center.ToString(), *RefCenter->ToString(), CenterDelta, MaxCenterDelta));
-		}
-		return true;
-	}
-private:
-	const FVector* RefLong;
-	const FVector* RefShort;
-	const float* RefMaxExtent;
-	const FVector* RefCenter;
-	float MinLongDot;
-	float MinShortDot;
-	float MaxSizeRatio;
-	float MaxCenterDelta;
 };
 
 // =======================================================================

@@ -30,6 +30,9 @@ public:
 
 	void OnDialogueEnded();
 
+	// Inventory give-mode callback: accepts Money when offered.
+	bool OnMoneyOffered(FName ItemID);
+
 	UPROPERTY(BlueprintReadOnly, Category = "Hudson")
 	UWidgetComponent* DialogueWidgetComponent;
 

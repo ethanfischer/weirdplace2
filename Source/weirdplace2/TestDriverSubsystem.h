@@ -282,29 +282,10 @@ public:
 	// nothing is inspected or the inspected box has no 'PutBackPromptText'.
 	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
 
-	// Camera-space directions of the held item's longest and shortest local
-	// bounding-box axes, the scaled length of the longest half-extent in cm,
-	// and the bounds center in camera space. Two box-shaped items "held in
-	// the same pose" have matching axes, comparable size, and the same
-	// center, regardless of how their meshes were authored. Returns false if
-	// nothing is held/visible.
-	bool GetHeldItemBoxAxes(FVector& OutLongAxisCamSpace, FVector& OutShortAxisCamSpace, float& OutMaxExtent, FVector& OutCenterCamSpace) const;
-
-	// True if the currently-visible held item mesh has a self-illumination
-	// overlay material applied (M_ItemDarkGlow). False (and logs) if nothing is
-	// held/visible — which is also the meaningful red-phase failure.
-	bool GetHeldItemGlowActive() const;
-
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory
 	// tests skip the gameplay flow that normally grants the item.
 	bool AddTestItem(FName ItemId, const FString& MeshAssetPath, FVector Scale = FVector(1.0f));
-
-	// Test-only: set the active (held) inventory item directly. AddTestItem only
-	// adds to the bag; this drives the OnActiveItemChanged path the held-item
-	// view and the door's active-item check both read. Returns false if no item
-	// matches or there's no inventory.
-	bool SetActiveTestItem(FName ItemId);
 
 	// Test-only: add every UItemDefinition asset under FolderPath (e.g.
 	// "/Game/Inventory") to the inventory. Returns count added.

@@ -628,6 +628,17 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		return;
 	}
 
+	// While the inventory is open in "give mode" (opened by a gated interaction),
+	// Interact offers the selected item to the requesting door/NPC.
+	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
+	{
+		if (InvUI->IsInventoryFullyOpen() && InvUI->IsGiveMode())
+		{
+			InvUI->ConfirmGiveSelection();
+			return;
+		}
+	}
+
 	// If in dialogue, advance it instead of raycasting
 	EPlayerActivityState State = GetActivityState();
 	if (State == EPlayerActivityState::InSimpleDialogue)

@@ -16,6 +16,7 @@ class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
+class AMyCharacter;
 class UInventoryComponent;
 class USpawnerActorComponent;
 
@@ -327,6 +328,20 @@ private:
 	void HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID);
 	void StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar);
 
+	// Returns the first inventory item that is a movie (not a fixed tool/quest
+	// item), or NAME_None. Movies are handed to Seneca one per interact.
+	static FName FindFirstMovie(UInventoryComponent* Inventory);
+
+	// True if ItemID is a movie (any item that isn't a fixed tool/quest item).
+	static bool IsMovieItem(FName ItemID);
+
+	// Open the inventory in give-mode bound to OnInventoryItemOffered.
+	void OpenGiveForOffer(AMyCharacter* MyCharacter);
+
+	// Inventory give-mode callback: validates the offered item for the current
+	// give-state, consumes + advances on accept (returns true), else false.
+	bool OnInventoryItemOffered(FName ItemID);
+
 	// --- Blank Tape Beat ---
 
 	UPROPERTY()
@@ -335,7 +350,7 @@ private:
 	TArray<FText> WaitingForBlankTapeReminderLines;
 
 	void StartWaitingForBlankTapeDialogue(AFirstPersonCharacter* FPChar);
-	void HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory);
+	void HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName BlankTapeID);
 	void StartAwaitingTapeBurnDialogue(AFirstPersonCharacter* FPChar);
 
 	// --- Combined Tape Beat ---
