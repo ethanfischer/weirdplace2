@@ -1,9 +1,6 @@
 #include "WeirdplaceCheatManager.h"
 
 #include "StorySubsystem.h"
-#include "PayPhone.h"
-#include "CRTTV.h"
-#include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
@@ -49,35 +46,6 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 	}
 
 	Story->SkipToBeat(Target);
-
-	// Dev visualization: teleport in front of the beat's actor so it's on screen
-	// as it changes. Needs the pawn, so it lives here rather than in the subsystem.
-	UClass* FrameClass = nullptr;
-	switch (Target)
-	{
-	case EStoryFlag::TornadoWarningDisplayed: FrameClass = ACRTTV::StaticClass(); break;
-	case EStoryFlag::SeenTornadoWarning:      FrameClass = APayPhone::StaticClass(); break;
-	default: break;
-	}
-
-	AFirstPersonCharacter* Pawn = Cast<AFirstPersonCharacter>(PC->GetPawn());
-	// if (FrameClass && Pawn)
-	// {
-	// 	TArray<AActor*> Found;
-	// 	UGameplayStatics::GetAllActorsOfClass(World, FrameClass, Found);
-	// 	if (Found.Num() > 0)
-	// 	{
-	// 		AActor* Tgt = Found[0];
-	// 		const FVector TgtLoc = Tgt->GetActorLocation();
-	// 		FVector Fwd = Tgt->GetActorForwardVector();
-	// 		Fwd.Z = 0.f;
-	// 		Fwd = Fwd.GetSafeNormal();
-	// 		if (Fwd.IsNearlyZero()) { Fwd = FVector::ForwardVector; }
-	// 		const FVector NewLoc = TgtLoc + Fwd * 400.f + FVector(0.f, 0.f, 100.f);
-	// 		Pawn->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
-	// 		PC->SetControlRotation((TgtLoc - NewLoc).Rotation());
-	// 	}
-	// }
 
 	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
 }

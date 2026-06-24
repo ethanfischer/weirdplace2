@@ -6,6 +6,7 @@
 #include "InspectablePickup.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
+#include "ItemGlow.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
@@ -46,11 +47,7 @@ void AOutsideBathroomDoor::BeginPlay()
 
 	// Same self-illumination overlay the held key uses, so the key keeps glowing
 	// as it's inserted into the lock.
-	GlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
-	if (!GlowMaterial)
-	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
-	}
+	GlowMaterial = ItemGlow::GetItemGlowMaterial();
 
 	if (KeyInsertCurve && KeyInsertTimeline)
 	{
@@ -149,15 +146,8 @@ bool AOutsideBathroomDoor::OnKeyOffered(FName ItemID)
 		return false; // wrong item — keep the inventory open
 	}
 
-	// Close the inventory first, then run the break sequence (which removes the key).
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-	{
-		if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
-		{
-			InvUI->CloseInventoryUI();
-		}
-	}
+	// ConfirmGiveSelection closes the UI on accept; just run the break sequence
+	// (which removes the key).
 	StartKeyBreakSequence();
 	return true;
 }

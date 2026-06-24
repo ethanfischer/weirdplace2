@@ -27,9 +27,6 @@ struct FInventoryItemData
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
 	FVector Scale = FVector::OneVector;
 
-	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
-	FRotator Rotation = FRotator::ZeroRotator;
-
 	// Optional thumbnail override; if set, InventoryUIActor uses this instead of the convention path
 	UPROPERTY(BlueprintReadOnly, Category = "Inventory")
 	UTexture2D* Thumbnail = nullptr;

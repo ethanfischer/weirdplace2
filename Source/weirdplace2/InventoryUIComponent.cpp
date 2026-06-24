@@ -134,12 +134,18 @@ void UInventoryUIComponent::ConfirmGiveSelection()
 		Selected = Items.IsValidIndex(AbsoluteSelectedIndex) ? Items[AbsoluteSelectedIndex] : NAME_None;
 	}
 
-	// Empty slot or rejected offer: deny feedback, stay open so the player can
-	// pick again. On accept the receiver consumes/proceeds and closes the UI
-	// itself (so its dialogue/sequence starts after the close).
 	const bool bAccepted = !Selected.IsNone() && GiveDelegate.IsBound() && GiveDelegate.Execute(Selected);
-	if (!bAccepted && MenuCloseSound)
+	if (bAccepted)
 	{
+		// Close here so each receiver doesn't re-resolve the player to close the
+		// very component that invoked it. CloseInventoryUI only starts the
+		// (non-blocking) close animation and leaves activity state untouched, so a
+		// receiver's dialogue/sequence started during Execute still stands.
+		CloseInventoryUI();
+	}
+	else if (MenuCloseSound)
+	{
+		// Empty slot or rejected offer: deny feedback, stay open to pick again.
 		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
 	}
 }
@@ -181,7 +187,7 @@ void UInventoryUIComponent::OpenInventoryUI()
 		const float ThumbnailSize = 8.0f;
 		const float ThumbnailSpacing = 2.0f;
 		const float GridWidth = GridColumns * ThumbnailSize + (GridColumns - 1) * ThumbnailSpacing;
-		// Square cells: grid height uses ThumbnailSize directly (see AInventoryUIActor::SlotHeightAspect).
+		// Square cells: grid height uses ThumbnailSize directly.
 		const float GridHeight = GridRows * ThumbnailSize + (GridRows - 1) * ThumbnailSpacing;
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}

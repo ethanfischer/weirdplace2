@@ -68,3 +68,22 @@ bool UGazeUtils::IsActorInPlayerGaze(const AActor* Target, UWorld* World,
 	Params.AddIgnoredActor(Target);
 	return !World->LineTraceSingleByChannel(Hit, CamLoc, EntryPoint, ECC_Visibility, Params);
 }
+
+bool UGazeUtils::IsPointInPlayerView(const FVector& Point, UWorld* World, float MinDot)
+{
+	if (!World)
+	{
+		return false;
+	}
+	APlayerController* PC = World->GetFirstPlayerController();
+	if (!PC)
+	{
+		return false;
+	}
+
+	FVector CamLoc;
+	FRotator CamRot;
+	PC->GetPlayerViewPoint(CamLoc, CamRot);
+	const FVector ToTarget = (Point - CamLoc).GetSafeNormal();
+	return FVector::DotProduct(CamRot.Vector(), ToTarget) > MinDot;
+}

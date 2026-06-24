@@ -262,14 +262,23 @@ void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
 		return;
 	}
 
-	for (ACRTTV* TV : WarningTVs)
+	UWorld* World = GetWorld();
+	if (!World)
 	{
-		if (TV)
-		{
-			TV->StopWarningAudio();
-		}
+		return;
 	}
-	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: payphone used, silenced %d warning siren(s)"), WarningTVs.Num());
+
+	// Silence every TV directly rather than the cached WarningTVs list — that list
+	// is only populated by HandleStoreEntry, so depending on it here would leave
+	// the siren blaring if UsedPayPhone is ever set without store-entry first.
+	// StopWarningAudio is idempotent and a safe no-op on a TV that never warned.
+	int32 Silenced = 0;
+	for (TActorIterator<ACRTTV> It(World); It; ++It)
+	{
+		It->StopWarningAudio();
+		++Silenced;
+	}
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: payphone used, silenced %d warning siren(s)"), Silenced);
 }
 
 void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)

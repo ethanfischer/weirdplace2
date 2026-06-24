@@ -153,11 +153,7 @@ bool AHudson::OnMoneyOffered(FName ItemID)
 		return false;
 	}
 
-	// Close the inventory first, then consume + thank the player.
-	if (UInventoryUIComponent* InvUI = MyChar->GetInventoryUIComponent())
-	{
-		InvUI->CloseInventoryUI();
-	}
+	// Consume + thank the player; ConfirmGiveSelection closes the UI on accept.
 	Inventory->RemoveItem(FName("Money"));
 	CurrentState = EHudsonState::GaveMoney;
 	bLastDialogueWasBeg = false;

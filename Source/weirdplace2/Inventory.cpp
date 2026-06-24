@@ -118,7 +118,6 @@ FInventoryItemData UInventoryComponent::CreateItemDataFromMeshComponent(const FN
     if (MeshComponent) {
         Data.Mesh = MeshComponent->GetStaticMesh();
         Data.Scale = MeshComponent->GetRelativeScale3D();
-        Data.Rotation = MeshComponent->GetRelativeRotation();
 
         // Capture all materials
         int32 NumMaterials = MeshComponent->GetNumMaterials();

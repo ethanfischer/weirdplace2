@@ -14,6 +14,7 @@
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "ItemGlow.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -139,11 +140,7 @@ void AFirstPersonCharacter::BeginPlay()
 
 	// Self-illumination overlay for item-notification popups so received items
 	// read in the game's dark areas (same material held items / pickups use).
-	NotificationGlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
-	if (!NotificationGlowMaterial)
-	{
-		UE_LOG(LogTemp, Error, TEXT("AFirstPersonCharacter: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
-	}
+	NotificationGlowMaterial = ItemGlow::GetItemGlowMaterial();
 
 	// Sprite icons (trigger boxes, empty actors, etc.) are editor-only but leak into PIE
 	// when the viewport show flags get reset by Blueprint recompiles. Suppress them here

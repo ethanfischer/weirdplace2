@@ -41,6 +41,17 @@ public:
 	bool IsInAnyDialogue() const;
 	bool IsDialogueCooldownActive() const;
 
+	// Enter an interaction "hold": freeze movement (and look if bFreezeLook),
+	// disable environment interaction, set Interacting, and ensure the player
+	// controller has an InputComponent so the caller can bind its own exit/rotate
+	// actions. Shared by PayPhone / MovieBox / InspectablePickup; each caller still
+	// binds its own actions afterward. No-op without a player controller.
+	void BeginInteractionHold(bool bFreezeLook);
+
+	// Reverse of BeginInteractionHold: unfreeze movement (and look if
+	// bUnfreezeLook), re-enable interaction, return to FreeRoaming.
+	void EndInteractionHold(bool bUnfreezeLook);
+
 	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
 	// Locks movie collection (called by Seneca when checkout begins)

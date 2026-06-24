@@ -195,19 +195,8 @@ void AMovieBox::Interact_Implementation()
 	// Store reference to inspected actor (this MovieBox)
 	InspectedActor = this;
 
-	// Freeze player camera and movement
-	PlayerController->SetIgnoreLookInput(true);
-	PlayerController->SetIgnoreMoveInput(true);
-
-	MyCharacter->SetCanInteract(false);
-	MyCharacter->SetActivityState(EPlayerActivityState::Interacting);
-
-	// Ensure input component exists
-	if (!PlayerController->InputComponent)
-	{
-		PlayerController->InputComponent = NewObject<UInputComponent>(PlayerController);
-		PlayerController->InputComponent->RegisterComponent();
-	}
+	// Freeze player camera and movement; also ensures the PC InputComponent exists.
+	MyCharacter->BeginInteractionHold(/*bFreezeLook*/ true);
 
 	// Bind rotation input
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
@@ -352,13 +341,10 @@ void AMovieBox::CollectInspectedMovie()
 
 	// Add item to inventory with visual data captured from the envelope mesh.
 	// World scale (not relative) so meshes whose size comes from ancestor
-	// scaling are captured at the size the player actually saw, and
-	// HeldPoseCorrection brings differently-authored meshes into the standard
-	// held orientation.
+	// scaling are captured at the size the player actually saw.
 	const FName InventoryID = !ItemIDOverride.IsNone() ? ItemIDOverride : FName(*CoverName);
 	FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(InventoryID, EnvelopeMesh);
 	ItemData.Scale = EnvelopeMesh->GetComponentScale();
-	ItemData.Rotation = (FQuat(ItemData.Rotation) * FQuat(HeldPoseCorrection)).Rotator();
 	if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
 	{
 		Inventory->AddItemWithData(ItemData);
@@ -402,10 +388,6 @@ void AMovieBox::StopInspection()
 	// Restore the object's original position and rotation
 	InspectedActor->SetActorTransform(OriginalActorTransform);
 
-	// Restore player movement and camera control
-	PlayerController->SetIgnoreLookInput(false);
-	PlayerController->SetIgnoreMoveInput(false);
-
 	// Unbind input actions. Remove only the axes registered in Interact_Implementation
 	// so other systems' axis bindings on the PC stay intact.
 	PlayerController->InputComponent->AxisBindings.RemoveAll([](const FInputAxisBinding& Binding)
@@ -432,8 +414,7 @@ void AMovieBox::StopInspection()
 	GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
 	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);
 
-	MyCharacter->SetCanInteract(true);
-	MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
+	MyCharacter->EndInteractionHold(/*bUnfreezeLook*/ true);
 
 	// Both exits (collect and put-back) funnel through here, so this marks the
 	// player's first completed movie interaction — the put-back hint stops

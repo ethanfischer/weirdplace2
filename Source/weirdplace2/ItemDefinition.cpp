@@ -8,7 +8,6 @@ FInventoryItemData UItemDefinition::ToInventoryItemData() const
 	Data.ItemID = ItemID;
 	Data.Mesh = Mesh;
 	Data.Scale = Scale;
-	Data.Rotation = HeldRotation;
 
 	if (MaterialOverrides.Num() > 0)
 	{

@@ -52,13 +52,6 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Movie")
 	FName ItemIDOverride;
 
-	// Extra mesh-local rotation composed into the captured held/inventory
-	// pose. Corrects meshes authored with different axes than the shelf
-	// envelope cube (BP_BlankVHS's Memphis box is long-on-Y, the cube is
-	// long-on-Z).
-	UPROPERTY(EditDefaultsOnly, Category="Movie")
-	FRotator HeldPoseCorrection = FRotator::ZeroRotator;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Interaction")
 	float InspectionDistance = 50.0f;
 

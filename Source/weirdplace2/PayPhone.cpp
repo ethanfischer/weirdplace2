@@ -158,22 +158,18 @@ void APayPhone::Interact_Implementation()
 	// appearance outside gates on this flag, so it persists past hang-up.
 	Story->SetFlag(EStoryFlag::UsedPayPhone, true);
 
-	// Hold the player at the phone — freeze movement and bind hang-up. Look
-	// stays free (VR owns the headset). Mirrors MovieBox inspection.
+	// Hold the player at the phone — freeze movement and bind hang-up. Look stays
+	// free (VR owns the headset), so bFreezeLook=false.
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		PC->SetIgnoreMoveInput(true);
 		if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
 		{
-			Character->SetCanInteract(false);
-			Character->SetActivityState(EPlayerActivityState::Interacting);
+			Character->BeginInteractionHold(/*bFreezeLook*/ false);
 		}
-		if (!PC->InputComponent)
+		if (PC->InputComponent)
 		{
-			PC->InputComponent = NewObject<UInputComponent>(PC);
-			PC->InputComponent->RegisterComponent();
+			PC->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &APayPhone::HangUp);
 		}
-		PC->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &APayPhone::HangUp);
 	}
 
 	if (PickupAudio)
@@ -266,15 +262,13 @@ void APayPhone::ReleasePlayer()
 		return;
 	}
 
-	PC->SetIgnoreMoveInput(false);
 	if (PC->InputComponent)
 	{
 		PC->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	}
 	if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
 	{
-		Character->SetCanInteract(true);
-		Character->SetActivityState(EPlayerActivityState::FreeRoaming);
+		Character->EndInteractionHold(/*bUnfreezeLook*/ false);
 	}
 }
 

@@ -27,11 +27,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Visual")
 	FVector Scale = FVector::OneVector;
 
-	// Legacy held-item rotation (the held-item view was removed). Retained for
-	// data compatibility; no longer drives any in-game rendering.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
-	FRotator HeldRotation = FRotator::ZeroRotator;
-
 	// Rotation for the pickup-notification mesh popup.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
 	FRotator NotificationRotation = FRotator::ZeroRotator;

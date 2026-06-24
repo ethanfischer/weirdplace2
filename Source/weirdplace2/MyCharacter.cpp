@@ -3,6 +3,8 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "Components/InputComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "Scalability.h"
 
 AMyCharacter::AMyCharacter()
@@ -41,6 +43,49 @@ void AMyCharacter::LockMovieCollection()
 void AMyCharacter::SetCanInteract(bool value)
 {
 	CanInteract = value;
+}
+
+void AMyCharacter::BeginInteractionHold(bool bFreezeLook)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	PC->SetIgnoreMoveInput(true);
+	if (bFreezeLook)
+	{
+		PC->SetIgnoreLookInput(true);
+	}
+
+	SetCanInteract(false);
+	SetActivityState(EPlayerActivityState::Interacting);
+
+	// Callers bind their exit/rotate actions on PC->InputComponent; ensure it exists.
+	if (!PC->InputComponent)
+	{
+		PC->InputComponent = NewObject<UInputComponent>(PC);
+		PC->InputComponent->RegisterComponent();
+	}
+}
+
+void AMyCharacter::EndInteractionHold(bool bUnfreezeLook)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	PC->SetIgnoreMoveInput(false);
+	if (bUnfreezeLook)
+	{
+		PC->SetIgnoreLookInput(false);
+	}
+
+	SetCanInteract(true);
+	SetActivityState(EPlayerActivityState::FreeRoaming);
 }
 
 void AMyCharacter::SetActivityState(EPlayerActivityState NewState)

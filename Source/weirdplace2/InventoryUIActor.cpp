@@ -229,7 +229,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Scale for slot size (slightly larger than thumbnail for border effect)
 		float Width = ThumbnailSize * 1.05f;
-		float Height = ThumbnailSize * SlotHeightAspect * 1.05f;
+		float Height = ThumbnailSize * 1.05f;
 		SlotMesh->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
 		// Create empty slot material
@@ -259,7 +259,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Slightly larger than slot for highlight border
 		float HighlightWidth = ThumbnailSize * 1.15f;
-		float HighlightHeight = ThumbnailSize * SlotHeightAspect * 1.15f;
+		float HighlightHeight = ThumbnailSize * 1.15f;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
@@ -285,7 +285,7 @@ void AInventoryUIActor::CreateSlots()
 
 		// Larger than thumbnail to create a visible border frame
 		float BorderWidth = ThumbnailSize * 1.2f;
-		float BorderHeight = ThumbnailSize * SlotHeightAspect * 1.2f;
+		float BorderHeight = ThumbnailSize * 1.2f;
 		ActiveItemBorder->SetRelativeScale3D(FVector(BorderHeight * 0.01f, BorderWidth * 0.01f, 1.0f));
 		ActiveItemBorder->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
@@ -382,7 +382,7 @@ void AInventoryUIActor::CreateThumbnails()
 
 		// Scale for thumbnail size
 		float Width = ThumbnailSize;
-		float Height = ThumbnailSize * SlotHeightAspect;
+		float Height = ThumbnailSize;
 		Thumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 
 		// Check for runtime thumbnail override on the item data first
@@ -610,7 +610,7 @@ FVector AInventoryUIActor::CalculateSlotPosition(int32 Index) const
 	int32 Col = Index % GridColumns;
 
 	float SlotWidth = ThumbnailSize + ThumbnailSpacing;
-	float SlotHeight = ThumbnailSize * SlotHeightAspect + ThumbnailSpacing;
+	float SlotHeight = ThumbnailSize + ThumbnailSpacing;
 
 	// Center the grid
 	float TotalWidth = (GridColumns - 1) * SlotWidth;
@@ -629,7 +629,7 @@ float AInventoryUIActor::GetGridWidth() const
 
 float AInventoryUIActor::GetGridHeight() const
 {
-	return GridRows * (ThumbnailSize * SlotHeightAspect) + (GridRows - 1) * ThumbnailSpacing;
+	return GridRows * (ThumbnailSize) + (GridRows - 1) * ThumbnailSpacing;
 }
 
 void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
@@ -653,7 +653,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		if (SelectedSlot)
 		{
 			float Width = ThumbnailSize * 1.05f * CurrentScale;
-			float Height = ThumbnailSize * SlotHeightAspect * 1.05f * CurrentScale;
+			float Height = ThumbnailSize * 1.05f * CurrentScale;
 			SelectedSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 		}
 	}
@@ -665,7 +665,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		if (SelectedThumbnail)
 		{
 			float Width = ThumbnailSize * CurrentScale;
-			float Height = ThumbnailSize * SlotHeightAspect * CurrentScale;
+			float Height = ThumbnailSize * CurrentScale;
 			SelectedThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 		}
 	}
@@ -679,7 +679,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 			if (PrevSlot)
 			{
 				float Width = ThumbnailSize * 1.05f;
-				float Height = ThumbnailSize * SlotHeightAspect * 1.05f;
+				float Height = ThumbnailSize * 1.05f;
 				PrevSlot->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 			}
 		}
@@ -690,7 +690,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 			if (PrevThumbnail)
 			{
 				float Width = ThumbnailSize;
-				float Height = ThumbnailSize * SlotHeightAspect;
+				float Height = ThumbnailSize;
 				PrevThumbnail->SetRelativeScale3D(FVector(Height * 0.01f, Width * 0.01f, 1.0f));
 			}
 		}
@@ -704,7 +704,7 @@ void AInventoryUIActor::UpdateHoverAnimation(float DeltaTime)
 		// Scale the highlight with hover + pulse
 		float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
 		float HighlightWidth = ThumbnailSize * HighlightScale;
-		float HighlightHeight = ThumbnailSize * SlotHeightAspect * HighlightScale;
+		float HighlightHeight = ThumbnailSize * HighlightScale;
 		SelectionHighlight->SetRelativeScale3D(FVector(HighlightHeight * 0.01f, HighlightWidth * 0.01f, 1.0f));
 	}
 }

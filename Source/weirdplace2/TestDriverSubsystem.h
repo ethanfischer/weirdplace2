@@ -291,11 +291,6 @@ public:
 	// "/Game/Inventory") to the inventory. Returns count added.
 	int32 AddAllItemDefsFromFolder(const FString& FolderPath);
 
-	// Test-only: override the held-item slot pose (relative to camera) so the
-	// item is visible during a screenshot tour, regardless of the production
-	// hand-rig position.
-	bool SetHeldItemSlotPose(FVector Offset, FRotator Rotation);
-
 	// Test-only: activate the blank tape without playing through the money
 	// beat. Finds the level's USpawnerActorComponent and calls
 	// ActivateChosenTape, exactly as Seneca does on receiving money.

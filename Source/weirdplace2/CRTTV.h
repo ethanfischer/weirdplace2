@@ -53,6 +53,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0"), Category = "TV")
 	float WarningLoopGapSeconds = 1.5f;
 
+	// Material slot index of the CRT screen — the warning material is applied here.
+	// Set on BP_TV defaults; all CRT TVs share the mesh, so one value covers every
+	// instance. Out of range = no warning screen (logged, not inferred).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TV")
+	int32 ScreenMaterialSlot = INDEX_NONE;
+
 	// Stop the media feed, swap the screen slot to the warning material (with the
 	// designer texture if set), and blare the looping alarm. Idempotent. Drives
 	// item 1 (store-entry-after-key-break tornado warning).

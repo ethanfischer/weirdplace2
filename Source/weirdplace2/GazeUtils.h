@@ -19,4 +19,9 @@ public:
 	// and the player pawn are ignored so the target's own mesh never self-occludes.
 	static bool IsActorInPlayerGaze(const AActor* Target, UWorld* World,
 		float BoxExpand = 10.f, float MaxDistance = 6000.f, bool bRequireLineOfSight = true);
+
+	// True when Point lies within MinDot of the player camera's forward direction —
+	// a simple cone test (no bounds, no line-of-sight), for "looking roughly toward
+	// X". MinDot 0.5 ~= a 60-degree half-angle cone.
+	static bool IsPointInPlayerView(const FVector& Point, UWorld* World, float MinDot = 0.5f);
 };

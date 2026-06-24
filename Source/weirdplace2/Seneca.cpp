@@ -7,6 +7,7 @@
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "Door.h"
+#include "GazeUtils.h"
 #include "SpawnerActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -632,22 +633,11 @@ void ASeneca::Tick(float DeltaTime)
 
 bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 {
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC)
-	{
-		return false;
-	}
-
-	FVector CameraLoc;
-	FRotator CameraRot;
-	PC->GetPlayerViewPoint(CameraLoc, CameraRot);
-
-	FVector ToTarget = (Position - CameraLoc).GetSafeNormal();
-	FVector CameraForward = CameraRot.Vector();
-
-	float Dot = FVector::DotProduct(CameraForward, ToTarget);
-	// ~60 degree half-angle cone
-	return Dot > 0.5f;
+	// Shared cone test (~60 degree half-angle). Seneca deliberately uses the
+	// point/cone variant, not the ray-box IsActorInPlayerGaze: the smoking marker
+	// is a near-zero-bounds actor, so a box test would read as "looking" almost
+	// never and change the look-away teleport feel.
+	return UGazeUtils::IsPointInPlayerView(Position, GetWorld());
 }
 
 bool ASeneca::IsPlayerLookingAtMe() const
@@ -996,17 +986,14 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 	{
 		return false;
 	}
-	UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent();
-
-	// Validate the offered item for the current state; on accept, close the
-	// inventory FIRST (so any dialogue/sequence starts after the close), then
-	// consume + advance. Wrong item -> return false (stay open).
+	// Validate the offered item for the current state; on accept, consume + advance
+	// and return true (ConfirmGiveSelection closes the UI). Wrong item -> return
+	// false (stay open).
 	switch (CurrentState)
 	{
 	case ESenecaState::WaitingForMoviePurchase:
 		if (IsMovieItem(ItemID) && Inventory->HasItem(ItemID))
 		{
-			if (InvUI) { InvUI->CloseInventoryUI(); }
 			HandleMovieGive(FPChar, Inventory, ItemID);
 			return true;
 		}
@@ -1015,7 +1002,6 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 	case ESenecaState::WaitingForMoney:
 		if (ItemID == FName("Money"))
 		{
-			if (InvUI) { InvUI->CloseInventoryUI(); }
 			Inventory->RemoveItem(FName("Money"));
 			CurrentState = ESenecaState::WaitingForBlankTape;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoney -> WaitingForBlankTape (money received)"));
@@ -1031,7 +1017,6 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 	case ESenecaState::WaitingForBlankTape:
 		if (CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
 		{
-			if (InvUI) { InvUI->CloseInventoryUI(); }
 			HandleBlankTapeGive(FPChar, Inventory, ItemID);
 			return true;
 		}

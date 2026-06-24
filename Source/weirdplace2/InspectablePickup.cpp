@@ -3,6 +3,7 @@
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
+#include "ItemGlow.h"
 #include "MyCharacter.h"
 #include "Components/InputComponent.h"
 #include "Components/SphereComponent.h"
@@ -52,12 +53,8 @@ void AInspectablePickup::BeginPlay()
 
 	// Self-illumination overlay, applied from spawn so the dropped item reads on
 	// the dark floor — not just once it's pulled in to inspect.
-	GlowMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ItemDarkGlow.M_ItemDarkGlow"));
-	if (!GlowMaterial)
-	{
-		UE_LOG(LogTemp, Error, TEXT("InspectablePickup: glow material not found at /Game/CreatedMaterials/M_ItemDarkGlow"));
-	}
-	else if (PickupMesh)
+	GlowMaterial = ItemGlow::GetItemGlowMaterial();
+	if (GlowMaterial && PickupMesh)
 	{
 		PickupMesh->SetOverlayMaterial(GlowMaterial);
 	}
@@ -112,21 +109,11 @@ void AInspectablePickup::Interact_Implementation()
 
 	InspectedActor = this;
 
-	PlayerController->SetIgnoreLookInput(true);
-	PlayerController->SetIgnoreMoveInput(true);
-
-	MyCharacter->SetCanInteract(false);
-	MyCharacter->SetActivityState(EPlayerActivityState::Interacting);
+	MyCharacter->BeginInteractionHold(/*bFreezeLook*/ true);
 
 	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 	{
 		FPChar->SetItemHoldLightEnabled(true);
-	}
-
-	if (!PlayerController->InputComponent)
-	{
-		PlayerController->InputComponent = NewObject<UInputComponent>(PlayerController);
-		PlayerController->InputComponent->RegisterComponent();
 	}
 
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AInspectablePickup::RotateInspectedActor);
@@ -211,9 +198,6 @@ void AInspectablePickup::StopInspection()
 
 	InspectedActor->SetActorTransform(OriginalActorTransform);
 
-	PlayerController->SetIgnoreLookInput(false);
-	PlayerController->SetIgnoreMoveInput(false);
-
 	if (PlayerController->InputComponent)
 	{
 		PlayerController->InputComponent->AxisBindings.RemoveAll([](const FInputAxisBinding& Binding)
@@ -231,8 +215,7 @@ void AInspectablePickup::StopInspection()
 
 	if (MyCharacter)
 	{
-		MyCharacter->SetCanInteract(true);
-		MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
+		MyCharacter->EndInteractionHold(/*bUnfreezeLook*/ true);
 
 		if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter))
 		{

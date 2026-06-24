@@ -4,6 +4,7 @@
 
 # Claude Friendly
 [ ] make seneca only smoke after interacting with payphone
+    [ ] on second thought, maybe we drop the seneca smoking thing. or at least make it so he appears whereever you look for him. I don't want players getting frustrated running around aimlessly.
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later
@@ -12,8 +13,16 @@
     [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] gas station door animation
+[ ] more weather sounds
+[ ] more weather effects
+[ ] sound mixing (tornado alert too loud)
+    
     
 # Needs design
+[ ] use weather plugin 
+[ ] message on payphone is code to employee bathroom
+    [ ] you write it down (wrongly)
+    [ ] you enter it wrongly, but it works
 [ ] handle homeless scenario if you give money to Hudson. how to progress? 
     [ ] strange washer found later, but seneca accepts it as if it covers the 2.95 after given money to hudson
     

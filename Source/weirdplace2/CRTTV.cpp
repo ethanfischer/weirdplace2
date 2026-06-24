@@ -114,21 +114,14 @@ void ACRTTV::ShowTornadoWarning()
 		return;
 	}
 
-	// The screen is the material slot currently driven by the CRT screen material
-	// (its name contains "Screen"); the other slots are the bezel/back casing.
-	const TArray<UMaterialInterface*> Mats = Mesh->GetMaterials();
-	int32 ScreenSlot = INDEX_NONE;
-	for (int32 i = 0; i < Mats.Num(); ++i)
+	// The screen slot is configured on the BP defaults (ScreenMaterialSlot) — the
+	// other slots are the bezel/back casing. Inferring it from the material name
+	// silently broke when a material was renamed; require the explicit index.
+	const int32 ScreenSlot = ScreenMaterialSlot;
+	if (ScreenSlot < 0 || ScreenSlot >= Mesh->GetNumMaterials())
 	{
-		if (Mats[i] && Mats[i]->GetName().Contains(TEXT("Screen")))
-		{
-			ScreenSlot = i;
-			break;
-		}
-	}
-	if (ScreenSlot == INDEX_NONE)
-	{
-		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - no screen material slot found among %d slots"), *GetName(), Mats.Num());
+		UE_LOG(LogTemp, Error, TEXT("ACRTTV %s: ShowTornadoWarning - ScreenMaterialSlot %d is invalid (%d slots); set it on the TV BP defaults"),
+			*GetName(), ScreenSlot, Mesh->GetNumMaterials());
 		return;
 	}
 
