@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Engine/TimerHandle.h"
 #include "KeypadUIComponent.generated.h"
 
 class AKeypadUIActor;
@@ -9,8 +10,8 @@ class USoundBase;
 
 // Fired once the player has entered all the digits. Param is the entered code as
 // a string (e.g. "4729"). Return true if accepted (the receiver unlocks/opens and
-// the component closes the keypad), false if wrong (the component plays the deny
-// sound and closes). Mirrors FInventoryGiveDelegate's accept/reject contract.
+// the component closes the keypad), false if wrong (the component plays the lock
+// sound, clears the entry, and stays open — only the back button exits).
 DECLARE_DELEGATE_RetVal_OneParam(bool, FKeypadSubmitDelegate, const FString&);
 
 UENUM(BlueprintType)
@@ -97,9 +98,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad UI|Audio")
 	USoundBase* MenuItemSelectedSound;
 
-	// Buzzer played on a wrong code.
+	// Lock/buzzer sound played on a wrong code (defaults to the locked-door rattle).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad UI|Audio")
 	USoundBase* DenySound;
+
+	// Seconds the wrong (full) code stays visible before it buzzes + clears.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad UI|Audio")
+	float WrongCodeClearDelay = 0.5f;
 
 private:
 	UPROPERTY()
@@ -134,6 +139,12 @@ private:
 	// Move the selected cell by (DeltaCol, DeltaRow), clamped to the 3x3 grid.
 	void StepSelection(int32 DeltaCol, int32 DeltaRow);
 
-	// Validate the entered code via the delegate; deny + close on reject, close on accept.
+	// Validate the entered code via the delegate; close on accept, schedule the
+	// delayed buzz+clear on reject.
 	void SubmitCode();
+
+	// Deferred (WrongCodeClearDelay later): play the lock sound and clear the entry.
+	void ClearWrongEntry();
+
+	FTimerHandle WrongCodeClearTimer;
 };

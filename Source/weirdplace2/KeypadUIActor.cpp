@@ -376,8 +376,8 @@ void AKeypadUIActor::UpdateBackgroundSize()
 	const float TotalHeight = GridH + FillRowExtent + BackgroundPadding * 2.0f;
 
 	BackgroundPanel->SetRelativeScale3D(FVector(TotalHeight * 0.01f, TotalWidth * 0.01f, 1.0f));
-	// Shift the panel down so the grid+fill row are vertically centered within it.
-	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, -FillRowExtent * 0.5f));
+	// Fill row sits above the grid, so shift the panel up to keep grid+fill centered.
+	BackgroundPanel->SetRelativeLocation(FVector(1.0f, 0.0f, FillRowExtent * 0.5f));
 }
 
 FVector AKeypadUIActor::CalculateCellPosition(int32 Index) const
@@ -403,10 +403,10 @@ FVector AKeypadUIActor::CalculateFillSlotPosition(int32 Index) const
 	const float TotalWidth = (CodeLength - 1) * SlotPitch;
 	const float Y = -TotalWidth * 0.5f + Index * SlotPitch;
 
-	// One slot-height below the bottom grid row.
+	// One slot-height above the top grid row.
 	const float SlotHeight = CellSize + CellSpacing;
-	const float BottomRowZ = (GridRows - 1) * SlotHeight * 0.5f - (GridRows - 1) * SlotHeight;
-	const float Z = BottomRowZ - CellSize * 1.2f;
+	const float TopRowZ = (GridRows - 1) * SlotHeight * 0.5f;
+	const float Z = TopRowZ + CellSize * 1.2f;
 
 	return FVector(0.0f, Y, Z);
 }

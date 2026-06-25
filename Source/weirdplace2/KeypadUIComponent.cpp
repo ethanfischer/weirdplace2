@@ -7,6 +7,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundBase.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 UKeypadUIComponent::UKeypadUIComponent()
 {
@@ -21,10 +23,21 @@ void UKeypadUIComponent::BeginPlay()
 	{
 		KeypadUIActorClass = AKeypadUIActor::StaticClass();
 	}
+
+	// Default the wrong-code "lock" sound to the same locked-door rattle, so the
+	// keypad has feedback without a BP_Keypad override.
+	if (!DenySound)
+	{
+		DenySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/lockeddoor.lockeddoor"));
+	}
 }
 
 void UKeypadUIComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WrongCodeClearTimer);
+	}
 	if (IsValid(KeypadUIActor))
 	{
 		KeypadUIActor->Destroy();
@@ -141,6 +154,11 @@ void UKeypadUIComponent::CloseKeypadUI()
 		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
 	}
 
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(WrongCodeClearTimer);
+	}
+
 	CurrentState = EKeypadUIState::Closing;
 	SubmitDelegate.Unbind();
 
@@ -179,20 +197,35 @@ void UKeypadUIComponent::PressSelectedDigit()
 void UKeypadUIComponent::SubmitCode()
 {
 	const bool bAccepted = SubmitDelegate.IsBound() && SubmitDelegate.Execute(EnteredCode);
-	if (!bAccepted)
+	if (bAccepted)
 	{
-		if (DenySound)
-		{
-			UGameplayStatics::PlaySound2D(this, DenySound);
-		}
-		DenySoundPlayCount++;
-		UE_LOG(LogTemp, Log, TEXT("Keypad: wrong code '%s' — deny + close"), *EnteredCode);
+		UE_LOG(LogTemp, Log, TEXT("Keypad: correct code '%s' — accepted, closing"), *EnteredCode);
+		CloseKeypadUI();
+		return;
 	}
-	else
+
+	// Wrong code: leave the full (wrong) entry on screen briefly, then buzz + clear.
+	// The keypad stays open — the only way out is the back button (Q / gamepad B).
+	if (UWorld* World = GetWorld())
 	{
-		UE_LOG(LogTemp, Log, TEXT("Keypad: correct code '%s' — accepted"), *EnteredCode);
+		World->GetTimerManager().SetTimer(WrongCodeClearTimer, this, &UKeypadUIComponent::ClearWrongEntry, WrongCodeClearDelay, false);
 	}
-	CloseKeypadUI();
+	UE_LOG(LogTemp, Log, TEXT("Keypad: wrong code — clearing in %.2fs"), WrongCodeClearDelay);
+}
+
+void UKeypadUIComponent::ClearWrongEntry()
+{
+	if (DenySound)
+	{
+		UGameplayStatics::PlaySound2D(this, DenySound);
+	}
+	DenySoundPlayCount++;
+	EnteredCode.Empty();
+	if (KeypadUIActor)
+	{
+		KeypadUIActor->SetEnteredCode(EnteredCode);
+	}
+	UE_LOG(LogTemp, Log, TEXT("Keypad: wrong entry cleared (lock sound)"));
 }
 
 void UKeypadUIComponent::NavigateLeft()

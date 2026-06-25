@@ -197,7 +197,11 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("4729")));
+		// Enter the first two digits to capture the fill row (now above the grid), then
+		// finish the code "4729" to open the door.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("47")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19b_KeypadPartial")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("29")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 	}
