@@ -27,6 +27,11 @@ public:
 	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
 	UFUNCTION(Exec) void SkipToSmoking();
 
+	// Dev: teleport the player in front of the keypad-locked door (the employee
+	// bathroom), facing it, so you can immediately test code entry. Type
+	// `SkipToKeypad` in the PIE console. The code is the door's KeypadCode (4729).
+	UFUNCTION(Exec) void SkipToKeypad();
+
 	// Dev: grant an item to the player inventory by short name. Looks up the
 	// data asset at /Game/Inventory/DA_<Name>. e.g. `GiveItem Key`, `GiveItem BrokenKey`.
 	UFUNCTION(Exec) void GiveItem(const FString& Name);

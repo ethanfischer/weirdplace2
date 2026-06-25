@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "KeypadUIComponent.h"
 #include "ItemDefinition.h"
 #if WITH_EDITOR
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -1395,4 +1396,49 @@ UInventoryUIComponent* UTestDriverSubsystem::GetInventoryUIComponent() const
 {
 	AFirstPersonCharacter* Player = GetPlayer();
 	return Player ? Player->GetInventoryUIComponent() : nullptr;
+}
+
+UKeypadUIComponent* UTestDriverSubsystem::GetKeypadUIComponent() const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	return Player ? Player->GetKeypadUIComponent() : nullptr;
+}
+
+bool UTestDriverSubsystem::IsKeypadFullyOpen() const
+{
+	UKeypadUIComponent* KP = GetKeypadUIComponent();
+	return KP && KP->IsKeypadFullyOpen();
+}
+
+bool UTestDriverSubsystem::EnterKeypadCode(const FString& Code)
+{
+	UKeypadUIComponent* KP = GetKeypadUIComponent();
+	if (!KP)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::EnterKeypadCode - no keypad component"));
+		return false;
+	}
+	if (!KP->IsKeypadFullyOpen())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TestDriver::EnterKeypadCode - keypad not fully open"));
+		return false;
+	}
+
+	for (int32 i = 0; i < Code.Len(); i++)
+	{
+		const int32 Digit = static_cast<int32>(Code[i]) - static_cast<int32>('0');
+		if (Digit < 1 || Digit > 9)
+		{
+			UE_LOG(LogTemp, Error, TEXT("TestDriver::EnterKeypadCode - '%c' is not a digit 1-9"), Code[i]);
+			return false;
+		}
+		// Cell index = digit - 1 (cell 0 == "1"). The last press submits + closes.
+		if (!KP->SetSelectedDigitForTest(Digit - 1))
+		{
+			return false;
+		}
+		KP->PressSelectedDigit();
+	}
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::EnterKeypadCode - entered '%s'"), *Code);
+	return true;
 }

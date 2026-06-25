@@ -30,7 +30,6 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::FastForwardSenecaSmoking(this);
 	E2ESteps::SenecaSmokingDialogue(this);
-	E2ESteps::SenecaHallwayDialogue(this);
 	E2ESteps::OpenBathroomDoor(this);
 	E2ESteps::EnterStall(this);
 	E2ESteps::ExitBathroom(this);

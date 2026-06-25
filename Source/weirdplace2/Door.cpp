@@ -1,6 +1,7 @@
 #include "Door.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
+#include "KeypadUIComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TimelineComponent.h"
 #include "Curves/CurveFloat.h"
@@ -69,6 +70,24 @@ void ADoor::Interact_Implementation()
 				StartAutoCloseTracking();
 			}
 		}
+		else if (bUsesKeypadLock)
+		{
+			// Pop the world-space keypad; the door opens on the correct code.
+			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
+			{
+				if (UKeypadUIComponent* Keypad = MyCharacter->GetKeypadUIComponent())
+				{
+					Keypad->OpenForCode(KeypadCode.Len(),
+						FKeypadSubmitDelegate::CreateUObject(this, &ADoor::OnKeypadCodeSubmitted));
+					return;
+				}
+			}
+			// No keypad component available — fall back to the locked sound.
+			if (LockedDoorSound)
+			{
+				UGameplayStatics::PlaySound2D(this, LockedDoorSound);
+			}
+		}
 		else
 		{
 			// Play locked sound
@@ -100,6 +119,29 @@ void ADoor::Interact_Implementation()
 			StartAutoCloseTracking();
 		}
 	}
+}
+
+bool ADoor::OnKeypadCodeSubmitted(const FString& EnteredCode)
+{
+	if (EnteredCode != KeypadCode)
+	{
+		return false; // wrong code — keypad plays deny + closes
+	}
+
+	// Correct: unlock + open (same as the keyed unlock path in Interact).
+	IsLocked = false;
+	Opened = true;
+	UpdateOpenDirection();
+	if (DoorOpenSound)
+	{
+		UGameplayStatics::PlaySound2D(this, DoorOpenSound);
+	}
+	if (DoorTimeline)
+	{
+		DoorTimeline->PlayFromStart();
+	}
+	StartAutoCloseTracking();
+	return true; // keypad closes on accept
 }
 
 void ADoor::CloseDoor()

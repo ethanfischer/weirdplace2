@@ -2996,6 +2996,71 @@ private:
 // until the door timeline finishes.
 // =======================================================================
 
+// =======================================================================
+// FTD_WaitForKeypadOpen — wait until the code-entry keypad is fully open.
+// =======================================================================
+
+class FTD_WaitForKeypadOpen : public FTD_Base
+{
+public:
+	FTD_WaitForKeypadOpen(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Waiting for keypad to open"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForKeypadOpen: no driver")); return true; }
+		if (Driver->IsKeypadFullyOpen())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForKeypadOpen: keypad never opened (timeout)"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_EnterKeypadCode — enter a numeric code (digits 1-9) on the open
+// keypad. Submits on the last digit; the door opens on a correct code.
+// =======================================================================
+
+class FTD_EnterKeypadCode : public FTD_Base
+{
+public:
+	FTD_EnterKeypadCode(FAutomationTestBase* InTest, FString InCode)
+		: FTD_Base(InTest), Code(MoveTemp(InCode)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Entering keypad code '%s'"), *Code);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_EnterKeypadCode: no driver")); return true; }
+		if (!Driver->EnterKeypadCode(Code))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_EnterKeypadCode: failed to enter '%s'"), *Code));
+		}
+		return true;
+	}
+private:
+	FString Code;
+};
+
+// =======================================================================
+// FTD_WaitForDoorOpen
+// =======================================================================
+
 class FTD_WaitForDoorOpen : public FTD_Base
 {
 public:

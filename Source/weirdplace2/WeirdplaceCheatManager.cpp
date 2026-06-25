@@ -6,6 +6,8 @@
 #include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
 #include "Seneca.h"
+#include "Door.h"
+#include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Engine/Engine.h"
@@ -68,6 +70,55 @@ void UWeirdplaceCheatManager::SkipToSmoking()
 		return;
 	}
 	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
+}
+
+void UWeirdplaceCheatManager::SkipToKeypad()
+{
+	APlayerController* PC = GetOuterAPlayerController();
+	APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	UWorld* World = PC ? PC->GetWorld() : nullptr;
+	if (!Pawn || !World)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToKeypad - no player pawn/world"));
+		return;
+	}
+
+	// Find the first keypad-locked door (the employee bathroom).
+	TArray<AActor*> Doors;
+	UGameplayStatics::GetAllActorsOfClass(World, ADoor::StaticClass(), Doors);
+	ADoor* Keypad = nullptr;
+	for (AActor* A : Doors)
+	{
+		ADoor* D = Cast<ADoor>(A);
+		if (D && D->UsesKeypadLock())
+		{
+			Keypad = D;
+			break;
+		}
+	}
+	if (!Keypad)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToKeypad - no door with bUsesKeypadLock found"));
+		return;
+	}
+
+	// Stand ~150cm out from the door, on whichever side the player is currently on,
+	// at the player's current height, facing the door.
+	const FVector DoorLoc = Keypad->GetActorLocation();
+	const FVector PlayerLoc = Pawn->GetActorLocation();
+	const FVector ThroughAxis = Keypad->GetActorRightVector(); // perpendicular to the panel
+	const float Side = FVector::DotProduct(ThroughAxis, PlayerLoc - DoorLoc) >= 0.0f ? 1.0f : -1.0f;
+
+	FVector Spot = DoorLoc + ThroughAxis * Side * 150.0f;
+	Spot.Z = PlayerLoc.Z; // keep the player's floor height
+
+	const FRotator LookAtDoor = (DoorLoc - Spot).Rotation();
+
+	Pawn->SetActorLocation(Spot, /*bSweep*/ false, nullptr, ETeleportType::TeleportPhysics);
+	PC->SetControlRotation(LookAtDoor);
+
+	UE_LOG(LogTemp, Display, TEXT("SkipToKeypad - teleported in front of keypad door '%s'"),
+		*Keypad->GetActorNameOrLabel());
 }
 
 void UWeirdplaceCheatManager::GiveItem(const FString& Name)

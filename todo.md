@@ -3,8 +3,8 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] make seneca only smoke after interacting with payphone
-    [ ] on second thought, maybe we drop the seneca smoking thing. or at least make it so he appears whereever you look for him. I don't want players getting frustrated running around aimlessly.
+[ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
+Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later

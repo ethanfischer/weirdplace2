@@ -36,6 +36,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
 	bool IsOpen() const { return Opened; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
+	bool UsesKeypadLock() const { return bUsesKeypadLock; }
+
 protected:
 	// Timeline update function - called each tick of the door animation
 	UFUNCTION()
@@ -51,6 +54,10 @@ protected:
 
 	// Shared close logic — used by manual close and auto-close
 	void CloseDoor();
+
+	// Keypad submit callback: returns true (door unlocks + opens; keypad closes)
+	// when EnteredCode matches KeypadCode, false otherwise (keypad denies + closes).
+	bool OnKeypadCodeSubmitted(const FString& EnteredCode);
 
 	// Auto-close timer management
 	void StartAutoCloseTracking();
@@ -80,6 +87,19 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
 	FName KeyName;
+
+	// --- Keypad lock (opt-in) ---
+
+	// When locked and this is set, interacting opens the world-space keypad UI
+	// instead of just playing the locked sound. The door unlocks + opens on the
+	// correct KeypadCode. Leave KeyName empty so HasKey() stays false.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	bool bUsesKeypadLock = false;
+
+	// The 4-digit code (digits 1-9) that opens this door. Keep in sync with the
+	// spoken code on the payphone.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	FString KeypadCode = TEXT("");
 
 	// Curve for door open/close animation (0 to 1 over time)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")

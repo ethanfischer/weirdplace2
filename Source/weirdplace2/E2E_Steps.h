@@ -187,22 +187,17 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
-	void SenecaHallwayDialogue(FAutomationTestBase* T)
-	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaHallway")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(T, ESenecaState::AtEmployeeBathroom));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(T, ESenecaState::Done));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_SenecaDone")));
-	}
-
 	void OpenBathroomDoor(FAutomationTestBase* T)
 	{
+		// Employee bathroom now opens via the phone-code keypad (Seneca no longer
+		// unlocks it). Interact pops the keypad; enter the 4-digit code "4729" by
+		// selecting each digit cell (digit N lives at cell N-1) and pressing Interact.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("4729")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 	}

@@ -17,6 +17,7 @@ class ATestWaypoint;
 class UInputAction;
 class UInventoryComponent;
 class UInventoryUIComponent;
+class UKeypadUIComponent;
 
 // Verb layer for E2E tests. Provides positioning, camera aiming, input
 // simulation, and state queries. All gameplay actions go through the real
@@ -200,6 +201,15 @@ public:
 	int32 GetScrollOffset() const;
 	int32 GetVisibleColumns() const;
 
+	// --- Keypad (code-entry on locked doors) ---
+
+	bool IsKeypadFullyOpen() const;
+
+	// Enter a full numeric code (digits 1-9) on the open keypad: selects each
+	// digit's cell and presses it directly (bypasses Enhanced Input, which 5.7
+	// double-fires/consumes for simulated presses). Submits on the last digit.
+	bool EnterKeypadCode(const FString& Code);
+
 	// --- Movie helpers ---
 
 	// Returns the next uncollected MovieBox in the level, or nullptr.
@@ -322,6 +332,7 @@ public:
 private:
 	UInventoryComponent* GetInventoryComponent() const;
 	UInventoryUIComponent* GetInventoryUIComponent() const;
+	UKeypadUIComponent* GetKeypadUIComponent() const;
 
 	TSet<TWeakObjectPtr<AMovieBox>> CollectedMovies;
 	TWeakObjectPtr<AMovieBox> LastFoundMovie;

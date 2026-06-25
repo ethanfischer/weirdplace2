@@ -40,6 +40,12 @@ void APayPhone::BeginPlay()
 	{
 		DialtoneSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_dialtone.phone_dialtone"));
 	}
+	// Placeholder for the spoken code (low voices stand in until the real "4-7-2-9"
+	// recording is dropped in). Plays once over the dialtone.
+	if (!CodeSound)
+	{
+		CodeSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/LowVoiceSoundCue.LowVoiceSoundCue"));
+	}
 	if (!HangupSound)
 	{
 		HangupSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_hangup.phone_hangup"));
@@ -74,6 +80,12 @@ void APayPhone::BeginPlay()
 		DialtoneAudio->bAutoActivate = false;
 		DialtoneAudio->SetSound(DialtoneSound);
 		DialtoneAudio->RegisterComponent();
+
+		CodeAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneCodeAudio"));
+		CodeAudio->SetupAttachment(Root);
+		CodeAudio->bAutoActivate = false;
+		CodeAudio->SetSound(CodeSound);
+		CodeAudio->RegisterComponent();
 
 		HangupAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneHangupAudio"));
 		HangupAudio->SetupAttachment(Root);
@@ -210,7 +222,12 @@ void APayPhone::StartDialtone()
 	{
 		VoiceAudio->Play();
 	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices over it)"), *GetName());
+	// Spoken bathroom code bleeds over the dialtone (one-shot).
+	if (CodeAudio)
+	{
+		CodeAudio->Play();
+	}
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices + code over it)"), *GetName());
 }
 
 void APayPhone::HangUp()
@@ -237,6 +254,10 @@ void APayPhone::HangUp()
 	if (VoiceAudio)
 	{
 		VoiceAudio->Stop();
+	}
+	if (CodeAudio)
+	{
+		CodeAudio->Stop();
 	}
 	if (PickupAudio)
 	{

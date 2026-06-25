@@ -54,6 +54,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* DialtoneSound = nullptr;
 
+	// Spoken 4-digit bathroom code, played over the dialtone. Placeholder until the
+	// real recording is dropped in; keep the spoken digits in sync with the keypad
+	// door's KeypadCode.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	USoundBase* CodeSound = nullptr;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* HangupSound = nullptr;
 
@@ -84,6 +90,9 @@ private:
 
 	UPROPERTY()
 	UAudioComponent* DialtoneAudio = nullptr;
+
+	UPROPERTY()
+	UAudioComponent* CodeAudio = nullptr;
 
 	UPROPERTY()
 	UAudioComponent* HangupAudio = nullptr;
