@@ -6,6 +6,7 @@
 [ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
 Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
 [ ] Chosen movies show up as poster on telephone pole, in bathroom
+[ ] dial tone should stop when code starts and then busy sound
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later
@@ -54,4 +55,6 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 [ ] There is no dying. only waking up in the other world
     [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
         [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
+[ ] death state at beginning of game so player feels like there's stakes
+    [ ] maybe rick asks if he should turn off his headlights. If you say yes, he crashes
     

@@ -131,6 +131,10 @@ public:
 	// Hang up the pay-phone directly (mirror of TriggerPayPhoneHangUp).
 	void TriggerPayPhoneHangUp();
 
+	// Mark the spoken code as already heard, so the next pickup is a mundane
+	// "dialtone only" call (persistent looping dialtone, no first-call cut/code).
+	void MarkPayPhoneCodeSpoken();
+
 	// --- Bathroom-door (item 1) test helpers ---
 
 	// Number of times the OutsideBathroomDoor has played its locked-rattle

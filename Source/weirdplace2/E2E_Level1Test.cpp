@@ -1490,13 +1490,20 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
 
+	// Mark the code already heard so this is a mundane "dialtone only" call — the
+	// persistent looping dialtone. (On a FIRST call the dialtone deliberately cuts
+	// out ~1.5s in, before the spoken code; that transient sequence isn't what this
+	// pickup/hangup/repeat mechanic test is about.)
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_MarkPayPhoneCodeSpoken(this));
+
 	// Pick up: pickup one-shot plays immediately, and we're now off the hook
 	// so a re-pickup is blocked.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
 
-	// After the 0.52s pickup, the dialtone loop has started.
+	// After the 0.52s pickup, the dialtone loop has started — and on a mundane
+	// call it keeps looping (no cut), so the assert is timing-robust.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, true));
 

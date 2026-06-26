@@ -313,6 +313,17 @@ void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 	Phone->HangUp();
 }
 
+void UTestDriverSubsystem::MarkPayPhoneCodeSpoken()
+{
+	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::MarkPayPhoneCodeSpoken - no APayPhone in level"));
+		return;
+	}
+	Phone->MarkCodeSpokenForTest();
+}
+
 int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
 {
 	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)

@@ -2283,6 +2283,24 @@ public:
 	}
 };
 
+// Mark the pay-phone's spoken code as already heard, so the next pickup is a
+// mundane "dialtone only" call (persistent looping dialtone, no cut/code/busy).
+class FTD_MarkPayPhoneCodeSpoken : public FTD_Base
+{
+public:
+	FTD_MarkPayPhoneCodeSpoken(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Marking pay-phone code already spoken"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_MarkPayPhoneCodeSpoken: no driver")); return true; }
+		Driver->MarkPayPhoneCodeSpoken();
+		return true;
+	}
+};
+
 // Assert whether the pay-phone dialtone loop is playing.
 class FTD_AssertPayPhoneDialtone : public FTD_Base
 {
