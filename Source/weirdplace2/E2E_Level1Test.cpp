@@ -2,6 +2,397 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
+#include "UltraDynamicWeatherController.h"
+#include "Components/AudioComponent.h"
+#include "EngineUtils.h"
+#include "Sound/AmbientSound.h"
+#include "UObject/UnrealType.h"
+
+// =======================================================================
+// Storm-sky helpers + latent commands — drive and read the post-KeyBroke
+// Overall-Intensity fade on AUltraDynamicWeatherController / Ultra_Dynamic_Sky.
+// =======================================================================
+
+namespace StormSkyTest
+{
+	inline AUltraDynamicWeatherController* FindController(UWorld* World)
+	{
+		if (!World) { return nullptr; }
+		for (TActorIterator<AUltraDynamicWeatherController> It(World); It; ++It)
+		{
+			return *It;
+		}
+		return nullptr;
+	}
+
+	// Read a floating-point property (literal-space FName) off the first actor whose
+	// class name contains Needle, via the same FNumericProperty path the controller
+	// writes. False if no matching actor / no property.
+	inline bool ReadActorFloat(UWorld* World, const TCHAR* Needle, const TCHAR* PropName, float& OutValue)
+	{
+		if (!World) { return false; }
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (!It->GetClass()->GetName().Contains(Needle))
+			{
+				continue;
+			}
+			FNumericProperty* Num = CastField<FNumericProperty>(It->GetClass()->FindPropertyByName(FName(PropName)));
+			if (Num && Num->IsFloatingPoint())
+			{
+				OutValue = static_cast<float>(Num->GetFloatingPointPropertyValue(Num->ContainerPtrToValuePtr<void>(*It)));
+				return true;
+			}
+		}
+		return false;
+	}
+
+	inline bool ReadSkyIntensity(UWorld* World, float& OutValue)
+	{
+		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Sky"), TEXT("Overall Intensity"), OutValue);
+	}
+
+	inline bool ReadWeatherWind(UWorld* World, float& OutValue)
+	{
+		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Weather"), TEXT("Wind Intensity"), OutValue);
+	}
+
+	// Find the placed "Ambient_GlobalWind" AmbientSound by editor label (available in
+	// the editor-context E2E even though it isn't at shipping runtime).
+	inline AAmbientSound* FindAmbientGlobalWind(UWorld* World)
+	{
+		if (!World) { return nullptr; }
+		for (TActorIterator<AAmbientSound> It(World); It; ++It)
+		{
+			if (It->GetActorLabel() == TEXT("Ambient_GlobalWind"))
+			{
+				return *It;
+			}
+		}
+		return nullptr;
+	}
+
+	inline bool ReadAmbientWindVolume(UWorld* World, float& OutValue)
+	{
+		AAmbientSound* Wind = FindAmbientGlobalWind(World);
+		UAudioComponent* AudioComp = Wind ? Wind->GetAudioComponent() : nullptr;
+		if (!AudioComp) { return false; }
+		OutValue = AudioComp->VolumeMultiplier;
+		return true;
+	}
+
+	// Read the weather actor's "Wind Intensity - Manual Override" bool.
+	inline bool ReadWeatherWindOverride(UWorld* World, bool& OutValue)
+	{
+		if (!World) { return false; }
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (!It->GetClass()->GetName().Contains(TEXT("Ultra_Dynamic_Weather")))
+			{
+				continue;
+			}
+			FBoolProperty* B = CastField<FBoolProperty>(It->GetClass()->FindPropertyByName(FName(TEXT("Wind Intensity - Manual Override"))));
+			if (B)
+			{
+				OutValue = B->GetPropertyValue_InContainer(*It);
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+// Shorten the fade and pin the target so the test doesn't sit through the full
+// 2-minute default. Runs before KeyBroke so BeginFade picks up the new duration.
+class FTD_ConfigureStormSkyFade : public FTD_Base
+{
+public:
+	FTD_ConfigureStormSkyFade(FAutomationTestBase* InTest, float InDuration, float InTargetIntensity, float InStartWind, float InTargetWind, float InTargetVolume)
+		: FTD_Base(InTest), Duration(InDuration), TargetIntensity(InTargetIntensity), StartWind(InStartWind), TargetWind(InTargetWind), TargetVolume(InTargetVolume) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Configuring storm transition: %.2fs, intensity -> %.2f, wind %.1f -> %.1f, volume -> %.2f"), Duration, TargetIntensity, StartWind, TargetWind, TargetVolume);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		AUltraDynamicWeatherController* Ctrl = StormSkyTest::FindController(E2ELatent::GetPIEWorld());
+		if (!Ctrl)
+		{
+			Test->AddError(TEXT("FTD_ConfigureStormSkyFade: no AUltraDynamicWeatherController in the level"));
+			return true;
+		}
+		Ctrl->FadeDuration = Duration;
+		Ctrl->TargetOverallIntensity = TargetIntensity;
+		Ctrl->StartWindIntensity = StartWind;
+		Ctrl->TargetWindIntensity = TargetWind;
+		Ctrl->TargetWindVolume = TargetVolume;
+		// Wire the wind ambient (designer-assigned in real play; found by label here).
+		Ctrl->AmbientGlobalWind = StormSkyTest::FindAmbientGlobalWind(E2ELatent::GetPIEWorld());
+		if (!Ctrl->AmbientGlobalWind)
+		{
+			Test->AddError(TEXT("FTD_ConfigureStormSkyFade: no 'Ambient_GlobalWind' AmbientSound in the level"));
+		}
+		return true;
+	}
+private:
+	float Duration;
+	float TargetIntensity;
+	float StartWind;
+	float TargetWind;
+	float TargetVolume;
+};
+
+// One-shot: assert the wind ambient's AudioComponent VolumeMultiplier is within Tol.
+class FTD_AssertAmbientWindVolumeNear : public FTD_Base
+{
+public:
+	FTD_AssertAmbientWindVolumeNear(FAutomationTestBase* InTest, float InExpected, float InTolerance)
+		: FTD_Base(InTest), Expected(InExpected), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting Ambient_GlobalWind volume ~= %.2f (+/- %.2f)"), Expected, Tolerance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (!StormSkyTest::ReadAmbientWindVolume(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertAmbientWindVolumeNear: could not read Ambient_GlobalWind volume"));
+			return true;
+		}
+		if (FMath::Abs(Value - Expected) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientWindVolumeNear: volume is %.3f, expected %.3f (+/- %.2f)"),
+				Value, Expected, Tolerance));
+		}
+		return true;
+	}
+private:
+	float Expected;
+	float Tolerance;
+};
+
+// One-shot: assert the weather actor's "Wind Intensity - Manual Override" bool.
+class FTD_AssertWeatherWindOverride : public FTD_Base
+{
+public:
+	FTD_AssertWeatherWindOverride(FAutomationTestBase* InTest, bool InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting wind Manual Override == %s"), Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		bool Value = false;
+		if (!StormSkyTest::ReadWeatherWindOverride(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertWeatherWindOverride: could not read 'Wind Intensity - Manual Override'"));
+			return true;
+		}
+		if (Value != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherWindOverride: override is %s, expected %s"),
+				Value ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	bool Expected;
+};
+
+// One-shot: assert the weather actor's Wind Intensity is within Tolerance of Expected.
+class FTD_AssertWeatherWindNear : public FTD_Base
+{
+public:
+	FTD_AssertWeatherWindNear(FAutomationTestBase* InTest, float InExpected, float InTolerance)
+		: FTD_Base(InTest), Expected(InExpected), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting weather Wind Intensity ~= %.1f (+/- %.1f)"), Expected, Tolerance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (!StormSkyTest::ReadWeatherWind(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertWeatherWindNear: could not read 'Wind Intensity' on a weather actor"));
+			return true;
+		}
+		if (FMath::Abs(Value - Expected) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherWindNear: Wind Intensity is %.2f, expected %.2f (+/- %.1f)"),
+				Value, Expected, Tolerance));
+		}
+		return true;
+	}
+private:
+	float Expected;
+	float Tolerance;
+};
+
+// One-shot: assert the sky's Overall Intensity is within Tolerance of Expected.
+class FTD_AssertSkyIntensityNear : public FTD_Base
+{
+public:
+	FTD_AssertSkyIntensityNear(FAutomationTestBase* InTest, float InExpected, float InTolerance)
+		: FTD_Base(InTest), Expected(InExpected), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting sky Overall Intensity ~= %.2f (+/- %.2f)"), Expected, Tolerance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (!StormSkyTest::ReadSkyIntensity(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertSkyIntensityNear: could not read 'Overall Intensity' on a sky actor"));
+			return true;
+		}
+		if (FMath::Abs(Value - Expected) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertSkyIntensityNear: Overall Intensity is %.3f, expected %.3f (+/- %.2f)"),
+				Value, Expected, Tolerance));
+		}
+		return true;
+	}
+private:
+	float Expected;
+	float Tolerance;
+};
+
+// Poll until the weather actor's Wind Intensity settles below Below (UDS seeds it
+// with a huge sentinel until its first update tick runs). Logs the settled value.
+class FTD_WaitForWeatherWindSettled : public FTD_Base
+{
+public:
+	FTD_WaitForWeatherWindSettled(FAutomationTestBase* InTest, float InBelow, double InTimeoutSeconds)
+		: FTD_Base(InTest), Below(InBelow), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for weather Wind Intensity to settle below %.1f"), Below);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (StormSkyTest::ReadWeatherWind(E2ELatent::GetPIEWorld(), Value) && Value <= Below)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForWeatherWindSettled: settled at Wind Intensity %.2f"), Value);
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForWeatherWindSettled: Wind Intensity never settled below %.1f within %.1fs (last %.2f)"),
+				Below, Timeout, Value));
+			return true;
+		}
+		return false;
+	}
+private:
+	float Below;
+	double Timeout;
+};
+
+// Poll until the sky's Overall Intensity drops to/below Threshold, erroring on
+// timeout. Proves the fade is actually driving the value down over time.
+class FTD_WaitForSkyIntensityAtMost : public FTD_Base
+{
+public:
+	FTD_WaitForSkyIntensityAtMost(FAutomationTestBase* InTest, float InThreshold, double InTimeoutSeconds)
+		: FTD_Base(InTest), Threshold(InThreshold), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for sky Overall Intensity <= %.2f"), Threshold);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (StormSkyTest::ReadSkyIntensity(E2ELatent::GetPIEWorld(), Value) && Value <= Threshold)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForSkyIntensityAtMost: Overall Intensity never reached <= %.2f within %.1fs (last %.3f)"),
+				Threshold, Timeout, Value));
+			return true;
+		}
+		return false;
+	}
+private:
+	float Threshold;
+	double Timeout;
+};
+
+// Diagnostic: log every property on the weather actor whose name contains "Wind",
+// with its live runtime value, so we can find the real wind knob (the Details-panel
+// "Wind Intensity" sits at a 1e8 sentinel at runtime).
+class FTD_DumpWeatherWindProps : public FTD_Base
+{
+public:
+	FTD_DumpWeatherWindProps(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Dumping weather wind properties"); }
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		AActor* Weather = nullptr;
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->GetClass()->GetName().Contains(TEXT("Ultra_Dynamic_Weather"))) { Weather = *It; break; }
+		}
+		if (!Weather) { Test->AddError(TEXT("FTD_DumpWeatherWindProps: no weather actor")); return true; }
+
+		UE_LOG(LogTemp, Warning, TEXT("=== WIND PROP DUMP on %s ==="), *Weather->GetClass()->GetName());
+		for (TFieldIterator<FProperty> P(Weather->GetClass()); P; ++P)
+		{
+			const FString N = P->GetName();
+			if (!N.Contains(TEXT("Wind"))) { continue; }
+			if (FNumericProperty* Num = CastField<FNumericProperty>(*P))
+			{
+				if (Num->IsFloatingPoint())
+				{
+					const double V = Num->GetFloatingPointPropertyValue(Num->ContainerPtrToValuePtr<void>(Weather));
+					UE_LOG(LogTemp, Warning, TEXT("  [float] '%s' = %.3f"), *N, V);
+					continue;
+				}
+			}
+			UE_LOG(LogTemp, Warning, TEXT("  [%s] '%s'"), *P->GetClass()->GetName(), *N);
+		}
+		UE_LOG(LogTemp, Warning, TEXT("=== END WIND PROP DUMP ==="));
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_WindPropDump,
+	"Weirdplace2.E2E.Level1.Diagnostic.WindPropDump",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_WindPropDump::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("WindPropDump")
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(5.0f)); // let UDW run its update ticks
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_DumpWeatherWindProps(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 // =======================================================================
 // Full happy-path test
 // =======================================================================
@@ -35,6 +426,47 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::ExitBathroom(this);
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BrokenKey")));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// StormSkyFade — the KeyBroke beat fades Ultra_Dynamic_Sky's Overall Intensity
+// from ~2.0 down to ~0.25, darkening the scene into a storm mood.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StormSkyFade,
+	"Weirdplace2.E2E.Level1.Regression.StormSkyFade",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StormSkyFade::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StormSkyFade")
+
+	// Compress the 2-minute default transition to 2s so the test is quick. Wind ramps
+	// 100 -> 250 and the wind ambient swells -> 3.0 alongside the intensity fade 2.0 -> 0.25.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormSkyFade(this, /*Duration*/ 2.0f, /*Intensity*/ 0.25f, /*StartWind*/ 100.0f, /*TargetWind*/ 250.0f, /*TargetVolume*/ 3.0f));
+
+	// Before the beat: warning unseen, sky at its authored brightness (~2.0), wind
+	// ambient at its base volume (~1.0). (We can't assert the pre-storm Wind Intensity:
+	// this level leaves Manual Override on and UDW parks the value at a ~1e8 sentinel.)
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSkyIntensityNear(this, 2.0f, 0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientWindVolumeNear(this, 1.0f, 0.2f));
+
+	// See the warning — the controller fades the sky down, ramps the wind up (engaging
+	// UDW's manual wind override), and swells the wind ambient volume.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	// Wait until the fade is essentially complete (~99%) so wind/volume have landed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSkyIntensityAtMost(this, 0.26f, 8.0));
+
+	// Settled at the storm targets (sky waited above; all ramp over the same window).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSkyIntensityNear(this, 0.25f, 0.1f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindOverride(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindNear(this, 250.0f, 20.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientWindVolumeNear(this, 3.0f, 0.2f));
+
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }
