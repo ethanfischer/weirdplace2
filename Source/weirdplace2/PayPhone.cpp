@@ -24,11 +24,11 @@ void APayPhone::BeginPlay()
 	// standing in for the static bed. Real audio swapped in later.
 	if (!VoiceSound)
 	{
-		VoiceSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/LowVoiceSoundCue.LowVoiceSoundCue"));
+		// VoiceSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/LowVoiceSoundCue.LowVoiceSoundCue"));
 	}
 	if (!StaticSound)
 	{
-		StaticSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/WindInside.WindInside"));
+		// StaticSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/WindInside.WindInside"));
 	}
 
 	// Receiver SFX: pickup (one-shot) -> dialtone (looping) -> hangup (one-shot).

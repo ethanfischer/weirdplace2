@@ -2,6 +2,7 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "KeypadUIComponent.h"
+#include "StorySubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TimelineComponent.h"
 #include "Curves/CurveFloat.h"
@@ -77,7 +78,7 @@ void ADoor::Interact_Implementation()
 			{
 				if (UKeypadUIComponent* Keypad = MyCharacter->GetKeypadUIComponent())
 				{
-					Keypad->OpenForCode(KeypadCode.Len(),
+					Keypad->OpenForCode(KeypadCodeLength,
 						FKeypadSubmitDelegate::CreateUObject(this, &ADoor::OnKeypadCodeSubmitted));
 					return;
 				}
@@ -121,14 +122,17 @@ void ADoor::Interact_Implementation()
 	}
 }
 
-bool ADoor::OnKeypadCodeSubmitted(const FString& EnteredCode)
+bool ADoor::OnKeypadCodeSubmitted(const FString& /*EnteredCode*/)
 {
-	if (EnteredCode != KeypadCode)
+	// The code is an illusion — any full-length entry is accepted, but only after
+	// the player has picked up the payphone (where the "code" is spoken).
+	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
+	if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone))
 	{
-		return false; // wrong code — keypad plays deny + closes
+		return false; // keypad buzzes (DenySound) + clears, stays locked
 	}
 
-	// Correct: unlock + open (same as the keyed unlock path in Interact).
+	// Accept: unlock + open (same as the keyed unlock path in Interact).
 	IsLocked = false;
 	Opened = true;
 	UpdateOpenDirection();

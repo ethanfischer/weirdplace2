@@ -55,8 +55,9 @@ protected:
 	// Shared close logic — used by manual close and auto-close
 	void CloseDoor();
 
-	// Keypad submit callback: returns true (door unlocks + opens; keypad closes)
-	// when EnteredCode matches KeypadCode, false otherwise (keypad denies + closes).
+	// Keypad submit callback: any full-length entry unlocks + opens the door (the
+	// code is an illusion), but only after the player has used the payphone;
+	// otherwise returns false (keypad denies + clears).
 	bool OnKeypadCodeSubmitted(const FString& EnteredCode);
 
 	// Auto-close timer management
@@ -91,15 +92,16 @@ protected:
 	// --- Keypad lock (opt-in) ---
 
 	// When locked and this is set, interacting opens the world-space keypad UI
-	// instead of just playing the locked sound. The door unlocks + opens on the
-	// correct KeypadCode. Leave KeyName empty so HasKey() stays false.
+	// instead of just playing the locked sound. Leave KeyName empty so HasKey()
+	// stays false.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
 	bool bUsesKeypadLock = false;
 
-	// The 4-digit code (digits 1-9) that opens this door. Keep in sync with the
-	// spoken code on the payphone.
+	// Employee-bathroom keypad is a fake lock: ANY entry of this length opens the
+	// door, but only once the player has used the payphone (where the "code" is
+	// spoken). The digits are never checked.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
-	FString KeypadCode = TEXT("");
+	int32 KeypadCodeLength = 4;
 
 	// Curve for door open/close animation (0 to 1 over time)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
