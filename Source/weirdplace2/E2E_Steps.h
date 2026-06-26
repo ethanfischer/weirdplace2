@@ -190,7 +190,8 @@ namespace E2ESteps
 	void OpenBathroomDoor(FAutomationTestBase* T)
 	{
 		// Employee bathroom now opens via the phone-code keypad (Seneca no longer
-		// unlocks it). Interact pops the keypad; enter the 4-digit code "4729" by
+		// unlocks it). The lock accepts almost any 4-digit entry, but it must contain
+		// an 8 and not be a blocked "obvious" code — "4289" qualifies. Enter it by
 		// selecting each digit cell (digit N lives at cell N-1) and pressing Interact.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
@@ -198,10 +199,10 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
 		// Enter the first two digits to capture the fill row (now above the grid), then
-		// finish the code "4729" to open the door.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("47")));
+		// finish the code "4289" to open the door.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("42")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19b_KeypadPartial")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("29")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("89")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 	}

@@ -3100,6 +3100,97 @@ private:
 };
 
 // =======================================================================
+// FTD_AssertDoorClosed — assert a door by label is NOT open (a rejected
+// keypad entry must leave it shut). Immediate one-shot check.
+// =======================================================================
+
+class FTD_AssertDoorClosed : public FTD_Base
+{
+public:
+	FTD_AssertDoorClosed(FAutomationTestBase* InTest, FString InLabel)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting door '%s' is closed"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoorClosed: no driver")); return true; }
+		ADoor* Door = Cast<ADoor>(Driver->FindActorByLabel(Label));
+		if (!Door)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoorClosed: no ADoor with label '%s'"), *Label));
+			return true;
+		}
+		if (Door->IsOpen())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoorClosed: '%s' is OPEN but should be locked"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+};
+
+// =======================================================================
+// FTD_AssertKeypadOpen — assert the keypad is still fully open (a rejected
+// entry buzzes + clears but keeps the pad up).
+// =======================================================================
+
+class FTD_AssertKeypadOpen : public FTD_Base
+{
+public:
+	FTD_AssertKeypadOpen(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting keypad still open"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertKeypadOpen: no driver")); return true; }
+		if (!Driver->IsKeypadFullyOpen())
+		{
+			Test->AddError(TEXT("FTD_AssertKeypadOpen: keypad is not open after a rejected code"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AssertKeypadDenyCount — assert the cumulative wrong-code buzz count
+// equals the expected value (guards that a bad code was actually rejected).
+// =======================================================================
+
+class FTD_AssertKeypadDenyCount : public FTD_Base
+{
+public:
+	FTD_AssertKeypadDenyCount(FAutomationTestBase* InTest, int32 InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting keypad deny count == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertKeypadDenyCount: no driver")); return true; }
+		const int32 Actual = Driver->GetKeypadDenySoundCount();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertKeypadDenyCount: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
+};
+
+// =======================================================================
 // FTD_LerpTo — smoothly noclip the player from their current position
 // to a waypoint over a given duration. Collision and the movement
 // component are disabled for the move so the player passes through walls.

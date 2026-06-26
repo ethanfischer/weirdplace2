@@ -21,6 +21,14 @@ ADoor::ADoor()
 
 	// Create timeline component
 	DoorTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("DoorTimeline"));
+
+	// Obvious / cheeky codes that are rejected even though they contain an 8 or
+	// would otherwise pass. Editable per-instance in the Details panel.
+	BlockedKeypadCodes = {
+		TEXT("1111"), TEXT("2222"), TEXT("3333"), TEXT("4444"), TEXT("5555"),
+		TEXT("6666"), TEXT("7777"), TEXT("8888"), TEXT("9999"),
+		TEXT("1234"), TEXT("6969"),
+	};
 }
 
 void ADoor::BeginPlay()
@@ -122,12 +130,26 @@ void ADoor::Interact_Implementation()
 	}
 }
 
-bool ADoor::OnKeypadCodeSubmitted(const FString& /*EnteredCode*/)
+bool ADoor::IsKeypadCodeAccepted(const FString& Code) const
 {
-	// The code is an illusion — any full-length entry is accepted, but only after
-	// the player has picked up the payphone (where the "code" is spoken).
+	if (!RequiredKeypadDigit.IsEmpty() && !Code.Contains(RequiredKeypadDigit))
+	{
+		return false; // missing the required digit (e.g. an 8)
+	}
+	if (BlockedKeypadCodes.Contains(Code))
+	{
+		return false; // too obvious / blocked
+	}
+	return true;
+}
+
+bool ADoor::OnKeypadCodeSubmitted(const FString& EnteredCode)
+{
+	// The code is mostly an illusion — almost any full-length entry is accepted,
+	// but only after the player has picked up the payphone (where the "code" is
+	// spoken), and only if it passes the digit/blocklist rules.
 	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone))
+	if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone) || !IsKeypadCodeAccepted(EnteredCode))
 	{
 		return false; // keypad buzzes (DenySound) + clears, stays locked
 	}

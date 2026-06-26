@@ -121,6 +121,7 @@ void APayPhone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().ClearTimer(DialtoneStartTimer);
+			World->GetTimerManager().ClearTimer(CodeSpeechTimer);
 		}
 		ReleasePlayer();
 		bOffHook = false;
@@ -222,12 +223,31 @@ void APayPhone::StartDialtone()
 	{
 		VoiceAudio->Play();
 	}
-	// Spoken bathroom code bleeds over the dialtone (one-shot).
+	// The spoken code bleeds over the dialtone exactly once for the whole game,
+	// CodeSpeechDelay seconds in. If it's already been heard, never replay it.
+	if (!bCodeSpoken && CodeAudio)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(CodeSpeechTimer, this, &APayPhone::PlayCodeOnce, FMath::Max(0.01f, CodeSpeechDelay), false);
+		}
+	}
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices; code in %.2fs, spoken=%d)"),
+		*GetName(), CodeSpeechDelay, bCodeSpoken ? 1 : 0);
+}
+
+void APayPhone::PlayCodeOnce()
+{
+	if (!bOffHook)
+	{
+		return; // hung up before the code got a chance to play — leave it for next call
+	}
 	if (CodeAudio)
 	{
 		CodeAudio->Play();
 	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices + code over it)"), *GetName());
+	bCodeSpoken = true;
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: spoke the bathroom code (once)"), *GetName());
 }
 
 void APayPhone::HangUp()
@@ -237,10 +257,12 @@ void APayPhone::HangUp()
 		return;
 	}
 
-	// Covers hanging up during the pickup, before the dialtone timer fires.
+	// Covers hanging up during the pickup, before the dialtone timer fires, and
+	// before the code-speech timer fires (so an interrupted code plays next call).
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(DialtoneStartTimer);
+		World->GetTimerManager().ClearTimer(CodeSpeechTimer);
 	}
 
 	if (DialtoneAudio)

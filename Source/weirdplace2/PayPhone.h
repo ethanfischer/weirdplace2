@@ -54,11 +54,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* DialtoneSound = nullptr;
 
-	// Spoken 4-digit bathroom code, played over the dialtone. Placeholder until the
-	// real recording is dropped in; keep the spoken digits in sync with the keypad
-	// door's KeypadCode.
+	// Spoken bathroom code, played over the dialtone ONCE for the whole game (the
+	// first time the player gets far enough into a call), after CodeSpeechDelay.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* CodeSound = nullptr;
+
+	// Seconds after the dialtone begins before the spoken code plays. Editor-tuned.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	float CodeSpeechDelay = 3.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* HangupSound = nullptr;
@@ -74,6 +77,10 @@ private:
 	// Timer callback: start the dialtone loop + static/voices once the pickup
 	// one-shot has finished playing.
 	void StartDialtone();
+
+	// Timer callback (CodeSpeechDelay after the dialtone starts): play the spoken
+	// code, but only once per game. No-op if the player already hung up.
+	void PlayCodeOnce();
 
 	// Release the player's movement and remove the "Exit Interaction" binding.
 	// Shared by HangUp and EndPlay (mid-call teardown).
@@ -100,6 +107,10 @@ private:
 	// True while the receiver is up (between pickup and hang up).
 	bool bOffHook = false;
 
+	// The spoken code plays once for the whole game; latched true once it fires.
+	bool bCodeSpoken = false;
+
 	FDelegateHandle FlagChangedHandle;
 	FTimerHandle DialtoneStartTimer;
+	FTimerHandle CodeSpeechTimer;
 };

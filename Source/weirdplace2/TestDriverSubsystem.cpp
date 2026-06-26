@@ -1410,6 +1410,12 @@ bool UTestDriverSubsystem::IsKeypadFullyOpen() const
 	return KP && KP->IsKeypadFullyOpen();
 }
 
+int32 UTestDriverSubsystem::GetKeypadDenySoundCount() const
+{
+	UKeypadUIComponent* KP = GetKeypadUIComponent();
+	return KP ? KP->GetDenySoundPlayCount() : -1;
+}
+
 bool UTestDriverSubsystem::EnterKeypadCode(const FString& Code)
 {
 	UKeypadUIComponent* KP = GetKeypadUIComponent();

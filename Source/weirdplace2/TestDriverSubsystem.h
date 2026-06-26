@@ -205,6 +205,10 @@ public:
 
 	bool IsKeypadFullyOpen() const;
 
+	// Cumulative count of wrong-code buzzes since the keypad component was created.
+	// Rises WrongCodeClearDelay after each rejected submit (see ClearWrongEntry).
+	int32 GetKeypadDenySoundCount() const;
+
 	// Enter a full numeric code (digits 1-9) on the open keypad: selects each
 	// digit's cell and presses it directly (bypasses Enhanced Input, which 5.7
 	// double-fires/consumes for simulated presses). Submits on the last digit.

@@ -504,6 +504,56 @@ bool FE2E_Level1_BathroomDoorTraceRepro::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// BathroomKeypadRules — guards the employee-bathroom keypad's acceptance
+// rules. The lock is mostly an illusion (almost any 4-digit entry opens it
+// once the payphone's been used), but a valid entry MUST contain an 8 and
+// MUST NOT be a blocked "obvious" code. A rejected entry buzzes + clears but
+// keeps the pad up and the door shut.
+//   "4729" — no 8     -> rejected (door locked, deny #1, pad stays open)
+//   "8888" — blocked  -> rejected (door locked, deny #2)
+//   "4289" — valid    -> opens
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_BathroomKeypadRules,
+	"Weirdplace2.E2E.Level1.Regression.BathroomKeypadRules",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("BathroomKeypadRules")
+
+	// The keypad only accepts anything once the player has used the payphone.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("UsedPayPhone"), true));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(this));
+
+	// "4729" has no 8 -> rejected. Wait past WrongCodeClearDelay (0.5s) for the
+	// buzz + entry clear; the door stays locked and the pad stays up.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(this, TEXT("4729")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertKeypadDenyCount(this, 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertKeypadOpen(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, TEXT("BathroomDoor")));
+
+	// "8888" contains 8s but is a blocked obvious code -> rejected.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(this, TEXT("8888")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertKeypadDenyCount(this, 2));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, TEXT("BathroomDoor")));
+
+	// "4289" contains an 8 and isn't blocked -> opens.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(this, TEXT("4289")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, TEXT("BathroomDoor")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // LockSoundDuringKeyInsert — re-entrancy guard regression. A repeated interact
 // fired WHILE the key-break sequence is running (the UE5.7 double-fire input
 // quirk turns one key-insert press into two) must NOT fall into the locked

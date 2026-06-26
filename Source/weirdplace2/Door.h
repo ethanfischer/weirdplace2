@@ -55,10 +55,14 @@ protected:
 	// Shared close logic — used by manual close and auto-close
 	void CloseDoor();
 
-	// Keypad submit callback: any full-length entry unlocks + opens the door (the
-	// code is an illusion), but only after the player has used the payphone;
-	// otherwise returns false (keypad denies + clears).
+	// Keypad submit callback: a full-length entry unlocks + opens the door (the
+	// code is mostly an illusion) when it passes IsKeypadCodeAccepted AND the
+	// player has used the payphone; otherwise returns false (keypad denies + clears).
 	bool OnKeypadCodeSubmitted(const FString& EnteredCode);
+
+	// The "any code works" rules: the entry must contain RequiredKeypadDigit and
+	// must not be one of BlockedKeypadCodes. Length is already enforced by the pad.
+	bool IsKeypadCodeAccepted(const FString& Code) const;
 
 	// Auto-close timer management
 	void StartAutoCloseTracking();
@@ -97,11 +101,21 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
 	bool bUsesKeypadLock = false;
 
-	// Employee-bathroom keypad is a fake lock: ANY entry of this length opens the
-	// door, but only once the player has used the payphone (where the "code" is
-	// spoken). The digits are never checked.
+	// Employee-bathroom keypad is a near-fake lock: almost any entry of this length
+	// opens the door, but only once the player has used the payphone (where the
+	// "code" is spoken), and only if it passes the rules below.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
 	int32 KeypadCodeLength = 4;
+
+	// The entry must contain this digit to be accepted (the one real "rule").
+	// Leave empty to drop the requirement.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	FString RequiredKeypadDigit = TEXT("8");
+
+	// Entries rejected even though they'd otherwise pass — too obvious / cheeky.
+	// Seeded in the constructor; editable per-instance.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	TArray<FString> BlockedKeypadCodes;
 
 	// Curve for door open/close animation (0 to 1 over time)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")

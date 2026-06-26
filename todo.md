@@ -5,6 +5,7 @@
 # Claude Friendly
 [ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
 Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
+[ ] Chosen movies show up as poster on telephone pole, in bathroom
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later
