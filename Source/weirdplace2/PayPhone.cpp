@@ -87,13 +87,6 @@ void APayPhone::BeginPlay()
 		CodeAudio->SetSound(CodeSound);
 		CodeAudio->RegisterComponent();
 
-		// Busy tone (supplied later — BusySound may be null, which plays nothing).
-		BusyAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneBusyAudio"));
-		BusyAudio->SetupAttachment(Root);
-		BusyAudio->bAutoActivate = false;
-		BusyAudio->SetSound(BusySound);
-		BusyAudio->RegisterComponent();
-
 		HangupAudio = NewObject<UAudioComponent>(this, TEXT("PayPhoneHangupAudio"));
 		HangupAudio->SetupAttachment(Root);
 		HangupAudio->bAutoActivate = false;
@@ -128,9 +121,7 @@ void APayPhone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 		if (UWorld* World = GetWorld())
 		{
 			World->GetTimerManager().ClearTimer(DialtoneStartTimer);
-			World->GetTimerManager().ClearTimer(DialtoneStopTimer);
 			World->GetTimerManager().ClearTimer(CodeSpeechTimer);
-			World->GetTimerManager().ClearTimer(BusyToneTimer);
 		}
 		ReleasePlayer();
 		bOffHook = false;
@@ -218,22 +209,12 @@ void APayPhone::StartDialtone()
 		return;
 	}
 
-	// Looping dialtone (seamless via the SoundWave's bLooping).
+	// Looping dialtone (seamless via the SoundWave's bLooping), with the
+	// static + voices bleeding over it.
 	if (DialtoneAudio)
 	{
 		DialtoneAudio->Play();
 	}
-
-	// Later calls are mundane: just the dialtone, nothing else.
-	if (bCodeSpoken)
-	{
-		UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone only (code already heard)"), *GetName());
-		return;
-	}
-
-	// First call: the static + voices bleed under the dialtone. Then the dialtone
-	// cuts out (DialtoneStopLead before the code), the spoken code plays once, and
-	// a busy tone follows it.
 	if (StaticAudio)
 	{
 		StaticAudio->Play();
@@ -242,24 +223,17 @@ void APayPhone::StartDialtone()
 	{
 		VoiceAudio->Play();
 	}
-
-	if (UWorld* World = GetWorld())
+	// The spoken code bleeds over the dialtone exactly once for the whole game,
+	// CodeSpeechDelay seconds in. If it's already been heard, never replay it.
+	if (!bCodeSpoken && CodeAudio)
 	{
-		const float StopDialtoneAt = FMath::Max(0.01f, CodeSpeechDelay - DialtoneStopLead);
-		World->GetTimerManager().SetTimer(DialtoneStopTimer, this, &APayPhone::StopDialtone, StopDialtoneAt, false);
-		World->GetTimerManager().SetTimer(CodeSpeechTimer, this, &APayPhone::PlayCodeOnce, FMath::Max(0.02f, CodeSpeechDelay), false);
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().SetTimer(CodeSpeechTimer, this, &APayPhone::PlayCodeOnce, FMath::Max(0.01f, CodeSpeechDelay), false);
+		}
 	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: first call — dialtone+static+voices; dialtone cuts at %.2fs, code at %.2fs"),
-		*GetName(), FMath::Max(0.01f, CodeSpeechDelay - DialtoneStopLead), CodeSpeechDelay);
-}
-
-void APayPhone::StopDialtone()
-{
-	if (DialtoneAudio)
-	{
-		DialtoneAudio->Stop();
-	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone cut (code incoming)"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: dialtone looping (static + voices; code in %.2fs, spoken=%d)"),
+		*GetName(), CodeSpeechDelay, bCodeSpoken ? 1 : 0);
 }
 
 void APayPhone::PlayCodeOnce()
@@ -268,38 +242,12 @@ void APayPhone::PlayCodeOnce()
 	{
 		return; // hung up before the code got a chance to play — leave it for next call
 	}
-	// Belt-and-suspenders: ensure the dialtone is silent under the code.
-	if (DialtoneAudio)
-	{
-		DialtoneAudio->Stop();
-	}
 	if (CodeAudio)
 	{
 		CodeAudio->Play();
 	}
 	bCodeSpoken = true;
-
-	// A few seconds after the code finishes, the line drops to a busy tone.
-	const float CodeDuration = CodeSound ? CodeSound->GetDuration() : 0.0f;
-	if (UWorld* World = GetWorld())
-	{
-		World->GetTimerManager().SetTimer(BusyToneTimer, this, &APayPhone::PlayBusyTone, FMath::Max(0.02f, CodeDuration + BusyToneDelay), false);
-	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: spoke the bathroom code (once); busy tone in %.2fs"),
-		*GetName(), CodeDuration + BusyToneDelay);
-}
-
-void APayPhone::PlayBusyTone()
-{
-	if (!bOffHook)
-	{
-		return;
-	}
-	if (BusyAudio)
-	{
-		BusyAudio->Play();
-	}
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: busy tone"), *GetName());
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: spoke the bathroom code (once)"), *GetName());
 }
 
 void APayPhone::HangUp()
@@ -309,14 +257,12 @@ void APayPhone::HangUp()
 		return;
 	}
 
-	// Covers hanging up at any point in the sequence before its timers fire (so an
-	// interrupted code plays next call, and no stray busy tone fires after hangup).
+	// Covers hanging up during the pickup, before the dialtone timer fires, and
+	// before the code-speech timer fires (so an interrupted code plays next call).
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().ClearTimer(DialtoneStartTimer);
-		World->GetTimerManager().ClearTimer(DialtoneStopTimer);
 		World->GetTimerManager().ClearTimer(CodeSpeechTimer);
-		World->GetTimerManager().ClearTimer(BusyToneTimer);
 	}
 
 	if (DialtoneAudio)
@@ -334,10 +280,6 @@ void APayPhone::HangUp()
 	if (CodeAudio)
 	{
 		CodeAudio->Stop();
-	}
-	if (BusyAudio)
-	{
-		BusyAudio->Stop();
 	}
 	if (PickupAudio)
 	{

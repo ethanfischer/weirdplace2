@@ -64,6 +64,10 @@
 		{
 			"Name": "UnrealMCP",
 			"Enabled": false
+		},
+		{
+			"Name": "Fab",
+			"Enabled": false
 		}
 	],
 	"TargetPlatforms": [
