@@ -5,23 +5,19 @@
 # Claude Friendly
 [ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
 Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
-[ ] Chosen movies show up as poster on telephone pole, in bathroom
 [ ] dial tone should stop when code starts and then busy sound
     
 # Needs human
 [ ] seneca tells you about tornado shelter in bathroom stall later
-[ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
     [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
-[ ] gas station door animation
 [ ] more weather sounds
 [ ] more weather effects
 [ ] sound mixing (tornado alert too loud)
     
     
 # Needs design
-[ ] use weather plugin 
 [ ] message on payphone is code to employee bathroom
     [ ] you write it down (wrongly)
     [ ] you enter it wrongly, but it works
@@ -34,8 +30,10 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 
 # Claude Friendly
 [ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
+[ ] Chosen movies show up as poster on telephone pole, in bathroom
 
 # Needs human
+[ ] add lowpassfilter (lpf) to door lock sound
 [ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
