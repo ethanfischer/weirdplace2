@@ -40,6 +40,7 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
+[ ] door close sounds
 
 # Needs design
 [ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
