@@ -296,11 +296,6 @@ bool ADoor::HasKey() const
 
 void ADoor::UpdateDoorRotation(float Alpha)
 {
-	ApplyOpenAmount(Alpha);
-}
-
-void ADoor::ApplyOpenAmount(float Alpha)
-{
 	if (DoorMesh)
 	{
 		const float DeltaYaw = FMath::Lerp(0.0f, MaxDoorAngle * OpenDirection, Alpha);

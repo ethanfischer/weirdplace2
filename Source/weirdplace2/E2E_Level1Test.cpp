@@ -554,54 +554,6 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// DoubleDoorOpen — guards the glass double door (ADoubleDoor). Inherits the
-// whole ADoor cycle (E-to-interact, toggle, swing-away, auto-close) but drives
-// a skeletal AnimBP instead of a static mesh: ApplyOpenAmount pushes two leaf-
-// angle floats (LeftDoor_Rotation/RightDoor_Rotation) into BP_Anim_DoubleDoors,
-// and only the leaf the player AIMED at swings. Walk up face-on aiming at one
-// leaf, E to open -> assert exactly that one leaf swung, then walk through ->
-// auto-close.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_DoubleDoorOpen,
-	"Weirdplace2.E2E.Level1.Regression.DoubleDoorOpen",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_DoubleDoorOpen::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("DoubleDoorOpen")
-
-	const FString DoorLabel = TEXT("GlassDoubleDoor");
-
-	// Approach the door face-on (its panel is thin along the through-axis) and
-	// confirm it starts closed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, 220.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, DoorLabel));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Closed")));
-
-	// E -> both leaves swing apart via the AnimBP.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, DoorLabel));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f)); // let the open timeline finish
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOneLeafOpen(this, DoorLabel, 60.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Open")));
-
-	// Walk through to the far side -> the inherited auto-close fires and the
-	// timeline reverses, returning the leaves toward 0. (Re-interacting to close
-	// isn't a reliable trace target once the leaves have swung out of the
-	// doorway, so we exercise the auto-close path instead.)
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, -220.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f)); // 0.2s check + 0.5s delay + ~1s close timeline
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, DoorLabel));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Closed2")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // LockSoundDuringKeyInsert — re-entrancy guard regression. A repeated interact
 // fired WHILE the key-break sequence is running (the UE5.7 double-fire input
 // quirk turns one key-insert press into two) must NOT fall into the locked

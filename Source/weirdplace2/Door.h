@@ -44,11 +44,6 @@ protected:
 	UFUNCTION()
 	void UpdateDoorRotation(float Alpha);
 
-	// What physically moves as the door opens (Alpha 0->1). Default rotates the
-	// static DoorMesh by MaxDoorAngle*OpenDirection*Alpha; subclasses (e.g.
-	// ADoubleDoor) override to drive a skeletal animation instead.
-	virtual void ApplyOpenAmount(float Alpha);
-
 	// Picks OpenDirection so the door swings away from the player
 	void UpdateOpenDirection();
 
