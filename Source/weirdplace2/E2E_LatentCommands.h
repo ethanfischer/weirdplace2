@@ -17,6 +17,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TestWaypoint.h"
 #include "Door.h"
+#include "DoubleDoor.h"
 #include "MovieBox.h"
 #include "InspectablePickup.h"
 #include "Hudson.h"
@@ -360,6 +361,60 @@ public:
 
 // Teleport to `Distance` units in front of an actor found by editor label,
 // facing it. Handy when a waypoint is too far away for the interact trace.
+// Teleport the player squarely in front of a door's face, along its through-axis
+// (the actor RIGHT vector — perpendicular to the closed panel, matching
+// ADoor::GetClosedThroughAxis) and aim at one leaf. Deterministic regardless of
+// player spawn, unlike FTD_TeleportNearActorByLabel which keys off the player's
+// current position — a thin door panel can otherwise be approached edge-on.
+// Aims OFF-CENTER along the width axis (actor FORWARD) so a double door's central
+// seam gap doesn't swallow the interact trace.
+class FTD_TeleportToDoorFront : public FTD_Base
+{
+public:
+	FTD_TeleportToDoorFront(FAutomationTestBase* InTest, FString InLabel, float InDistance = 220.f, float InLeafOffset = 55.f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Distance(InDistance), LeafOffset(InLeafOffset) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting to front of door '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportToDoorFront: no driver")); return true; }
+		AActor* Door = Driver->FindActorByLabel(Label);
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Door || !Player)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportToDoorFront: missing door '%s' or player"), *Label));
+			return true;
+		}
+		const FVector Through = Door->GetActorRightVector().GetSafeNormal2D();   // perpendicular to panel
+		const FVector Width   = Door->GetActorForwardVector().GetSafeNormal2D(); // along the panel width
+		const FVector DoorLoc = Door->GetActorLocation();
+		const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector NewLoc = DoorLoc + Through * Distance + FVector(0.f, 0.f, HalfHeight);
+		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+
+		// Aim at a point on one leaf, at roughly the camera's own height, nudged
+		// off the seam so the trace lands on a panel rather than the gap.
+		UCameraComponent* Camera = Player->GetFirstPersonCamera();
+		const FVector CamLoc = Camera ? Camera->GetComponentLocation() : NewLoc;
+		const FVector AimPoint = DoorLoc + Width * LeafOffset + FVector(0.f, 0.f, CamLoc.Z - DoorLoc.Z);
+		const FRotator LookRot = (AimPoint - CamLoc).Rotation();
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(LookRot);
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Distance;
+	float LeafOffset;
+};
+
 class FTD_TeleportNearActorByLabel : public FTD_Base
 {
 public:
@@ -3151,6 +3206,71 @@ public:
 	}
 private:
 	FString Label;
+};
+
+// =======================================================================
+// FTD_AssertDoubleDoorOneLeafOpen — guards the ADoubleDoor visual drive: only
+// the leaf the player aimed at swings; the other stays shut. Asserts |DoorState|
+// exceeds a threshold AND that exactly ONE of the leaf angles pushed into the
+// AnimInstance (LeftDoor_Rotation/RightDoor_Rotation) is non-zero. This is the
+// genuinely-new logic vs the inherited ADoor timeline.
+// =======================================================================
+
+class FTD_AssertDoubleDoorOneLeafOpen : public FTD_Base
+{
+public:
+	FTD_AssertDoubleDoorOneLeafOpen(FAutomationTestBase* InTest, FString InLabel, float InMinAbsState = 60.0f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), MinAbsState(InMinAbsState) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting double door '%s' has exactly one leaf open"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoubleDoorOneLeafOpen: no driver")); return true; }
+		ADoubleDoor* Door = Cast<ADoubleDoor>(Driver->FindActorByLabel(Label));
+		if (!Door)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoubleDoorOneLeafOpen: no ADoubleDoor with label '%s'"), *Label));
+			return true;
+		}
+
+		const float State = Door->GetDoorState();
+		if (FMath::Abs(State) < MinAbsState)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' DoorState=%.1f, expected |state|>=%.1f"),
+				*Label, State, MinAbsState));
+		}
+
+		float Left = 0.0f, Right = 0.0f;
+		if (!Door->GetLeafAngles(Left, Right))
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' could not read leaf angles from AnimInstance"), *Label));
+			return true;
+		}
+		// Exactly one leaf swings (the aimed one); the other stays shut.
+		const bool bLeftOpen = !FMath::IsNearlyZero(Left);
+		const bool bRightOpen = !FMath::IsNearlyZero(Right);
+		if (bLeftOpen == bRightOpen)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' expected exactly one leaf open (L=%.1f R=%.1f)"), *Label, Left, Right));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' OK DoorState=%.1f L=%.1f R=%.1f"), *Label, State, Left, Right);
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float MinAbsState;
 };
 
 // =======================================================================
