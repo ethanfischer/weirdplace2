@@ -5,12 +5,14 @@
 #include "DoubleDoor.generated.h"
 
 class USkeletalMeshComponent;
+class UTimelineComponent;
 
-// A glass double door (two leaves) that inherits all of ADoor's behavior —
-// E-to-interact, toggle, auto-close, swing-away-from-player, lock/keypad — but
-// drives a skeletal AnimBP instead of rotating a rigid static mesh. Each open
-// step pushes the two leaf-angle floats (LeftDoor_Rotation/RightDoor_Rotation)
-// into BP_Anim_DoubleDoors, whose AnimGraph poses the two leaf bones.
+// A glass double door whose two leaves open and close INDEPENDENTLY. Each leaf
+// has its own timeline and open state, so opening one never disturbs the other.
+// Interacting toggles whichever leaf the player is aiming at. Inherits ADoor's
+// IInteractable plumbing, curve/sounds and lock/keypad (this door ships
+// unlocked); the open/close + auto-close is per-leaf here, driving the two
+// LeftDoor_Rotation/RightDoor_Rotation floats that BP_Anim_DoubleDoors poses.
 UCLASS()
 class WEIRDPLACE2_API ADoubleDoor : public ADoor
 {
@@ -19,13 +21,14 @@ class WEIRDPLACE2_API ADoubleDoor : public ADoor
 public:
 	ADoubleDoor();
 
-	// Picks which single leaf to swing (the one the player is standing in front
-	// of), then runs the inherited open/close cycle.
+	// Toggles the single leaf the player is aiming at, independently of the other.
 	virtual void Interact_Implementation() override;
 
-	// Signed open amount in degrees (debug/test/Blueprint read).
 	UFUNCTION(BlueprintPure, Category = "Door")
-	float GetDoorState() const { return DoorState; }
+	bool IsLeftLeafOpen() const { return bLeftLeafOpen; }
+
+	UFUNCTION(BlueprintPure, Category = "Door")
+	bool IsRightLeafOpen() const { return bRightLeafOpen; }
 
 	// Reads back the leaf angles currently pushed into the AnimInstance
 	// (LeftDoor_Rotation/RightDoor_Rotation). Returns false if there's no
@@ -33,24 +36,53 @@ public:
 	bool GetLeafAngles(float& OutLeft, float& OutRight) const;
 
 protected:
-	virtual void ApplyOpenAmount(float Alpha) override;
+	virtual void BeginPlay() override;
 
-	// Skeletal root for the rigged double-door mesh (assigned in BP, like
-	// BP_Door assigns its static mesh). Replaces the inherited static DoorMesh
-	// as RootComponent; DoorMesh is parked under it, hidden and unused.
+	// One timeline callback per leaf so the leaves animate on independent clocks.
+	UFUNCTION()
+	void UpdateLeftLeaf(float Alpha);
+
+	UFUNCTION()
+	void UpdateRightLeaf(float Alpha);
+
+	// Repeating check: auto-close any open leaf once the player walks through.
+	UFUNCTION()
+	void CheckLeafAutoClose();
+
+	// True if the player's camera is aimed at the right leaf (else the left).
+	bool IsAimingRightLeaf() const;
+
+	void OpenLeaf(bool bRight);
+	void CloseLeaf(bool bRight);
+	void PushLeafAngle(bool bRight, float Angle);
+	void StartLeafAutoCloseTracking();
+
+	// Skeletal root for the rigged double-door mesh (assigned in BP, like BP_Door
+	// assigns its static mesh). Replaces the inherited static DoorMesh as
+	// RootComponent; DoorMesh is parked under it, hidden and unused.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
 	USkeletalMeshComponent* DoorSkeletalMesh;
 
-	// Signed open amount in degrees, exposed for debugging/Blueprint reads.
-	// (The AnimBP is actually driven by ApplyOpenAmount, which pushes the two
-	// LeftDoor_Rotation/RightDoor_Rotation floats into the AnimInstance.)
-	// Signed by OpenDirection so the pair swings away from the player.
-	UPROPERTY(BlueprintReadOnly, Category = "Door")
-	float DoorState = 0.0f;
+	// One timeline per leaf — the source of independent open/close.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	UTimelineComponent* LeftLeafTimeline;
 
-	// Which single leaf swings on this interaction — the one the player is in
-	// front of (chosen in Interact_Implementation from the player's lateral side
-	// relative to the door's center). The other leaf stays shut.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Door")
+	UTimelineComponent* RightLeafTimeline;
+
 	UPROPERTY(BlueprintReadOnly, Category = "Door")
-	bool bLeftLeafActive = true;
+	bool bLeftLeafOpen = false;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Door")
+	bool bRightLeafOpen = false;
+
+	// Swing sign per leaf, chosen at open-time so each swings away from the player.
+	float LeftLeafDir = 1.0f;
+	float RightLeafDir = 1.0f;
+
+	// Which through-axis side the player was on when each leaf opened (for auto-close).
+	float LeftLeafOpenSide = 0.0f;
+	float RightLeafOpenSide = 0.0f;
+
+	FTimerHandle LeafAutoCloseTimer;
 };

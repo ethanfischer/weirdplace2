@@ -3209,68 +3209,60 @@ private:
 };
 
 // =======================================================================
-// FTD_AssertDoubleDoorOneLeafOpen — guards the ADoubleDoor visual drive: only
-// the leaf the player aimed at swings; the other stays shut. Asserts |DoorState|
-// exceeds a threshold AND that exactly ONE of the leaf angles pushed into the
-// AnimInstance (LeftDoor_Rotation/RightDoor_Rotation) is non-zero. This is the
-// genuinely-new logic vs the inherited ADoor timeline.
+// FTD_AssertDoubleDoorOpenLeafCount — guards the ADoubleDoor independent leaves:
+// asserts exactly N leaves are swung open, by counting how many of the two leaf
+// angles pushed into the AnimInstance (LeftDoor_Rotation/RightDoor_Rotation)
+// exceed a threshold. 1 after one interact; 2 after opening the second leaf WHILE
+// the first stays open (the independence guard); 0 after auto-close.
 // =======================================================================
 
-class FTD_AssertDoubleDoorOneLeafOpen : public FTD_Base
+class FTD_AssertDoubleDoorOpenLeafCount : public FTD_Base
 {
 public:
-	FTD_AssertDoubleDoorOneLeafOpen(FAutomationTestBase* InTest, FString InLabel, float InMinAbsState = 60.0f)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), MinAbsState(InMinAbsState) {}
+	FTD_AssertDoubleDoorOpenLeafCount(FAutomationTestBase* InTest, FString InLabel, int32 InExpectedOpen, float InOpenThreshold = 10.0f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), ExpectedOpen(InExpectedOpen), OpenThreshold(InOpenThreshold) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting double door '%s' has exactly one leaf open"), *Label);
+		return FString::Printf(TEXT("Asserting double door '%s' has %d leaf/leaves open"), *Label, ExpectedOpen);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoubleDoorOneLeafOpen: no driver")); return true; }
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoubleDoorOpenLeafCount: no driver")); return true; }
 		ADoubleDoor* Door = Cast<ADoubleDoor>(Driver->FindActorByLabel(Label));
 		if (!Door)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDoubleDoorOneLeafOpen: no ADoubleDoor with label '%s'"), *Label));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoubleDoorOpenLeafCount: no ADoubleDoor with label '%s'"), *Label));
 			return true;
-		}
-
-		const float State = Door->GetDoorState();
-		if (FMath::Abs(State) < MinAbsState)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' DoorState=%.1f, expected |state|>=%.1f"),
-				*Label, State, MinAbsState));
 		}
 
 		float Left = 0.0f, Right = 0.0f;
 		if (!Door->GetLeafAngles(Left, Right))
 		{
 			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' could not read leaf angles from AnimInstance"), *Label));
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' could not read leaf angles from AnimInstance"), *Label));
 			return true;
 		}
-		// Exactly one leaf swings (the aimed one); the other stays shut.
-		const bool bLeftOpen = !FMath::IsNearlyZero(Left);
-		const bool bRightOpen = !FMath::IsNearlyZero(Right);
-		if (bLeftOpen == bRightOpen)
+		const int32 OpenCount = (FMath::Abs(Left) > OpenThreshold ? 1 : 0) + (FMath::Abs(Right) > OpenThreshold ? 1 : 0);
+		if (OpenCount != ExpectedOpen)
 		{
 			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' expected exactly one leaf open (L=%.1f R=%.1f)"), *Label, Left, Right));
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' expected %d open, got %d (L=%.1f R=%.1f)"),
+				*Label, ExpectedOpen, OpenCount, Left, Right));
 		}
 		else
 		{
 			UE_LOG(LogTemp, Display,
-				TEXT("FTD_AssertDoubleDoorOneLeafOpen: '%s' OK DoorState=%.1f L=%.1f R=%.1f"), *Label, State, Left, Right);
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' OK %d open (L=%.1f R=%.1f)"), *Label, OpenCount, Left, Right);
 		}
 		return true;
 	}
 private:
 	FString Label;
-	float MinAbsState;
+	int32 ExpectedOpen;
+	float OpenThreshold;
 };
 
 // =======================================================================

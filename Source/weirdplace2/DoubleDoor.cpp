@@ -2,9 +2,14 @@
 #include "Animation/AnimInstance.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TimelineComponent.h"
+#include "Curves/CurveFloat.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "CollisionQueryParams.h"
+#include "Engine/World.h"
+#include "Sound/SoundBase.h"
+#include "TimerManager.h"
 #include "UObject/UnrealType.h"
 
 ADoubleDoor::ADoubleDoor()
@@ -19,6 +24,32 @@ ADoubleDoor::ADoubleDoor()
 	{
 		DoorMesh->SetupAttachment(DoorSkeletalMesh);
 		DoorMesh->SetVisibility(false);
+	}
+
+	// Each leaf gets its own timeline so they open/close independently.
+	LeftLeafTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("LeftLeafTimeline"));
+	RightLeafTimeline = CreateDefaultSubobject<UTimelineComponent>(TEXT("RightLeafTimeline"));
+}
+
+void ADoubleDoor::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// Bind each leaf timeline to the shared DoorCurve (the inherited single
+	// DoorTimeline stays set up but unused — this door drives the two leaves).
+	if (DoorCurve)
+	{
+		FOnTimelineFloat LeftCb;
+		LeftCb.BindUFunction(this, FName("UpdateLeftLeaf"));
+		LeftLeafTimeline->AddInterpFloat(DoorCurve, LeftCb);
+		LeftLeafTimeline->SetLooping(false);
+		LeftLeafTimeline->SetPlayRate(OpenSpeed);
+
+		FOnTimelineFloat RightCb;
+		RightCb.BindUFunction(this, FName("UpdateRightLeaf"));
+		RightLeafTimeline->AddInterpFloat(DoorCurve, RightCb);
+		RightLeafTimeline->SetLooping(false);
+		RightLeafTimeline->SetPlayRate(OpenSpeed);
 	}
 }
 
@@ -78,15 +109,34 @@ bool ADoubleDoor::GetLeafAngles(float& OutLeft, float& OutRight) const
 		&& GetAnimFloat(Anim, TEXT("RightDoor_Rotation"), OutRight);
 }
 
-void ADoubleDoor::Interact_Implementation()
+// Pushes one leaf's bone-rotation float into the AnimInstance without touching
+// the other — so leaves hold independent open amounts.
+void ADoubleDoor::PushLeafAngle(bool bRight, float Angle)
 {
-	// Only the leaf the player is LOOKING AT swings. Decide it on the way in
-	// (while still closed) by tracing the camera aim at this door and taking which
-	// side of the door's center the hit lands on, along the panel width axis
-	// (actor forward). Standing at one leaf but aiming at the other opens the one
-	// you're aiming at. Don't change the choice when closing — keep driving the
-	// same leaf so it shuts cleanly.
-	if (!Opened && DoorSkeletalMesh)
+	UAnimInstance* Anim = DoorSkeletalMesh ? DoorSkeletalMesh->GetAnimInstance() : nullptr;
+	if (!Anim)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[DoubleDoor %s] PushLeafAngle: no AnimInstance"), *GetName());
+		return;
+	}
+	SetAnimFloat(Anim, bRight ? TEXT("RightDoor_Rotation") : TEXT("LeftDoor_Rotation"), Angle);
+}
+
+void ADoubleDoor::UpdateLeftLeaf(float Alpha)
+{
+	// Negate the swing dir: the rig's leaf bone rotates opposite the static-door
+	// convention, so this swings away from the player.
+	PushLeafAngle(/*bRight*/ false, Alpha * MaxDoorAngle * -LeftLeafDir);
+}
+
+void ADoubleDoor::UpdateRightLeaf(float Alpha)
+{
+	PushLeafAngle(/*bRight*/ true, Alpha * MaxDoorAngle * -RightLeafDir);
+}
+
+bool ADoubleDoor::IsAimingRightLeaf() const
+{
+	if (DoorSkeletalMesh)
 	{
 		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 		{
@@ -99,39 +149,125 @@ void ADoubleDoor::Interact_Implementation()
 			if (DoorSkeletalMesh->LineTraceComponent(Hit, ViewLoc, TraceEnd,
 				FCollisionQueryParams(FName(TEXT("DoubleDoorLeafPick")), /*bTraceComplex*/ false)))
 			{
+				// Which side of the door's center the aim landed on, along the
+				// panel width axis (actor forward). >=0 is the right leaf.
 				const FVector ToHit = Hit.ImpactPoint - GetActorLocation();
-				const float SideAlongWidth = FVector::DotProduct(GetActorForwardVector(), ToHit);
-				bLeftLeafActive = SideAlongWidth >= 0.0f;
+				return FVector::DotProduct(GetActorForwardVector(), ToHit) >= 0.0f;
 			}
-			else
-			{
-				UE_LOG(LogTemp, Warning,
-					TEXT("[DoubleDoor %s] leaf-pick aim trace missed; keeping previous leaf"), *GetName());
-			}
+			UE_LOG(LogTemp, Warning,
+				TEXT("[DoubleDoor %s] leaf-pick aim trace missed; defaulting to left leaf"), *GetName());
 		}
 	}
-
-	Super::Interact_Implementation();
+	return false;
 }
 
-void ADoubleDoor::ApplyOpenAmount(float Alpha)
+void ADoubleDoor::Interact_Implementation()
 {
-	// Signed open amount (degrees), also exposed BlueprintReadOnly for debugging.
-	// OpenDirection is chosen by ADoor::UpdateOpenDirection so the pair swings
-	// away from the player.
-	DoorState = Alpha * MaxDoorAngle * OpenDirection;
-
-	UAnimInstance* Anim = DoorSkeletalMesh ? DoorSkeletalMesh->GetAnimInstance() : nullptr;
-	if (!Anim)
+	// This door ships unlocked; defer to the inherited lock/keypad path if it
+	// ever gets locked.
+	if (IsLocked)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DoubleDoor %s] ApplyOpenAmount: no AnimInstance"), *GetName());
+		Super::Interact_Implementation();
 		return;
 	}
 
-	// Only the active leaf (the one the player interacted in front of) swings;
-	// the other stays shut. The rig's leaf bone rotates opposite the static-door
-	// convention, so negate OpenDirection to swing away from the player.
-	const float Leaf = Alpha * MaxDoorAngle * -OpenDirection;
-	SetAnimFloat(Anim, TEXT("LeftDoor_Rotation"), bLeftLeafActive ? 0.0f : Leaf);
-	SetAnimFloat(Anim, TEXT("RightDoor_Rotation"), bLeftLeafActive ? Leaf : 0.0f);
+	// Toggle ONLY the leaf the player is aiming at — independently of the other.
+	const bool bRight = IsAimingRightLeaf();
+	const bool bThisLeafOpen = bRight ? bRightLeafOpen : bLeftLeafOpen;
+	if (bThisLeafOpen)
+	{
+		CloseLeaf(bRight);
+	}
+	else
+	{
+		OpenLeaf(bRight);
+	}
+}
+
+void ADoubleDoor::OpenLeaf(bool bRight)
+{
+	// Pick the swing direction so this leaf opens away from the player.
+	UpdateOpenDirection(); // sets inherited OpenDirection + OpenSidePlayerSign
+
+	if (bRight)
+	{
+		bRightLeafOpen = true;
+		RightLeafDir = OpenDirection;
+		RightLeafOpenSide = OpenSidePlayerSign;
+		RightLeafTimeline->PlayFromStart();
+	}
+	else
+	{
+		bLeftLeafOpen = true;
+		LeftLeafDir = OpenDirection;
+		LeftLeafOpenSide = OpenSidePlayerSign;
+		LeftLeafTimeline->PlayFromStart();
+	}
+
+	// Keep the inherited Opened flag in sync so IsOpen() (and the interact
+	// crosshair / E2E) reflect "any leaf open".
+	Opened = bLeftLeafOpen || bRightLeafOpen;
+
+	if (DoorOpenSound)
+	{
+		UGameplayStatics::PlaySound2D(this, DoorOpenSound);
+	}
+	StartLeafAutoCloseTracking();
+}
+
+void ADoubleDoor::CloseLeaf(bool bRight)
+{
+	if (bRight)
+	{
+		bRightLeafOpen = false;
+		RightLeafTimeline->Reverse();
+	}
+	else
+	{
+		bLeftLeafOpen = false;
+		LeftLeafTimeline->Reverse();
+	}
+	Opened = bLeftLeafOpen || bRightLeafOpen;
+}
+
+void ADoubleDoor::StartLeafAutoCloseTracking()
+{
+	UWorld* World = GetWorld();
+	if (World && !World->GetTimerManager().IsTimerActive(LeafAutoCloseTimer))
+	{
+		World->GetTimerManager().SetTimer(LeafAutoCloseTimer, this, &ADoubleDoor::CheckLeafAutoClose, 0.2f, true);
+	}
+}
+
+void ADoubleDoor::CheckLeafAutoClose()
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!PlayerPawn)
+	{
+		return;
+	}
+
+	// Each open leaf closes once the player has crossed to the far side of the
+	// doorway (relative to the side they opened it from) and walked clear.
+	const FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
+	const float SignedSide = FVector::DotProduct(GetClosedThroughAxis(), ToPlayer);
+	const float CurrentSign = SignedSide > 0.0f ? 1.0f : -1.0f;
+	const bool bWalkedClear = FMath::Abs(SignedSide) > AutoCloseDistance;
+
+	if (bWalkedClear && bLeftLeafOpen && CurrentSign != LeftLeafOpenSide)
+	{
+		CloseLeaf(/*bRight*/ false);
+	}
+	if (bWalkedClear && bRightLeafOpen && CurrentSign != RightLeafOpenSide)
+	{
+		CloseLeaf(/*bRight*/ true);
+	}
+
+	if (!bLeftLeafOpen && !bRightLeafOpen)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(LeafAutoCloseTimer);
+		}
+	}
 }

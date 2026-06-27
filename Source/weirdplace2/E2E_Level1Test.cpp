@@ -554,13 +554,12 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// DoubleDoorOpen — guards the glass double door (ADoubleDoor). Inherits the
-// whole ADoor cycle (E-to-interact, toggle, swing-away, auto-close) but drives
-// a skeletal AnimBP instead of a static mesh: ApplyOpenAmount pushes two leaf-
-// angle floats (LeftDoor_Rotation/RightDoor_Rotation) into BP_Anim_DoubleDoors,
-// and only the leaf the player AIMED at swings. Walk up face-on aiming at one
-// leaf, E to open -> assert exactly that one leaf swung, then walk through ->
-// auto-close.
+// DoubleDoorOpen — guards the glass double door (ADoubleDoor). Each leaf has its
+// own timeline and open state and is driven via BP_Anim_DoubleDoors' two leaf
+// floats; interacting toggles only the leaf the player is AIMING at, and the two
+// leaves open/close INDEPENDENTLY. Aim at one leaf + E -> one leaf open; aim at
+// the other leaf + E -> BOTH open (the first must NOT close); walk through ->
+// both auto-close.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -574,27 +573,33 @@ bool FE2E_Level1_DoubleDoorOpen::RunTest(const FString& Parameters)
 
 	const FString DoorLabel = TEXT("GlassDoubleDoor");
 
-	// Approach the door face-on (its panel is thin along the through-axis) and
-	// confirm it starts closed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, 220.f));
+	// Approach face-on aiming at the first leaf; confirm both leaves start shut.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, 220.f, 55.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, DoorLabel));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOpenLeafCount(this, DoorLabel, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Closed")));
 
-	// E -> both leaves swing apart via the AnimBP.
+	// E -> the aimed leaf swings open; exactly one leaf open.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(this, DoorLabel));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f)); // let the open timeline finish
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOneLeafOpen(this, DoorLabel, 60.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Open")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOpenLeafCount(this, DoorLabel, 1));
 
-	// Walk through to the far side -> the inherited auto-close fires and the
-	// timeline reverses, returning the leaves toward 0. (Re-interacting to close
-	// isn't a reliable trace target once the leaves have swung out of the
-	// doorway, so we exercise the auto-close path instead.)
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, -220.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f)); // 0.2s check + 0.5s delay + ~1s close timeline
+	// Aim at the OTHER leaf and open it too — the first leaf must STAY open.
+	// This is the independence guard: both leaves open at once.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, 220.f, -55.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOpenLeafCount(this, DoorLabel, 2));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_BothOpen")));
+
+	// Walk through to the far side -> both leaves auto-close.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToDoorFront(this, DoorLabel, -220.f, 55.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f)); // 0.2s check tick + ~1s close timeline
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoorClosed(this, DoorLabel));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDoubleDoorOpenLeafCount(this, DoorLabel, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DoubleDoor_Closed2")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
