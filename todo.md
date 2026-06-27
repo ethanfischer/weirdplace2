@@ -8,6 +8,7 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 [ ] dial tone should stop when code starts and then busy sound
     
 # Needs human
+[ ] review dialogue
 [ ] seneca tells you about tornado shelter in bathroom stall later
 [ ] clock that ticks with only one hand in both directions
     [ ] or at least needs to be blurred. cant see clocks in dreams

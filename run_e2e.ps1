@@ -40,6 +40,11 @@ $argList = @(
     "-unattended"
     "-nopause"
     "-nosplash"
+    # Fab is enabled in the .uproject (its Megascans base materials are used in the
+    # level), but its browser tab auto-restores at startup and CreateBrowserWindow
+    # returns null under NullRHI -> FFabBrowser::OpenTab asserts. Headless never needs
+    # Fab, so disable it here to keep automation crash-free regardless of saved layout.
+    "-DisablePlugins=Fab"
     "-abslog=`"$LogFile`""
 )
 # Default: NullRHI for fast headless runs. Pass -Headed to render so screenshots
