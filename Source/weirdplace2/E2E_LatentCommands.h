@@ -15,6 +15,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
 #include "TestWaypoint.h"
 #include "Door.h"
 #include "DoubleDoor.h"
@@ -3391,6 +3392,84 @@ private:
 	bool bInitialized;
 	FVector StartPos;
 	FVector EndPos;
+};
+
+// =======================================================================
+// FTD_ExecConsole — run an arbitrary console command in the PIE world.
+// Used by the perf-profiling walk to drive the CSV profiler
+// ("CsvProfile start" / "CsvProfile stop") and toggle profiling cvars.
+// =======================================================================
+
+class FTD_ExecConsole : public FTD_Base
+{
+public:
+	FTD_ExecConsole(FAutomationTestBase* InTest, FString InCommand)
+		: FTD_Base(InTest), Command(MoveTemp(InCommand)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Exec: %s"), *Command);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_ExecConsole: no PIE world")); return true; }
+		GEngine->Exec(World, *Command);
+		UE_LOG(LogTemp, Warning, TEXT("[E2E] ExecConsole: %s"), *Command);
+		return true;
+	}
+private:
+	FString Command;
+};
+
+// =======================================================================
+// FTD_CameraYawSweep — smoothly rotate the player's view yaw by a total
+// number of degrees over a duration. Reveals geometry on all sides while
+// standing, so hitches that only fire when new draws/shadows/cells enter
+// the frustum get reproduced (and captured by a running CSV profile).
+// =======================================================================
+
+class FTD_CameraYawSweep : public FTD_Base
+{
+public:
+	FTD_CameraYawSweep(FAutomationTestBase* InTest, float InDurationSeconds, float InTotalDegrees = 360.f)
+		: FTD_Base(InTest), Duration(InDurationSeconds), TotalDegrees(InTotalDegrees)
+		, bInitialized(false), StartYaw(0.f) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Yaw sweep %.0f deg over %.1fs"), TotalDegrees, Duration);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CameraYawSweep: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		AController* Controller = Player ? Player->GetController() : nullptr;
+		if (!Controller) { Test->AddError(TEXT("FTD_CameraYawSweep: no controller")); return true; }
+
+		if (!bInitialized)
+		{
+			StartYaw = Controller->GetControlRotation().Yaw;
+			bInitialized = true;
+		}
+
+		const float Alpha = Duration > 0.f
+			? FMath::Clamp(static_cast<float>(GetElapsedSinceFirstTick()) / Duration, 0.f, 1.f)
+			: 1.f;
+		FRotator Rot = Controller->GetControlRotation();
+		Rot.Yaw = StartYaw + TotalDegrees * Alpha;
+		Controller->SetControlRotation(Rot);
+
+		return Alpha >= 1.f;
+	}
+private:
+	float Duration;
+	float TotalDegrees;
+	bool bInitialized;
+	float StartYaw;
 };
 
 // =======================================================================

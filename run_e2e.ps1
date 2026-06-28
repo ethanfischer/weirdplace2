@@ -1,7 +1,14 @@
 param(
     [string]$TestName = "HappyPath",
     [switch]$Headed,
-    [int]$TimeoutMinutes = 0
+    [int]$TimeoutMinutes = 0,
+    # Optional console commands (e.g. cvars) run at startup before the test, for
+    # perf A/B experiments. UE -ExecCmds separates commands by COMMA, so separate
+    # multiple cvars with commas. Example: -ExtraExec "r.Streaming.PoolSize 3000,r.Shadow.Virtual.Enable 0"
+    [string]$ExtraExec = "",
+    # Capture an Unreal Insights .utrace (cpu+gpu+frame) to Saved/Profiling/walk_trace.utrace
+    # for offline analysis of render-thread / GPU / Lumen costs. Implies rendering.
+    [switch]$Trace
 )
 
 $ProjectRoot = $PSScriptRoot
@@ -34,9 +41,10 @@ Write-Host "Log: $LogFile"
 Write-Host ""
 
 $stdoutLog = "$ProjectRoot\Saved\Logs\E2ETest_stdout.log"
+$execCmds = if ($ExtraExec) { "$ExtraExec,Automation RunTests $TestPath; Quit" } else { "Automation RunTests $TestPath; Quit" }
 $argList = @(
     "`"$UProject`""
-    "-ExecCmds=`"Automation RunTests $TestPath; Quit`""
+    "-ExecCmds=`"$execCmds`""
     "-unattended"
     "-nopause"
     "-nosplash"
@@ -47,6 +55,14 @@ $argList = @(
     "-DisablePlugins=Fab"
     "-abslog=`"$LogFile`""
 )
+if ($Trace) {
+    $traceFile = "$ProjectRoot\Saved\Profiling\walk_trace.utrace"
+    Remove-Item $traceFile -ErrorAction SilentlyContinue
+    $argList += "-trace=default,gpu,counters"
+    $argList += "-statnamedevents"
+    $argList += "-tracefile=`"$traceFile`""
+    Write-Host "Trace -> $traceFile"
+}
 # Default: NullRHI for fast headless runs. Pass -Headed to render so screenshots
 # are captured (NullRHI produces blank/zero-byte screenshots).
 if (-not $Headed) {

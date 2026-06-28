@@ -431,6 +431,68 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// PerfWalkProfile — diagnostic. Noclip-walks the player through the whole
+// store region (and the Oasis area) at a natural pace, yaw-sweeping at each
+// stop so geometry enters the frustum the way it does in real play. A CSV
+// profile capture is running for the whole traversal; the resulting CSV in
+// Saved/Profiling/CSV/ holds per-frame GameThread/RenderThread/GPU times so
+// hitches can be attributed offline. No asserts — this is an instrument, not
+// a guard. Run headed (NullRHI does no GPU/shader/streaming work):
+//   run_e2e.ps1 -TestName Diagnostic.PerfWalkProfile -Headed
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_PerfWalkProfile,
+	"Weirdplace2.E2E.Level1.Diagnostic.PerfWalkProfile",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_PerfWalkProfile::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("PerfWalkProfile")
+
+	// Same benign smoking-anim error the HappyPath tolerates.
+	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
+
+	// Settle, then begin capture. Give the level a moment so first-frame load
+	// spikes don't dominate the capture.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("CsvProfile start")));
+
+	// --- Store region (all waypoints at z~0). Wind east -> west. ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("SenecaApproach"), 4.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("MovieShelf"), 2.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("SenecaSmoking"), 4.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("SenecaHallway"), 3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("EmployeeBathroom"), 2.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("OutsideBathroom"), 3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("ApproachStall"), 2.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(this, TEXT("Teleporter"), 2.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	// --- Oasis region (far below, z~-2700). Teleport, don't walk through floor. ---
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OasisCenter")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 5.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OasisDoor")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 4.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("CsvProfile stop")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // StormSkyFade — the KeyBroke beat fades Ultra_Dynamic_Sky's Overall Intensity
 // from ~2.0 down to ~0.25, darkening the scene into a storm mood.
 // =======================================================================
