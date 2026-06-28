@@ -3,6 +3,7 @@
 ------------------------------------------
 
 # Claude Friendly
+[ ] profiling and performance
 [ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
 Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
 [ ] dial tone should stop when code starts and then busy sound
