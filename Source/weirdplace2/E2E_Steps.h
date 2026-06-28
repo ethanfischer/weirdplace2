@@ -8,10 +8,9 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
-// Helper: open the map, wait for spawn, suppress the known widget warning.
+// Helper: open the map, wait for spawn.
 #define E2E_TEST_PREAMBLE(Label) \
 	UE_LOG(LogTemp, Warning, TEXT("=== E2E TEST START === " Label " %s"), *FDateTime::Now().ToString()); \
-	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0); \
 	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap")); \
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
 

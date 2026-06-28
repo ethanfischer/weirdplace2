@@ -36,14 +36,10 @@ void AMovieBox::BeginPlay()
 			break;
 		}
 	}
-	if (!InteractionWidget)
-	{
-		// BP_Spawner1 is parented to BP_MovieBox but doesn't have an InteractionText widget —
-		// it shouldn't inherit from MovieBox at all, but until that's fixed in the editor we
-		// bail out here so the spawner doesn't run the rest of MovieBox::BeginPlay.
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: InteractionText widget not found"), *GetName());
-		return;
-	}
+	// Every real MovieBox carries an InteractionText widget. (BP_Spawner1, which used to
+	// mis-inherit AMovieBox without one, is now a plain AActor.) A missing widget is a
+	// setup error, not a state to silently recover from.
+	checkf(InteractionWidget, TEXT("MovieBox %s is missing its InteractionText widget"), *GetName());
 
 	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Cube")));
 	if (!EnvelopeMesh)
