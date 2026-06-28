@@ -148,6 +148,13 @@ Project folders:
 - **Used in:** `Content/UltraDynamicSky/`
 - **Required attribution:** None required under Fab Standard.
 
+### Piano pack (PianoVol1) — Fab marketplace
+- **Source:** https://www.fab.com/listings/1fa3c7ca-6f73-449e-b9c1-c94bfc2a97fc
+- **Seller:** _verify in your Fab library_ — the listing page blocks scraping (HTTP 403), so the seller name couldn't be pulled automatically. The URL above is your acquired listing.
+- **License:** Fab Standard License (typical — confirm the tier on the listing page)
+- **Used in:** `Content/Blueprints/BP_Piano.uasset` (grand piano + stool) placed in FirstPersonMap. Only the referenced subset of `Content/PianoVol1/` is committed to git (`Mesh/SM_002_Piano001`, `Mesh/SM_002_PianoStool001`, 8 materials, 7 textures); the marketplace demo room and unused instruments remain local-only.
+- **Required attribution:** None required under Fab Standard.
+
 ### Epic-included content (no attribution required, listed for audit only)
 - `Content/StarterContent/` — Epic Starter Content
 - `Content/FirstPerson/`, `Content/FirstPersonArms/`, `Content/FPWeapon/`, `Content/ThirdPerson/` — Epic templates
