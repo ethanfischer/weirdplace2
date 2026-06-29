@@ -64,6 +64,9 @@ private:
 	bool DidCollectMovie = false;
 	FTimerHandle CantCarryTimerHandle;
 
+	// Keeps the async cover-material load request alive until it completes.
+	TSharedPtr<struct FStreamableHandle> CoverLoadHandle;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="UI", meta=(AllowPrivateAccess="true"))
 	UWidgetComponent* InteractionWidget;
 

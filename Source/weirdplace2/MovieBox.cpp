@@ -3,6 +3,7 @@
 
 #include "MovieBox.h"
 #include "DiegeticTextComponent.h"
+#include "Engine/StreamableManager.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "Kismet/GameplayStatics.h"
@@ -10,6 +11,10 @@
 #include "Components/TextRenderComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerInput.h"
+
+// Shared streamable manager for async cover-material loads (avoids blocking the
+// game thread when boxes stream in with World Partition).
+static FStreamableManager GMovieBoxStreamableManager;
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -48,28 +53,50 @@ void AMovieBox::BeginPlay()
 		return;
 	}
 
-	// Auto-load cover material based on actor name if not already set
-	if (!CoverMaterial)
+	// Auto-load cover material based on actor name if not already set. Load it
+	// ASYNC: boxes stream in with World Partition, and a synchronous LoadObject here
+	// blocks the game thread (FlushAsyncLoading) -> a frame hitch per box. Async
+	// loading lets the cover pop in a frame or two later instead. A cover that has
+	// no asset (e.g. the runtime CombinedTape) simply resolves to null -> the box
+	// keeps its default material, with no blocking retry.
+	if (CoverMaterial)
+	{
+		EnvelopeMesh->SetMaterial(0, CoverMaterial);
+	}
+	else
 	{
 		FString ActorName = GetName();
 		// Strip the _N index suffix added by spawner (e.g., "12-MONKEYS_5" -> "12-MONKEYS")
 		int32 LastUnderscore;
 		if (ActorName.FindLastChar('_', LastUnderscore))
 		{
-			FString Suffix = ActorName.Mid(LastUnderscore + 1);
+			const FString Suffix = ActorName.Mid(LastUnderscore + 1);
 			if (Suffix.IsNumeric())
 			{
 				ActorName = ActorName.Left(LastUnderscore);
 			}
 		}
 
-		FString MaterialPath = FString::Printf(TEXT("/Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_%s"), *ActorName);
-		CoverMaterial = LoadObject<UMaterialInterface>(nullptr, *MaterialPath);
-	}
+		const FString AssetName = FString::Printf(TEXT("MI_VHSCover_%s"), *ActorName);
+		const FSoftObjectPath CoverPath(FString::Printf(
+			TEXT("/Game/CreatedMaterials/VHSCoverMaterials/%s.%s"), *AssetName, *AssetName));
 
-	if (CoverMaterial)
-	{
-		EnvelopeMesh->SetMaterial(0, CoverMaterial);
+		TWeakObjectPtr<AMovieBox> WeakThis(this);
+		CoverLoadHandle = GMovieBoxStreamableManager.RequestAsyncLoad(
+			CoverPath,
+			FStreamableDelegate::CreateLambda([WeakThis, CoverPath]()
+			{
+				AMovieBox* Self = WeakThis.Get();
+				if (!Self || !Self->EnvelopeMesh)
+				{
+					return;
+				}
+				if (UMaterialInterface* Mat = Cast<UMaterialInterface>(CoverPath.ResolveObject()))
+				{
+					Self->CoverMaterial = Mat;
+					Self->EnvelopeMesh->SetMaterial(0, Mat);
+				}
+			}));
 	}
 
 	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
