@@ -13,8 +13,15 @@
 #include "GameFramework/PlayerInput.h"
 
 // Shared streamable manager for async cover-material loads (avoids blocking the
-// game thread when boxes stream in with World Partition).
-static FStreamableManager GMovieBoxStreamableManager;
+// game thread when boxes stream in with World Partition). Function-local static so
+// it's constructed lazily on first use (after engine init) — a GLOBAL static
+// FStreamableManager would construct at module load, before the engine is ready,
+// and crash at startup before logging even initializes.
+static FStreamableManager& GetCoverStreamableManager()
+{
+	static FStreamableManager Manager;
+	return Manager;
+}
 
 // Sets default values
 AMovieBox::AMovieBox()
@@ -82,7 +89,7 @@ void AMovieBox::BeginPlay()
 			TEXT("/Game/CreatedMaterials/VHSCoverMaterials/%s.%s"), *AssetName, *AssetName));
 
 		TWeakObjectPtr<AMovieBox> WeakThis(this);
-		CoverLoadHandle = GMovieBoxStreamableManager.RequestAsyncLoad(
+		CoverLoadHandle = GetCoverStreamableManager().RequestAsyncLoad(
 			CoverPath,
 			FStreamableDelegate::CreateLambda([WeakThis, CoverPath]()
 			{
