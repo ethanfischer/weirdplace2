@@ -9,6 +9,7 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 [ ] dial tone should stop when code starts and then busy sound
     
 # Needs human
+[ ] seneca text illegible when viewing with light in background
 [ ] add lock mesh to employee door
 [ ] review dialogue
 [ ] seneca tells you about tornado shelter in bathroom stall later
@@ -36,6 +37,9 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 [ ] Chosen movies show up as poster on telephone pole, in bathroom
 
 # Needs human
+[ ] make gas station pumps interactable
+[ ] make employee hallway have collectibles
+[ ] add more collectibles in general
 [ ] add lowpassfilter (lpf) to door lock sound
 [ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
