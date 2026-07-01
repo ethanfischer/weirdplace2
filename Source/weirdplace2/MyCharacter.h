@@ -8,6 +8,7 @@
 
 class UInventoryComponent;
 class UInventoryUIComponent;
+class UKeypadUIComponent;
 class UStaticMeshComponent;
 struct FInventoryItemData;
 
@@ -78,6 +79,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryUIComponent* GetInventoryUIComponent() const { return InventoryUIComponent; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Keypad")
+	UKeypadUIComponent* GetKeypadUIComponent() const { return KeypadUIComponent; }
+
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Mesh", meta = (AllowPrivateAccess = "true"))
 	bool CanInteract = true;
@@ -99,4 +103,7 @@ private:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory", meta = (AllowPrivateAccess = "true"))
 	UInventoryUIComponent* InventoryUIComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Keypad", meta = (AllowPrivateAccess = "true"))
+	UKeypadUIComponent* KeypadUIComponent;
 };

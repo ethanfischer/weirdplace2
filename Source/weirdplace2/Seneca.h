@@ -31,8 +31,7 @@ enum class ESenecaState : uint8
 	ReadyToGiveCombinedTape,    // External trigger fired; next interact hands tape over
 	ReadyToGiveKey,             // "Nice picks, here's the key"
 	GaveKey,                    // "Go use the bathroom outside"
-	Smoking,                    // "Door's busted, use employee bathroom"
-	AtEmployeeBathroom,         // "Here you go" + unlocks door
+	Smoking,                    // Cosmetic smoking beat (no story effect)
 	Done                        // No more dialogue
 };
 
@@ -153,9 +152,6 @@ protected:
 	FString SmokingDialoguePath = TEXT("Dialogue/Smoking.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString EmployeeBathroomDialoguePath = TEXT("Dialogue/EmployeeBathroom.txt");
-
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviesReminderPath = TEXT("Dialogue/WaitingForMoviesReminder.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
@@ -195,16 +191,6 @@ protected:
 	// Empty actor placed at the smoking spot outside
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
 	AActor* SmokingPositionTarget;
-
-	// Empty actor placed at the employee bathroom
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
-	AActor* EmployeeBathroomPositionTarget;
-
-	// --- Door Reference (assign on level instance) ---
-
-	// The employee bathroom door (starts locked, unlocked by Seneca)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Door")
-	ADoor* EmployeeBathroomDoor;
 
 	// --- Counter Stack ---
 
@@ -278,10 +264,6 @@ private:
 	// Returns true if the player camera is looking at Seneca
 	bool IsPlayerLookingAtMe() const;
 
-	// Deferred move: target to teleport to once player looks away
-	UPROPERTY()
-	AActor* PendingMoveTarget = nullptr;
-
 	// Cached skeletal mesh for computing look-at bounds target
 	UPROPERTY()
 	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
@@ -294,9 +276,6 @@ public:
 	void StartSmokingAnim();
 	void StopSmokingAnim();
 private:
-
-	// Tracks that the player was looking at Seneca (requires look then look-away)
-	bool bWasLookingAtMe = false;
 
 	// Timer for delayed appearance at smoking position
 	FTimerHandle SmokingAppearTimerHandle;

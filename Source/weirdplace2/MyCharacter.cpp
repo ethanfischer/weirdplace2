@@ -3,6 +3,7 @@
 #include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "KeypadUIComponent.h"
 #include "Components/InputComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Scalability.h"
@@ -16,6 +17,9 @@ AMyCharacter::AMyCharacter()
 
 	// Create and attach the inventory UI component
 	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
+
+	// Create and attach the keypad UI component (code-entry on locked doors)
+	KeypadUIComponent = CreateDefaultSubobject<UKeypadUIComponent>(TEXT("KeypadUIComponent"));
 }
 
 void AMyCharacter::BeginPlay()

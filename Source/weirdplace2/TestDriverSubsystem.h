@@ -17,6 +17,7 @@ class ATestWaypoint;
 class UInputAction;
 class UInventoryComponent;
 class UInventoryUIComponent;
+class UKeypadUIComponent;
 
 // Verb layer for E2E tests. Provides positioning, camera aiming, input
 // simulation, and state queries. All gameplay actions go through the real
@@ -130,6 +131,10 @@ public:
 	// Hang up the pay-phone directly (mirror of TriggerPayPhoneHangUp).
 	void TriggerPayPhoneHangUp();
 
+	// Mark the spoken code as already heard, so the next pickup is a mundane
+	// "dialtone only" call (persistent looping dialtone, no first-call cut/code).
+	void MarkPayPhoneCodeSpoken();
+
 	// --- Bathroom-door (item 1) test helpers ---
 
 	// Number of times the OutsideBathroomDoor has played its locked-rattle
@@ -199,6 +204,19 @@ public:
 	int32 GetSelectedSlot() const;
 	int32 GetScrollOffset() const;
 	int32 GetVisibleColumns() const;
+
+	// --- Keypad (code-entry on locked doors) ---
+
+	bool IsKeypadFullyOpen() const;
+
+	// Cumulative count of wrong-code buzzes since the keypad component was created.
+	// Rises WrongCodeClearDelay after each rejected submit (see ClearWrongEntry).
+	int32 GetKeypadDenySoundCount() const;
+
+	// Enter a full numeric code (digits 1-9) on the open keypad: selects each
+	// digit's cell and presses it directly (bypasses Enhanced Input, which 5.7
+	// double-fires/consumes for simulated presses). Submits on the last digit.
+	bool EnterKeypadCode(const FString& Code);
 
 	// --- Movie helpers ---
 
@@ -322,6 +340,7 @@ public:
 private:
 	UInventoryComponent* GetInventoryComponent() const;
 	UInventoryUIComponent* GetInventoryUIComponent() const;
+	UKeypadUIComponent* GetKeypadUIComponent() const;
 
 	TSet<TWeakObjectPtr<AMovieBox>> CollectedMovies;
 	TWeakObjectPtr<AMovieBox> LastFoundMovie;

@@ -140,7 +140,6 @@ void ASeneca::BeginPlay()
 	LoadDialogueFile(ESenecaState::ReadyToGiveKey, ReadyToGiveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
 	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
-	LoadDialogueFile(ESenecaState::AtEmployeeBathroom, EmployeeBathroomDialoguePath);
 
 	// Load reminder lines (not keyed by state)
 	{
@@ -330,21 +329,11 @@ void ASeneca::OnDialogueEnded()
 	}
 
 	case ESenecaState::Smoking:
-		// Defer move until player looks away
-		PendingMoveTarget = EmployeeBathroomPositionTarget;
-		bWasLookingAtMe = false;
-		SetActorTickEnabled(true);
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, waiting for player to look away"));
-		break;
-
-	case ESenecaState::AtEmployeeBathroom:
-		if (EmployeeBathroomDoor)
-		{
-			EmployeeBathroomDoor->SetLocked(false);
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Unlocked employee bathroom door"));
-		}
+		// Smoking dialogue is now purely cosmetic — Seneca stays at the smoking spot
+		// and unlocks nothing. The employee bathroom is opened via the phone-code
+		// keypad on the door, not by Seneca.
 		CurrentState = ESenecaState::Done;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - State: AtEmployeeBathroom -> Done"));
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended (cosmetic), State: Smoking -> Done"));
 		break;
 
 	default:
@@ -602,32 +591,6 @@ void ASeneca::Tick(float DeltaTime)
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 		}
 		return;
-	}
-
-	// Waiting for player to look away so Seneca can teleport to employee bathroom
-	if (!PendingMoveTarget)
-	{
-		return;
-	}
-
-	bool bLooking = IsPlayerLookingAtMe();
-
-	if (bLooking)
-	{
-		bWasLookingAtMe = true;
-	}
-	else if (bWasLookingAtMe)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Player looked away, moving to employee bathroom"));
-		MoveToTarget(PendingMoveTarget);
-		bIsSmoking = false;
-		StopSmokingAnim();
-		if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
-		PendingMoveTarget = nullptr;
-		bWasLookingAtMe = false;
-
-		CurrentState = ESenecaState::AtEmployeeBathroom;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - State: Smoking -> AtEmployeeBathroom"));
 	}
 }
 
@@ -1189,7 +1152,6 @@ void ASeneca::ForceSmokingAppearance()
 		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
 	}
 	bWaitingToAppear = false;
-	PendingMoveTarget = nullptr;
 	MoveToTarget(SmokingPositionTarget);
 	SetActorEnableCollision(true);
 	bIsSmoking = true;

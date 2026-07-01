@@ -15,8 +15,10 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "GameFramework/Controller.h"
 #include "TestWaypoint.h"
 #include "Door.h"
+#include "DoubleDoor.h"
 #include "MovieBox.h"
 #include "InspectablePickup.h"
 #include "Hudson.h"
@@ -360,6 +362,60 @@ public:
 
 // Teleport to `Distance` units in front of an actor found by editor label,
 // facing it. Handy when a waypoint is too far away for the interact trace.
+// Teleport the player squarely in front of a door's face, along its through-axis
+// (the actor RIGHT vector — perpendicular to the closed panel, matching
+// ADoor::GetClosedThroughAxis) and aim at one leaf. Deterministic regardless of
+// player spawn, unlike FTD_TeleportNearActorByLabel which keys off the player's
+// current position — a thin door panel can otherwise be approached edge-on.
+// Aims OFF-CENTER along the width axis (actor FORWARD) so a double door's central
+// seam gap doesn't swallow the interact trace.
+class FTD_TeleportToDoorFront : public FTD_Base
+{
+public:
+	FTD_TeleportToDoorFront(FAutomationTestBase* InTest, FString InLabel, float InDistance = 220.f, float InLeafOffset = 55.f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Distance(InDistance), LeafOffset(InLeafOffset) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting to front of door '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportToDoorFront: no driver")); return true; }
+		AActor* Door = Driver->FindActorByLabel(Label);
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Door || !Player)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TeleportToDoorFront: missing door '%s' or player"), *Label));
+			return true;
+		}
+		const FVector Through = Door->GetActorRightVector().GetSafeNormal2D();   // perpendicular to panel
+		const FVector Width   = Door->GetActorForwardVector().GetSafeNormal2D(); // along the panel width
+		const FVector DoorLoc = Door->GetActorLocation();
+		const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+		const FVector NewLoc = DoorLoc + Through * Distance + FVector(0.f, 0.f, HalfHeight);
+		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+
+		// Aim at a point on one leaf, at roughly the camera's own height, nudged
+		// off the seam so the trace lands on a panel rather than the gap.
+		UCameraComponent* Camera = Player->GetFirstPersonCamera();
+		const FVector CamLoc = Camera ? Camera->GetComponentLocation() : NewLoc;
+		const FVector AimPoint = DoorLoc + Width * LeafOffset + FVector(0.f, 0.f, CamLoc.Z - DoorLoc.Z);
+		const FRotator LookRot = (AimPoint - CamLoc).Rotation();
+		if (APlayerController* PC = Cast<APlayerController>(Player->GetController()))
+		{
+			PC->SetControlRotation(LookRot);
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Distance;
+	float LeafOffset;
+};
+
 class FTD_TeleportNearActorByLabel : public FTD_Base
 {
 public:
@@ -2283,6 +2339,24 @@ public:
 	}
 };
 
+// Mark the pay-phone's spoken code as already heard, so the next pickup is a
+// mundane "dialtone only" call (persistent looping dialtone, no cut/code/busy).
+class FTD_MarkPayPhoneCodeSpoken : public FTD_Base
+{
+public:
+	FTD_MarkPayPhoneCodeSpoken(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Marking pay-phone code already spoken"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_MarkPayPhoneCodeSpoken: no driver")); return true; }
+		Driver->MarkPayPhoneCodeSpoken();
+		return true;
+	}
+};
+
 // Assert whether the pay-phone dialtone loop is playing.
 class FTD_AssertPayPhoneDialtone : public FTD_Base
 {
@@ -2996,6 +3070,71 @@ private:
 // until the door timeline finishes.
 // =======================================================================
 
+// =======================================================================
+// FTD_WaitForKeypadOpen — wait until the code-entry keypad is fully open.
+// =======================================================================
+
+class FTD_WaitForKeypadOpen : public FTD_Base
+{
+public:
+	FTD_WaitForKeypadOpen(FAutomationTestBase* InTest, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Waiting for keypad to open"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForKeypadOpen: no driver")); return true; }
+		if (Driver->IsKeypadFullyOpen())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForKeypadOpen: keypad never opened (timeout)"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// =======================================================================
+// FTD_EnterKeypadCode — enter a numeric code (digits 1-9) on the open
+// keypad. Submits on the last digit; the door opens on a correct code.
+// =======================================================================
+
+class FTD_EnterKeypadCode : public FTD_Base
+{
+public:
+	FTD_EnterKeypadCode(FAutomationTestBase* InTest, FString InCode)
+		: FTD_Base(InTest), Code(MoveTemp(InCode)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Entering keypad code '%s'"), *Code);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_EnterKeypadCode: no driver")); return true; }
+		if (!Driver->EnterKeypadCode(Code))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_EnterKeypadCode: failed to enter '%s'"), *Code));
+		}
+		return true;
+	}
+private:
+	FString Code;
+};
+
+// =======================================================================
+// FTD_WaitForDoorOpen
+// =======================================================================
+
 class FTD_WaitForDoorOpen : public FTD_Base
 {
 public:
@@ -3032,6 +3171,154 @@ public:
 private:
 	FString Label;
 	double Timeout;
+};
+
+// =======================================================================
+// FTD_AssertDoorClosed — assert a door by label is NOT open (a rejected
+// keypad entry must leave it shut). Immediate one-shot check.
+// =======================================================================
+
+class FTD_AssertDoorClosed : public FTD_Base
+{
+public:
+	FTD_AssertDoorClosed(FAutomationTestBase* InTest, FString InLabel)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting door '%s' is closed"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoorClosed: no driver")); return true; }
+		ADoor* Door = Cast<ADoor>(Driver->FindActorByLabel(Label));
+		if (!Door)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoorClosed: no ADoor with label '%s'"), *Label));
+			return true;
+		}
+		if (Door->IsOpen())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoorClosed: '%s' is OPEN but should be locked"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+};
+
+// =======================================================================
+// FTD_AssertDoubleDoorOpenLeafCount — guards the ADoubleDoor independent leaves:
+// asserts exactly N leaves are swung open, by counting how many of the two leaf
+// angles pushed into the AnimInstance (LeftDoor_Rotation/RightDoor_Rotation)
+// exceed a threshold. 1 after one interact; 2 after opening the second leaf WHILE
+// the first stays open (the independence guard); 0 after auto-close.
+// =======================================================================
+
+class FTD_AssertDoubleDoorOpenLeafCount : public FTD_Base
+{
+public:
+	FTD_AssertDoubleDoorOpenLeafCount(FAutomationTestBase* InTest, FString InLabel, int32 InExpectedOpen, float InOpenThreshold = 10.0f)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), ExpectedOpen(InExpectedOpen), OpenThreshold(InOpenThreshold) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting double door '%s' has %d leaf/leaves open"), *Label, ExpectedOpen);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDoubleDoorOpenLeafCount: no driver")); return true; }
+		ADoubleDoor* Door = Cast<ADoubleDoor>(Driver->FindActorByLabel(Label));
+		if (!Door)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDoubleDoorOpenLeafCount: no ADoubleDoor with label '%s'"), *Label));
+			return true;
+		}
+
+		float Left = 0.0f, Right = 0.0f;
+		if (!Door->GetLeafAngles(Left, Right))
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' could not read leaf angles from AnimInstance"), *Label));
+			return true;
+		}
+		const int32 OpenCount = (FMath::Abs(Left) > OpenThreshold ? 1 : 0) + (FMath::Abs(Right) > OpenThreshold ? 1 : 0);
+		if (OpenCount != ExpectedOpen)
+		{
+			Test->AddError(FString::Printf(
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' expected %d open, got %d (L=%.1f R=%.1f)"),
+				*Label, ExpectedOpen, OpenCount, Left, Right));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Display,
+				TEXT("FTD_AssertDoubleDoorOpenLeafCount: '%s' OK %d open (L=%.1f R=%.1f)"), *Label, OpenCount, Left, Right);
+		}
+		return true;
+	}
+private:
+	FString Label;
+	int32 ExpectedOpen;
+	float OpenThreshold;
+};
+
+// =======================================================================
+// FTD_AssertKeypadOpen — assert the keypad is still fully open (a rejected
+// entry buzzes + clears but keeps the pad up).
+// =======================================================================
+
+class FTD_AssertKeypadOpen : public FTD_Base
+{
+public:
+	FTD_AssertKeypadOpen(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting keypad still open"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertKeypadOpen: no driver")); return true; }
+		if (!Driver->IsKeypadFullyOpen())
+		{
+			Test->AddError(TEXT("FTD_AssertKeypadOpen: keypad is not open after a rejected code"));
+		}
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_AssertKeypadDenyCount — assert the cumulative wrong-code buzz count
+// equals the expected value (guards that a bad code was actually rejected).
+// =======================================================================
+
+class FTD_AssertKeypadDenyCount : public FTD_Base
+{
+public:
+	FTD_AssertKeypadDenyCount(FAutomationTestBase* InTest, int32 InExpected)
+		: FTD_Base(InTest), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting keypad deny count == %d"), Expected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertKeypadDenyCount: no driver")); return true; }
+		const int32 Actual = Driver->GetKeypadDenySoundCount();
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertKeypadDenyCount: expected %d, got %d"), Expected, Actual));
+		}
+		return true;
+	}
+private:
+	int32 Expected;
 };
 
 // =======================================================================
@@ -3105,6 +3392,84 @@ private:
 	bool bInitialized;
 	FVector StartPos;
 	FVector EndPos;
+};
+
+// =======================================================================
+// FTD_ExecConsole — run an arbitrary console command in the PIE world.
+// Used by the perf-profiling walk to drive the CSV profiler
+// ("CsvProfile start" / "CsvProfile stop") and toggle profiling cvars.
+// =======================================================================
+
+class FTD_ExecConsole : public FTD_Base
+{
+public:
+	FTD_ExecConsole(FAutomationTestBase* InTest, FString InCommand)
+		: FTD_Base(InTest), Command(MoveTemp(InCommand)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Exec: %s"), *Command);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_ExecConsole: no PIE world")); return true; }
+		GEngine->Exec(World, *Command);
+		UE_LOG(LogTemp, Warning, TEXT("[E2E] ExecConsole: %s"), *Command);
+		return true;
+	}
+private:
+	FString Command;
+};
+
+// =======================================================================
+// FTD_CameraYawSweep — smoothly rotate the player's view yaw by a total
+// number of degrees over a duration. Reveals geometry on all sides while
+// standing, so hitches that only fire when new draws/shadows/cells enter
+// the frustum get reproduced (and captured by a running CSV profile).
+// =======================================================================
+
+class FTD_CameraYawSweep : public FTD_Base
+{
+public:
+	FTD_CameraYawSweep(FAutomationTestBase* InTest, float InDurationSeconds, float InTotalDegrees = 360.f)
+		: FTD_Base(InTest), Duration(InDurationSeconds), TotalDegrees(InTotalDegrees)
+		, bInitialized(false), StartYaw(0.f) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Yaw sweep %.0f deg over %.1fs"), TotalDegrees, Duration);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_CameraYawSweep: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		AController* Controller = Player ? Player->GetController() : nullptr;
+		if (!Controller) { Test->AddError(TEXT("FTD_CameraYawSweep: no controller")); return true; }
+
+		if (!bInitialized)
+		{
+			StartYaw = Controller->GetControlRotation().Yaw;
+			bInitialized = true;
+		}
+
+		const float Alpha = Duration > 0.f
+			? FMath::Clamp(static_cast<float>(GetElapsedSinceFirstTick()) / Duration, 0.f, 1.f)
+			: 1.f;
+		FRotator Rot = Controller->GetControlRotation();
+		Rot.Yaw = StartYaw + TotalDegrees * Alpha;
+		Controller->SetControlRotation(Rot);
+
+		return Alpha >= 1.f;
+	}
+private:
+	float Duration;
+	float TotalDegrees;
+	bool bInitialized;
+	float StartYaw;
 };
 
 // =======================================================================

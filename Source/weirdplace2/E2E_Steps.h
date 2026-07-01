@@ -8,10 +8,9 @@
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
-// Helper: open the map, wait for spawn, suppress the known widget warning.
+// Helper: open the map, wait for spawn.
 #define E2E_TEST_PREAMBLE(Label) \
 	UE_LOG(LogTemp, Warning, TEXT("=== E2E TEST START === " Label " %s"), *FDateTime::Now().ToString()); \
-	AddExpectedError(TEXT("InteractionText widget not found"), EAutomationExpectedErrorFlags::Contains, 0); \
 	AutomationOpenMap(TEXT("/Game/FirstPerson/Maps/FirstPersonMap")); \
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPlayerReady(this));
 
@@ -187,22 +186,22 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
 
-	void SenecaHallwayDialogue(FAutomationTestBase* T)
-	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaHallway")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(T, ESenecaState::AtEmployeeBathroom));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaState(T, ESenecaState::Done));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_SenecaDone")));
-	}
-
 	void OpenBathroomDoor(FAutomationTestBase* T)
 	{
+		// Employee bathroom now opens via the phone-code keypad (Seneca no longer
+		// unlocks it). The lock accepts almost any 4-digit entry, but it must contain
+		// an 8 and not be a blocked "obvious" code — "4289" qualifies. Enter it by
+		// selecting each digit cell (digit N lives at cell N-1) and pressing Interact.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
+		// Enter the first two digits to capture the fill row (now above the grid), then
+		// finish the code "4289" to open the door.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("42")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19b_KeypadPartial")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("89")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
 	}

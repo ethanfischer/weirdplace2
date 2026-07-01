@@ -36,10 +36,18 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
 	bool IsOpen() const { return Opened; }
 
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Door")
+	bool UsesKeypadLock() const { return bUsesKeypadLock; }
+
 protected:
 	// Timeline update function - called each tick of the door animation
 	UFUNCTION()
 	void UpdateDoorRotation(float Alpha);
+
+	// What physically moves as the door opens (Alpha 0->1). Default rotates the
+	// static DoorMesh by MaxDoorAngle*OpenDirection*Alpha; subclasses (e.g.
+	// ADoubleDoor) override to drive a skeletal animation instead.
+	virtual void ApplyOpenAmount(float Alpha);
 
 	// Picks OpenDirection so the door swings away from the player
 	void UpdateOpenDirection();
@@ -51,6 +59,15 @@ protected:
 
 	// Shared close logic — used by manual close and auto-close
 	void CloseDoor();
+
+	// Keypad submit callback: a full-length entry unlocks + opens the door (the
+	// code is mostly an illusion) when it passes IsKeypadCodeAccepted AND the
+	// player has used the payphone; otherwise returns false (keypad denies + clears).
+	bool OnKeypadCodeSubmitted(const FString& EnteredCode);
+
+	// The "any code works" rules: the entry must contain RequiredKeypadDigit and
+	// must not be one of BlockedKeypadCodes. Length is already enforced by the pad.
+	bool IsKeypadCodeAccepted(const FString& Code) const;
 
 	// Auto-close timer management
 	void StartAutoCloseTracking();
@@ -80,6 +97,30 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")
 	FName KeyName;
+
+	// --- Keypad lock (opt-in) ---
+
+	// When locked and this is set, interacting opens the world-space keypad UI
+	// instead of just playing the locked sound. Leave KeyName empty so HasKey()
+	// stays false.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	bool bUsesKeypadLock = false;
+
+	// Employee-bathroom keypad is a near-fake lock: almost any entry of this length
+	// opens the door, but only once the player has used the payphone (where the
+	// "code" is spoken), and only if it passes the rules below.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	int32 KeypadCodeLength = 4;
+
+	// The entry must contain this digit to be accepted (the one real "rule").
+	// Leave empty to drop the requirement.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	FString RequiredKeypadDigit = TEXT("8");
+
+	// Entries rejected even though they'd otherwise pass — too obvious / cheeky.
+	// Seeded in the constructor; editable per-instance.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door|Keypad")
+	TArray<FString> BlockedKeypadCodes;
 
 	// Curve for door open/close animation (0 to 1 over time)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Door")

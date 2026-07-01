@@ -14,6 +14,7 @@
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
+#include "KeypadUIComponent.h"
 #include "ItemGlow.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "EnhancedInputComponent.h"
@@ -458,6 +459,14 @@ void AFirstPersonCharacter::HandleNextOption()
 		MenuUIComponent->NavigateNext();
 		return;
 	}
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->NavigateNext();
+			return;
+		}
+	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
 		if (InvUI->IsInventoryFullyOpen())
@@ -473,6 +482,14 @@ void AFirstPersonCharacter::HandlePreviousOption()
 	{
 		MenuUIComponent->NavigatePrevious();
 		return;
+	}
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->NavigatePrevious();
+			return;
+		}
 	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
@@ -490,6 +507,14 @@ void AFirstPersonCharacter::HandleNavigateLeft()
 		MenuUIComponent->AdjustLeft();
 		return;
 	}
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->NavigateLeft();
+			return;
+		}
+	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
 		if (InvUI->IsInventoryFullyOpen())
@@ -506,6 +531,14 @@ void AFirstPersonCharacter::HandleNavigateRight()
 		MenuUIComponent->AdjustRight();
 		return;
 	}
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->NavigateRight();
+			return;
+		}
+	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
 		if (InvUI->IsInventoryFullyOpen())
@@ -521,6 +554,14 @@ void AFirstPersonCharacter::HandleBack()
 	{
 		MenuUIComponent->HandleBack();
 		return;
+	}
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->CloseKeypadUI();
+			return;
+		}
 	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
@@ -636,6 +677,16 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		}
 	}
 
+	// While the keypad is open, Interact enters the highlighted digit.
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadFullyOpen())
+		{
+			Keypad->PressSelectedDigit();
+			return;
+		}
+	}
+
 	// If in dialogue, advance it instead of raycasting
 	EPlayerActivityState State = GetActivityState();
 	if (State == EPlayerActivityState::InSimpleDialogue)
@@ -696,6 +747,15 @@ void AFirstPersonCharacter::HandleShowInventory()
 		return;
 	}
 
+	// Don't open the inventory over an open keypad.
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadOpen())
+		{
+			return;
+		}
+	}
+
 	if (UInventoryUIComponent* UI = GetInventoryUIComponent())
 	{
 		UI->ToggleInventoryUI();
@@ -719,6 +779,15 @@ void AFirstPersonCharacter::HandleShowMenu()
 	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
 	{
 		if (InvUI->IsInventoryOpen())
+		{
+			return;
+		}
+	}
+
+	// Don't open the pause menu over an open keypad.
+	if (UKeypadUIComponent* Keypad = GetKeypadUIComponent())
+	{
+		if (Keypad->IsKeypadOpen())
 		{
 			return;
 		}

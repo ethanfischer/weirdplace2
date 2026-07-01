@@ -3,23 +3,25 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] make seneca only smoke after interacting with payphone
-    [ ] on second thought, maybe we drop the seneca smoking thing. or at least make it so he appears whereever you look for him. I don't want players getting frustrated running around aimlessly.
+[ ] profiling and performance
+[ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
+Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
+[ ] dial tone should stop when code starts and then busy sound
     
 # Needs human
+[ ] seneca text illegible when viewing with light in background
+[ ] add lock mesh to employee door
+[ ] review dialogue
 [ ] seneca tells you about tornado shelter in bathroom stall later
-[ ] add lowpassfilter (lpf) to door lock sound
 [ ] clock that ticks with only one hand in both directions
     [ ] or at least needs to be blurred. cant see clocks in dreams
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
-[ ] gas station door animation
 [ ] more weather sounds
 [ ] more weather effects
 [ ] sound mixing (tornado alert too loud)
     
     
 # Needs design
-[ ] use weather plugin 
 [ ] message on payphone is code to employee bathroom
     [ ] you write it down (wrongly)
     [ ] you enter it wrongly, but it works
@@ -31,12 +33,19 @@
 -------------------------------------------
 
 # Claude Friendly
+[ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
+[ ] Chosen movies show up as poster on telephone pole, in bathroom
 
 # Needs human
+[ ] make gas station pumps interactable
+[ ] make employee hallway have collectibles
+[ ] add more collectibles in general
+[ ] add lowpassfilter (lpf) to door lock sound
 [ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive
+[ ] door close sounds
 
 # Needs design
 [ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
@@ -52,4 +61,6 @@
 [ ] There is no dying. only waking up in the other world
     [ ] 2 worlds that you progress in back and forth. One where the drive continues, one where you stop at the gas station
         [ ] eventually they converge. it's up to the player to interpret how these two wolds relate to each other
+[ ] death state at beginning of game so player feels like there's stakes
+    [ ] maybe rick asks if he should turn off his headlights. If you say yes, he crashes
     
