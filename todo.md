@@ -6,7 +6,7 @@
 [ ] have objects pass you by in driving scene so it actually looks like you're moving. Right now we just have the car staionary in the middle of nowhere. Feel free to use any meshes/blueprints in content that would make sense for this.
 [x] seneca text illegible when viewing with light in background
 [x] clock should be blurred out
-[ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
+[x] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
 [x] Chosen movies show up as poster on telephone pole, in bathroom
 [x] blur the background when in item inspection state
     

@@ -1679,6 +1679,33 @@ private:
 	int32 Expected;
 };
 
+// Set the level's height fog component visibility. Use two of these as
+// separate latent commands for a genuine two-frame off/on cycle.
+class FTD_SetHeightFogVisible : public FTD_Base
+{
+public:
+	FTD_SetHeightFogVisible(FAutomationTestBase* InTest, bool bInVisible)
+		: FTD_Base(InTest), bVisible(bInVisible) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting height fog visible=%d"), bVisible ? 1 : 0);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetHeightFogVisible: no driver")); return true; }
+		if (!Driver->SetHeightFogVisible(bVisible))
+		{
+			Test->AddError(TEXT("FTD_SetHeightFogVisible: no height fog"));
+		}
+		return true;
+	}
+private:
+	bool bVisible;
+};
+
 // Fire a single bladder-urgency vignette pulse (no scheduling).
 class FTD_TriggerBladderPulse : public FTD_Base
 {

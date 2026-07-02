@@ -286,6 +286,11 @@ public:
 	// scheduling) — for screenshotting the pulse visual on demand.
 	bool TriggerBladderPulse();
 
+	// Sets the level's ExponentialHeightFog component visibility. Two calls
+	// from consecutive latent commands make a genuine two-frame off/on cycle
+	// (same-frame toggles coalesce to a no-op). For the first-play fog probes.
+	bool SetHeightFogVisible(bool bVisible);
+
 	// Finds a named scene component on the actor with the given editor label
 	// and reports its visibility. Returns false if the actor or component
 	// doesn't exist — which is also the meaningful missing-feature failure.

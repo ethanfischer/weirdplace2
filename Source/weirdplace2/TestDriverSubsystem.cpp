@@ -1,5 +1,7 @@
 #include "TestDriverSubsystem.h"
 #include "BladderUrgencyComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/ExponentialHeightFog.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
@@ -439,6 +441,26 @@ bool UTestDriverSubsystem::TriggerBladderPulse()
 	}
 	Bladder->FireSinglePulse();
 	return true;
+}
+
+bool UTestDriverSubsystem::SetHeightFogVisible(bool bVisible)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+		{
+			Fog->SetVisibility(bVisible);
+			UE_LOG(LogTemp, Log, TEXT("TestDriver::SetHeightFogVisible - %d"), bVisible ? 1 : 0);
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::SetHeightFogVisible - no ExponentialHeightFog in world"));
+	return false;
 }
 
 bool UTestDriverSubsystem::GetNamedComponentVisible(const FString& ActorLabel, const FString& ComponentName, bool& bOutVisible) const

@@ -1804,20 +1804,33 @@ bool FE2E_Level1_Diag_FirstPlayEffects::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("FirstPlayEffects")
 
-	// Early and cold on purpose — minimal settle.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	// Shot A: untouched spawn view. In spawn-at-camera mode this is the saved
+	// editor-viewport framing — directly comparable to the user's reference.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_A_SpawnView")));
 
-	// The oasis waterfall steam plume (Blueprint_Effect_Steam).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(-7700.0, 88.0, -2833.0)));
+	// Shot B: fixed vantage — south of the gas station looking north at it,
+	// the black fog band should swallow the horizon behind the canopy.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3600.0, -3000.0, 0.0)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(-8089.0, 88.0, -3100.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3600.0, 500.0, 150.0)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_FirstPlay_1_Steam")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_B_Station")));
 
-	// The bladder vignette, mid-pulse.
+	// Probe: a genuine two-frame fog visibility cycle. On a broken play this
+	// asks "does recreation revive dead fog?"; on a healthy play it asks
+	// "does recreation kill healthy fog?" (the MarkRenderStateDirty guard did).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogVisible(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogVisible(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_C_AfterCycle")));
+
+	// Bladder vignette mid-pulse (verifies the warm-at-load fix: no corrupt
+	// border on a session's first pulse).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerBladderPulse(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.8f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_FirstPlay_1_Bladder")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_D_BladderPulse")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
