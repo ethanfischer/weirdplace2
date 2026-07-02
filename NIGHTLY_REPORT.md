@@ -3,7 +3,8 @@
 **Home branch:** `July1`
 **Overnight branch:** `overnight/2026-07-01`
 **Scope agreed:** posters → inspection blur → seneca text → clock blur → first-play investigation
-**Result:** (in progress)
+**Result:** 4 done · 1 investigated + partial fix (needs your fresh-launch verify) · 0 skipped
+**Final tip certified:** full `Regression` suite green — **23/23 tests, 429 steps** (3 new regression tests + 20 pre-existing, all passing together).
 
 > The previous 2026-06-19 nightly report is preserved in git history; this file was
 > overwritten for tonight's run.
@@ -92,6 +93,8 @@ is an acceptable fix** if root cause is first-use shader/PSO/Niagara compilation
 
 ## Skipped
 (nothing yet)
+
+→ **Next:** the highest-value pickup is closing the first-play loop — do the fresh-launch check above and tell me which actor "the fog wall" actually is; everything else on the MVP Claude-Friendly list is done.
 
 ## How to review this run
 - `git log --oneline July1..overnight/2026-07-01` — the per-item commits
