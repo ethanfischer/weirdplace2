@@ -1785,4 +1785,75 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// Diagnostic.ClockClose — close-up of the store wall clock
+// (SM_Wall_Decor_Set_NN_02c) to verify its face is illegibly blurred.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_ClockClose,
+	"Weirdplace2.E2E.Level1.Diagnostic.ClockClose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_ClockClose::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("ClockClose")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3519.0, -430.0, 0.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("SM_Wall_Decor_Set_NN_02c")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_ClockClose")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.ClockHunt — panoramic screenshot tour of the store and oasis
+// interiors to visually locate the wall clock (todo: "clock should be
+// blurred out"); no clock-named asset exists, so it's baked into some prop.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_ClockHunt,
+	"Weirdplace2.E2E.Level1.Diagnostic.ClockHunt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_ClockHunt::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("ClockHunt")
+
+	// Let the world settle (car-ride skip, PSO warmup, spawn state) before
+	// driving the camera; the first attempt screenshotted at t~8s and every
+	// frame rendered from a stale spawn-side view.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	struct FSpot { const TCHAR* Name; FVector Ground; };
+	const FSpot Spots[] = {
+		{ TEXT("Store"), FVector(3300.0, 200.0, 0.0) },
+		{ TEXT("Oasis"), FVector(-2982.0, -236.0, -2825.0) },
+	};
+	for (const FSpot& Spot : Spots)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, Spot.Ground));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		for (int32 i = 0; i < 8; ++i)
+		{
+			const float Yaw = i * 45.f;
+			const FVector Eye = Spot.Ground + FVector(0, 0, 160);
+			const FVector LookTarget = Eye + FRotator(15.f, Yaw, 0.f).Vector() * 500.f;
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, LookTarget));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_ClockHunt_%s_%d"), Spot.Name, i)));
+		}
+	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

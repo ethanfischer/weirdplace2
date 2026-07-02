@@ -72,6 +72,13 @@ is an acceptable fix** if root cause is first-use shader/PSO/Niagara compilation
   **How it works:** `ASeneca` floats an engine plane with new unlit-translucent `M_DialogueBacking` (black, opacity 0.55, generator script `scripts/local/create_dialogue_backing_material.py`) 1cm behind the dialogue `WidgetComponent`, inheriting its camera billboard; visibility syncs to the widget's Slate open state each tick.
   Note: Rick and Hudson share the same dialogue-widget pattern and the same illegibility risk — same fix applies if you want it there too (kept to Seneca per the locked scope).
 
+- ✅ **Clock blurred out (fully illegible)** — screenshot-only item, per the locked criteria (no runtime logic to assert; verified via `Diagnostic.ClockClose` close-up, which stays as an on-demand diagnostic, not a Regression gate).
+  Criteria: ✅ hands/numbers unreadable in a deliberate close-up · ✅ still recognizably a wall clock.
+  Screenshots: `E2E_ClockClose.png` (final: smooth unreadable face in the rim) · `E2E_ClockHunt_Store_7.png` (where it lives).
+  **Verify in-game:** the clock is `SM_Wall_Decor_Set_NN_02c` on the store's south wall at ~(3519, −569, 240) — walk up; you'll see a clock whose face is a smudge.
+  **How it works:** the clock is a Fab "Suburban Household VOL12" decor prop; its numerals AND hands are painted into the pack's shared atlas textures. I replaced `TX_Wall_Decor_Set_NN_02a_ALB` and `_NRM` **in place** with 32px-downscale blurred versions (originals recoverable from git history; only this one prop in the level uses the atlas). The pack's `MI` has a trailing-space `'Albedo '` param that UE's material-instance API silently drops on update — hence the texture-swap approach instead of a material variant.
+  Note: it took three blur iterations (albedo → +normal → strength) because hands ghosted through the normal map; the RMA was left original after a full-blur pass made the face too dark.
+
 ## Blocked / WIP
 (nothing yet)
 

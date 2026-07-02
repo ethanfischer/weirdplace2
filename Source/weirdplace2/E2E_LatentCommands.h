@@ -448,6 +448,32 @@ private:
 	float Distance;
 };
 
+// Aim the camera at an explicit world-space point.
+class FTD_LookAtWorldPoint : public FTD_Base
+{
+public:
+	FTD_LookAtWorldPoint(FAutomationTestBase* InTest, FVector InPoint)
+		: FTD_Base(InTest), Point(InPoint) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Looking at %s"), *Point.ToCompactString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtWorldPoint: no driver")); return true; }
+		if (!Driver->LookAtWorldPoint(Point))
+		{
+			Test->AddError(TEXT("FTD_LookAtWorldPoint: aim failed"));
+		}
+		return true;
+	}
+private:
+	FVector Point;
+};
+
 // Teleport the player capsule onto an explicit ground point — for screenshot
 // vantages that no waypoint or actor-relative teleport gives.
 class FTD_TeleportToWorldPoint : public FTD_Base
