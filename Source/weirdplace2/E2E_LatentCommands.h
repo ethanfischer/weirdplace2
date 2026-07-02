@@ -1653,6 +1653,45 @@ private:
 	int32 Expected;
 };
 
+// Assert a named scene component on a labeled actor exists and matches the
+// expected visibility. Errors (rather than passing) when the actor or the
+// component is missing.
+class FTD_AssertNamedComponentVisible : public FTD_Base
+{
+public:
+	FTD_AssertNamedComponentVisible(FAutomationTestBase* InTest, FString InActorLabel, FString InComponentName, bool bInExpectVisible)
+		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), ComponentName(MoveTemp(InComponentName)), bExpectVisible(bInExpectVisible) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s.%s %s"), *ActorLabel, *ComponentName, bExpectVisible ? TEXT("visible") : TEXT("hidden"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertNamedComponentVisible: no driver")); return true; }
+		bool bVisible = false;
+		if (!Driver->GetNamedComponentVisible(ActorLabel, ComponentName, bVisible))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertNamedComponentVisible: no component '%s' on actor '%s'"), *ComponentName, *ActorLabel));
+			return true;
+		}
+		if (bVisible != bExpectVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertNamedComponentVisible: %s.%s is %s, expected %s"),
+				*ActorLabel, *ComponentName,
+				bVisible ? TEXT("visible") : TEXT("hidden"),
+				bExpectVisible ? TEXT("visible") : TEXT("hidden")));
+		}
+		return true;
+	}
+private:
+	FString ActorLabel;
+	FString ComponentName;
+	bool bExpectVisible;
+};
+
 // Assert the inspection-blur depth-of-field state on the player camera.
 // Active = DoF overrides on with the aperture ramped wide open (Fstop <= 1.1)
 // and focus at held-item distance; inactive = overrides off.

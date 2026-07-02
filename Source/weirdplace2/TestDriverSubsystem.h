@@ -282,6 +282,11 @@ public:
 	// which is also the meaningful missing-placement failure.
 	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
 
+	// Finds a named scene component on the actor with the given editor label
+	// and reports its visibility. Returns false if the actor or component
+	// doesn't exist — which is also the meaningful missing-feature failure.
+	bool GetNamedComponentVisible(const FString& ActorLabel, const FString& ComponentName, bool& bOutVisible) const;
+
 	// Reads the depth-of-field state off the player's first-person camera:
 	// whether the inspection-blur DoF overrides are active, and the current
 	// Fstop / focal distance. Returns false if no player camera exists.

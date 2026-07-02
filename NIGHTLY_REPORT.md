@@ -65,6 +65,13 @@ is an acceptable fix** if root cause is first-use shader/PSO/Niagara compilation
   **Verify in-game:** inspect any shelf movie — the store behind it melts into bokeh; put it back or collect and focus returns.
   **How it works:** new `UInspectionBlurComponent` on `AFirstPersonCharacter` — ramps cinematic DoF overrides (focal 45cm, f/22→f/1.0 over ~0.33s) on the first-person camera while activity state is `Interacting`. Note: asserts read the camera's DoF override state directly (the observable form of the ratified "blendable weight > 0") so the test compiles without any feature dependency.
 
+- ✅ **Seneca dialogue text legible against bright light** — `Weirdplace2.E2E.Level1.Regression.SenecaTextBacking` green (11 steps).
+  Criteria: ✅ backing panel visible behind the text during dialogue (RED-defining; genuine red — "no component DialogueBackingPanel") · ✅ hidden when no dialogue · ✅ screenshot shows the plate dimming the ceiling lights behind the text, text crisp · ✅ HappyPath green (124 steps).
+  Screenshots: `E2E_SenecaText_01_Dialogue.png` (text on the dark plate, lights dimmed behind it), `E2E_SenecaText_02_Closed.png` (plate gone, same lights full-bright — proves the plate is doing the work).
+  **Verify in-game:** talk to Seneca and put a ceiling light behind him — the text now sits on a translucent dark plate.
+  **How it works:** `ASeneca` floats an engine plane with new unlit-translucent `M_DialogueBacking` (black, opacity 0.55, generator script `scripts/local/create_dialogue_backing_material.py`) 1cm behind the dialogue `WidgetComponent`, inheriting its camera billboard; visibility syncs to the widget's Slate open state each tick.
+  Note: Rick and Hudson share the same dialogue-widget pattern and the same illegibility risk — same fix applies if you want it there too (kept to Seneca per the locked scope).
+
 ## Blocked / WIP
 (nothing yet)
 

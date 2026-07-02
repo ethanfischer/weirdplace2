@@ -1744,4 +1744,45 @@ bool FE2E_Level1_InspectionBlur::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// SenecaTextBacking — a dark translucent plate sits behind Seneca's
+// world-space dialogue text while dialogue is open, so the text stays
+// legible against bright backgrounds (the original complaint: text washed
+// out when a light sits behind him). Hidden whenever no dialogue is open.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaTextBacking,
+	"Weirdplace2.E2E.Level1.Regression.SenecaTextBacking",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaTextBacking")
+
+	// No dialogue: the backing panel must exist and be hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), false));
+
+	// Start Seneca's dialogue.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	// Panel visible behind the text while the dialogue is open.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_01_Dialogue")));
+
+	// Finish the dialogue; the panel must hide again.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

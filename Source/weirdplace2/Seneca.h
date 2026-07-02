@@ -9,6 +9,7 @@ class APropActor;
 #include "Seneca.generated.h"
 
 class UWidgetComponent;
+class UStaticMeshComponent;
 class UUI_Dialogue;
 class UItemDefinition;
 class UTexture2D;
@@ -57,6 +58,12 @@ public:
 	// Widget component hosting the dialogue UI - auto-found by name in BeginPlay
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
+
+	// Dark translucent plate floated just behind the dialogue widget so the
+	// text stays legible against bright backgrounds. Created at BeginPlay,
+	// visible only while the dialogue widget is open.
+	UPROPERTY()
+	UStaticMeshComponent* DialogueBackingPanel;
 
 	// --- Quest State ---
 

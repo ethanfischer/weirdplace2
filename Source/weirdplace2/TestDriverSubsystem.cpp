@@ -427,6 +427,22 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	return true;
 }
 
+bool UTestDriverSubsystem::GetNamedComponentVisible(const FString& ActorLabel, const FString& ComponentName, bool& bOutVisible) const
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	if (!Actor)
+	{
+		return false;
+	}
+	USceneComponent* Component = FindComponentOnActorByName(Actor, ComponentName);
+	if (!Component)
+	{
+		return false;
+	}
+	bOutVisible = Component->IsVisible();
+	return true;
+}
+
 bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const
 {
 	AFirstPersonCharacter* Player = GetPlayer();

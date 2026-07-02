@@ -3,7 +3,7 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] seneca text illegible when viewing with light in background
+[x] seneca text illegible when viewing with light in background
 [ ] clock should be blurred out
 [ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
 [x] Chosen movies show up as poster on telephone pole, in bathroom
