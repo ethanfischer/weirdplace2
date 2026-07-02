@@ -282,6 +282,10 @@ public:
 	// which is also the meaningful missing-placement failure.
 	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
 
+	// Fires a single bladder-urgency vignette pulse on the player (no timer
+	// scheduling) — for screenshotting the pulse visual on demand.
+	bool TriggerBladderPulse();
+
 	// Finds a named scene component on the actor with the given editor label
 	// and reports its visibility. Returns false if the actor or component
 	// doesn't exist — which is also the meaningful missing-feature failure.

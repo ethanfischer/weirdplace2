@@ -1,4 +1,5 @@
 #include "TestDriverSubsystem.h"
+#include "BladderUrgencyComponent.h"
 #include "FirstPersonCharacter.h"
 #include "MyCharacter.h"
 #include "Inventory.h"
@@ -424,6 +425,19 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportNearActor - near %s at %s"), *Target->GetName(), *NewLoc.ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::TriggerBladderPulse()
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	UBladderUrgencyComponent* Bladder = Player ? Player->FindComponentByClass<UBladderUrgencyComponent>() : nullptr;
+	if (!Bladder)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerBladderPulse - no bladder component"));
+		return false;
+	}
+	Bladder->FireSinglePulse();
 	return true;
 }
 

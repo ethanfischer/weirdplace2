@@ -1679,6 +1679,26 @@ private:
 	int32 Expected;
 };
 
+// Fire a single bladder-urgency vignette pulse (no scheduling).
+class FTD_TriggerBladderPulse : public FTD_Base
+{
+public:
+	FTD_TriggerBladderPulse(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering bladder pulse"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerBladderPulse: no driver")); return true; }
+		if (!Driver->TriggerBladderPulse())
+		{
+			Test->AddError(TEXT("FTD_TriggerBladderPulse: no bladder component"));
+		}
+		return true;
+	}
+};
+
 // Assert a named scene component on a labeled actor exists and matches the
 // expected visibility. Errors (rather than passing) when the actor or the
 // component is missing.

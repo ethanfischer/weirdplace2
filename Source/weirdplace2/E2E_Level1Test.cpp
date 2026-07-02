@@ -1786,6 +1786,44 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// Diagnostic.FirstPlayEffects — evidence run for the "fog wall + bladder
+// indicator invisible on the first play after opening the editor" bug.
+// A fresh UnrealEditor-Cmd process IS a first play (cold in-memory PSO /
+// shader caches): screenshot the oasis waterfall steam and a forced
+// bladder-vignette pulse as early as the harness allows. (A second
+// AutomationOpenMap in the same test loses the driver subsystem, so the
+// warm-play comparison is simply a second run of this diagnostic.)
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_FirstPlayEffects,
+	"Weirdplace2.E2E.Level1.Diagnostic.FirstPlayEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_FirstPlayEffects::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("FirstPlayEffects")
+
+	// Early and cold on purpose — minimal settle.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+
+	// The oasis waterfall steam plume (Blueprint_Effect_Steam).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(-7700.0, 88.0, -2833.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(-8089.0, 88.0, -3100.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_FirstPlay_1_Steam")));
+
+	// The bladder vignette, mid-pulse.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerBladderPulse(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.8f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_FirstPlay_1_Bladder")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // Diagnostic.ClockClose — close-up of the store wall clock
 // (SM_Wall_Decor_Set_NN_02c) to verify its face is illegibly blurred.
 // =======================================================================

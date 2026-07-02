@@ -67,7 +67,17 @@ void UBladderUrgencyComponent::BeginPlay()
 
 	ResetLegacyPostProcessOverrides();
 	InitializeVignetteMaterial();
-	SetVignetteIntensity(0.f);
+
+	// Warm the vignette's post-process pipeline at load: a weight-0 blendable
+	// is culled from rendering, so its shaders/PSO otherwise compile at the
+	// FIRST real pulse — which is exactly when the player is meant to see it
+	// (invisible pulse on a cold first play after opening the editor). Hold an
+	// imperceptible epsilon weight for the first second instead, then drop to 0.
+	SetVignetteIntensity(0.002f);
+	GetWorld()->GetTimerManager().SetTimer(
+		WarmupTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]() { SetVignetteIntensity(0.f); }),
+		1.0f, false);
 
 	if (!UrgencySound)
 	{
