@@ -3,6 +3,7 @@
 ------------------------------------------
 
 # Claude Friendly
+[ ] have objects pass you by in driving scene so it actually looks like you're moving. Right now we just have the car staionary in the middle of nowhere. Feel free to use any meshes/blueprints in content that would make sense for this.
 [x] seneca text illegible when viewing with light in background
 [x] clock should be blurred out
 [ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
@@ -59,3 +60,10 @@
 [ ] death state at beginning of game so player feels like there's stakes
     [ ] maybe rick asks if he should turn off his headlights. If you say yes, he crashes
     
+    
+# Review Claude's work
+ [ ] 1. Movie posters — collecting movies now live-updates posters: first pick appears on the telephone pole's flyer sheet (it reuses the existing PosterSheet, gated with the phone reveal), second on a new plane in the employee bathroom. One decision to review: the pole sheet previously showed a designed "missing poster" — per our locked criteria it's now hidden until a movie is collected, so that art never shows. If you'd rather the flyer be the pre-collection state (pasted over by your first pick), it's a two-line change.
+[ ] 2. Inspection blur — cinematic DoF ramps in while inspecting (item sharp, store bokeh'd), fully clears on exit, flatscreen-only.
+[ ] 3. Seneca text — a translucent dark plate now rides behind the dialogue text; the before/after screenshots show it visibly dimming the ceiling lights behind the words. Rick and Hudson have the same illegibility risk if you want the fix propagated.
+[ ] 4. Clock — found it (SM_Wall_Decor_Set_NN_02c, store south wall) and blurred its face at the texture level: numerals and hands gone, still obviously a clock.
+[ ] Item 5 (first-play fog wall/bladder) — your shader-compilation hunch is almost certainly right: cold-session PSO compilation with the proxy-delay setting explains the invisible-then-fine pattern, and I found + fixed a concrete case (the bladder vignette only compiled its pipeline at the first pulse — it now warms invisibly at load). The exact symptom didn't reproduce in the harness (my DDC is warm), so your one verification: the editor I just launched is fresh — hit play once and watch the first bladder pulse and the fog wall. Also, nothing in the level is named anything fog-wall-like; my best guess is the oasis waterfall steam. If it's something else, tell me which actor and I'll give it the same warm-at-load treatment.

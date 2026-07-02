@@ -2,6 +2,8 @@
 
 #include "CRTTV.h"
 #include "GazeUtils.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/ExponentialHeightFog.h"
 #include "Engine/TriggerBox.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -23,6 +25,31 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	Super::OnWorldBeginPlay(InWorld);
 
 	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
+
+	// First-play fog guard: on the session's first world after an editor
+	// launch, the height fog's render proxy can fail to materialize (PSO
+	// precache runs with delayed proxy creation; the ready callback can be
+	// lost on the first scene), leaving the fog wall invisible for that whole
+	// play while every game-thread value reads healthy — live-debugged
+	// 2026-07-02: density/color/visibility changes had zero render effect in
+	// the broken play, and the identical values rendered fine on the next
+	// world. Force the fog's render state to rebuild once gameplay is up;
+	// harmless when the proxy is already fine.
+	FTimerHandle FogNudgeHandle;
+	InWorld.GetTimerManager().SetTimer(
+		FogNudgeHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]()
+		{
+			for (TActorIterator<AExponentialHeightFog> It(GetWorld()); It; ++It)
+			{
+				if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+				{
+					Fog->MarkRenderStateDirty();
+					UE_LOG(LogTemp, Log, TEXT("StorySubsystem: height fog render state rebuilt (first-play fog guard)"));
+				}
+			}
+		}),
+		1.0f, false);
 
 	// Bind the store-entry trigger so real gameplay (player walking in) drives
 	// the TV switch. E2E goes through HandleStoreEntry directly. There are two
