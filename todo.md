@@ -3,18 +3,16 @@
 ------------------------------------------
 
 # Claude Friendly
-[ ] profiling and performance
-[ ] We are removing the Seneca smoking dialogue and him appearing at the employee bathroom from the story beats. He will still appear smoking but his dialogue will have no effect on the story.
-Instead, the phone will play a 4 digit code along side the dial tone. After learning this code, the player can use it to open the employee bathroom
-[ ] dial tone should stop when code starts and then busy sound
+[ ] seneca text illegible when viewing with light in background
+[ ] clock should be blurred out
+[ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
+[x] Chosen movies show up as poster on telephone pole, in bathroom
+[ ] blur the background when in item inspection state
     
 # Needs human
-[ ] seneca text illegible when viewing with light in background
 [ ] add lock mesh to employee door
 [ ] review dialogue
-[ ] seneca tells you about tornado shelter in bathroom stall later
-[ ] clock that ticks with only one hand in both directions
-    [ ] or at least needs to be blurred. cant see clocks in dreams
+[ ] seneca dialogue cigarrete tweaks
 [ ] rick gas pump animation (or at least improve pose when he looks at you)
 [ ] more weather sounds
 [ ] more weather effects
@@ -33,15 +31,12 @@ Instead, the phone will play a 4 digit code along side the dial tone. After lear
 -------------------------------------------
 
 # Claude Friendly
-[ ] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
-[ ] Chosen movies show up as poster on telephone pole, in bathroom
 
 # Needs human
 [ ] make gas station pumps interactable
 [ ] make employee hallway have collectibles
 [ ] add more collectibles in general
 [ ] add lowpassfilter (lpf) to door lock sound
-[ ] add blur in item inspection state
 [ ] seneca unlock employee bathroom animation
 [ ] more intricate soundscape espcially in oasis
     [ ] have random noises so the world feels more alive

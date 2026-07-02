@@ -427,6 +427,21 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	return true;
 }
 
+bool UTestDriverSubsystem::TeleportToWorldPoint(const FVector& GroundPoint)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportToWorldPoint - no player"));
+		return false;
+	}
+	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector NewLoc = GroundPoint + FVector(0.f, 0.f, HalfHeight);
+	Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportToWorldPoint - %s"), *NewLoc.ToString());
+	return true;
+}
+
 bool UTestDriverSubsystem::LookAt(AActor* Target)
 {
 	if (!Target)
@@ -1081,6 +1096,68 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+FName UTestDriverSubsystem::GetInventoryItemAt(int32 SlotIndex) const
+{
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		return NAME_None;
+	}
+	const TArray<FName> Items = Inv->GetItems();
+	return Items.IsValidIndex(SlotIndex) ? Items[SlotIndex] : NAME_None;
+}
+
+bool UTestDriverSubsystem::GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	const FName Tag(*FString::Printf(TEXT("MoviePoster%d"), PosterIndex));
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (!It->ActorHasTag(Tag))
+		{
+			continue;
+		}
+
+		TArray<UStaticMeshComponent*> Meshes;
+		It->GetComponents(Meshes);
+		UStaticMeshComponent* Surface = nullptr;
+		for (UStaticMeshComponent* Mesh : Meshes)
+		{
+			if (Mesh->GetName() == TEXT("PosterSheet"))
+			{
+				Surface = Mesh;
+				break;
+			}
+		}
+		if (!Surface && Meshes.Num() == 1)
+		{
+			Surface = Meshes[0];
+		}
+		if (!Surface)
+		{
+			return false;
+		}
+
+		bOutVisible = Surface->IsVisible();
+		UMaterialInterface* Mat = Surface->GetMaterial(0);
+		OutMaterialName = Mat ? Mat->GetName() : FString();
+		// Poster MIDs carry the cover in their CoverTexture param — report the
+		// texture name (== ItemID) as the poster's identity when present.
+		UTexture* CoverTex = nullptr;
+		if (Mat && Mat->GetTextureParameterValue(FMaterialParameterInfo(FName("CoverTexture")), CoverTex) && CoverTex)
+		{
+			OutMaterialName = CoverTex->GetName();
+		}
+		return true;
+	}
+	return false;
 }
 
 int32 UTestDriverSubsystem::GetSelectedSlot() const

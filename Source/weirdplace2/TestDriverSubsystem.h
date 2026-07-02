@@ -42,6 +42,10 @@ public:
 	// Avoids the need for per-actor waypoints.
 	bool TeleportNearActor(AActor* Target, float Distance = 200.f);
 
+	// Teleports the player capsule onto GroundPoint (capsule half-height added).
+	// For screenshot vantages that no waypoint or actor-relative teleport gives.
+	bool TeleportToWorldPoint(const FVector& GroundPoint);
+
 	bool LookAt(AActor* Target);
 	bool LookAtActorByLabel(const FString& Label);
 	// Aim the camera at the world-space location of a named scene component on
@@ -264,6 +268,19 @@ public:
 	bool IsInAnyDialogue() const;
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
+
+	// Returns the ItemID at inventory slot SlotIndex, NAME_None if empty or out
+	// of range. Slots are sparse (OoT-style), so a given slot keeps its item.
+	FName GetInventoryItemAt(int32 SlotIndex) const;
+
+	// Reads the world movie poster surface for poster PosterIndex: the actor
+	// tagged "MoviePoster<PosterIndex>", surface = its component named
+	// "PosterSheet" (BP_TelephoneScene) or its sole static mesh component
+	// (plain poster plane actors). OutMaterialName is the CoverTexture param's
+	// texture name when the surface carries a poster MID (== the movie ItemID),
+	// else the raw material name. Returns false if no such actor/surface —
+	// which is also the meaningful missing-placement failure.
+	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
 
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component

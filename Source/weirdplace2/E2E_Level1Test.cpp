@@ -1636,4 +1636,72 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// MoviePosters — collected movies show up as posters in the world: the first
+// collected movie on the telephone-pole PosterSheet (gated with the phone
+// scene's SeenTornadoWarning reveal), the second on the bathroom wall poster.
+// Posters are hidden until their movie is collected and update live on
+// collection.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MoviePosters,
+	"Weirdplace2.E2E.Level1.Regression.MoviePosters",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MoviePosters")
+
+	// Reveal the phone scene up front so poster gating isn't conflated with the
+	// scene's own SeenTornadoWarning gate. One-tick delay: the reveal propagates
+	// visibility to children and the poster state is reapplied a tick later.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	// Nothing collected: both posters hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
+
+	// Collect movie A.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// Pole poster shows movie A live; bathroom poster still hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
+
+	// Collect movie B.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox121")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+
+	// Bathroom poster shows movie B; pole unchanged on movie A. Distinct boxes
+	// have distinct ItemIDs, so the two posters necessarily differ.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 1, 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
+
+	// Visual proof: pole poster. The PosterSheet faces east (+X); teleporting
+	// near the actor approaches from the store side (west) and shoots the back
+	// of the sheet, so stand at an explicit east-side vantage instead.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(9540.0, -4851.0, 0.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_TelephoneScene"), TEXT("PosterSheet")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_01_Pole")));
+
+	// ...and bathroom poster.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("MoviePoster_Bathroom"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Bathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_02_Bathroom")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

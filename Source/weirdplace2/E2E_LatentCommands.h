@@ -448,6 +448,33 @@ private:
 	float Distance;
 };
 
+// Teleport the player capsule onto an explicit ground point — for screenshot
+// vantages that no waypoint or actor-relative teleport gives.
+class FTD_TeleportToWorldPoint : public FTD_Base
+{
+public:
+	FTD_TeleportToWorldPoint(FAutomationTestBase* InTest, FVector InGroundPoint)
+		: FTD_Base(InTest), GroundPoint(InGroundPoint) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting to %s"), *GroundPoint.ToCompactString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportToWorldPoint: no driver")); return true; }
+		if (!Driver->TeleportToWorldPoint(GroundPoint))
+		{
+			Test->AddError(TEXT("FTD_TeleportToWorldPoint: teleport failed"));
+		}
+		return true;
+	}
+private:
+	FVector GroundPoint;
+};
+
 class FTD_TeleportNearRick : public FTD_Base
 {
 public:
@@ -1624,6 +1651,91 @@ public:
 	}
 private:
 	int32 Expected;
+};
+
+// Assert the world movie poster tagged "MoviePoster<Index>" exists and its
+// poster surface is hidden.
+class FTD_AssertMoviePosterHidden : public FTD_Base
+{
+public:
+	FTD_AssertMoviePosterHidden(FAutomationTestBase* InTest, int32 InPosterIndex)
+		: FTD_Base(InTest), PosterIndex(InPosterIndex) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting movie poster %d hidden"), PosterIndex);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterHidden: no driver")); return true; }
+		bool bVisible = false;
+		FString MatName;
+		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: no poster surface tagged MoviePoster%d"), PosterIndex));
+			return true;
+		}
+		if (bVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: poster %d is visible (material '%s')"), PosterIndex, *MatName));
+		}
+		return true;
+	}
+private:
+	int32 PosterIndex;
+};
+
+// Assert the world movie poster tagged "MoviePoster<Index>" is visible and
+// shows the cover of the movie at inventory slot SlotIndex — material name
+// MI_VHSCover_<ItemID> per the project-wide cover convention.
+class FTD_AssertMoviePosterShowsInventoryMovie : public FTD_Base
+{
+public:
+	FTD_AssertMoviePosterShowsInventoryMovie(FAutomationTestBase* InTest, int32 InPosterIndex, int32 InSlotIndex)
+		: FTD_Base(InTest), PosterIndex(InPosterIndex), SlotIndex(InSlotIndex) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting movie poster %d shows inventory slot %d cover"), PosterIndex, SlotIndex);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no driver")); return true; }
+
+		const FName ItemId = Driver->GetInventoryItemAt(SlotIndex);
+		if (ItemId.IsNone())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: inventory slot %d is empty"), SlotIndex));
+			return true;
+		}
+		// Poster identity is the CoverTexture param's texture name, which is
+		// the movie's ItemID (covers live at /Game/VHSCovers/<ItemID>).
+		const FString Expected = ItemId.ToString();
+
+		bool bVisible = false;
+		FString MatName;
+		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no poster surface tagged MoviePoster%d"), PosterIndex));
+			return true;
+		}
+		if (!bVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d is hidden (expected visible with '%s')"), PosterIndex, *Expected));
+		}
+		if (MatName != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d material '%s', expected '%s'"), PosterIndex, *MatName, *Expected));
+		}
+		return true;
+	}
+private:
+	int32 PosterIndex;
+	int32 SlotIndex;
 };
 
 // Assert the absolute selected item index in the inventory strip.
