@@ -1653,6 +1653,52 @@ private:
 	int32 Expected;
 };
 
+// Assert the inspection-blur depth-of-field state on the player camera.
+// Active = DoF overrides on with the aperture ramped wide open (Fstop <= 1.1)
+// and focus at held-item distance; inactive = overrides off.
+class FTD_AssertInspectionDof : public FTD_Base
+{
+public:
+	FTD_AssertInspectionDof(FAutomationTestBase* InTest, bool bInExpectActive)
+		: FTD_Base(InTest), bExpectActive(bInExpectActive) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting inspection DoF %s"), bExpectActive ? TEXT("active") : TEXT("inactive"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertInspectionDof: no driver")); return true; }
+		bool bActive = false;
+		float Fstop = 0.f, FocalDistance = 0.f;
+		if (!Driver->GetCameraDofState(bActive, Fstop, FocalDistance))
+		{
+			Test->AddError(TEXT("FTD_AssertInspectionDof: no player camera"));
+			return true;
+		}
+		if (bExpectActive)
+		{
+			if (!bActive)
+			{
+				Test->AddError(TEXT("FTD_AssertInspectionDof: DoF overrides not active during inspection"));
+			}
+			else if (Fstop > 1.1f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertInspectionDof: Fstop %.2f, expected fully ramped (<= 1.1)"), Fstop));
+			}
+		}
+		else if (bActive)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertInspectionDof: DoF overrides still active (Fstop %.2f)"), Fstop));
+		}
+		return true;
+	}
+private:
+	bool bExpectActive;
+};
+
 // Assert the world movie poster tagged "MoviePoster<Index>" exists and its
 // poster surface is hidden.
 class FTD_AssertMoviePosterHidden : public FTD_Base

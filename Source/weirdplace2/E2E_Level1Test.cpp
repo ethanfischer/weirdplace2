@@ -1704,4 +1704,44 @@ bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// InspectionBlur — while inspecting an item (MovieBox pull-to-camera,
+// activity state Interacting) a cinematic depth-of-field ramps onto the
+// player camera: the held item stays in focus, the world behind it blurs.
+// Fully clears on exit. Flatscreen only (VR-gated in code; E2E runs flat).
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_InspectionBlur,
+	"Weirdplace2.E2E.Level1.Regression.InspectionBlur",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_InspectionBlur::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("InspectionBlur")
+
+	// Free roaming: no DoF overrides on the camera.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
+
+	// Start inspecting a movie.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+
+	// Let the ramp finish, then the blur must be fully on.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InspectBlur_01_During")));
+
+	// Collect ends the inspection; the blur must fully clear.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InspectBlur_02_After")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

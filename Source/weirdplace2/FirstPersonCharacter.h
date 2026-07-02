@@ -13,6 +13,7 @@ class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
+class UInspectionBlurComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
@@ -61,6 +62,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
 	UBladderUrgencyComponent* BladderUrgencyComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera")
+	UInspectionBlurComponent* InspectionBlurComponent;
 
 	// --- Crosshair Widget ---
 

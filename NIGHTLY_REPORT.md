@@ -59,6 +59,12 @@ is an acceptable fix** if root cause is first-use shader/PSO/Niagara compilation
   - Posters persist after giving tapes to Seneca (the world remembers your picks).
   - Mapping: first collected → pole, second → bathroom (employee bathroom, west wall).
 
+- ✅ **Blur background during item inspection** — `Weirdplace2.E2E.Level1.Regression.InspectionBlur` green (11 steps).
+  Criteria: ✅ DoF blur active on the player camera during inspection (RED-defining; genuine red first — "DoF overrides not active") · ✅ inactive before and fully cleared after · ✅ screenshot mid-inspection shows sharp held box, blurred shelf behind · ✅ VR gate in code (`XRSystem->IsHeadTrackingAllowed()`, component self-disables in VR) · ✅ HappyPath green (124 steps).
+  Screenshots: `E2E_InspectBlur_01_During.png` (inspected tape sharp, shelf soft), `E2E_InspectBlur_02_After.png` (world crisp again).
+  **Verify in-game:** inspect any shelf movie — the store behind it melts into bokeh; put it back or collect and focus returns.
+  **How it works:** new `UInspectionBlurComponent` on `AFirstPersonCharacter` — ramps cinematic DoF overrides (focal 45cm, f/22→f/1.0 over ~0.33s) on the first-person camera while activity state is `Interacting`. Note: asserts read the camera's DoF override state directly (the observable form of the ratified "blendable weight > 0") so the test compiles without any feature dependency.
+
 ## Blocked / WIP
 (nothing yet)
 

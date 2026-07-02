@@ -1,5 +1,6 @@
 #include "FirstPersonCharacter.h"
 #include "BladderUrgencyComponent.h"
+#include "InspectionBlurComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -106,6 +107,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
+
+	// Create the inspection depth-of-field blur component
+	InspectionBlurComponent = CreateDefaultSubobject<UInspectionBlurComponent>(TEXT("InspectionBlurComponent"));
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));

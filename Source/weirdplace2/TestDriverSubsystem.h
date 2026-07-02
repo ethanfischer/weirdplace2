@@ -282,6 +282,11 @@ public:
 	// which is also the meaningful missing-placement failure.
 	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
 
+	// Reads the depth-of-field state off the player's first-person camera:
+	// whether the inspection-blur DoF overrides are active, and the current
+	// Fstop / focal distance. Returns false if no player camera exists.
+	bool GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const;
+
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component
 	// exists — which is also the meaningful red-phase failure.

@@ -427,6 +427,21 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	return true;
 }
 
+bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	UCameraComponent* Camera = Player ? Player->GetFirstPersonCamera() : nullptr;
+	if (!Camera)
+	{
+		return false;
+	}
+	const FPostProcessSettings& PP = Camera->PostProcessSettings;
+	bOutOverrideActive = PP.bOverride_DepthOfFieldFstop && PP.bOverride_DepthOfFieldFocalDistance;
+	OutFstop = PP.DepthOfFieldFstop;
+	OutFocalDistance = PP.DepthOfFieldFocalDistance;
+	return true;
+}
+
 bool UTestDriverSubsystem::TeleportToWorldPoint(const FVector& GroundPoint)
 {
 	AFirstPersonCharacter* Player = GetPlayer();
