@@ -34,6 +34,7 @@
 # Claude Friendly
 
 # Needs human
+[ ] put another keypad locked door on the outside of the building
 [ ] make gas station pumps interactable
 [ ] make employee hallway have collectibles
 [ ] add more collectibles in general
@@ -44,6 +45,7 @@
 [ ] door close sounds
 
 # Needs design
+[ ] explore camera roll / dutch-angle as an aesthetic (a debugging accident tilted the horizon ~4° and it looked cool — maybe for dread moments, the other-world, or the drive)
 [ ] make tv's gazereward component turn the tv off (with CRT static sound and visual)
 [ ] decide what gaze rewards should be
 [ ] put in eye contact given by seneca

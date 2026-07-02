@@ -1804,30 +1804,28 @@ bool FE2E_Level1_Diag_FirstPlayEffects::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("FirstPlayEffects")
 
-	// Shot A: untouched spawn view. In spawn-at-camera mode this is the saved
-	// editor-viewport framing — directly comparable to the user's reference.
+	// The user's fog-wall judgment vantage ("bookmark 3"): the pole overlook,
+	// camera ~(8949,-4483,206) looking yaw -46.5 pitch -4.3 at the distant
+	// cloud bank. Healthy = clouds dimmed by fog, bottoms fading to black
+	// (cloud-region luminance ~25 on the reference pair); broken = vivid
+	// bright clouds down to a hard horizon line (~34).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_A_SpawnView")));
-
-	// Shot B: fixed vantage — south of the gas station looking north at it,
-	// the black fog band should swallow the horizon behind the canopy.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3600.0, -3000.0, 0.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(8949.0, -4483.0, 40.0)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3600.0, 500.0, 150.0)));
+	{
+		const FVector Eye(8949.0, -4483.0, 200.0);
+		const FVector LookTarget = Eye + FRotator(-4.325f, -46.52f, 0.f).Vector() * 2000.f;
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, LookTarget));
+	}
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_B_Station")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_BM3_Early")));
 
-	// Probe: a genuine two-frame fog visibility cycle. On a broken play this
-	// asks "does recreation revive dead fog?"; on a healthy play it asks
-	// "does recreation kill healthy fog?" (the MarkRenderStateDirty guard did).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogVisible(this, false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogVisible(this, true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_C_AfterCycle")));
+	// Persistence check — the user reports the whole first play stays broken.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(10.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_BM3_Late")));
 
-	// Bladder vignette mid-pulse (verifies the warm-at-load fix: no corrupt
-	// border on a session's first pulse).
+	// Bladder vignette mid-pulse (the warm-at-load fix: no corrupt border on
+	// a session's first pulse).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerBladderPulse(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.8f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_D_BladderPulse")));
