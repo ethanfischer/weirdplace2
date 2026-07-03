@@ -144,7 +144,7 @@ void ATeleportTriggerBox::DestroyUltraDynamicActors()
 		if (Actor)
 		{
 			FString ClassName = Actor->GetClass()->GetName();
-			if (ClassName.Contains(TEXT("UltraDynamic")))
+			if (ClassName.Contains(TEXT("Ultra_Dynamic")))
 			{
 				ActorsToDestroy.Add(Actor);
 			}
