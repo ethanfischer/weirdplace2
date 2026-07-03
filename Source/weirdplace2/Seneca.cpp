@@ -72,16 +72,6 @@ void ASeneca::BeginPlay()
 	// UUI_Dialogue widget (a UBorder that auto-hugs the text), so it covers
 	// Seneca, Rick and Hudson at once — no per-actor world-space backing here.
 
-	// Listen for inventory changes to auto-advance WaitingForMovies → ReadyToGiveKey
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-	{
-		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
-		{
-			Inventory->OnInventoryChanged.AddDynamic(this, &ASeneca::OnInventoryChanged);
-		}
-	}
-
 	// Find the Cigarette ChildActorComponent by name
 	TArray<UChildActorComponent*> ChildActorComps;
 	GetComponents<UChildActorComponent>(ChildActorComps);
@@ -102,7 +92,7 @@ void ASeneca::BeginPlay()
 	CachedSkeletalMesh = FindComponentByClass<USkeletalMeshComponent>();
 	if (!CachedSkeletalMesh)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found, IsPlayerLookingAtMe will use hardcoded offset"));
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found"));
 	}
 
 	// Smoking-spot point light starts off; toggled by Start/StopSmokingAnim.
@@ -197,11 +187,6 @@ void ASeneca::BeginPlay()
 
 // --- State Machine ---
 
-const TArray<FText>* ASeneca::GetDialogueLinesForCurrentState() const
-{
-	return DialogueLines.Find(CurrentState);
-}
-
 void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const
 {
 	Out.Reset();
@@ -263,16 +248,6 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load dialogue file: %s"), *FullPath);
 	}
-}
-
-void ASeneca::CheckMovieCount()
-{
-	// State transition now happens in OnDialogueEnded (WaitingForMovies case)
-}
-
-void ASeneca::OnInventoryChanged(const TArray<FName>& CurrentItems)
-{
-	CheckMovieCount();
 }
 
 void ASeneca::OnDialogueEnded()
@@ -613,23 +588,6 @@ bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 	// is a near-zero-bounds actor, so a box test would read as "looking" almost
 	// never and change the look-away teleport feel.
 	return UGazeUtils::IsPointInPlayerView(Position, GetWorld());
-}
-
-bool ASeneca::IsPlayerLookingAtMe() const
-{
-	FVector SenecaCenter;
-	if (CachedSkeletalMesh)
-	{
-		FBoxSphereBounds LocalBounds = CachedSkeletalMesh->GetLocalBounds();
-		// Upper-center of mesh bounds in world space
-		const FVector LocalUpperCenter = LocalBounds.Origin + FVector(0.f, 0.f, LocalBounds.BoxExtent.Z);
-		SenecaCenter = CachedSkeletalMesh->GetComponentTransform().TransformPosition(LocalUpperCenter);
-	}
-	else
-	{
-		SenecaCenter = GetActorLocation() + FVector(0.f, 0.f, 90.f);
-	}
-	return IsPlayerLookingAt(SenecaCenter);
 }
 
 // --- Basket Beat ---
@@ -1139,17 +1097,6 @@ void ASeneca::StartSmokingAnim()
 		return;
 	}
 	Body->PlayAnimation(SmokingAnimation, true);
-}
-
-void ASeneca::StopSmokingAnim()
-{
-	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
-	{
-		Light->SetVisibility(false);
-	}
-	USkeletalMeshComponent* Body = FindBodyMesh();
-	if (!Body) return;
-	Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 }
 
 void ASeneca::ForceSmokingAppearance()

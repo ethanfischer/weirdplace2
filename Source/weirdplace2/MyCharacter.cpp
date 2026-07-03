@@ -10,7 +10,7 @@
 
 AMyCharacter::AMyCharacter()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 	// Create and attach the inventory component
 	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
@@ -31,11 +31,6 @@ void AMyCharacter::BeginPlay()
 	// the world begins play forces Lumen to pick up the configured quality.
 	Scalability::FQualityLevels Levels = Scalability::GetQualityLevels();
 	Scalability::SetQualityLevels(Levels, /*bForce=*/true);
-}
-
-void AMyCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
 }
 
 void AMyCharacter::LockMovieCollection()
@@ -121,27 +116,3 @@ void AMyCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bo
 	Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
 }
 
-void AMyCharacter::AddItemToInventory_Implementation(const FName& ItemID)
-{
-	if (InventoryComponent)
-	{
-		InventoryComponent->AddItem(ItemID);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("AddItemToInventory: InventoryComponent is null!"));
-	}
-}
-
-void AMyCharacter::AddItemToInventoryWithMesh(const FName& ItemID, UStaticMeshComponent* MeshComponent)
-{
-	if (InventoryComponent)
-	{
-		FInventoryItemData ItemData = UInventoryComponent::CreateItemDataFromMeshComponent(ItemID, MeshComponent);
-		InventoryComponent->AddItemWithData(ItemData);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("AddItemToInventoryWithMesh: InventoryComponent is null!"));
-	}
-}

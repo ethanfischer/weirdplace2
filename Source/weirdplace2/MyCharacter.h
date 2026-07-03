@@ -9,7 +9,6 @@
 class UInventoryComponent;
 class UInventoryUIComponent;
 class UKeypadUIComponent;
-class UStaticMeshComponent;
 struct FInventoryItemData;
 
 UENUM(BlueprintType)
@@ -32,8 +31,6 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	virtual void Tick(float DeltaTime) override;
-
 	void SetCanInteract(bool value);
 	bool GetCanInteract() const { return CanInteract; }
 
@@ -63,15 +60,6 @@ public:
 	// completed movie interaction — collecting one or putting one back.
 	bool HasInteractedWithMovie() const { return bHasInteractedWithMovie; }
 	void MarkMovieInteraction() { bHasInteractedWithMovie = true; }
-
-	// Add item to inventory by ID (legacy - no visual data)
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Inventory")
-	void AddItemToInventory(const FName& ItemID);
-	virtual void AddItemToInventory_Implementation(const FName& ItemID);
-
-	// Add item to inventory with visual data captured from mesh component
-	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	void AddItemToInventoryWithMesh(const FName& ItemID, UStaticMeshComponent* MeshComponent);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory")
 	UInventoryComponent* GetInventoryComponent() const { return InventoryComponent; }

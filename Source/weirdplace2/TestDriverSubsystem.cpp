@@ -677,6 +677,22 @@ bool UTestDriverSubsystem::LookAtSeneca()
 	return LookAt(Seneca);
 }
 
+bool UTestDriverSubsystem::LookAtTelephone()
+{
+	APayPhone* PayPhone = FindPayPhone();
+	if (!PayPhone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtSeneca - no ASeneca in level"));
+		return false;
+	}
+	return LookAt(PayPhone);
+}
+
+bool::UTestDriverSubsystem::LookAt<T>()
+{
+	
+}
+
 bool UTestDriverSubsystem::LookAtRick()
 {
 	ARick* Rick = FindRick();
@@ -740,6 +756,22 @@ ASeneca* UTestDriverSubsystem::FindSeneca() const
 	}
 
 	for (TActorIterator<ASeneca> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
+
+APayPhone* UTestDriverSubsystem::FindPayPhone() const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return nullptr;
+	}
+
+	for (TActorIterator<APayPhone> It(World); It; ++It)
 	{
 		return *It;
 	}

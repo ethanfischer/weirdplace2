@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "InputCoreTypes.h"
+#include "PayPhone.h"
 #include "Subsystems/WorldSubsystem.h"
 enum class EPlayerActivityState : uint8;
 #include "TestDriverSubsystem.generated.h"
@@ -69,11 +70,12 @@ public:
 	bool LookAtRick();
 	bool LookAtKeyActor();
 
-	AActor* FindActorByLabel(const FString& Label) const;
-	ASeneca* FindSeneca() const;
-	ARick* FindRick() const;
-	AHudson* FindHudson() const;
-	bool LookAtHudson();
+	AActor*    FindActorByLabel(const FString& Label) const;
+	ASeneca*   FindSeneca() const;
+	APayPhone* FindPayPhone() const;
+	ARick*     FindRick() const;
+	AHudson*   FindHudson() const;
+	bool       LookAtHudson();
 
 	// --- Story-flag test helpers ---
 

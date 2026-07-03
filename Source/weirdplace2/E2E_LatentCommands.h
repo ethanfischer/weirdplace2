@@ -336,6 +336,26 @@ public:
 	}
 };
 
+
+class FTD_LookAtTelephone : public FTD_Base
+{
+public:
+	FTD_LookAtTelephone(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at Telephone"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtTelephone: no driver")); return true; }
+		if (!Driver->LookAtSeneca())
+		{
+			Test->AddError(TEXT("FTD_LookAtTelephone: failed"));
+		}
+		return true;
+	}
+};
+
 // Teleport directly to a position 200 units in front of Seneca, facing her.
 // More reliable than the SenecaApproach waypoint, which was placed too far
 // away (>500 unit InteractionDistance) for the interact trace to hit.

@@ -2,11 +2,9 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
-#include "UI_DialogueOption.h"
 #include "UI_Dialogue.generated.h"
 
 class UTextBlock;
-class UPanelWidget;
 class UAudioComponent;
 class UBorder;
 
@@ -50,13 +48,6 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* Text;
-
-	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-	UPanelWidget* Options;
-
-	// First dialogue option for highlighting (binds to widget named "FirstDialogueOption" in Designer)
-	UPROPERTY(BlueprintReadWrite, meta = (BindWidgetOptional))
-	UUI_DialogueOption* FirstDialogueOption;
 
 	// Sound to play during typewriter effect
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Audio")
@@ -107,9 +98,7 @@ private:
 	void SetupTextBacking();
 
 	void SetNextDisplayTextCharacter();
-	void ClearOptionsText();
 	void ClearSpeakerText();
-	void UnhighlightAllOptions();
 
 	UPROPERTY()
 	UAudioComponent* SpawnedSound;
@@ -117,7 +106,6 @@ private:
 	FString FullText;
 	FString DisplayText;
 	int32 CurrentCharIndex = 0;
-	int32 CurrentOptionIndex = 0;
 
 	FTimerHandle TypewriterTimerHandle;
 };

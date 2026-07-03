@@ -1,6 +1,5 @@
 #include "UI_Dialogue.h"
 #include "Components/TextBlock.h"
-#include "Components/PanelWidget.h"
 #include "Components/AudioComponent.h"
 #include "Components/Border.h"
 #include "Components/CanvasPanelSlot.h"
@@ -114,8 +113,6 @@ void UUI_Dialogue::Close()
 
 void UUI_Dialogue::OpenWithText(const FText& Speaker, const FText& DialogueLine)
 {
-	UnhighlightAllOptions();
-	CurrentOptionIndex = 0;
 	SetVisibility(ESlateVisibility::Visible);
 	UpdateWithText(Speaker, DialogueLine);
 }
@@ -123,7 +120,6 @@ void UUI_Dialogue::OpenWithText(const FText& Speaker, const FText& DialogueLine)
 void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLine)
 {
 	ClearSpeakerText();
-	ClearOptionsText();
 
 	if (SpeakerName)
 	{
@@ -188,22 +184,6 @@ void UUI_Dialogue::SetNextDisplayTextCharacter()
 	}
 }
 
-void UUI_Dialogue::ClearOptionsText()
-{
-	if (Options)
-	{
-		TArray<UWidget*> AllChildren = Options->GetAllChildren();
-		for (UWidget* Child : AllChildren)
-		{
-			if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
-			{
-				Option->ClearText();
-				Option->SetVisibility(ESlateVisibility::Collapsed);
-			}
-		}
-	}
-}
-
 void UUI_Dialogue::ClearSpeakerText()
 {
 	if (SpeakerName)
@@ -213,21 +193,6 @@ void UUI_Dialogue::ClearSpeakerText()
 	if (Text)
 	{
 		Text->SetText(FText::GetEmpty());
-	}
-}
-
-void UUI_Dialogue::UnhighlightAllOptions()
-{
-	if (Options)
-	{
-		TArray<UWidget*> AllChildren = Options->GetAllChildren();
-		for (UWidget* Child : AllChildren)
-		{
-			if (UUI_DialogueOption* Option = Cast<UUI_DialogueOption>(Child))
-			{
-				Option->Unhighlight();
-			}
-		}
 	}
 }
 
