@@ -110,6 +110,13 @@ void UMoviePosterSubsystem::ApplyPosterStates()
 				PosterMids.Add(i, Mid);
 			}
 			Mid->SetTextureParameterValue(FName("CoverTexture"), Cover);
+			// Neutralize M_VHSCoverFront's letterbox (it exists only to fit the
+			// portrait cover into the SQUARE inventory slot). The poster planes are
+			// sized to the cover's own aspect, so CoverAspect=1 makes the remap an
+			// identity and the bar mask all-1 => the front-face crop fills the plane
+			// with no black bars. Inventory builds its own MID and never sets this,
+			// so it keeps the 0.5763 default and its thumbnails stay letterboxed.
+			Mid->SetScalarParameterValue(FName("CoverAspect"), 1.0f);
 			Surface->SetMaterial(0, Mid);
 		}
 		const bool bShow = bHasMovie && (i != PolePosterIndex || bPoleRevealed);
