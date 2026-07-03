@@ -40,6 +40,14 @@ void ARick::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
+					// alpha blending. Force Transparent blend so BackingOpacity is a
+					// true gradient -- Masked blend clips it binary at the 0.333 mask
+					// threshold, which reads as a hard step near ~0.35.
+					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+				}
 			}
 			break;
 		}

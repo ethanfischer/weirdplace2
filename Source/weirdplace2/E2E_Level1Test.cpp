@@ -1686,12 +1686,13 @@ bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 1, 1));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
 
-	// Visual proof: pole poster. The PosterSheet faces east (+X); teleporting
-	// near the actor approaches from the store side (west) and shoots the back
-	// of the sheet, so stand at an explicit east-side vantage instead.
+	// Visual proof: pole poster. It's now its own plane (MoviePoster_Pole) higher
+	// on the pole than the designed missing-person flyer, facing the same way
+	// (roughly east, +X). Teleporting near it approaches from the store side
+	// (west) and shoots the back, so stand at an explicit east-side vantage.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(9540.0, -4851.0, 0.0)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_TelephoneScene"), TEXT("PosterSheet")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Pole")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_01_Pole")));
 
 	// ...and bathroom poster.
@@ -1705,10 +1706,11 @@ bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// InspectionBlur — while inspecting an item (MovieBox pull-to-camera,
-// activity state Interacting) a cinematic depth-of-field ramps onto the
-// player camera: the held item stays in focus, the world behind it blurs.
-// Fully clears on exit. Flatscreen only (VR-gated in code; E2E runs flat).
+// InspectionBlur — the inspection depth-of-field is currently DISABLED
+// (UInspectionBlurComponent::bEnabled = false) by request. The component still
+// lives on the character, but no DoF override should ever ramp on while
+// inspecting. This test guards the disabled state; flipping bEnabled true is
+// what should turn these asserts back to expecting active DoF.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -1728,12 +1730,15 @@ bool FE2E_Level1_InspectionBlur::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
 
-	// Let the ramp finish, then the blur must be fully on.
+	// The effect is disabled (UInspectionBlurComponent::bEnabled = false): even
+	// after a full ramp window the DoF override must stay off while inspecting.
+	// This locks in the disabled state as the guard — flip bEnabled true and this
+	// assert (plus the "During" screenshot) is what should change back.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InspectBlur_01_During")));
 
-	// Collect ends the inspection; the blur must fully clear.
+	// Collect ends the inspection; DoF still clear.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
@@ -1745,10 +1750,12 @@ bool FE2E_Level1_InspectionBlur::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// SenecaTextBacking — a dark translucent plate sits behind Seneca's
-// world-space dialogue text while dialogue is open, so the text stays
-// legible against bright backgrounds (the original complaint: text washed
-// out when a light sits behind him). Hidden whenever no dialogue is open.
+// SenecaTextBacking — a dark translucent plate sits behind the dialogue text
+// so it stays legible against bright backgrounds (the original complaint:
+// text washed out when a light sits behind Seneca). The plate now lives
+// INSIDE the shared UUI_Dialogue widget (a UBorder wrapping the Text block),
+// so it auto-hugs the text and covers Seneca, Rick and Hudson at once. The
+// widget itself is collapsed whenever no dialogue is open.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -1760,8 +1767,8 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("SenecaTextBacking")
 
-	// No dialogue: the backing panel must exist and be hidden.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), false));
+	// No dialogue: the backing plate exists (text wrapped) but the widget is closed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
 
 	// Start Seneca's dialogue.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
@@ -1771,14 +1778,14 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
-	// Panel visible behind the text while the dialogue is open.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), true));
+	// Dialogue open: text still wrapped in the plate, widget now visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_01_Dialogue")));
 
-	// Finish the dialogue; the panel must hide again.
+	// Finish the dialogue; the widget collapses again.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNamedComponentVisible(this, TEXT("BP_Seneca"), TEXT("DialogueBackingPanel"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

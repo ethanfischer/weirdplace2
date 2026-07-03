@@ -29,6 +29,7 @@
 #include "Seneca.h"
 #include "TestWaypoint.h"
 #include "UI_Dialogue.h"
+#include "DialogueWidgetProvider.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -491,6 +492,24 @@ bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& Ou
 	bOutOverrideActive = PP.bOverride_DepthOfFieldFstop && PP.bOverride_DepthOfFieldFocalDistance;
 	OutFstop = PP.DepthOfFieldFstop;
 	OutFocalDistance = PP.DepthOfFieldFocalDistance;
+	return true;
+}
+
+bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(Actor);
+	if (!Provider)
+	{
+		return false;
+	}
+	UUI_Dialogue* Widget = Provider->GetDialogueWidget();
+	if (!Widget)
+	{
+		return false;
+	}
+	bOutHasBacking = Widget->HasTextBacking();
+	bOutDialogueOpen = Widget->IsDialogueOpen();
 	return true;
 }
 

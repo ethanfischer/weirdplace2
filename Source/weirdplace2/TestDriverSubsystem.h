@@ -301,6 +301,12 @@ public:
 	// Fstop / focal distance. Returns false if no player camera exists.
 	bool GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const;
 
+	// Reads the in-widget dialogue text-backing state off the labeled actor's
+	// dialogue widget (any IDialogueWidgetProvider): whether the Text block is
+	// wrapped in the backing plate, and whether the dialogue widget is open.
+	// Returns false if the actor isn't a provider or has no widget yet.
+	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
+
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component
 	// exists — which is also the meaningful red-phase failure.

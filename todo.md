@@ -11,7 +11,7 @@
 [x] blur the background when in item inspection state
     
 # Needs human
-[ ] add lock mesh to employee door
+[x] add lock mesh to employee door
 [ ] review dialogue
 [ ] seneca dialogue cigarrete tweaks
 [ ] rick gas pump animation (or at least improve pose when he looks at you)

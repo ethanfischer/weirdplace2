@@ -1811,6 +1811,47 @@ private:
 	bool bExpectActive;
 };
 
+// Assert the in-widget dialogue text backing on a labeled actor: the Text
+// block must be wrapped in the backing plate (structure always present once
+// the widget constructs), and the dialogue widget open-state must match
+// bExpectOpen. Errors if the actor isn't a dialogue provider / has no widget.
+class FTD_AssertDialogueBacking : public FTD_Base
+{
+public:
+	FTD_AssertDialogueBacking(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
+		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), bExpectOpen(bInExpectOpen) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue backing (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueBacking: no driver")); return true; }
+		bool bHasBacking = false, bDialogueOpen = false;
+		if (!Driver->GetDialogueBackingState(ActorLabel, bHasBacking, bDialogueOpen))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s is not a dialogue provider or has no widget"), *ActorLabel));
+			return true;
+		}
+		if (!bHasBacking)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue text is not wrapped in the backing plate"), *ActorLabel));
+		}
+		if (bDialogueOpen != bExpectOpen)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue is %s, expected %s"),
+				*ActorLabel, bDialogueOpen ? TEXT("open") : TEXT("closed"), bExpectOpen ? TEXT("open") : TEXT("closed")));
+		}
+		return true;
+	}
+private:
+	FString ActorLabel;
+	bool bExpectOpen;
+};
+
 // Assert the world movie poster tagged "MoviePoster<Index>" exists and its
 // poster surface is hidden.
 class FTD_AssertMoviePosterHidden : public FTD_Base
