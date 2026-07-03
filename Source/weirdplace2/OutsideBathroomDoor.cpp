@@ -154,10 +154,6 @@ bool AOutsideBathroomDoor::OnKeyOffered(FName ItemID)
 
 void AOutsideBathroomDoor::StartKeyBreakSequence()
 {
-	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
-	// interact is ignored (see Interact_Implementation).
-	bKeyBreakInProgress = true;
-
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
 	if (!MyCharacter)
@@ -205,6 +201,10 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 	FInventoryItemData KeyData = Inventory->GetItemData(KeyToRemove);
 	KeyMaterials = KeyData.Materials;
 
+	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
+	// interact is ignored (see Interact_Implementation).
+	bKeyBreakInProgress = true;
+	
 	// Remove the key from inventory; the animated AnimKeyMesh takes over visually.
 	Inventory->RemoveItem(KeyToRemove);
 
