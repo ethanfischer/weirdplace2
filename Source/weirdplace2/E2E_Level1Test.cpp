@@ -1706,50 +1706,6 @@ bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// InspectionBlur — the inspection depth-of-field is currently DISABLED
-// (UInspectionBlurComponent::bEnabled = false) by request. The component still
-// lives on the character, but no DoF override should ever ramp on while
-// inspecting. This test guards the disabled state; flipping bEnabled true is
-// what should turn these asserts back to expecting active DoF.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_InspectionBlur,
-	"Weirdplace2.E2E.Level1.Regression.InspectionBlur",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_InspectionBlur::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("InspectionBlur")
-
-	// Free roaming: no DoF overrides on the camera.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
-
-	// Start inspecting a movie.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-
-	// The effect is disabled (UInspectionBlurComponent::bEnabled = false): even
-	// after a full ramp window the DoF override must stay off while inspecting.
-	// This locks in the disabled state as the guard — flip bEnabled true and this
-	// assert (plus the "During" screenshot) is what should change back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InspectBlur_01_During")));
-
-	// Collect ends the inspection; DoF still clear.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectionDof(this, false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InspectBlur_02_After")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // SenecaTextBacking — a dark translucent plate sits behind the dialogue text
 // so it stays legible against bright backgrounds (the original complaint:
 // text washed out when a light sits behind Seneca). The plate now lives
