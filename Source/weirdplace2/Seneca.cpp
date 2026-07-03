@@ -55,40 +55,22 @@ void ASeneca::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
+					// alpha blending. Force Transparent blend so BackingOpacity is a
+					// true gradient -- Masked blend clips it binary at the 0.333 mask
+					// threshold, which reads as a hard step near ~0.35.
+					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+				}
 			}
 			break;
 		}
 	}
 
-	// Float a dark translucent plate just behind the dialogue widget so the
-	// text stays legible against bright backgrounds. Owned by this actor (so
-	// tests can find it by name) but attached to the widget, inheriting its
-	// per-tick camera billboard.
-	if (DialogueWidgetComponent)
-	{
-		UStaticMesh* Plane = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-		UMaterialInterface* BackingMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_DialogueBacking.M_DialogueBacking"));
-		if (!Plane || !BackingMat)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Seneca: dialogue backing assets missing (plane=%d, mat=%d)"), Plane != nullptr, BackingMat != nullptr);
-		}
-		else
-		{
-			DialogueBackingPanel = NewObject<UStaticMeshComponent>(this, TEXT("DialogueBackingPanel"));
-			DialogueBackingPanel->SetStaticMesh(Plane);
-			DialogueBackingPanel->SetMaterial(0, BackingMat);
-			DialogueBackingPanel->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			DialogueBackingPanel->SetupAttachment(DialogueWidgetComponent);
-			// Plane normal (+Z) onto the widget's camera-facing axis (+X),
-			// 1cm behind the text, sized to the draw area with a small margin.
-			const FVector2D DrawSize = DialogueWidgetComponent->GetDrawSize();
-			DialogueBackingPanel->SetRelativeRotation(FRotator(-90.f, 0.f, 0.f));
-			DialogueBackingPanel->SetRelativeLocation(FVector(-1.f, 0.f, 0.f));
-			DialogueBackingPanel->SetRelativeScale3D(FVector(DrawSize.Y * 1.1f / 100.f, DrawSize.X * 1.05f / 100.f, 1.f));
-			DialogueBackingPanel->SetVisibility(false);
-			DialogueBackingPanel->RegisterComponent();
-		}
-	}
+	// The dark plate behind the dialogue text now lives inside the shared
+	// UUI_Dialogue widget (a UBorder that auto-hugs the text), so it covers
+	// Seneca, Rick and Hudson at once — no per-actor world-space backing here.
 
 	// Listen for inventory changes to auto-advance WaitingForMovies → ReadyToGiveKey
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
@@ -582,18 +564,6 @@ void ASeneca::MoveToTarget(AActor* Target)
 void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	// Sync the backing panel to the dialogue widget's open state (the widget
-	// collapses itself on construct and on Close).
-	if (DialogueBackingPanel && DialogueWidgetComponent)
-	{
-		UUserWidget* Widget = Cast<UUserWidget>(DialogueWidgetComponent->GetUserWidgetObject());
-		const bool bDialogueOpen = Widget && Widget->GetVisibility() == ESlateVisibility::Visible;
-		if (DialogueBackingPanel->IsVisible() != bDialogueOpen)
-		{
-			DialogueBackingPanel->SetVisibility(bDialogueOpen);
-		}
-	}
 
 	// Billboard dialogue widget toward player camera
 	if (DialogueWidgetComponent)
