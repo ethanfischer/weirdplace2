@@ -167,6 +167,11 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16c_BrokenKeyCollected")));
 	}
 
+	void FastForwardSenecaSmoking(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
+	}
+
 	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
@@ -181,9 +186,10 @@ namespace E2ESteps
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("Telephone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtTelephone(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17a_Telephone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForGazeSeconds(T, 2));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulatePutBack(T));
 	}
 
 	void OpenBathroomDoor(FAutomationTestBase* T)

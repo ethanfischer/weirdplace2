@@ -671,6 +671,28 @@ public:
 			return true;
 		}
 
+		// NewLoc.Z is at shelf height (TapeLoc.Z + HalfHeight), which would leave
+		// the player floating in the air. Trace straight down from there to the
+		// floor and rest the capsule on it so the player stands on the ground.
+		{
+			FHitResult FloorHit;
+			const FVector DownStart = NewLoc;
+			const FVector DownEnd = NewLoc - FVector(0.f, 0.f, 100000.f);
+			FCollisionQueryParams FloorParams(SCENE_QUERY_STAT(BlankTapeFloor), /*bTraceComplex*/ false);
+			FloorParams.AddIgnoredActor(Player);
+			if (Tape->GetWorld()->LineTraceSingleByObjectType(FloorHit, DownStart, DownEnd, ObjectParams, FloorParams))
+			{
+				NewLoc.Z = FloorHit.ImpactPoint.Z + HalfHeight;
+				UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: floor at %s -> stand Z=%.1f"),
+					*FloorHit.ImpactPoint.ToString(), NewLoc.Z);
+			}
+			else
+			{
+				Test->AddError(TEXT("FTD_TeleportNearBlankTape: no floor found below the stand spot"));
+				return true;
+			}
+		}
+
 		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
 
 		const FRotator LookRot = (Driver->BlankTapeAimPoint - NewLoc).Rotation();
@@ -3273,6 +3295,27 @@ public:
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
 		Driver->FastForwardSenecaSmoking();
+		return true;
+	}
+};
+
+// =======================================================================
+// FTD_SimulatePutBack — press the "put back" binding (keyboard Q / gamepad
+// B) that exits item inspection. One-shot.
+// =======================================================================
+
+class FTD_SimulatePutBack : public FTD_Base
+{
+public:
+	FTD_SimulatePutBack(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Simulating put-back"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		Driver->SimulatePutBack();
 		return true;
 	}
 };

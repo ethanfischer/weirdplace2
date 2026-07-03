@@ -68,6 +68,7 @@ public:
 	FVector BlankTapeAimPoint = FVector::ZeroVector;
 	bool LookAtSeneca();
 	bool LookAtRick();
+	bool LookAtTelephone();
 	bool LookAtKeyActor();
 
 	AActor*    FindActorByLabel(const FString& Label) const;
@@ -184,6 +185,11 @@ public:
 
 	// Injects a MouseX axis delta through the input pipeline.
 	void SimulateMouseX(float Delta);
+
+	// Presses the "put back" binding that exits item inspection (the legacy
+	// "Exit Interaction" action): keyboard Q, or gamepad B when the player's
+	// last input was a gamepad.
+	void SimulatePutBack();
 
 	// Enhanced Input injection. APlayerController::InputKey only fires legacy
 	// BindAction bindings — Enhanced Input actions need their own injection

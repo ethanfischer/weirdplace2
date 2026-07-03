@@ -49,6 +49,22 @@
 #include "Kismet/GameplayStatics.h"
 #include "WeirdplaceGameUserSettings.h"
 
+// Returns the first actor of type T in the world, or nullptr. Collapses the
+// otherwise-identical singleton finders (Seneca/Rick/Hudson/PayPhone/pickup).
+template<typename T>
+static T* FindFirstActor(UWorld* World)
+{
+	if (!World)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<T> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
+
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
 	return Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
@@ -252,19 +268,9 @@ bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const
 	return Root->IsVisible();
 }
 
-static APayPhone* FindPayPhoneInternal(UWorld* World)
-{
-	if (!World) { return nullptr; }
-	for (TActorIterator<APayPhone> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
-}
-
 bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneAudioPlaying - no APayPhone in level"));
@@ -275,7 +281,7 @@ bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
 
 bool UTestDriverSubsystem::CanPayPhoneInteract() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::CanPayPhoneInteract - no APayPhone in level"));
@@ -286,7 +292,7 @@ bool UTestDriverSubsystem::CanPayPhoneInteract() const
 
 bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneDialtonePlaying - no APayPhone in level"));
@@ -297,7 +303,7 @@ bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 
 void UTestDriverSubsystem::TriggerPayPhonePickup()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhonePickup - no APayPhone in level"));
@@ -308,7 +314,7 @@ void UTestDriverSubsystem::TriggerPayPhonePickup()
 
 void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhoneHangUp - no APayPhone in level"));
@@ -319,7 +325,7 @@ void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 
 void UTestDriverSubsystem::MarkPayPhoneCodeSpoken()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::MarkPayPhoneCodeSpoken - no APayPhone in level"));
@@ -682,15 +688,10 @@ bool UTestDriverSubsystem::LookAtTelephone()
 	APayPhone* PayPhone = FindPayPhone();
 	if (!PayPhone)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtSeneca - no ASeneca in level"));
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtTelephone - no APayPhone in level"));
 		return false;
 	}
 	return LookAt(PayPhone);
-}
-
-bool::UTestDriverSubsystem::LookAt<T>()
-{
-	
 }
 
 bool UTestDriverSubsystem::LookAtRick()
@@ -749,63 +750,22 @@ AActor* UTestDriverSubsystem::FindActorByLabel(const FString& Label) const
 
 ASeneca* UTestDriverSubsystem::FindSeneca() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<ASeneca> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<ASeneca>(GetWorld());
 }
-
 
 APayPhone* UTestDriverSubsystem::FindPayPhone() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<APayPhone> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<APayPhone>(GetWorld());
 }
 
 ARick* UTestDriverSubsystem::FindRick() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<ARick> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<ARick>(GetWorld());
 }
 
 AHudson* UTestDriverSubsystem::FindHudson() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<AHudson> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<AHudson>(GetWorld());
 }
 
 bool UTestDriverSubsystem::LookAtHudson()
@@ -895,6 +855,27 @@ void UTestDriverSubsystem::SimulateKeyRelease(FKey Key)
 		return;
 	}
 	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Released, /*AmountDepressed=*/0.0f));
+}
+
+void UTestDriverSubsystem::SimulatePutBack()
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulatePutBack - no PlayerController"));
+		return;
+	}
+
+	// "Put back" exits item inspection via the legacy "Exit Interaction"
+	// BindAction (see AMovieBox::SetupPlayerInputComponent), so it fires through
+	// APlayerController::InputKey — not Enhanced Input injection. Press the key
+	// for the player's current input device: keyboard Q or gamepad B.
+	AFirstPersonCharacter* Player = GetPlayer();
+	const bool bGamepad = Player && Player->IsUsingGamepad();
+	const FKey Key = bGamepad ? EKeys::Gamepad_FaceButton_Right : EKeys::Q;
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Pressed, /*AmountDepressed=*/1.0f));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SimulatePutBack - %s (%s)"),
+		*Key.ToString(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
 }
 
 void UTestDriverSubsystem::SimulateMouseX(float Delta)
@@ -1162,11 +1143,7 @@ bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 
 AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup() const
 {
-	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<AInspectablePickup>(GetWorld());
 }
 
 bool UTestDriverSubsystem::TriggerCollectInspectedPickup()

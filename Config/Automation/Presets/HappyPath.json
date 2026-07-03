@@ -1,0 +1,7 @@
+{
+	"id": "HappyPath",
+	"name": "HappyPath",
+	"enabledTests": [
+		"Weirdplace2.E2E.Level1.Regression.HappyPath"
+	]
+}
