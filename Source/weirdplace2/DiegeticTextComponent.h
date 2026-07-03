@@ -17,6 +17,7 @@ public:
 	UDiegeticTextComponent();
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void OnVisibilityChanged() override;
 
 	// Turn to face the player each frame. Off = static world text.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Diegetic Text")

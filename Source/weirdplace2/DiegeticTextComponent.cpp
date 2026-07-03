@@ -4,6 +4,7 @@
 UDiegeticTextComponent::UDiegeticTextComponent()
 {
 	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.bStartWithTickEnabled = false;
 
 	// Match the project's established diegetic look (CantCarryText): white,
 	// centered, engine default RobotoDistanceField font + DefaultTextMaterialOpaque.
@@ -11,6 +12,12 @@ UDiegeticTextComponent::UDiegeticTextComponent()
 	SetVerticalAlignment(EVRTA_TextCenter);
 	SetTextRenderColor(FColor::White);
 	SetWorldSize(6.0f);
+}
+
+void UDiegeticTextComponent::OnVisibilityChanged()
+{
+	Super::OnVisibilityChanged();
+	SetComponentTickEnabled(IsVisible() && bFacePlayer);
 }
 
 void UDiegeticTextComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
