@@ -5,6 +5,7 @@ param(
     # Optional console commands (e.g. cvars) run at startup before the test, for
     # perf A/B experiments. UE -ExecCmds separates commands by COMMA, so separate
     # multiple cvars with commas. Example: -ExtraExec "r.Streaming.PoolSize 3000,r.Shadow.Virtual.Enable 0"
+    # To restore slow-motion step pacing for headed review runs: -ExtraExec "e2e.StepDelay 0.3"
     [string]$ExtraExec = "",
     # Capture an Unreal Insights .utrace (cpu+gpu+frame) to Saved/Profiling/walk_trace.utrace
     # for offline analysis of render-thread / GPU / Lumen costs. Implies rendering.
@@ -25,10 +26,10 @@ if ($TestName -match '^(Regression|Diagnostic)(\.|$)') {
     $TestPath = "Weirdplace2.E2E.Level1.Regression.$TestName"
 }
 
-# Default timeout: 60 min when running the full Regression suite (9 tests * ~2-5 min),
+# Default timeout: 90 min when running the full Regression suite (22 tests * ~2-5 min),
 # 20 min otherwise.
 if ($TimeoutMinutes -le 0) {
-    if ($TestName -eq 'Regression') { $TimeoutMinutes = 60 } else { $TimeoutMinutes = 20 }
+    if ($TestName -eq 'Regression') { $TimeoutMinutes = 90 } else { $TimeoutMinutes = 20 }
 }
 
 # Clean previous logs
@@ -72,10 +73,15 @@ $proc = Start-Process -FilePath $UECmd -ArgumentList $argList -RedirectStandardO
 
 # Watchdog: a hung editor must not block forever or leave an orphan process
 # (a screenshot stall once kept UnrealEditor-Cmd alive for 2.5 hours).
+# On timeout we kill the process but fall through to the log-parsing block so
+# the output names which tests started but never completed.
+$timedOut = $false
 if (-not $proc.WaitForExit($TimeoutMinutes * 60 * 1000)) {
     $proc.Kill()
-    Write-Host "FAIL - $TestPath (timed out after $TimeoutMinutes minutes; killed UnrealEditor-Cmd pid $($proc.Id))"
-    exit 1
+    $timedOut = $true
+    Write-Host "Watchdog: killed UnrealEditor-Cmd pid $($proc.Id) after $TimeoutMinutes minutes; parsing log..."
+    # Give the log file a moment to flush before reading it.
+    Start-Sleep -Seconds 2
 }
 
 if (-not (Test-Path $LogFile)) {
@@ -103,7 +109,7 @@ foreach ($m in $completed) {
 }
 $incomplete = $started.Count - $completed.Count
 
-if (($started.Count -gt 0) -and ($failedTests.Count -eq 0) -and ($incomplete -eq 0) -and (-not $crashMatch.Success)) {
+if ((-not $timedOut) -and ($started.Count -gt 0) -and ($failedTests.Count -eq 0) -and ($incomplete -eq 0) -and (-not $crashMatch.Success)) {
     Write-Host "PASS - $TestPath"
     Write-Host "  ($($completed.Count) test(s) passed)"
     $steps = ([regex]::Matches($log, 'TestDriver::Status')).Count
@@ -112,6 +118,9 @@ if (($started.Count -gt 0) -and ($failedTests.Count -eq 0) -and ($incomplete -eq
 }
 
 Write-Host "FAIL - $TestPath"
+if ($timedOut) {
+    Write-Host "  Timed out after $TimeoutMinutes minutes."
+}
 if ($started.Count -eq 0) {
     Write-Host "  No tests ran (no 'Test Started' in log)."
 }

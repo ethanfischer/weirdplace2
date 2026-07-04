@@ -34,13 +34,14 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 
-// Post-step delay applied after every FTD_Base command finishes. Set to 0 for
-// fastest possible runs, or increase to slow the test down for visual review.
+// Post-step delay applied after every FTD_Base command finishes. Default 0 for
+// fastest possible runs. Increase via the console command to slow the test down
+// for visual review (e.g. `e2e.StepDelay 0.3` restores the old 300ms pacing).
 // Configurable at runtime via `e2e.StepDelay <seconds>` console command.
 static TAutoConsoleVariable<float> CVarE2EStepDelay(
 	TEXT("e2e.StepDelay"),
-	0.3f,
-	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay."),
+	0.0f,
+	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay (default)."),
 	ECVF_Default);
 
 // =======================================================================
@@ -98,6 +99,38 @@ public:
 			FirstTickTime = FPlatformTime::Seconds();
 		}
 
+		// Fail-fast: once any command AddErrors, drain the rest of the queue without
+		// running them so the suite doesn't burn the full per-step timeout per remaining
+		// command. On the first trip, emit a log marker and (if not NullRHI) request a
+		// screenshot named FAILURE_<TestName> for post-mortem inspection.
+		// Static state is reset whenever the owning test object changes (new test run).
+		if (Test)
+		{
+			// Track which test is running; reset per-test fail-fast state on change.
+			static FAutomationTestBase* GFailFastOwner = nullptr;
+			static bool GFailFastFired = false;
+			if (Test != GFailFastOwner)
+			{
+				GFailFastOwner = Test;
+				GFailFastFired = false;
+			}
+
+			if (Test->HasAnyErrors())
+			{
+				if (!GFailFastFired)
+				{
+					GFailFastFired = true;
+					UE_LOG(LogTemp, Warning, TEXT("E2E FAIL-FAST: short-circuiting remaining commands after first error"));
+					if (!FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+					{
+						const FString FailName = FString::Printf(TEXT("FAILURE_%s"), *Test->GetTestName());
+						FScreenshotRequest::RequestScreenshot(FailName, false, false);
+					}
+				}
+				return true;
+			}
+		}
+
 		if (!bStatusEmitted)
 		{
 			const FString Status = GetStatusText();
@@ -122,10 +155,19 @@ public:
 		}
 
 		// Hold for the globally configured post-step delay so tests can be
-		// slowed down for visual review. Skip the wait entirely when 0.
+		// slowed down for visual review. At 0 delay we still yield exactly one
+		// tick after each step so the engine can propagate the step's side-effects
+		// (e.g. camera rotation from LookAt) before the next command fires.
+		// Without this yield, LookAt and Interact can collapse onto the same tick
+		// and the interact trace fires before the camera has updated, causing misses.
 		const float Delay = CVarE2EStepDelay.GetValueOnGameThread();
 		if (Delay <= 0.f)
 		{
+			if (!bYielded)
+			{
+				bYielded = true;
+				return false;
+			}
 			return true;
 		}
 		return (FPlatformTime::Seconds() - StepDoneTime) >= Delay;
@@ -149,6 +191,10 @@ private:
 	bool bStatusEmitted = false;
 	bool bStepDone = false;
 	double StepDoneTime = 0.0;
+	// Set to true after the one-tick yield that follows each completed step when
+	// step delay is 0. Ensures adjacent commands (e.g. LookAt then Interact) run
+	// on different ticks so camera-rotation side-effects have time to propagate.
+	bool bYielded = false;
 };
 
 // =======================================================================
@@ -255,6 +301,11 @@ public:
 		if (!Waypoint)
 		{
 			Test->AddError(FString::Printf(TEXT("FTD_LookAtWaypoint: no waypoint '%s'"), *Tag.ToString()));
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > 15.0)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_LookAtWaypoint: timed out aiming at waypoint '%s'"), *Tag.ToString()));
 			return true;
 		}
 		return Driver->LookAt(Waypoint);
