@@ -1,5 +1,5 @@
 #include "Door.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "KeypadUIComponent.h"
 #include "StorySubsystem.h"
@@ -82,7 +82,7 @@ void ADoor::Interact_Implementation()
 		else if (bUsesKeypadLock)
 		{
 			// Pop the world-space keypad; the door opens on the correct code.
-			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
+			if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0)))
 			{
 				if (UKeypadUIComponent* Keypad = MyCharacter->GetKeypadUIComponent())
 				{
@@ -279,7 +279,7 @@ bool ADoor::HasKey() const
 		return false;
 	}
 
-	AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn());
+	AFirstPersonCharacter* Character = Cast<AFirstPersonCharacter>(PC->GetPawn());
 	if (!Character)
 	{
 		return false;

@@ -3,7 +3,6 @@
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "BladderUrgencyComponent.h"
 #include "MovieBox.h"
 #include "Camera/CameraComponent.h"
@@ -204,7 +203,7 @@ void UCarRideComponent::StartDialogue()
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC)
 	{
-		if (AMyCharacter* Player = Cast<AMyCharacter>(PC->GetPawn()))
+		if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 		{
 			Player->SetCanInteract(true);
 		}
@@ -265,7 +264,7 @@ void UCarRideComponent::OnDialogueEnded()
 			FPPlayer->OnDialogueLineShown.RemoveDynamic(this, &UCarRideComponent::OnDialogueLineShown);
 		}
 
-		if (AMyCharacter* Player = Cast<AMyCharacter>(PC->GetPawn()))
+		if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 		{
 			Player->SetCanInteract(false);
 		}

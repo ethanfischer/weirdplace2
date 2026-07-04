@@ -3,7 +3,6 @@
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "KeypadUIComponent.h"
@@ -425,7 +424,25 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	}
 
 	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	const FVector NewLoc = TargetLoc + Dir * Distance + FVector(0.f, 0.f, HalfHeight);
+	FVector NewLoc = TargetLoc + Dir * Distance + FVector(0.f, 0.f, HalfHeight);
+
+	// The target's Z may be well above the floor (e.g. a wall-mounted TV), which
+	// would leave the player falling for a second after the teleport — any look
+	// rotation baked during that fall goes stale once the capsule settles. Trace
+	// down and place the capsule on the floor so it settles immediately.
+	FHitResult FloorHit;
+	FCollisionQueryParams FloorParams(FName("TeleportNearActorFloorSnap"), false);
+	FloorParams.AddIgnoredActor(Player);
+	if (Player->GetWorld()->LineTraceSingleByChannel(FloorHit, NewLoc, NewLoc + FVector(0.f, 0.f, -2000.f),
+		ECC_Visibility, FloorParams))
+	{
+		NewLoc.Z = FloorHit.ImpactPoint.Z + HalfHeight;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportNearActor - no floor beneath %s"), *NewLoc.ToString());
+	}
+
 	Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
 
 	// Face the target.

@@ -26,6 +26,10 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_02_SenecaDialogueStarted")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
+		// Wait out the 1-second dialogue cooldown so CollectMovies can interact
+		// immediately. In headless NullRHI the inter-command latency is sub-ms,
+		// so without this the cooldown is still active when the first E-press fires.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void CollectMovies(FAutomationTestBase* T)
@@ -67,6 +71,8 @@ namespace E2ESteps
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));  // select movie slot
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E confirms the give
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+			// Wait out the 1-second dialogue cooldown before the next Seneca interaction.
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_%02d_GaveMovie%d"), 7 + i, i + 1)));
 		}
 	}
@@ -86,6 +92,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11b_MoneyMeshGone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before the next Seneca interaction.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void GiveMoneyAskForBlank(FAutomationTestBase* T)
@@ -99,6 +107,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // Money at slot 0
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the money
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before CollectBlankTape interacts.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_AskedForBlank")));
 	}
 
@@ -131,6 +141,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15b_KeyMeshGone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before UseKeyOnDoor interacts.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void UseKeyOnDoor(FAutomationTestBase* T)

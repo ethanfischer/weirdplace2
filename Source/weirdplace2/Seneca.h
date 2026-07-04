@@ -17,7 +17,6 @@ class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
-class AMyCharacter;
 class UInventoryComponent;
 class USpawnerActorComponent;
 
@@ -302,7 +301,7 @@ private:
 	static bool IsMovieItem(FName ItemID);
 
 	// Open the inventory in give-mode bound to OnInventoryItemOffered.
-	void OpenGiveForOffer(AMyCharacter* MyCharacter);
+	void OpenGiveForOffer(AFirstPersonCharacter* MyCharacter);
 
 	// Inventory give-mode callback: validates the offered item for the current
 	// give-state, consumes + advances on accept (returns true), else false.

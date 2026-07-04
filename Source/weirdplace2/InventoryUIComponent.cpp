@@ -3,7 +3,6 @@
 #include "Components/SceneComponent.h"
 #include "Inventory.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -23,7 +22,7 @@ void UInventoryUIComponent::BeginPlay()
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
-		if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(Owner))
+		if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(Owner))
 		{
 			InventoryComponent = MyCharacter->GetInventoryComponent();
 		}
@@ -75,7 +74,7 @@ void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 			UnfreezePlayerMovement();
 
 			// Re-enable interactions with environment
-			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+			if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 			{
 				MyCharacter->SetCanInteract(true);
 			}
@@ -204,7 +203,7 @@ void UInventoryUIComponent::OpenInventoryUI()
 	BindCloseInput();
 
 	// Disable interactions with environment
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+	if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
 		MyCharacter->SetCanInteract(false);
 	}

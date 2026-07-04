@@ -11,7 +11,7 @@ class UDiegeticTextComponent;
 class UItemDefinition;
 class UMaterialInterface;
 class USoundBase;
-class AMyCharacter;
+class AFirstPersonCharacter;
 class APlayerController;
 
 UCLASS()
@@ -72,6 +72,6 @@ private:
 	FTransform OriginalActorTransform;
 	FRotator CameraRotation;
 	APlayerController* PlayerController = nullptr;
-	AMyCharacter* MyCharacter = nullptr;
+	AFirstPersonCharacter* MyCharacter = nullptr;
 	bool bCollected = false;
 };

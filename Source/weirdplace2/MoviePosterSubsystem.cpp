@@ -1,7 +1,7 @@
 #include "MoviePosterSubsystem.h"
 
 #include "Inventory.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "StorySubsystem.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
@@ -38,7 +38,7 @@ void UMoviePosterSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 void UMoviePosterSubsystem::BindToPlayerInventory()
 {
-	AMyCharacter* Player = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	UInventoryComponent* Inventory = Player ? Player->GetInventoryComponent() : nullptr;
 	if (!Inventory)
 	{

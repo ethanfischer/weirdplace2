@@ -23,7 +23,7 @@ enum class EKeypadUIState : uint8
 	Closing
 };
 
-// Drives the world-space numpad UI (AKeypadUIActor). Owned by AMyCharacter like
+// Drives the world-space numpad UI (AKeypadUIActor). Owned by AFirstPersonCharacter like
 // UInventoryUIComponent. A locked door opens it via OpenForCode and gets the
 // entered code back through the submit delegate. Navigation/confirm/back are
 // routed in from AFirstPersonCharacter while the keypad is open.

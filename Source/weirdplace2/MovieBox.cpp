@@ -106,7 +106,7 @@ void AMovieBox::BeginPlay()
 			}));
 	}
 
-	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (!MyCharacter)
 	{
 		UE_LOG(LogTemp, Error, TEXT("MyCharacter not found!"));

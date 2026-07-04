@@ -2,7 +2,7 @@
 
 
 #include "TimedTeleport.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/PlayerController.h"
 
@@ -43,10 +43,10 @@ void UTimedTeleport::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 
 	// Guard 1: defer while player is in any dialogue
 	ACharacter* PlayerChar = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerChar);
+	AFirstPersonCharacter* MyChar = Cast<AFirstPersonCharacter>(PlayerChar);
 	if (!MyChar)
 	{
-		UE_LOG(LogTemp, Error, TEXT("UTimedTeleport - Player is not AMyCharacter"));
+		UE_LOG(LogTemp, Error, TEXT("UTimedTeleport - Player is not AFirstPersonCharacter"));
 		return;
 	}
 	if (MyChar->IsInAnyDialogue())

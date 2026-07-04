@@ -2,7 +2,6 @@
 #include "PropActor.h"
 #include "StorySubsystem.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "InventoryUIComponent.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
@@ -272,10 +271,9 @@ void ASeneca::OnDialogueEnded()
 		{
 			CurrentState = ESenecaState::WaitingForMoney;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoviePurchase -> WaitingForMoney"));
-			ACharacter* PC2 = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-			if (AMyCharacter* MC = Cast<AMyCharacter>(PC2))
+			if (FPChar3)
 			{
-				MC->LockMovieCollection();
+				FPChar3->LockMovieCollection();
 			}
 			StartMoviePurchaseDialogue(FPChar3);
 		}
@@ -389,8 +387,7 @@ void ASeneca::Interact_Implementation()
 
 	if (CurrentState == ESenecaState::WaitingForMoviePurchase)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForMoviePurchase"));
@@ -405,18 +402,17 @@ void ASeneca::Interact_Implementation()
 		}
 		else
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		return;
 	}
 
 	if (CurrentState == ESenecaState::WaitingForMoney)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (Inventory && Inventory->HasItem(FName("Money")))
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		else
 		{
@@ -431,8 +427,7 @@ void ASeneca::Interact_Implementation()
 
 	if (CurrentState == ESenecaState::WaitingForBlankTape)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForBlankTape"));
@@ -448,7 +443,7 @@ void ASeneca::Interact_Implementation()
 		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
 		if (!ChosenID.IsNone() && Inventory->HasItem(ChosenID))
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		else
 		{
@@ -897,7 +892,7 @@ FName ASeneca::FindFirstMovie(UInventoryComponent* Inventory)
 	return NAME_None;
 }
 
-void ASeneca::OpenGiveForOffer(AMyCharacter* MyCharacter)
+void ASeneca::OpenGiveForOffer(AFirstPersonCharacter* MyCharacter)
 {
 	if (!MyCharacter)
 	{
@@ -913,8 +908,7 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 {
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
 	if (!FPChar || !Inventory)
 	{
 		return false;

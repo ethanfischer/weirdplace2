@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Interactable.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 class UTextRenderComponent;
 class UDiegeticTextComponent;
 #include "Components/WidgetComponent.h"
@@ -60,7 +60,7 @@ private:
 	FTransform OriginalActorTransform;
 	FRotator   CameraRotation;
 	APlayerController* PlayerController;
-	AMyCharacter* MyCharacter;
+	AFirstPersonCharacter* MyCharacter;
 	bool DidCollectMovie = false;
 	FTimerHandle CantCarryTimerHandle;
 

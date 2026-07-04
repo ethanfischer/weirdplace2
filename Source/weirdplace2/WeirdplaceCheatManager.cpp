@@ -1,7 +1,7 @@
 #include "WeirdplaceCheatManager.h"
 
 #include "StorySubsystem.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
@@ -130,10 +130,10 @@ void UWeirdplaceCheatManager::GiveItem(const FString& Name)
 	}
 
 	APlayerController* PC = GetOuterAPlayerController();
-	AMyCharacter* Character = PC ? Cast<AMyCharacter>(PC->GetPawn()) : nullptr;
+	AFirstPersonCharacter* Character = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
 	if (!Character)
 	{
-		UE_LOG(LogTemp, Error, TEXT("GiveItem - no AMyCharacter pawn"));
+		UE_LOG(LogTemp, Error, TEXT("GiveItem - no AFirstPersonCharacter pawn"));
 		return;
 	}
 
@@ -159,10 +159,10 @@ void UWeirdplaceCheatManager::GiveItem(const FString& Name)
 void UWeirdplaceCheatManager::GiveAll()
 {
 	APlayerController* PC = GetOuterAPlayerController();
-	AMyCharacter* Character = PC ? Cast<AMyCharacter>(PC->GetPawn()) : nullptr;
+	AFirstPersonCharacter* Character = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
 	if (!Character)
 	{
-		UE_LOG(LogTemp, Error, TEXT("GiveAll - no AMyCharacter pawn"));
+		UE_LOG(LogTemp, Error, TEXT("GiveAll - no AFirstPersonCharacter pawn"));
 		return;
 	}
 

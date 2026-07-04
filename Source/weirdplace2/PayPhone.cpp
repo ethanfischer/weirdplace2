@@ -1,6 +1,6 @@
 #include "PayPhone.h"
 
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "StorySubsystem.h"
 #include "Components/AudioComponent.h"
 #include "Components/InputComponent.h"
@@ -184,7 +184,7 @@ void APayPhone::Interact_Implementation()
 	// free (VR owns the headset), so bFreezeLook=false.
 	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
 	{
-		if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
+		if (AFirstPersonCharacter* Character = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 		{
 			Character->BeginInteractionHold(/*bFreezeLook*/ false);
 		}
@@ -367,7 +367,7 @@ void APayPhone::ReleasePlayer()
 	{
 		PC->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
 	}
-	if (AMyCharacter* Character = Cast<AMyCharacter>(PC->GetPawn()))
+	if (AFirstPersonCharacter* Character = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 	{
 		Character->EndInteractionHold(/*bUnfreezeLook*/ false);
 	}

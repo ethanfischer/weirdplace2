@@ -4,7 +4,6 @@
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "ItemGlow.h"
-#include "MyCharacter.h"
 #include "Components/InputComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -49,7 +48,7 @@ void AInspectablePickup::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("InspectablePickup '%s': ItemDef missing or has no Mesh"), *GetName());
 	}
 
-	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 
 	// Self-illumination overlay, applied from spawn so the dropped item reads on
 	// the dark floor — not just once it's pulled in to inspect.
@@ -85,7 +84,7 @@ void AInspectablePickup::Interact_Implementation()
 	if (bCollected) return;
 	if (!MyCharacter)
 	{
-		MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 		if (!MyCharacter) return;
 	}
 

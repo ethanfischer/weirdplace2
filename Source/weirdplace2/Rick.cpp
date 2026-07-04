@@ -1,6 +1,5 @@
 #include "Rick.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "Seneca.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
@@ -242,8 +241,7 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 	bMoneyBeatArmed = false;
 	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
 
-	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
 	if (!Inventory || !MoneyDef)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - missing Inventory or MoneyDef"));
