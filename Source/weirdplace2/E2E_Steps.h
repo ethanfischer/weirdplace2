@@ -227,7 +227,7 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulatePutBack(T));
 	}
 
-	void OpenBathroomDoor(FAutomationTestBase* T)
+	void OpenKeypadDoor(FAutomationTestBase* T)
 	{
 		// Employee bathroom now opens via the phone-code keypad (Seneca no longer
 		// unlocks it). The lock accepts almost any 4-digit entry, but it must contain
@@ -235,7 +235,10 @@ namespace E2ESteps
 		// selecting each digit cell (digit N lives at cell N-1) and pressing Interact.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// Fire the door's Interact directly rather than via the simulated interact
+		// key: 5.7 intermittently swallows the press at fast step-delay in headed
+		// runs, leaving the keypad closed (same reason EnterKeypadCode bypasses input).
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerKeypadDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
 		// Enter the first two digits to capture the fill row (now above the grid), then
@@ -245,6 +248,18 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("89")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
+	}
+
+	void OpenGasHallwayDoor(FAutomationTestBase* T)
+	{
+		// Past the keypad door, walk down into the gas-station hallway and open the
+		// bathroom door at its end. This is a normal (non-keypad) door — interacting
+		// while looking at it swings it open.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("GasHallway"), 2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("GasHallwayBathroomDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("GasHallwayBathroomDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19c_GasHallwayDoorOpen")));
 	}
 
 	void EnterStall(FAutomationTestBase* T)

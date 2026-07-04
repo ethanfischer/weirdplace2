@@ -422,7 +422,8 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::WatchTornadoWarningTV(this);
 	E2ESteps::UseTelephone(this);
 	E2ESteps::SenecaSmokingDialogue(this);
-	E2ESteps::OpenBathroomDoor(this);
+	E2ESteps::OpenKeypadDoor(this);
+	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
 	E2ESteps::ExitBathroom(this);
 

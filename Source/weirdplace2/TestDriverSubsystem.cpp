@@ -14,6 +14,8 @@
 #endif
 #include "MovieBox.h"
 #include "InspectablePickup.h"
+#include "Door.h"
+#include "Interactable.h"
 #include "OutsideBathroomDoor.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
@@ -1121,6 +1123,19 @@ void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 		UE_LOG(LogTemp, Log, TEXT("TestDriver::MarkLastFoundMovieCollected - %s"), *LastFoundMovie->GetName());
 		LastFoundMovie.Reset();
 	}
+}
+
+bool UTestDriverSubsystem::TriggerKeypadDoorOpen(const FString& DoorLabel)
+{
+	ADoor* Door = Cast<ADoor>(FindActorByLabel(DoorLabel));
+	if (!Door)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerKeypadDoorOpen - no ADoor labeled '%s'"), *DoorLabel);
+		return false;
+	}
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TriggerKeypadDoorOpen - %s"), *Door->GetName());
+	IInteractable::Execute_Interact(Door);
+	return true;
 }
 
 bool UTestDriverSubsystem::TriggerCollectInspectedMovie()

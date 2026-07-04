@@ -221,6 +221,12 @@ public:
 
 	bool IsKeypadFullyOpen() const;
 
+	// Directly fire a keypad door's Interact (pops the code keypad) by actor label,
+	// bypassing the simulated interact key — which 5.7 intermittently swallows at
+	// fast pacing in headed runs, leaving the keypad closed. Same rationale as
+	// EnterKeypadCode below. Returns false if no ADoor has that label.
+	bool TriggerKeypadDoorOpen(const FString& DoorLabel);
+
 	// Cumulative count of wrong-code buzzes since the keypad component was created.
 	// Rises WrongCodeClearDelay after each rejected submit (see ClearWrongEntry).
 	int32 GetKeypadDenySoundCount() const;

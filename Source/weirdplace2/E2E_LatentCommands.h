@@ -39,7 +39,7 @@
 // Configurable at runtime via `e2e.StepDelay <seconds>` console command.
 static TAutoConsoleVariable<float> CVarE2EStepDelay(
 	TEXT("e2e.StepDelay"),
-	0.5f,
+	0.3f,
 	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay."),
 	ECVF_Default);
 
@@ -3402,6 +3402,34 @@ private:
 // =======================================================================
 // FTD_WaitForKeypadOpen — wait until the code-entry keypad is fully open.
 // =======================================================================
+
+// FTD_TriggerKeypadDoorOpen — pop a keypad door's code UI by firing its Interact
+// directly (by actor label), bypassing the simulated interact key that 5.7
+// intermittently swallows at fast pacing in headed runs.
+class FTD_TriggerKeypadDoorOpen : public FTD_Base
+{
+public:
+	FTD_TriggerKeypadDoorOpen(FAutomationTestBase* InTest, FString InLabel)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Opening keypad on '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerKeypadDoorOpen: no driver")); return true; }
+		if (!Driver->TriggerKeypadDoorOpen(Label))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TriggerKeypadDoorOpen: failed on '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+};
 
 class FTD_WaitForKeypadOpen : public FTD_Base
 {
