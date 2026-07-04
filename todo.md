@@ -70,7 +70,7 @@
 #	What	Why	Size
 [x] 1	De-tick the MovieBox fleet	~3,200 no-op tick dispatches/frame, est. 1.5–3 ms	S
 [x] 2	Fix the key-break wedge guard	Can permanently dead-end the story	S
-[ ] 3	Fix TeleportTriggerBox “UltraDynamic” needle	Feature destroys the wrong actor	S
+[x] 3	Fix TeleportTriggerBox “UltraDynamic” needle	Feature destroys the wrong actor	S
 [ ] 4	Delete the dead InventoryRoomComponent cluster	900-line agent trap w/ hitch grenade inside	S
 [ ] 5	Fix Rick’s missing OnDialogueEnded dispatch	Real bug born from NPC copy-paste	S
 [ ] 6	Decide the combined-tape beat: cut or rewire	~120 lines of unreachable story code	S–M
