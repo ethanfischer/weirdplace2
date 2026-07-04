@@ -1147,6 +1147,10 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		{
 			Seneca->OnDialogueEnded();
 		}
+		else if (ARick* Rick = Cast<ARick>(EndedNPC))
+		{
+			Rick->OnDialogueEnded();
+		}
 		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
 		{
 			Hudson->OnDialogueEnded();
