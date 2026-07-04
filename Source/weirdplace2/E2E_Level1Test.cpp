@@ -419,6 +419,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::CollectBlankTape(this);
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
+	E2ESteps::WatchTornadoWarningTV(this);
 	E2ESteps::UseTelephone(this);
 	E2ESteps::SenecaSmokingDialogue(this);
 	E2ESteps::OpenBathroomDoor(this);

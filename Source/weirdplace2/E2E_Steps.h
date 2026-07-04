@@ -167,6 +167,31 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16c_BrokenKeyCollected")));
 	}
 
+	void WatchTornadoWarningTV(FAutomationTestBase* T)
+	{
+		// The key-break sequence set KeyBroke. Re-entering the store flips both
+		// store TVs to the tornado warning; the player must dwell-gaze a warning
+		// TV for StorySubsystem's GazeRequiredSeconds (2s) to register
+		// SeenTornadoWarning — which reveals the roadside payphone and gates the
+		// UseTelephone step below.
+		//
+		// Stand right in front of BP_TV: from the MovieShelf spot itself the
+		// store's own movie-cover shelving occludes the TV (the gaze
+		// line-of-sight trace is blocked by shelf VHS covers), so the dwell
+		// never accrues. Teleport to MovieShelf FIRST so the subsequent
+		// "near TV" placement — which lands the player on the TV side facing
+		// their current position — ends up on the shelf side of the TV, which
+		// has a clear sightline. (Approaching from the bathroom side, where the
+		// player is after collecting the broken key, lands on the occluded side.)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("MovieShelf")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(T, TEXT("BP_TV"), 250.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f)); // let the capsule settle before baking the look rotation
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BP_TV")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16d_WatchingTornadoTV")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("SeenTornadoWarning"), true, 8.0));
+	}
+
 	void FastForwardSenecaSmoking(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
@@ -174,6 +199,11 @@ namespace E2ESteps
 
 	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
+		// The broken-key beat hides Seneca and schedules her to reappear at the
+		// smoking spot after a 30s delay. Skip that wait so the test isn't gated
+		// on real time (FTD_WaitForSenecaAppearedAtSmoking only allows a few
+		// seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
@@ -184,11 +214,16 @@ namespace E2ESteps
 	
 	void UseTelephone(FAutomationTestBase* T)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("Telephone")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtTelephone(T));
+		// SeenTornadoWarning (set by WatchTornadoWarningTV) revealed the roadside
+		// payphone. Walk up, pick up the receiver — which records UsedPayPhone and
+		// unlocks the bathroom keypad — then hang up via Exit Interaction to release
+		// the player. There is no "Telephone" waypoint; the phone lives far off the
+		// store lot, so teleport near the actor itself.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(T, TEXT("BP_TelephoneScene"), 300.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BP_TelephoneScene")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17a_Telephone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForGazeSeconds(T, 2));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("UsedPayPhone"), true, 5.0));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulatePutBack(T));
 	}
 
