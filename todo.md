@@ -71,10 +71,10 @@
 [x] 1	De-tick the MovieBox fleet	~3,200 no-op tick dispatches/frame, est. 1.5–3 ms	S
 [x] 2	Fix the key-break wedge guard	Can permanently dead-end the story	S
 [x] 3	Fix TeleportTriggerBox “UltraDynamic” needle	Feature destroys the wrong actor	S
-[ ] 4	Delete the dead InventoryRoomComponent cluster	900-line agent trap w/ hitch grenade inside	S
-[ ] 5	Fix Rick’s missing OnDialogueEnded dispatch	Real bug born from NPC copy-paste	S
+[x] 4	Delete the dead InventoryRoomComponent cluster	900-line agent trap w/ hitch grenade inside	S
+[x] 5	Fix Rick’s missing OnDialogueEnded dispatch	Real bug born from NPC copy-paste	S
 [ ] 6	Decide the combined-tape beat: cut or rewire	~120 lines of unreachable story code	S–M
-[ ] 7	E2E loop economics (§5): step-delay, timeout, fail-fast	Directly buys back overnight agent hours	S–M
+[x] 7	E2E loop economics (§5): step-delay, timeout, fail-fast	Directly buys back overnight agent hours	S–M
 [ ] 8	Decide VR for real (§6)	Everything downstream depends on it	strategic
 [ ] 9	Fix the “this PC dies” exposure (§7)	8.9 GB of level content exists only on this machine	S
-[ ] 10	Merge AMyCharacter → AFirstPersonCharacter	Two names for one object; already confused the agent’s own memory once	M
+[x] 10	Merge AMyCharacter → AFirstPersonCharacter	Two names for one object; already confused the agent’s own memory once	M

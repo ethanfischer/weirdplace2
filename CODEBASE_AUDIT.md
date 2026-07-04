@@ -24,12 +24,12 @@ Plus one strategic finding that isn't about code at all: **the VR target is curr
 | 2 | Fix the key-break wedge guard | Can permanently dead-end the story | S |
 | 3 | Fix `TeleportTriggerBox` "UltraDynamic" needle | Feature destroys the wrong actor | S |
 | 4 | Delete the dead `InventoryRoomComponent` cluster | 900-line agent trap w/ hitch grenade inside | S |
-| 5 | Fix Rick's missing `OnDialogueEnded` dispatch | Real bug born from NPC copy-paste | S |
+| 5 | ✅ ~~Fix Rick's missing `OnDialogueEnded` dispatch~~ (done 2026-07-04, `5a5babeb`) | Real bug born from NPC copy-paste | S |
 | 6 | Decide the combined-tape beat: cut or rewire | ~120 lines of unreachable story code | S–M |
-| 7 | E2E loop economics (§5): step-delay, timeout, fail-fast | Directly buys back overnight agent hours | S–M |
+| 7 | ✅ ~~E2E loop economics (§5): step-delay, timeout, fail-fast~~ (E1–E3 done 2026-07-04, `b5b13096`; E4–E8 still open) | Directly buys back overnight agent hours | S–M |
 | 8 | Decide VR for real (§6) | Everything downstream depends on it | strategic |
 | 9 | Fix the "this PC dies" exposure (§7) | 8.9 GB of level content exists only on this machine | S |
-| 10 | Merge `AMyCharacter` → `AFirstPersonCharacter` | Two names for one object; already confused the agent's own memory once | M |
+| 10 | ✅ ~~Merge `AMyCharacter` → `AFirstPersonCharacter`~~ (done 2026-07-04, `fa7cec27`) | Two names for one object; already confused the agent's own memory once | M |
 
 ---
 
