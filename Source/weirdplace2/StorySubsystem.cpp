@@ -109,7 +109,7 @@ namespace
 
 	static const FBeatAlias GBeatAliases[] = {
 		{ EStoryFlag::KeyBroke,                TEXT("KeyBroke"),       TEXT("key") },
-		{ EStoryFlag::TornadoWarningDisplayed, TEXT("TornadoWarning"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
+		{ EStoryFlag::TornadoWarningDisplayed, TEXT("Tornado"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
 		{ EStoryFlag::SeenTornadoWarning,      TEXT("Telephone"),      TEXT("telephone phone payphone seentornadowarning") },
 		{ EStoryFlag::UsedPayPhone,            TEXT("PhoneUsed"),      TEXT("phoneused usedpayphone calledphone offhook") },
 	};
