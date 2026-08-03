@@ -3,6 +3,9 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "UltraDynamicWeatherController.h"
+#include "StormFogComponent.h"
+#include "FirstPersonCharacter.h"
+#include "TestDriverSubsystem.h"
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
 #include "Sound/AmbientSound.h"
@@ -57,6 +60,11 @@ namespace StormSkyTest
 		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Weather"), TEXT("Wind Intensity"), OutValue);
 	}
 
+	inline bool ReadWeatherFog(UWorld* World, float& OutValue)
+	{
+		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Weather"), TEXT("Fog"), OutValue);
+	}
+
 	// Find the placed "Ambient_GlobalWind" AmbientSound by editor label (available in
 	// the editor-context E2E even though it isn't at shipping runtime).
 	inline AAmbientSound* FindAmbientGlobalWind(UWorld* World)
@@ -107,12 +115,12 @@ namespace StormSkyTest
 class FTD_ConfigureStormSkyFade : public FTD_Base
 {
 public:
-	FTD_ConfigureStormSkyFade(FAutomationTestBase* InTest, float InDuration, float InTargetIntensity, float InStartWind, float InTargetWind, float InTargetVolume)
-		: FTD_Base(InTest), Duration(InDuration), TargetIntensity(InTargetIntensity), StartWind(InStartWind), TargetWind(InTargetWind), TargetVolume(InTargetVolume) {}
+	FTD_ConfigureStormSkyFade(FAutomationTestBase* InTest, float InDuration, float InTargetIntensity, float InStartWind, float InTargetWind, float InTargetVolume, float InTargetFog)
+		: FTD_Base(InTest), Duration(InDuration), TargetIntensity(InTargetIntensity), StartWind(InStartWind), TargetWind(InTargetWind), TargetVolume(InTargetVolume), TargetFog(InTargetFog) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Configuring storm transition: %.2fs, intensity -> %.2f, wind %.1f -> %.1f, volume -> %.2f"), Duration, TargetIntensity, StartWind, TargetWind, TargetVolume);
+		return FString::Printf(TEXT("Configuring storm transition: %.2fs, intensity -> %.2f, wind %.1f -> %.1f, volume -> %.2f, fog -> %.2f"), Duration, TargetIntensity, StartWind, TargetWind, TargetVolume, TargetFog);
 	}
 
 	virtual bool UpdateStep() override
@@ -128,6 +136,7 @@ public:
 		Ctrl->StartWindIntensity = StartWind;
 		Ctrl->TargetWindIntensity = TargetWind;
 		Ctrl->TargetWindVolume = TargetVolume;
+		Ctrl->TargetFog = TargetFog;
 		// Wire the wind ambient (designer-assigned in real play; found by label here).
 		Ctrl->AmbientGlobalWind = StormSkyTest::FindAmbientGlobalWind(E2ELatent::GetPIEWorld());
 		if (!Ctrl->AmbientGlobalWind)
@@ -142,6 +151,7 @@ private:
 	float StartWind;
 	float TargetWind;
 	float TargetVolume;
+	float TargetFog;
 };
 
 // One-shot: assert the wind ambient's AudioComponent VolumeMultiplier is within Tol.
@@ -230,6 +240,38 @@ public:
 		if (FMath::Abs(Value - Expected) > Tolerance)
 		{
 			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherWindNear: Wind Intensity is %.2f, expected %.2f (+/- %.1f)"),
+				Value, Expected, Tolerance));
+		}
+		return true;
+	}
+private:
+	float Expected;
+	float Tolerance;
+};
+
+// One-shot: assert the weather actor's "Fog" scalar is within Tolerance of Expected.
+class FTD_AssertWeatherFogNear : public FTD_Base
+{
+public:
+	FTD_AssertWeatherFogNear(FAutomationTestBase* InTest, float InExpected, float InTolerance)
+		: FTD_Base(InTest), Expected(InExpected), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting weather Fog ~= %.2f (+/- %.2f)"), Expected, Tolerance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (!StormSkyTest::ReadWeatherFog(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertWeatherFogNear: could not read 'Fog' on a weather actor"));
+			return true;
+		}
+		if (FMath::Abs(Value - Expected) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherFogNear: Fog is %.2f, expected %.2f (+/- %.2f)"),
 				Value, Expected, Tolerance));
 		}
 		return true;
@@ -509,8 +551,9 @@ bool FE2E_Level1_StormSkyFade::RunTest(const FString& Parameters)
 	E2E_TEST_PREAMBLE("StormSkyFade")
 
 	// Compress the 2-minute default transition to 2s so the test is quick. Wind ramps
-	// 100 -> 250 and the wind ambient swells -> 3.0 alongside the intensity fade 2.0 -> 0.25.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormSkyFade(this, /*Duration*/ 2.0f, /*Intensity*/ 0.25f, /*StartWind*/ 100.0f, /*TargetWind*/ 250.0f, /*TargetVolume*/ 3.0f));
+	// 100 -> 250, the wind ambient swells -> 3.0, and fog thickens ~3 -> 20 alongside
+	// the intensity fade 2.0 -> 0.25.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormSkyFade(this, /*Duration*/ 2.0f, /*Intensity*/ 0.25f, /*StartWind*/ 100.0f, /*TargetWind*/ 250.0f, /*TargetVolume*/ 3.0f, /*TargetFog*/ 20.0f));
 
 	// Before the beat: warning unseen, sky at its authored brightness (~2.0), wind
 	// ambient at its base volume (~1.0). (We can't assert the pre-storm Wind Intensity:
@@ -530,6 +573,121 @@ bool FE2E_Level1_StormSkyFade::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindOverride(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindNear(this, 250.0f, 20.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientWindVolumeNear(this, 3.0f, 0.2f));
+	// Fog thickened to its target (proves the fog channel ramped the weather "Fog"
+	// scalar; the visible density is eyeballed from the screenshot below).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherFogNear(this, 20.0f, 1.0f));
+	// Headed only: capture the socked-in view so the fog thickness can be tuned by eye.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_StormFog_Settled")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// StormPeaSoupFog — the KeyBroke beat rolls in UStormFogComponent's full-screen
+// depth fog on the player camera (bright murk, view distance ~= a couple metres,
+// independent of scene lighting — the thing UDS height fog can't do at night).
+// =======================================================================
+
+namespace StormFogTest
+{
+	inline UStormFogComponent* FindFogComp()
+	{
+		UTestDriverSubsystem* Driver = E2ELatent::GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		return Player ? Player->FindComponentByClass<UStormFogComponent>() : nullptr;
+	}
+}
+
+// Shorten the roll-in and pin the distance so the test is quick and deterministic.
+class FTD_ConfigureStormFog : public FTD_Base
+{
+public:
+	FTD_ConfigureStormFog(FAutomationTestBase* InTest, float InRamp, float InFogDistance)
+		: FTD_Base(InTest), Ramp(InRamp), FogDistance(InFogDistance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Configuring pea-soup fog: ramp %.1fs, distance %.0f"), Ramp, FogDistance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UStormFogComponent* Fog = StormFogTest::FindFogComp();
+		if (!Fog)
+		{
+			Test->AddError(TEXT("FTD_ConfigureStormFog: no UStormFogComponent on the player"));
+			return true;
+		}
+		Fog->RampDuration = Ramp;
+		Fog->FogDistance = FogDistance;
+		return true;
+	}
+private:
+	float Ramp;
+	float FogDistance;
+};
+
+// Poll until the fog blendable weight reaches Threshold, erroring on timeout.
+class FTD_WaitForStormFogAtLeast : public FTD_Base
+{
+public:
+	FTD_WaitForStormFogAtLeast(FAutomationTestBase* InTest, float InThreshold, double InTimeoutSeconds)
+		: FTD_Base(InTest), Threshold(InThreshold), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for pea-soup fog weight >= %.2f"), Threshold);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UStormFogComponent* Fog = StormFogTest::FindFogComp();
+		if (!Fog)
+		{
+			Test->AddError(TEXT("FTD_WaitForStormFogAtLeast: no UStormFogComponent on the player"));
+			return true;
+		}
+		if (Fog->GetCurrentFogWeight() >= Threshold)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForStormFogAtLeast: fog weight reached %.3f"), Fog->GetCurrentFogWeight());
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStormFogAtLeast: fog weight never reached %.2f within %.1fs (last %.3f)"),
+				Threshold, Timeout, Fog->GetCurrentFogWeight()));
+			return true;
+		}
+		return false;
+	}
+private:
+	float Threshold;
+	double Timeout;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StormPeaSoupFog,
+	"Weirdplace2.E2E.Level1.Regression.StormPeaSoupFog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StormPeaSoupFog::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StormPeaSoupFog")
+
+	// Compress the roll-in to 2s; 250 cm distance = you can just make out ~2.5 m.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormFog(this, /*Ramp*/ 2.0f, /*FogDistance*/ 250.0f));
+
+	// Pre-beat: warning unseen, fog not engaged (warmup pass drops to weight 0 after ~1s).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PeaSoup_Before")));
+
+	// See the warning — the fog rolls in on the player camera.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStormFogAtLeast(this, 0.95f, 10.0));
+
+	// Fully socked in — screenshot the pea soup (headed only; NullRHI screenshots are blank).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PeaSoup_After")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

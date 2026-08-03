@@ -3,6 +3,7 @@
 #include "Components/InputComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "BladderUrgencyComponent.h"
+#include "StormFogComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -118,6 +119,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
+
+	// Create the storm pea-soup fog component (rolls in the near-field murk on the storm beat)
+	StormFogComponent = CreateDefaultSubobject<UStormFogComponent>(TEXT("StormFogComponent"));
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
@@ -256,6 +260,24 @@ void AFirstPersonCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	InputDeviceTracker.Reset();
 	Super::EndPlay(EndPlayReason);
+}
+
+void AFirstPersonCharacter::PeaSoup()
+{
+	if (StormFogComponent)
+	{
+		StormFogComponent->ToggleFog();
+	}
+}
+
+void AFirstPersonCharacter::PeaSoupDist(float Centimeters)
+{
+	if (StormFogComponent)
+	{
+		// Tick keeps the MID in sync while the fog is visible, so this applies live.
+		StormFogComponent->FogDistance = FMath::Max(1.f, Centimeters);
+		UE_LOG(LogTemp, Log, TEXT("PeaSoupDist -> %.0f cm"), StormFogComponent->FogDistance);
+	}
 }
 
 #if PLATFORM_LINUX

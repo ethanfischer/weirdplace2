@@ -13,6 +13,7 @@ class UInputAction;
 class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
+class UStormFogComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
@@ -112,6 +113,17 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Bladder Urgency")
 	UBladderUrgencyComponent* BladderUrgencyComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Storm Fog")
+	UStormFogComponent* StormFogComponent;
+
+	// Console (~): toggle the pea-soup storm fog on/off for testing. Type "PeaSoup".
+	UFUNCTION(Exec)
+	void PeaSoup();
+
+	// Console: set the fog view distance in cm live, e.g. "PeaSoupDist 80" (thicker).
+	UFUNCTION(Exec)
+	void PeaSoupDist(float Centimeters);
 
 	// --- Crosshair Widget ---
 

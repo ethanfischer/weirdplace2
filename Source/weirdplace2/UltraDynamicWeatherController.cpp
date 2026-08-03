@@ -27,6 +27,13 @@ namespace
 	// delegate doesn't fire on a raw reflection write).
 	const FName GWindUpdateNeededProp(TEXT("Wind Intensity Update Needed"));       // Weather (bool)
 
+	// UDS "Fog" scalar drives overall fogginess. Like wind it lives on the weather
+	// state, so UDW only honours a manual value once the override bool is set; and the
+	// value must be flagged dirty so UDW re-pushes it to the height/volumetric fog.
+	const FName GFogProp(TEXT("Fog"));                                            // Weather (float)
+	const FName GFogManualOverrideProp(TEXT("Fog - Manual Override"));            // Weather (bool)
+	const FName GFogUpdateNeededProp(TEXT("Fog Update Needed"));                  // Weather (bool)
+
 	// Resolve a floating-point property + its value pointer on Actor. FNumericProperty
 	// covers both float and double reals, so this is robust to UE5 promoting Blueprint
 	// floats to doubles. Null on miss.
@@ -188,7 +195,22 @@ void AUltraDynamicWeatherController::BeginFade()
 		UE_LOG(LogTemp, Error, TEXT("AUltraDynamicWeatherController %s: no Ultra_Dynamic_Weather / wind override props; wind ramp skipped"), *GetName());
 	}
 
-	if (!bFadeSky && !bRampWind)
+	// Weather "Fog" channel. Same manual-override machinery as wind (shares the already
+	// resolved WeatherActor): engage the override so UDW stops driving fog from the
+	// weather state, capture the current value as the ramp start, and flag it dirty.
+	bRampFog =
+		SetBool(WeatherActor.Get(), GFogManualOverrideProp, true) &&
+		ReadFloat(WeatherActor.Get(), GFogProp, FogStart);
+	if (bRampFog)
+	{
+		SetBool(WeatherActor.Get(), GFogUpdateNeededProp, true);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AUltraDynamicWeatherController %s: no Ultra_Dynamic_Weather / fog override props; fog ramp skipped"), *GetName());
+	}
+
+	if (!bFadeSky && !bRampWind && !bRampFog)
 	{
 		UE_LOG(LogTemp, Error, TEXT("AUltraDynamicWeatherController %s: no UDS actors to drive; transition aborted"), *GetName());
 		return;
@@ -197,8 +219,8 @@ void AUltraDynamicWeatherController::BeginFade()
 	bFading = true;
 	FadeElapsed = 0.f;
 
-	UE_LOG(LogTemp, Log, TEXT("AUltraDynamicWeatherController %s: saw tornado warning — transition over %.1fs (OverallIntensity %.3f->%.3f, WindIntensity %.1f->%.1f, WindVolume %.2f->%.2f)"),
-		*GetName(), FadeDuration, SkyStartIntensity, TargetOverallIntensity, StartWindIntensity, TargetWindIntensity, WindVolumeStart, TargetWindVolume);
+	UE_LOG(LogTemp, Log, TEXT("AUltraDynamicWeatherController %s: saw tornado warning — transition over %.1fs (OverallIntensity %.3f->%.3f, WindIntensity %.1f->%.1f, Fog %.2f->%.2f, WindVolume %.2f->%.2f)"),
+		*GetName(), FadeDuration, SkyStartIntensity, TargetOverallIntensity, StartWindIntensity, TargetWindIntensity, FogStart, TargetFog, WindVolumeStart, TargetWindVolume);
 
 	// Zero/negative duration: apply the targets immediately, no tick.
 	if (FadeDuration <= 0.f)
@@ -243,6 +265,11 @@ void AUltraDynamicWeatherController::ApplyAtAlpha(float Alpha)
 	{
 		WriteFloat(WeatherActor.Get(), GWindIntensityProp, FMath::Lerp(StartWindIntensity, TargetWindIntensity, Alpha));
 		SetBool(WeatherActor.Get(), GWindUpdateNeededProp, true);
+	}
+	if (bRampFog)
+	{
+		WriteFloat(WeatherActor.Get(), GFogProp, FMath::Lerp(FogStart, TargetFog, Alpha));
+		SetBool(WeatherActor.Get(), GFogUpdateNeededProp, true);
 	}
 	if (bLoudenWind)
 	{
