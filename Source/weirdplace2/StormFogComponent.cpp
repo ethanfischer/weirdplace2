@@ -11,6 +11,7 @@ namespace StormFogInternal
 {
 	static const FName FogColorParam(TEXT("FogColor"));
 	static const FName FogDistanceParam(TEXT("FogDistance"));
+	static const FName FogMaxOpacityParam(TEXT("FogMaxOpacity"));
 	static const TCHAR* FogMaterialPath = TEXT("/Game/CreatedMaterials/M_PeaSoupFog.M_PeaSoupFog");
 
 	// Warmup weight: below ~1/255 a blendable is culled and never compiles its
@@ -128,6 +129,7 @@ void UStormFogComponent::StartFog()
 	// Restore the real distance in case the warmup timer hasn't fired yet.
 	FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
 	FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
+	FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
 
 	bRamping = true;
 	RampElapsed = 0.f;
@@ -165,6 +167,7 @@ void UStormFogComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
 		FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
+		FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
 	}
 
 	// Nothing left to do once fully cleared and not ramping — stop ticking.
@@ -190,6 +193,7 @@ void UStormFogComponent::ToggleFog()
 	{
 		FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
 		FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
+		FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
 		SetFogWeight(1.f);
 		SetComponentTickEnabled(true); // keep syncing params for live tuning
 		UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: fog toggled ON (dist %.0f)"), FogDistance);

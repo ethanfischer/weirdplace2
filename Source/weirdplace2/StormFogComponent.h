@@ -41,6 +41,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Storm Fog")
 	FLinearColor FogColor = FLinearColor(0.72f, 0.75f, 0.80f, 1.f);
 
+	// Caps how opaque the fog gets. 1.0 = fully hides everything past FogDistance;
+	// 0.7 = tops out at 70% so 30% of the scene always bleeds through (thinner, hazier).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", ClampMax = "1.0"), Category = "Storm Fog")
+	float FogMaxOpacity = 1.f;
+
 	// Begin the roll-in now, independent of the story flag (used by the E2E test).
 	UFUNCTION(BlueprintCallable, Category = "Storm Fog")
 	void StartFog();
