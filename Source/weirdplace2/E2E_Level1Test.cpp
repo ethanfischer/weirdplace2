@@ -637,7 +637,7 @@ public:
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Waiting for pea-soup fog weight >= %.2f"), Threshold);
+		return FString::Printf(TEXT("Waiting for pea-soup fog roll-in >= %.2f"), Threshold);
 	}
 
 	virtual bool UpdateStep() override
@@ -648,15 +648,15 @@ public:
 			Test->AddError(TEXT("FTD_WaitForStormFogAtLeast: no UStormFogComponent on the player"));
 			return true;
 		}
-		if (Fog->GetCurrentFogWeight() >= Threshold)
+		if (Fog->GetFogAmount() >= Threshold)
 		{
-			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForStormFogAtLeast: fog weight reached %.3f"), Fog->GetCurrentFogWeight());
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForStormFogAtLeast: fog roll-in reached %.3f"), Fog->GetFogAmount());
 			return true;
 		}
 		if (GetElapsedSinceFirstTick() > Timeout)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_WaitForStormFogAtLeast: fog weight never reached %.2f within %.1fs (last %.3f)"),
-				Threshold, Timeout, Fog->GetCurrentFogWeight()));
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStormFogAtLeast: fog roll-in never reached %.2f within %.1fs (last %.3f)"),
+				Threshold, Timeout, Fog->GetFogAmount()));
 			return true;
 		}
 		return false;

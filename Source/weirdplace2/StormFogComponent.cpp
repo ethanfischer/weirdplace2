@@ -120,29 +120,65 @@ void UStormFogComponent::OnStoryFlagChanged(EStoryFlag Flag, bool bValue)
 	}
 }
 
+void UStormFogComponent::BeginRamp(float Target, float Duration)
+{
+	if (!FogMID || !CachedCamera)
+	{
+		return;
+	}
+	RampFromAmount = FogAmount;
+	RampToAmount = FMath::Clamp(Target, 0.f, 1.f);
+	ActiveRampDuration = Duration;
+	RampElapsed = 0.f;
+
+	// Apply the current amount now so the blendable's first render is correct — when
+	// starting from clear that's weight 0 (invisible), which hides any one-frame
+	// material-default flash before the roll-in takes over.
+	ApplyFog(FogAmount);
+
+	if (Duration <= 0.f)
+	{
+		ApplyFog(RampToAmount);
+		bRamping = false;
+		SetComponentTickEnabled(FogAmount > 0.f); // keep ticking for live param sync only while visible
+		return;
+	}
+	bRamping = true;
+	SetComponentTickEnabled(true);
+}
+
+void UStormFogComponent::ApplyFog(float Amount)
+{
+	FogAmount = FMath::Clamp(Amount, 0.f, 1.f);
+	if (!FogMID)
+	{
+		return;
+	}
+	// Smoothstep the amount, then geometrically interp the fog distance from the (clear)
+	// start distance down to the settled distance. Geometric interp keeps the close-in
+	// feeling even across the big range; smoothstep removes the start/stop jerk.
+	const float Eased = FogAmount * FogAmount * (3.f - 2.f * FogAmount);
+	const float Start = FMath::Max(FogStartDistance, FogDistance);
+	const float End = FMath::Max(1.f, FogDistance);
+	const float Dist = FMath::Exp(FMath::Lerp(FMath::Loge(Start), FMath::Loge(End), Eased));
+
+	FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, Dist);
+	FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
+	FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
+
+	// The distance closing in does the fading, so the blendable is simply on whenever
+	// there's any fog and off when fully clear.
+	SetFogWeight(FogAmount > 0.f ? 1.f : 0.f);
+}
+
 void UStormFogComponent::StartFog()
 {
 	if (bRamping || !FogMID || !CachedCamera)
 	{
 		return;
 	}
-	// Restore the real distance in case the warmup timer hasn't fired yet.
-	FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
-	FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
-	FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
-
-	bRamping = true;
-	RampElapsed = 0.f;
-
-	UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: pea-soup fog rolling in over %.1fs (FogDistance %.0f)"), RampDuration, FogDistance);
-
-	if (RampDuration <= 0.f)
-	{
-		SetFogWeight(1.f);
-		bRamping = false;
-		return;
-	}
-	SetComponentTickEnabled(true);
+	UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: pea-soup fog rolling in over %.1fs (%.0f -> %.0f cm)"), RampDuration, FogStartDistance, FogDistance);
+	BeginRamp(1.f, RampDuration);
 }
 
 void UStormFogComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -152,26 +188,22 @@ void UStormFogComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	if (bRamping)
 	{
 		RampElapsed += DeltaTime;
-		const float Alpha = FMath::Clamp(RampElapsed / RampDuration, 0.f, 1.f);
-		SetFogWeight(Alpha);
-		if (Alpha >= 1.f)
+		const float T = FMath::Clamp(RampElapsed / ActiveRampDuration, 0.f, 1.f);
+		ApplyFog(FMath::Lerp(RampFromAmount, RampToAmount, T));
+		if (T >= 1.f)
 		{
 			bRamping = false;
-			UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: pea-soup fog fully rolled in"));
 		}
 	}
-
-	// While the fog is visible, keep the MID in sync with the UPROPERTYs so editing
-	// FogDistance/FogColor on the component in the PIE Details panel updates live.
-	if (FogMID && CurrentWeight > 0.f)
+	else if (FogAmount > 0.f)
 	{
-		FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
-		FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
-		FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
+		// Settled and visible: re-apply so live FogDistance/FogColor/FogMaxOpacity edits
+		// in the PIE Details panel take effect immediately.
+		ApplyFog(FogAmount);
 	}
 
 	// Nothing left to do once fully cleared and not ramping — stop ticking.
-	if (!bRamping && CurrentWeight <= 0.f)
+	if (!bRamping && FogAmount <= 0.f)
 	{
 		SetComponentTickEnabled(false);
 	}
@@ -183,29 +215,18 @@ void UStormFogComponent::ToggleFog()
 	{
 		return;
 	}
-	bRamping = false;
-	if (CurrentWeight > 0.f)
-	{
-		SetFogWeight(0.f);
-		UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: fog toggled OFF"));
-	}
-	else
-	{
-		FogMID->SetScalarParameterValue(StormFogInternal::FogDistanceParam, FogDistance);
-		FogMID->SetVectorParameterValue(StormFogInternal::FogColorParam, FogColor);
-		FogMID->SetScalarParameterValue(StormFogInternal::FogMaxOpacityParam, FogMaxOpacity);
-		SetFogWeight(1.f);
-		SetComponentTickEnabled(true); // keep syncing params for live tuning
-		UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: fog toggled ON (dist %.0f)"), FogDistance);
-	}
+	// "On" = visible or ramping up. Ease the distance in/out over a few seconds — never
+	// a hard pop.
+	const bool bOn = (FogAmount > 0.f) || (bRamping && RampToAmount > 0.f);
+	BeginRamp(bOn ? 0.f : 1.f, 3.0f);
+	UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: fog toggled %s"), bOn ? TEXT("OFF") : TEXT("ON"));
 }
 
 void UStormFogComponent::SetFogWeight(float Weight)
 {
 	if (CachedCamera && FogMID)
 	{
-		CurrentWeight = FMath::Clamp(Weight, 0.f, 1.f);
-		StormFogInternal::SetBlendableWeight(CachedCamera->PostProcessSettings, FogMID, CurrentWeight);
+		StormFogInternal::SetBlendableWeight(CachedCamera->PostProcessSettings, FogMID, FMath::Clamp(Weight, 0.f, 1.f));
 	}
 }
 
