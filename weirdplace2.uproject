@@ -62,6 +62,13 @@
 			"Enabled": true
 		},
 		{
+			"Name": "MetaHumanCharacter",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		},
+		{
 			"Name": "UnrealMCP",
 			"Enabled": false
 		},
