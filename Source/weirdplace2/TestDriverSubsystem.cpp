@@ -1,5 +1,6 @@
 #include "TestDriverSubsystem.h"
 #include "BladderUrgencyComponent.h"
+#include "CarRideComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Engine/ExponentialHeightFog.h"
 #include "FirstPersonCharacter.h"
@@ -1045,6 +1046,56 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	AFirstPersonCharacter* Player = GetPlayer();
 	if (!Player) { return; }
 	InjectInputAction(Player->GetSettingsAction(), false);
+}
+
+// --- Car ride ---
+
+static UCarRideComponent* FindCarRideComponent(UWorld* World)
+{
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (UCarRideComponent* Comp = It->FindComponentByClass<UCarRideComponent>())
+		{
+			return Comp;
+		}
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::ForceStartCarRide()
+{
+	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	if (!Comp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceStartCarRide - no CarRideComponent in world"));
+		return false;
+	}
+	Comp->ForceStartRide();
+	return true;
+}
+
+bool UTestDriverSubsystem::EndCarRideNow()
+{
+	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	if (!Comp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::EndCarRideNow - no CarRideComponent in world"));
+		return false;
+	}
+	Comp->ForceEndRide();
+	return true;
+}
+
+AActor* UTestDriverSubsystem::FindCarRideConveyor() const
+{
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(FName("CarRideScenery")))
+		{
+			return *It;
+		}
+	}
+	return nullptr;
 }
 
 // --- Sensitivity / look diagnostics ---

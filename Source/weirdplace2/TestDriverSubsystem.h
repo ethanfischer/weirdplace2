@@ -389,6 +389,19 @@ public:
 	// shelf-aim flow is exercised by HappyPath; pose-focused tests use this.
 	bool CollectBlankTapeForTest();
 
+	// --- Car ride ---
+
+	// Test-only: force the car ride to start regardless of the editor
+	// play-location setting (E2E runs normally take the SkipRide path).
+	bool ForceStartCarRide();
+
+	// Test-only: drive the ride's EndRide path (fade + teleport + cleanup).
+	bool EndCarRideNow();
+
+	// Returns the runtime-spawned scenery conveyor actor (tag CarRideScenery),
+	// or null if not spawned.
+	AActor* FindCarRideConveyor() const;
+
 	// --- Sensitivity / look diagnostics ---
 
 	// Directly write the gamepad look sensitivity (clamps + snaps internally).

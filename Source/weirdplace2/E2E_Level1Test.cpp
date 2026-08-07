@@ -7,7 +7,9 @@
 #include "FirstPersonCharacter.h"
 #include "TestDriverSubsystem.h"
 #include "Components/AudioComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Sound/AmbientSound.h"
 #include "UObject/UnrealType.h"
 
@@ -1903,6 +1905,208 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// CarRideScenery — the car ride fakes motion by sliding a runtime-spawned
+// conveyor of silhouette props (bushes/rocks) past the stationary car and
+// recycling them front-to-back. Asserts the conveyor spawns, every prop
+// moves, at least one recycles (wraps forward), and teardown removes it all.
+// =======================================================================
+
+namespace CarRideTest
+{
+	// Item roots are the direct attach parents of the prop mesh components.
+	// Reading their local X gives conveyor-space positions regardless of the
+	// travel axis orientation.
+	inline void GetConveyorItemXs(AActor* Conveyor, TArray<float>& OutXs)
+	{
+		OutXs.Reset();
+		TArray<UStaticMeshComponent*> MeshComps;
+		Conveyor->GetComponents<UStaticMeshComponent>(MeshComps);
+		for (UStaticMeshComponent* MeshComp : MeshComps)
+		{
+			if (USceneComponent* ItemRoot = MeshComp->GetAttachParent())
+			{
+				OutXs.Add(ItemRoot->GetRelativeLocation().X);
+			}
+		}
+	}
+
+	// Shared between the snapshot and the moved/recycled assert commands.
+	static TArray<float> SnapshotXs;
+}
+
+// Crank the scenery speed (fast recycle -> short test) and force the ride to
+// start regardless of the editor play-location setting.
+class FTD_StartCarRideFast : public FTD_Base
+{
+public:
+	FTD_StartCarRideFast(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Forcing car ride start (fast scenery)"); }
+
+	virtual bool UpdateStep() override
+	{
+		if (IConsoleVariable* SpeedVar = IConsoleManager::Get().FindConsoleVariable(TEXT("weird.CarRide.Speed")))
+		{
+			SpeedVar->Set(8000.0f);
+		}
+		else
+		{
+			Test->AddError(TEXT("FTD_StartCarRideFast: weird.CarRide.Speed cvar not found"));
+			return true;
+		}
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Driver->ForceStartCarRide())
+		{
+			Test->AddError(TEXT("FTD_StartCarRideFast: ForceStartCarRide failed"));
+		}
+		return true;
+	}
+};
+
+// Assert the conveyor exists with props, and snapshot their conveyor-space Xs.
+class FTD_SnapshotConveyor : public FTD_Base
+{
+public:
+	FTD_SnapshotConveyor(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Snapshotting car-ride conveyor"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AActor* Conveyor = Driver ? Driver->FindCarRideConveyor() : nullptr;
+		if (!Conveyor)
+		{
+			Test->AddError(TEXT("FTD_SnapshotConveyor: no CarRideScenery conveyor actor"));
+			return true;
+		}
+		CarRideTest::GetConveyorItemXs(Conveyor, CarRideTest::SnapshotXs);
+		if (CarRideTest::SnapshotXs.Num() == 0)
+		{
+			Test->AddError(TEXT("FTD_SnapshotConveyor: conveyor has no props"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_SnapshotConveyor: %d props"), CarRideTest::SnapshotXs.Num());
+		return true;
+	}
+};
+
+// Assert every prop's conveyor-space X changed since the snapshot, and at
+// least one wrapped forward (X increased = a recycle happened).
+class FTD_AssertConveyorMovedAndRecycled : public FTD_Base
+{
+public:
+	FTD_AssertConveyorMovedAndRecycled(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting conveyor moved + recycled"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AActor* Conveyor = Driver ? Driver->FindCarRideConveyor() : nullptr;
+		if (!Conveyor)
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorMovedAndRecycled: no conveyor actor"));
+			return true;
+		}
+		TArray<float> NowXs;
+		CarRideTest::GetConveyorItemXs(Conveyor, NowXs);
+		if (NowXs.Num() != CarRideTest::SnapshotXs.Num())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertConveyorMovedAndRecycled: prop count changed %d -> %d"),
+				CarRideTest::SnapshotXs.Num(), NowXs.Num()));
+			return true;
+		}
+		int32 RecycledCount = 0;
+		for (int32 i = 0; i < NowXs.Num(); ++i)
+		{
+			const float Delta = NowXs[i] - CarRideTest::SnapshotXs[i];
+			if (FMath::Abs(Delta) < 1.0f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertConveyorMovedAndRecycled: prop %d did not move (X %.1f)"), i, NowXs[i]));
+			}
+			if (Delta > 0.0f)
+			{
+				++RecycledCount;
+			}
+		}
+		if (RecycledCount == 0)
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorMovedAndRecycled: no prop wrapped forward — recycle never fired"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertConveyorMovedAndRecycled: %d/%d props recycled"), RecycledCount, NowXs.Num());
+		return true;
+	}
+};
+
+// Assert the conveyor was destroyed on ride end.
+class FTD_AssertConveyorGone : public FTD_Base
+{
+public:
+	FTD_AssertConveyorGone(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting conveyor destroyed"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (Driver && Driver->FindCarRideConveyor())
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorGone: CarRideScenery conveyor still exists after ride end"));
+		}
+		return true;
+	}
+};
+
+// One-shot: drive the ride's EndRide path (fade + teleport + scenery teardown).
+class FTD_EndCarRide : public FTD_Base
+{
+public:
+	FTD_EndCarRide(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Ending car ride"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Driver->EndCarRideNow())
+		{
+			Test->AddError(TEXT("FTD_EndCarRide: EndCarRideNow failed"));
+		}
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideScenery,
+	"Weirdplace2.E2E.Level1.Regression.CarRideScenery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideScenery")
+
+	// E2E runs take the SkipRide path at map load (play-from-camera heuristic),
+	// so the ride must be forced. 8000 cm/s guarantees a recycle inside the 3s
+	// observation window (default 20m loop).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SnapshotConveyor(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T1")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorMovedAndRecycled(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T2")));
+
+	// End the ride and verify the conveyor is torn down after the fade.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
