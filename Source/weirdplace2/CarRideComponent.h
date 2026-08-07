@@ -111,13 +111,28 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
 	TArray<FString> PropMeshPaths;
 
-	// Material applied to every prop slot so they render as flat dark shapes
+	// Telephone poles: regular rhythm along one side of the road
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	FString SilhouetteMaterialPath = TEXT("/Game/Materials/M_SolidColor.M_SolidColor");
+	FString PoleMeshPath = TEXT("/Game/Roadside/VOL2/Meshes/LP/SM_Telephone_Pole_01a.SM_Telephone_Pole_01a");
 
-	// Silhouette color (near-black)
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	FLinearColor SilhouetteColor = FLinearColor(0.002f, 0.002f, 0.004f, 1.0f);
+	float PoleSpacing = 7500.0f;
+
+	// Signed lateral offset from the travel axis (which road side the poles run on)
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
+	float PoleLateral = 800.0f;
+
+	// Props inside this along-axis window (where the headlights point) cast
+	// shadows; outside it shadow casting is off to spare the VSM budget.
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
+	float ShadowWindowMinX = -800.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
+	float ShadowWindowMaxX = 3500.0f;
+
+	// Dust motes drifting through the headlight beams
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
+	int32 DustMoteCount = 12;
 
 	// Test/iteration hooks
 	void ForceStartRide();
@@ -136,7 +151,16 @@ private:
 	UPROPERTY()
 	TArray<USceneComponent*> ConveyorItems;
 
+	// Dust motes recycle on their own short loop inside the beam zone
+	UPROPERTY()
+	TArray<USceneComponent*> MoteItems;
+
 	float BehindDistance = 0.0f;
+
+	// Owner transform at BeginPlay. SkipRide's Rick->AppearOutside() parks the
+	// car (and its attached seat target) at the gas station; ForceStartRide
+	// restores this so a forced ride runs at the real staging spot.
+	FTransform InitialCarTransform;
 	void StartRide();
 	void SkipRide();
 	void StartDialogue();

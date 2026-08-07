@@ -10,12 +10,16 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
 #include "Settings/LevelEditorPlaySettings.h"
 #endif
+
+// Dust motes drift through the headlight beam zone just ahead of the car
+// (conveyor-local X; the car nose is ~2-3m ahead of the seat anchor).
+static constexpr float MoteLoopMinX = 150.0f;
+static constexpr float MoteLoopMaxX = 1100.0f;
 
 // 0 = use the component's RideSpeed UPROPERTY
 static float GCarRideSpeedOverride = 0.0f;
@@ -52,6 +56,8 @@ UCarRideComponent::UCarRideComponent()
 void UCarRideComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	InitialCarTransform = GetOwner()->GetActorTransform();
 
 	bool bSkipRide = false;
 #if WITH_EDITOR
@@ -524,6 +530,10 @@ void UCarRideComponent::ForceStartRide()
 		return;
 	}
 	GetWorld()->GetTimerManager().ClearTimer(DialogueStartTimerHandle);
+	// SkipRide may have already parked the car at the gas station via
+	// Rick->AppearOutside(); put it (and its attached targets) back so the
+	// forced ride runs at the staging spot, not in front of the pumps.
+	GetOwner()->SetActorTransform(InitialCarTransform, false, nullptr, ETeleportType::TeleportPhysics);
 	StartRide();
 }
 
@@ -563,16 +573,19 @@ void UCarRideComponent::SpawnScenery()
 		return;
 	}
 
-	UMaterialInterface* BaseMat = LoadObject<UMaterialInterface>(nullptr, *SilhouetteMaterialPath);
-	if (!BaseMat)
+	UStaticMesh* PoleMesh = LoadObject<UStaticMesh>(nullptr, *PoleMeshPath);
+	if (!PoleMesh)
 	{
-		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnScenery - failed to load material %s"), *SilhouetteMaterialPath);
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnScenery - failed to load pole mesh %s"), *PoleMeshPath);
 		return;
 	}
-	UMaterialInstanceDynamic* SilhouetteMID = UMaterialInstanceDynamic::Create(BaseMat, this);
-	SilhouetteMID->SetVectorParameterValue(FName("Color"), SilhouetteColor);
-	SilhouetteMID->SetVectorParameterValue(FName("BaseColor"), SilhouetteColor);
-	SilhouetteMID->SetVectorParameterValue(FName("EmissiveColor"), SilhouetteColor);
+
+	UStaticMesh* MoteMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/StarterContent/Shapes/Shape_Sphere.Shape_Sphere"));
+	if (!MoteMesh)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnScenery - failed to load Shape_Sphere for dust motes"));
+		return;
+	}
 
 	// Conveyor anchored at ground level under the seat, local +X = travel-forward (seat faces the windshield)
 	const FRotator TravelRotation(0.0f, PassengerSeatTarget->GetActorRotation().Yaw, 0.0f);
@@ -595,7 +608,29 @@ void UCarRideComponent::SpawnScenery()
 
 	BehindDistance = LoopLength * (1.0f - ForwardBias);
 
+	auto AddItem = [this, ConveyorRoot](UStaticMesh* Mesh, float RelX, float RelY, float RelZ, float Yaw, float Scale) -> USceneComponent*
+	{
+		USceneComponent* ItemRoot = NewObject<USceneComponent>(SceneryConveyor);
+		ItemRoot->SetMobility(EComponentMobility::Movable);
+		ItemRoot->AttachToComponent(ConveyorRoot, FAttachmentTransformRules::KeepRelativeTransform);
+		ItemRoot->SetRelativeLocation(FVector(RelX, RelY, RelZ));
+		ItemRoot->RegisterComponent();
+
+		UStaticMeshComponent* MeshComp = NewObject<UStaticMeshComponent>(SceneryConveyor);
+		MeshComp->SetMobility(EComponentMobility::Movable);
+		MeshComp->SetStaticMesh(Mesh);
+		MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		MeshComp->SetCastShadow(false);
+		MeshComp->AttachToComponent(ItemRoot, FAttachmentTransformRules::KeepRelativeTransform);
+		MeshComp->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
+		MeshComp->SetWorldScale3D(FVector(Scale));
+		MeshComp->RegisterComponent();
+		return ItemRoot;
+	};
+
 	FRandomStream Rand(RandomSeed);
+
+	// Vegetation: sparse, both sides, randomized
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		const float SideSign = (Side == 0) ? 1.0f : -1.0f;
@@ -605,38 +640,38 @@ void UCarRideComponent::SpawnScenery()
 			const float SlotLength = LoopLength / PropsPerSide;
 			const float RelX = i * SlotLength + Rand.FRandRange(0.0f, SlotLength) - BehindDistance;
 			const float RelY = SideSign * Rand.FRandRange(PropMinLateral, PropMaxLateral);
-
-			USceneComponent* ItemRoot = NewObject<USceneComponent>(SceneryConveyor);
-			ItemRoot->SetMobility(EComponentMobility::Movable);
-			ItemRoot->AttachToComponent(ConveyorRoot, FAttachmentTransformRules::KeepRelativeTransform);
-			ItemRoot->SetRelativeLocation(FVector(RelX, RelY, 0.0f));
-			ItemRoot->RegisterComponent();
-
-			UStaticMeshComponent* MeshComp = NewObject<UStaticMeshComponent>(SceneryConveyor);
-			MeshComp->SetMobility(EComponentMobility::Movable);
-			MeshComp->SetStaticMesh(Meshes[Rand.RandRange(0, Meshes.Num() - 1)]);
-			MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			MeshComp->SetCastShadow(false);
-			for (int32 Slot = 0; Slot < MeshComp->GetNumMaterials(); ++Slot)
-			{
-				MeshComp->SetMaterial(Slot, SilhouetteMID);
-			}
-			MeshComp->AttachToComponent(ItemRoot, FAttachmentTransformRules::KeepRelativeTransform);
-			MeshComp->SetRelativeRotation(FRotator(0.0f, Rand.FRandRange(0.0f, 360.0f), 0.0f));
-			MeshComp->SetWorldScale3D(FVector(Rand.FRandRange(PropMinScale, PropMaxScale)));
-			MeshComp->RegisterComponent();
-
-			ConveyorItems.Add(ItemRoot);
+			ConveyorItems.Add(AddItem(Meshes[Rand.RandRange(0, Meshes.Num() - 1)], RelX, RelY, 0.0f,
+				Rand.FRandRange(0.0f, 360.0f), Rand.FRandRange(PropMinScale, PropMaxScale)));
 		}
 	}
 
-	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SpawnScenery - spawned %d silhouette props at %s"),
-		ConveyorItems.Num(), *Anchor.ToString());
+	// Telephone poles: regular rhythm, one side, aligned with the road
+	const int32 PoleCount = FMath::Max(1, FMath::RoundToInt32(LoopLength / PoleSpacing));
+	for (int32 i = 0; i < PoleCount; ++i)
+	{
+		ConveyorItems.Add(AddItem(PoleMesh, i * (LoopLength / PoleCount) - BehindDistance, PoleLateral, 0.0f, 0.0f, 1.0f));
+	}
+
+	// Dust motes: tiny spheres inside the headlight beam zone ahead of the car,
+	// recycled on their own short loop so one is always drifting through
+	for (int32 i = 0; i < DustMoteCount; ++i)
+	{
+		MoteItems.Add(AddItem(MoteMesh,
+			Rand.FRandRange(MoteLoopMinX, MoteLoopMaxX),
+			Rand.FRandRange(-250.0f, 250.0f),
+			Rand.FRandRange(30.0f, 140.0f), // beam height above the road surface
+			0.0f,
+			Rand.FRandRange(0.008f, 0.02f)));
+	}
+
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SpawnScenery - spawned %d props (%d poles) + %d motes at %s"),
+		ConveyorItems.Num(), PoleCount, MoteItems.Num(), *Anchor.ToString());
 }
 
 void UCarRideComponent::DestroyScenery()
 {
 	ConveyorItems.Empty();
+	MoteItems.Empty();
 	if (SceneryConveyor)
 	{
 		SceneryConveyor->Destroy();
@@ -657,5 +692,28 @@ void UCarRideComponent::TickScenery(float DeltaTime)
 			Rel.X += LoopLength;
 		}
 		Item->SetRelativeLocation(Rel);
+
+		// Shadows only while inside the headlight window ahead of the car;
+		// off elsewhere so the recycled fleet doesn't bloat the VSM budget.
+		if (UStaticMeshComponent* MeshComp = Cast<UStaticMeshComponent>(Item->GetChildComponent(0)))
+		{
+			const bool bInBeam = Rel.X > ShadowWindowMinX && Rel.X < ShadowWindowMaxX;
+			if (MeshComp->CastShadow != bInBeam)
+			{
+				MeshComp->SetCastShadow(bInBeam);
+			}
+		}
+	}
+
+	// Motes wrap on their own short loop inside the beam zone
+	for (USceneComponent* Mote : MoteItems)
+	{
+		FVector Rel = Mote->GetRelativeLocation();
+		Rel.X -= Step;
+		if (Rel.X < MoteLoopMinX)
+		{
+			Rel.X += (MoteLoopMaxX - MoteLoopMinX);
+		}
+		Mote->SetRelativeLocation(Rel);
 	}
 }
