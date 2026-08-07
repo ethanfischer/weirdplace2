@@ -3,6 +3,7 @@
 ------------------------------------------
 
 # Claude Friendly
+[ ] UE 5.8 upgrade prep: make E2E screenshots deterministic — freeze UDS time-of-day/weather + lock exposure during tests (PauseMenu shots diff 17-57% run-to-run from sky/eye-adaptation drift; goldens must be stable before the post-upgrade re-bless gate)
 [ ] have objects pass you by in driving scene so it actually looks like you're moving. Right now we just have the car staionary in the middle of nowhere. Feel free to use any meshes/blueprints in content that would make sense for this.
 [x] seneca text illegible when viewing with light in background
 [x] clock should be blurred out
