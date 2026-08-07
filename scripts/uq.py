@@ -189,6 +189,13 @@ try:
 __UQ_BODY__
 except Exception:
     _emit({"error": traceback.format_exc()})
+finally:
+    # Mitigation for a 5.7 PythonScriptPlugin crash (python311.dll access violation
+    # during a LATER engine GC pass, seen twice after remote-exec bursts): collect
+    # our wrapper objects now, while their UObjects are still alive, instead of
+    # leaving them for the engine GC to notify later.
+    import gc
+    gc.collect()
 '''
 
 VERB_BODIES = {
@@ -484,8 +491,9 @@ def dispatch(args):
                     print(f)
                     return
             time.sleep(0.4)
-        sys.exit(f"ERROR: screenshot '{name}' did not appear within 15s "
-                 f"(is a viewport visible and rendering?)")
+        sys.exit(f"ERROR: screenshot '{name}' did not appear within 15s. Most likely the "
+                 f"editor window is backgrounded and throttled — focus it, or untick "
+                 f"Editor Preferences > General > Performance > 'Use Less CPU when in Background'.")
 
     params_by_verb = {
         "actors": lambda: {"pattern": args.pattern, "cls": args.cls},
