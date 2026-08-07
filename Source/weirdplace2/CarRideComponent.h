@@ -71,9 +71,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
 	float RideSpeed = 1500.0f;
 
-	// Total conveyor loop length along the travel axis, in cm
+	// Total conveyor loop length along the travel axis, in cm.
+	// Sparseness target: ~1 prop passing per 5s -> one prop per
+	// RideSpeed*5 cm of loop across both sides (6 props / 45000 at 1500).
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	float LoopLength = 20000.0f;
+	float LoopLength = 45000.0f;
 
 	// Fraction of the loop spawned ahead of the car (rest is behind)
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery", meta = (ClampMin = "0.1", ClampMax = "0.9"))
@@ -81,14 +83,14 @@ public:
 
 	// Silhouette props scattered per side of the road
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	int32 PropsPerSide = 8;
+	int32 PropsPerSide = 3;
 
 	// Lateral distance range from the seat's travel axis, in cm
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	float PropMinLateral = 450.0f;
+	float PropMinLateral = 1200.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
-	float PropMaxLateral = 1800.0f;
+	float PropMaxLateral = 2700.0f;
 
 	// Uniform scale jitter range for props
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Scenery")
