@@ -705,14 +705,18 @@ void UCarRideComponent::TickScenery(float DeltaTime)
 		}
 	}
 
-	// Motes wrap on their own short loop inside the beam zone
+	// Motes wrap on their own short loop inside the beam zone. Each wrap
+	// respawns the mote at a fresh random spot (not a fixed orbit) so a low
+	// DustMoteCount doesn't read as the same particles cycling forever.
 	for (USceneComponent* Mote : MoteItems)
 	{
 		FVector Rel = Mote->GetRelativeLocation();
 		Rel.X -= Step;
 		if (Rel.X < MoteLoopMinX)
 		{
-			Rel.X += (MoteLoopMaxX - MoteLoopMinX);
+			Rel.X = FMath::FRandRange(MoteLoopMinX + 0.5f * (MoteLoopMaxX - MoteLoopMinX), MoteLoopMaxX);
+			Rel.Y = FMath::FRandRange(-250.0f, 250.0f);
+			Rel.Z = FMath::FRandRange(30.0f, 140.0f);
 		}
 		Mote->SetRelativeLocation(Rel);
 	}
