@@ -24,6 +24,13 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 
 	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
 
+	// NOTE (first-play fog bug, 2026-07-02): do NOT "fix" the invisible fog
+	// wall by rebuilding the fog's render state here — a mid-play
+	// MarkRenderStateDirty() on the ExponentialHeightFogComponent produces
+	// dead fog for the rest of the play (verified: it regressed play 2, which
+	// previously always healed). Whatever recreates the fog render state
+	// early in a session's first play is the actual culprit; still unsolved.
+
 	// Bind the store-entry trigger so real gameplay (player walking in) drives
 	// the TV switch. E2E goes through HandleStoreEntry directly. There are two
 	// trigger boxes in the level (Inside/Outside) so we disambiguate by the
@@ -102,7 +109,7 @@ namespace
 
 	static const FBeatAlias GBeatAliases[] = {
 		{ EStoryFlag::KeyBroke,                TEXT("KeyBroke"),       TEXT("key") },
-		{ EStoryFlag::TornadoWarningDisplayed, TEXT("TornadoWarning"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
+		{ EStoryFlag::TornadoWarningDisplayed, TEXT("Tornado"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
 		{ EStoryFlag::SeenTornadoWarning,      TEXT("Telephone"),      TEXT("telephone phone payphone seentornadowarning") },
 		{ EStoryFlag::UsedPayPhone,            TEXT("PhoneUsed"),      TEXT("phoneused usedpayphone calledphone offhook") },
 	};

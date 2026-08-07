@@ -1,7 +1,7 @@
 #include "OutsideBathroomDoor.h"
 #include "Seneca.h"
 #include "StorySubsystem.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "InventoryUIComponent.h"
 #include "InspectablePickup.h"
 #include "Inventory.h"
@@ -98,10 +98,10 @@ void AOutsideBathroomDoor::Interact_Implementation()
 	}
 
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
+	AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter);
 	if (!MyCharacter)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - Could not get AMyCharacter"));
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - Could not get AFirstPersonCharacter"));
 		Super::Interact_Implementation();
 		return;
 	}
@@ -154,15 +154,11 @@ bool AOutsideBathroomDoor::OnKeyOffered(FName ItemID)
 
 void AOutsideBathroomDoor::StartKeyBreakSequence()
 {
-	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
-	// interact is ignored (see Interact_Implementation).
-	bKeyBreakInProgress = true;
-
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
+	AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter);
 	if (!MyCharacter)
 	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - No AMyCharacter"));
+		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor::StartKeyBreakSequence - No AFirstPersonCharacter"));
 		return;
 	}
 
@@ -205,6 +201,10 @@ void AOutsideBathroomDoor::StartKeyBreakSequence()
 	FInventoryItemData KeyData = Inventory->GetItemData(KeyToRemove);
 	KeyMaterials = KeyData.Materials;
 
+	// Arm the re-entrancy guard: from here until bDidDropKey is set, any further
+	// interact is ignored (see Interact_Implementation).
+	bKeyBreakInProgress = true;
+	
 	// Remove the key from inventory; the animated AnimKeyMesh takes over visually.
 	Inventory->RemoveItem(KeyToRemove);
 

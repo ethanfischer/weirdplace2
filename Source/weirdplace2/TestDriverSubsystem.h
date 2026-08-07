@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "InputCoreTypes.h"
+#include "PayPhone.h"
 #include "Subsystems/WorldSubsystem.h"
 enum class EPlayerActivityState : uint8;
 #include "TestDriverSubsystem.generated.h"
@@ -42,6 +43,10 @@ public:
 	// Avoids the need for per-actor waypoints.
 	bool TeleportNearActor(AActor* Target, float Distance = 200.f);
 
+	// Teleports the player capsule onto GroundPoint (capsule half-height added).
+	// For screenshot vantages that no waypoint or actor-relative teleport gives.
+	bool TeleportToWorldPoint(const FVector& GroundPoint);
+
 	bool LookAt(AActor* Target);
 	bool LookAtActorByLabel(const FString& Label);
 	// Aim the camera at the world-space location of a named scene component on
@@ -56,6 +61,20 @@ public:
 	// Aim the camera at an exact world position.
 	bool LookAtWorldPoint(const FVector& Point);
 
+	// The point LookAt() aims at for a given actor: the Face mesh bounds origin
+	// for MetaHumans (their root sits at Z=0), else the full bounds center.
+	FVector GetAimPointForActor(AActor* Target) const;
+
+	// --- Photo-booth staging (visual-inspection diagnostics) ---
+
+	// Teleport the actor found by editor label onto the ATestWaypoint with the
+	// given tag, recording its original transform for UnstageActor. Fails (and
+	// logs Error) if actor or waypoint is missing.
+	bool StageActorAtWaypoint(const FString& Label, FName WaypointTag);
+
+	// Restore a previously staged actor to its recorded transform.
+	bool UnstageActor(const FString& Label);
+
 	// Set by FTD_TeleportNearBlankTape: a verified-hittable point just inside
 	// the blank tape's collision surface. FTD_LookAtBlankTape aims here —
 	// derived centers (actor bounds, envelope bounds) miss the Memphis mesh's
@@ -63,13 +82,15 @@ public:
 	FVector BlankTapeAimPoint = FVector::ZeroVector;
 	bool LookAtSeneca();
 	bool LookAtRick();
+	bool LookAtTelephone();
 	bool LookAtKeyActor();
 
-	AActor* FindActorByLabel(const FString& Label) const;
-	ASeneca* FindSeneca() const;
-	ARick* FindRick() const;
-	AHudson* FindHudson() const;
-	bool LookAtHudson();
+	AActor*    FindActorByLabel(const FString& Label) const;
+	ASeneca*   FindSeneca() const;
+	APayPhone* FindPayPhone() const;
+	ARick*     FindRick() const;
+	AHudson*   FindHudson() const;
+	bool       LookAtHudson();
 
 	// --- Story-flag test helpers ---
 
@@ -179,6 +200,11 @@ public:
 	// Injects a MouseX axis delta through the input pipeline.
 	void SimulateMouseX(float Delta);
 
+	// Presses the "put back" binding that exits item inspection (the legacy
+	// "Exit Interaction" action): keyboard Q, or gamepad B when the player's
+	// last input was a gamepad.
+	void SimulatePutBack();
+
 	// Enhanced Input injection. APlayerController::InputKey only fires legacy
 	// BindAction bindings — Enhanced Input actions need their own injection
 	// path. These call UEnhancedInputLocalPlayerSubsystem::InjectInputForAction
@@ -208,6 +234,12 @@ public:
 	// --- Keypad (code-entry on locked doors) ---
 
 	bool IsKeypadFullyOpen() const;
+
+	// Directly fire a keypad door's Interact (pops the code keypad) by actor label,
+	// bypassing the simulated interact key — which 5.7 intermittently swallows at
+	// fast pacing in headed runs, leaving the keypad closed. Same rationale as
+	// EnterKeypadCode below. Returns false if no ADoor has that label.
+	bool TriggerKeypadDoorOpen(const FString& DoorLabel);
 
 	// Cumulative count of wrong-code buzzes since the keypad component was created.
 	// Rises WrongCodeClearDelay after each rejected submit (see ClearWrongEntry).
@@ -265,6 +297,44 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
+	// Returns the ItemID at inventory slot SlotIndex, NAME_None if empty or out
+	// of range. Slots are sparse (OoT-style), so a given slot keeps its item.
+	FName GetInventoryItemAt(int32 SlotIndex) const;
+
+	// Reads the world movie poster surface for poster PosterIndex: the actor
+	// tagged "MoviePoster<PosterIndex>", surface = its component named
+	// "PosterSheet" (BP_TelephoneScene) or its sole static mesh component
+	// (plain poster plane actors). OutMaterialName is the CoverTexture param's
+	// texture name when the surface carries a poster MID (== the movie ItemID),
+	// else the raw material name. Returns false if no such actor/surface —
+	// which is also the meaningful missing-placement failure.
+	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
+
+	// Fires a single bladder-urgency vignette pulse on the player (no timer
+	// scheduling) — for screenshotting the pulse visual on demand.
+	bool TriggerBladderPulse();
+
+	// Sets the level's ExponentialHeightFog component visibility. Two calls
+	// from consecutive latent commands make a genuine two-frame off/on cycle
+	// (same-frame toggles coalesce to a no-op). For the first-play fog probes.
+	bool SetHeightFogVisible(bool bVisible);
+
+	// Finds a named scene component on the actor with the given editor label
+	// and reports its visibility. Returns false if the actor or component
+	// doesn't exist — which is also the meaningful missing-feature failure.
+	bool GetNamedComponentVisible(const FString& ActorLabel, const FString& ComponentName, bool& bOutVisible) const;
+
+	// Reads the depth-of-field state off the player's first-person camera:
+	// whether the inspection-blur DoF overrides are active, and the current
+	// Fstop / focal distance. Returns false if no player camera exists.
+	bool GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const;
+
+	// Reads the in-widget dialogue text-backing state off the labeled actor's
+	// dialogue widget (any IDialogueWidgetProvider): whether the Text block is
+	// wrapped in the backing plate, and whether the dialogue widget is open.
+	// Returns false if the actor isn't a provider or has no widget yet.
+	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
+
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component
 	// exists — which is also the meaningful red-phase failure.
@@ -319,6 +389,19 @@ public:
 	// shelf-aim flow is exercised by HappyPath; pose-focused tests use this.
 	bool CollectBlankTapeForTest();
 
+	// --- Car ride ---
+
+	// Test-only: force the car ride to start regardless of the editor
+	// play-location setting (E2E runs normally take the SkipRide path).
+	bool ForceStartCarRide();
+
+	// Test-only: drive the ride's EndRide path (fade + teleport + cleanup).
+	bool EndCarRideNow();
+
+	// Returns the runtime-spawned scenery conveyor actor (tag CarRideScenery),
+	// or null if not spawned.
+	AActor* FindCarRideConveyor() const;
+
 	// --- Sensitivity / look diagnostics ---
 
 	// Directly write the gamepad look sensitivity (clamps + snaps internally).
@@ -344,4 +427,7 @@ private:
 
 	TSet<TWeakObjectPtr<AMovieBox>> CollectedMovies;
 	TWeakObjectPtr<AMovieBox> LastFoundMovie;
+
+	// Original transforms of actors moved by StageActorAtWaypoint, keyed by label.
+	TMap<FString, FTransform> StagedActorTransforms;
 };

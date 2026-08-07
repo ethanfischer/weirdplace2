@@ -2,7 +2,6 @@
 #include "PropActor.h"
 #include "StorySubsystem.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "InventoryUIComponent.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
@@ -55,20 +54,22 @@ void ASeneca::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
+					// alpha blending. Force Transparent blend so BackingOpacity is a
+					// true gradient -- Masked blend clips it binary at the 0.333 mask
+					// threshold, which reads as a hard step near ~0.35.
+					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+				}
 			}
 			break;
 		}
 	}
 
-	// Listen for inventory changes to auto-advance WaitingForMovies → ReadyToGiveKey
-	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter))
-	{
-		if (UInventoryComponent* Inventory = MyCharacter->GetInventoryComponent())
-		{
-			Inventory->OnInventoryChanged.AddDynamic(this, &ASeneca::OnInventoryChanged);
-		}
-	}
+	// The dark plate behind the dialogue text now lives inside the shared
+	// UUI_Dialogue widget (a UBorder that auto-hugs the text), so it covers
+	// Seneca, Rick and Hudson at once — no per-actor world-space backing here.
 
 	// Find the Cigarette ChildActorComponent by name
 	TArray<UChildActorComponent*> ChildActorComps;
@@ -90,7 +91,7 @@ void ASeneca::BeginPlay()
 	CachedSkeletalMesh = FindComponentByClass<USkeletalMeshComponent>();
 	if (!CachedSkeletalMesh)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found, IsPlayerLookingAtMe will use hardcoded offset"));
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found"));
 	}
 
 	// Smoking-spot point light starts off; toggled by Start/StopSmokingAnim.
@@ -185,11 +186,6 @@ void ASeneca::BeginPlay()
 
 // --- State Machine ---
 
-const TArray<FText>* ASeneca::GetDialogueLinesForCurrentState() const
-{
-	return DialogueLines.Find(CurrentState);
-}
-
 void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const
 {
 	Out.Reset();
@@ -253,16 +249,6 @@ void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
 	}
 }
 
-void ASeneca::CheckMovieCount()
-{
-	// State transition now happens in OnDialogueEnded (WaitingForMovies case)
-}
-
-void ASeneca::OnInventoryChanged(const TArray<FName>& CurrentItems)
-{
-	CheckMovieCount();
-}
-
 void ASeneca::OnDialogueEnded()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnDialogueEnded - CurrentState: %d"), static_cast<int32>(CurrentState));
@@ -285,10 +271,9 @@ void ASeneca::OnDialogueEnded()
 		{
 			CurrentState = ESenecaState::WaitingForMoney;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMoviePurchase -> WaitingForMoney"));
-			ACharacter* PC2 = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-			if (AMyCharacter* MC = Cast<AMyCharacter>(PC2))
+			if (FPChar3)
 			{
-				MC->LockMovieCollection();
+				FPChar3->LockMovieCollection();
 			}
 			StartMoviePurchaseDialogue(FPChar3);
 		}
@@ -402,8 +387,7 @@ void ASeneca::Interact_Implementation()
 
 	if (CurrentState == ESenecaState::WaitingForMoviePurchase)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForMoviePurchase"));
@@ -418,18 +402,17 @@ void ASeneca::Interact_Implementation()
 		}
 		else
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		return;
 	}
 
 	if (CurrentState == ESenecaState::WaitingForMoney)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (Inventory && Inventory->HasItem(FName("Money")))
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		else
 		{
@@ -444,8 +427,7 @@ void ASeneca::Interact_Implementation()
 
 	if (CurrentState == ESenecaState::WaitingForBlankTape)
 	{
-		AMyCharacter* MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-		UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+		UInventoryComponent* Inventory = FPCharacter->GetInventoryComponent();
 		if (!Inventory)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - Could not get inventory for WaitingForBlankTape"));
@@ -461,7 +443,7 @@ void ASeneca::Interact_Implementation()
 		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
 		if (!ChosenID.IsNone() && Inventory->HasItem(ChosenID))
 		{
-			OpenGiveForOffer(MyCharacter);
+			OpenGiveForOffer(FPCharacter);
 		}
 		else
 		{
@@ -601,23 +583,6 @@ bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
 	// is a near-zero-bounds actor, so a box test would read as "looking" almost
 	// never and change the look-away teleport feel.
 	return UGazeUtils::IsPointInPlayerView(Position, GetWorld());
-}
-
-bool ASeneca::IsPlayerLookingAtMe() const
-{
-	FVector SenecaCenter;
-	if (CachedSkeletalMesh)
-	{
-		FBoxSphereBounds LocalBounds = CachedSkeletalMesh->GetLocalBounds();
-		// Upper-center of mesh bounds in world space
-		const FVector LocalUpperCenter = LocalBounds.Origin + FVector(0.f, 0.f, LocalBounds.BoxExtent.Z);
-		SenecaCenter = CachedSkeletalMesh->GetComponentTransform().TransformPosition(LocalUpperCenter);
-	}
-	else
-	{
-		SenecaCenter = GetActorLocation() + FVector(0.f, 0.f, 90.f);
-	}
-	return IsPlayerLookingAt(SenecaCenter);
 }
 
 // --- Basket Beat ---
@@ -927,7 +892,7 @@ FName ASeneca::FindFirstMovie(UInventoryComponent* Inventory)
 	return NAME_None;
 }
 
-void ASeneca::OpenGiveForOffer(AMyCharacter* MyCharacter)
+void ASeneca::OpenGiveForOffer(AFirstPersonCharacter* MyCharacter)
 {
 	if (!MyCharacter)
 	{
@@ -943,8 +908,7 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 {
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
 	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
-	AMyCharacter* MyCharacter = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyCharacter ? MyCharacter->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
 	if (!FPChar || !Inventory)
 	{
 		return false;
@@ -1127,17 +1091,6 @@ void ASeneca::StartSmokingAnim()
 		return;
 	}
 	Body->PlayAnimation(SmokingAnimation, true);
-}
-
-void ASeneca::StopSmokingAnim()
-{
-	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
-	{
-		Light->SetVisibility(false);
-	}
-	USkeletalMeshComponent* Body = FindBodyMesh();
-	if (!Body) return;
-	Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 }
 
 void ASeneca::ForceSmokingAppearance()

@@ -11,7 +11,8 @@ class AAmbientSound;
 // store TVs (EStoryFlag::SeenTornadoWarning). Place ONE in the level; it finds the
 // Ultra_Dynamic_Sky and Ultra_Dynamic_Weather actors by class automatically and,
 // over a single transition, fades the sky's "Overall Intensity" down (gloom), ramps
-// the weather's "Wind Intensity" up (gusts), and swells the global wind ambient's
+// the weather's "Wind Intensity" up (gusts), thickens the weather's "Fog" so view
+// distance collapses (socked-in murk), and swells the global wind ambient's
 // volume. This is the *atmospheric* half of the storm beat; the room-wide
 // lights/audio half lives on AStormBeatController. Subscribe/teardown mirrors
 // AStormBeatController / APayPhone.
@@ -44,6 +45,15 @@ public:
 	// UDW's wind scale is open-ended).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", DisplayName = "Target Wind Intensity"), Category = "Storm Weather")
 	float TargetWindIntensity = 300.f;
+
+	// The "Fog" weather value the scene thickens to as the storm builds. UDS's "Fog"
+	// scalar drives overall fogginess (height + volumetric); it's open-ended and does
+	// NOT map linearly to density, so tune this by eye. UDW normally owns this value,
+	// so the controller flips UDW's "Fog - Manual Override" on and ramps from the
+	// current value up to this. ~3 is the calm baseline; higher = view distance
+	// collapses toward a few metres.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", DisplayName = "Target Fog"), Category = "Storm Weather")
+	float TargetFog = 20.f;
 
 	// The Ambient_GlobalWind ambient sound whose volume swells as the storm builds.
 	// Assign on the level INSTANCE — it's a placed AmbientSound, not findable by class
@@ -86,6 +96,11 @@ private:
 
 	// Weather "Wind Intensity" channel (ramps StartWindIntensity -> TargetWindIntensity).
 	bool bRampWind = false;
+
+	// Weather "Fog" channel (ramps FogStart -> TargetFog). Same manual-override
+	// machinery as wind: UDW owns the value unless the override bool is engaged.
+	bool bRampFog = false;
+	float FogStart = 3.f;
 
 	// Ambient wind "Volume Multiplier" channel (ramps WindVolumeStart -> TargetWindVolume).
 	bool bLoudenWind = false;

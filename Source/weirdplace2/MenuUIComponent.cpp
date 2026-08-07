@@ -10,7 +10,6 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Sound/SoundBase.h"
 #include "Engine/World.h"
-#include "MyCharacter.h"
 
 // Panel dimensions match AMenuUIActor::UpdateBackgroundSize:
 // width = 50 + padding*2, height = (kControllerHeaderZ+6) - (kSettingsBackZ-6) + padding*2.
@@ -75,7 +74,7 @@ void UMenuUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			HideMenuActor();
 			UnfreezePlayerMovement();
 
-			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+			if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 			{
 				MyCharacter->SetCanInteract(true);
 				MyCharacter->SetActivityState(EPlayerActivityState::FreeRoaming);
@@ -160,7 +159,7 @@ void UMenuUIComponent::OpenMenu()
 	CurrentState = EMenuUIState::Opening;
 	FreezePlayerMovement();
 
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+	if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
 		MyCharacter->SetCanInteract(false);
 		MyCharacter->SetActivityState(EPlayerActivityState::Interacting);

@@ -1,6 +1,6 @@
 #include "KeypadUIComponent.h"
 #include "KeypadUIActor.h"
-#include "MyCharacter.h"
+#include "FirstPersonCharacter.h"
 #include "Components/SceneComponent.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -72,7 +72,7 @@ void UKeypadUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 			UnbindCloseInput();
 			UnfreezePlayerMovement();
 
-			if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+			if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 			{
 				MyCharacter->SetCanInteract(true);
 			}
@@ -127,7 +127,7 @@ void UKeypadUIComponent::OpenForCode(int32 InCodeLength, const FKeypadSubmitDele
 	UnbindCloseInput();
 	BindCloseInput();
 
-	if (AMyCharacter* MyCharacter = Cast<AMyCharacter>(GetOwner()))
+	if (AFirstPersonCharacter* MyCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{
 		MyCharacter->SetCanInteract(false);
 	}

@@ -3,8 +3,13 @@
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
 #include "UltraDynamicWeatherController.h"
+#include "StormFogComponent.h"
+#include "FirstPersonCharacter.h"
+#include "TestDriverSubsystem.h"
 #include "Components/AudioComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Sound/AmbientSound.h"
 #include "UObject/UnrealType.h"
 
@@ -57,6 +62,11 @@ namespace StormSkyTest
 		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Weather"), TEXT("Wind Intensity"), OutValue);
 	}
 
+	inline bool ReadWeatherFog(UWorld* World, float& OutValue)
+	{
+		return ReadActorFloat(World, TEXT("Ultra_Dynamic_Weather"), TEXT("Fog"), OutValue);
+	}
+
 	// Find the placed "Ambient_GlobalWind" AmbientSound by editor label (available in
 	// the editor-context E2E even though it isn't at shipping runtime).
 	inline AAmbientSound* FindAmbientGlobalWind(UWorld* World)
@@ -107,12 +117,12 @@ namespace StormSkyTest
 class FTD_ConfigureStormSkyFade : public FTD_Base
 {
 public:
-	FTD_ConfigureStormSkyFade(FAutomationTestBase* InTest, float InDuration, float InTargetIntensity, float InStartWind, float InTargetWind, float InTargetVolume)
-		: FTD_Base(InTest), Duration(InDuration), TargetIntensity(InTargetIntensity), StartWind(InStartWind), TargetWind(InTargetWind), TargetVolume(InTargetVolume) {}
+	FTD_ConfigureStormSkyFade(FAutomationTestBase* InTest, float InDuration, float InTargetIntensity, float InStartWind, float InTargetWind, float InTargetVolume, float InTargetFog)
+		: FTD_Base(InTest), Duration(InDuration), TargetIntensity(InTargetIntensity), StartWind(InStartWind), TargetWind(InTargetWind), TargetVolume(InTargetVolume), TargetFog(InTargetFog) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Configuring storm transition: %.2fs, intensity -> %.2f, wind %.1f -> %.1f, volume -> %.2f"), Duration, TargetIntensity, StartWind, TargetWind, TargetVolume);
+		return FString::Printf(TEXT("Configuring storm transition: %.2fs, intensity -> %.2f, wind %.1f -> %.1f, volume -> %.2f, fog -> %.2f"), Duration, TargetIntensity, StartWind, TargetWind, TargetVolume, TargetFog);
 	}
 
 	virtual bool UpdateStep() override
@@ -128,6 +138,7 @@ public:
 		Ctrl->StartWindIntensity = StartWind;
 		Ctrl->TargetWindIntensity = TargetWind;
 		Ctrl->TargetWindVolume = TargetVolume;
+		Ctrl->TargetFog = TargetFog;
 		// Wire the wind ambient (designer-assigned in real play; found by label here).
 		Ctrl->AmbientGlobalWind = StormSkyTest::FindAmbientGlobalWind(E2ELatent::GetPIEWorld());
 		if (!Ctrl->AmbientGlobalWind)
@@ -142,6 +153,7 @@ private:
 	float StartWind;
 	float TargetWind;
 	float TargetVolume;
+	float TargetFog;
 };
 
 // One-shot: assert the wind ambient's AudioComponent VolumeMultiplier is within Tol.
@@ -230,6 +242,38 @@ public:
 		if (FMath::Abs(Value - Expected) > Tolerance)
 		{
 			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherWindNear: Wind Intensity is %.2f, expected %.2f (+/- %.1f)"),
+				Value, Expected, Tolerance));
+		}
+		return true;
+	}
+private:
+	float Expected;
+	float Tolerance;
+};
+
+// One-shot: assert the weather actor's "Fog" scalar is within Tolerance of Expected.
+class FTD_AssertWeatherFogNear : public FTD_Base
+{
+public:
+	FTD_AssertWeatherFogNear(FAutomationTestBase* InTest, float InExpected, float InTolerance)
+		: FTD_Base(InTest), Expected(InExpected), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting weather Fog ~= %.2f (+/- %.2f)"), Expected, Tolerance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		float Value = 0.f;
+		if (!StormSkyTest::ReadWeatherFog(E2ELatent::GetPIEWorld(), Value))
+		{
+			Test->AddError(TEXT("FTD_AssertWeatherFogNear: could not read 'Fog' on a weather actor"));
+			return true;
+		}
+		if (FMath::Abs(Value - Expected) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertWeatherFogNear: Fog is %.2f, expected %.2f (+/- %.2f)"),
 				Value, Expected, Tolerance));
 		}
 		return true;
@@ -419,9 +463,11 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::CollectBlankTape(this);
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
-	E2ESteps::FastForwardSenecaSmoking(this);
+	E2ESteps::WatchTornadoWarningTV(this);
+	E2ESteps::UseTelephone(this);
 	E2ESteps::SenecaSmokingDialogue(this);
-	E2ESteps::OpenBathroomDoor(this);
+	E2ESteps::OpenKeypadDoor(this);
+	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
 	E2ESteps::ExitBathroom(this);
 
@@ -507,8 +553,9 @@ bool FE2E_Level1_StormSkyFade::RunTest(const FString& Parameters)
 	E2E_TEST_PREAMBLE("StormSkyFade")
 
 	// Compress the 2-minute default transition to 2s so the test is quick. Wind ramps
-	// 100 -> 250 and the wind ambient swells -> 3.0 alongside the intensity fade 2.0 -> 0.25.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormSkyFade(this, /*Duration*/ 2.0f, /*Intensity*/ 0.25f, /*StartWind*/ 100.0f, /*TargetWind*/ 250.0f, /*TargetVolume*/ 3.0f));
+	// 100 -> 250, the wind ambient swells -> 3.0, and fog thickens ~3 -> 20 alongside
+	// the intensity fade 2.0 -> 0.25.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormSkyFade(this, /*Duration*/ 2.0f, /*Intensity*/ 0.25f, /*StartWind*/ 100.0f, /*TargetWind*/ 250.0f, /*TargetVolume*/ 3.0f, /*TargetFog*/ 20.0f));
 
 	// Before the beat: warning unseen, sky at its authored brightness (~2.0), wind
 	// ambient at its base volume (~1.0). (We can't assert the pre-storm Wind Intensity:
@@ -528,6 +575,121 @@ bool FE2E_Level1_StormSkyFade::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindOverride(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherWindNear(this, 250.0f, 20.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientWindVolumeNear(this, 3.0f, 0.2f));
+	// Fog thickened to its target (proves the fog channel ramped the weather "Fog"
+	// scalar; the visible density is eyeballed from the screenshot below).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertWeatherFogNear(this, 20.0f, 1.0f));
+	// Headed only: capture the socked-in view so the fog thickness can be tuned by eye.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_StormFog_Settled")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// StormPeaSoupFog — the KeyBroke beat rolls in UStormFogComponent's full-screen
+// depth fog on the player camera (bright murk, view distance ~= a couple metres,
+// independent of scene lighting — the thing UDS height fog can't do at night).
+// =======================================================================
+
+namespace StormFogTest
+{
+	inline UStormFogComponent* FindFogComp()
+	{
+		UTestDriverSubsystem* Driver = E2ELatent::GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		return Player ? Player->FindComponentByClass<UStormFogComponent>() : nullptr;
+	}
+}
+
+// Shorten the roll-in and pin the distance so the test is quick and deterministic.
+class FTD_ConfigureStormFog : public FTD_Base
+{
+public:
+	FTD_ConfigureStormFog(FAutomationTestBase* InTest, float InRamp, float InFogDistance)
+		: FTD_Base(InTest), Ramp(InRamp), FogDistance(InFogDistance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Configuring pea-soup fog: ramp %.1fs, distance %.0f"), Ramp, FogDistance);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UStormFogComponent* Fog = StormFogTest::FindFogComp();
+		if (!Fog)
+		{
+			Test->AddError(TEXT("FTD_ConfigureStormFog: no UStormFogComponent on the player"));
+			return true;
+		}
+		Fog->RampDuration = Ramp;
+		Fog->FogDistance = FogDistance;
+		return true;
+	}
+private:
+	float Ramp;
+	float FogDistance;
+};
+
+// Poll until the fog blendable weight reaches Threshold, erroring on timeout.
+class FTD_WaitForStormFogAtLeast : public FTD_Base
+{
+public:
+	FTD_WaitForStormFogAtLeast(FAutomationTestBase* InTest, float InThreshold, double InTimeoutSeconds)
+		: FTD_Base(InTest), Threshold(InThreshold), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for pea-soup fog roll-in >= %.2f"), Threshold);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UStormFogComponent* Fog = StormFogTest::FindFogComp();
+		if (!Fog)
+		{
+			Test->AddError(TEXT("FTD_WaitForStormFogAtLeast: no UStormFogComponent on the player"));
+			return true;
+		}
+		if (Fog->GetFogAmount() >= Threshold)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForStormFogAtLeast: fog roll-in reached %.3f"), Fog->GetFogAmount());
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStormFogAtLeast: fog roll-in never reached %.2f within %.1fs (last %.3f)"),
+				Threshold, Timeout, Fog->GetFogAmount()));
+			return true;
+		}
+		return false;
+	}
+private:
+	float Threshold;
+	double Timeout;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StormPeaSoupFog,
+	"Weirdplace2.E2E.Level1.Regression.StormPeaSoupFog",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StormPeaSoupFog::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StormPeaSoupFog")
+
+	// Compress the roll-in to 2s; 250 cm distance = you can just make out ~2.5 m.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConfigureStormFog(this, /*Ramp*/ 2.0f, /*FogDistance*/ 250.0f));
+
+	// Pre-beat: warning unseen, fog not engaged (warmup pass drops to weight 0 after ~1s).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PeaSoup_Before")));
+
+	// See the warning — the fog rolls in on the player camera.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStormFogAtLeast(this, 0.95f, 10.0));
+
+	// Fully socked in — screenshot the pea soup (headed only; NullRHI screenshots are blank).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PeaSoup_After")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -1631,6 +1793,481 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneDialtone")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// MoviePosters — collected movies show up as posters in the world: the first
+// collected movie on the telephone-pole PosterSheet (gated with the phone
+// scene's SeenTornadoWarning reveal), the second on the bathroom wall poster.
+// Posters are hidden until their movie is collected and update live on
+// collection.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MoviePosters,
+	"Weirdplace2.E2E.Level1.Regression.MoviePosters",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MoviePosters")
+
+	// Reveal the phone scene up front so poster gating isn't conflated with the
+	// scene's own SeenTornadoWarning gate. One-tick delay: the reveal propagates
+	// visibility to children and the poster state is reapplied a tick later.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	// Nothing collected: both posters hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
+
+	// Collect movie A.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	// Pole poster shows movie A live; bathroom poster still hidden.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
+
+	// Collect movie B.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox121")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
+
+	// Bathroom poster shows movie B; pole unchanged on movie A. Distinct boxes
+	// have distinct ItemIDs, so the two posters necessarily differ.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 1, 1));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
+
+	// Visual proof: pole poster. It's now its own plane (MoviePoster_Pole) higher
+	// on the pole than the designed missing-person flyer, facing the same way
+	// (roughly east, +X). Teleporting near it approaches from the store side
+	// (west) and shoots the back, so stand at an explicit east-side vantage.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(9540.0, -4851.0, 0.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Pole")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_01_Pole")));
+
+	// ...and bathroom poster.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("MoviePoster_Bathroom"), 250.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Bathroom")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_02_Bathroom")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// SenecaTextBacking — a dark translucent plate sits behind the dialogue text
+// so it stays legible against bright backgrounds (the original complaint:
+// text washed out when a light sits behind Seneca). The plate now lives
+// INSIDE the shared UUI_Dialogue widget (a UBorder wrapping the Text block),
+// so it auto-hugs the text and covers Seneca, Rick and Hudson at once. The
+// widget itself is collapsed whenever no dialogue is open.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_SenecaTextBacking,
+	"Weirdplace2.E2E.Level1.Regression.SenecaTextBacking",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("SenecaTextBacking")
+
+	// No dialogue: the backing plate exists (text wrapped) but the widget is closed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+
+	// Start Seneca's dialogue.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+
+	// Dialogue open: text still wrapped in the plate, widget now visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_01_Dialogue")));
+
+	// Finish the dialogue; the widget collapses again.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// CarRideScenery — the car ride fakes motion by sliding a runtime-spawned
+// conveyor of silhouette props (bushes/rocks) past the stationary car and
+// recycling them front-to-back. Asserts the conveyor spawns, every prop
+// moves, at least one recycles (wraps forward), and teardown removes it all.
+// =======================================================================
+
+namespace CarRideTest
+{
+	// Item roots are the direct attach parents of the prop mesh components.
+	// Reading their local X gives conveyor-space positions regardless of the
+	// travel axis orientation.
+	inline void GetConveyorItemXs(AActor* Conveyor, TArray<float>& OutXs)
+	{
+		OutXs.Reset();
+		TArray<UStaticMeshComponent*> MeshComps;
+		Conveyor->GetComponents<UStaticMeshComponent>(MeshComps);
+		for (UStaticMeshComponent* MeshComp : MeshComps)
+		{
+			if (USceneComponent* ItemRoot = MeshComp->GetAttachParent())
+			{
+				OutXs.Add(ItemRoot->GetRelativeLocation().X);
+			}
+		}
+	}
+
+	// Shared between the snapshot and the moved/recycled assert commands.
+	static TArray<float> SnapshotXs;
+}
+
+// Crank the scenery speed (fast recycle -> short test) and force the ride to
+// start regardless of the editor play-location setting.
+class FTD_StartCarRideFast : public FTD_Base
+{
+public:
+	FTD_StartCarRideFast(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Forcing car ride start (fast scenery)"); }
+
+	virtual bool UpdateStep() override
+	{
+		if (IConsoleVariable* SpeedVar = IConsoleManager::Get().FindConsoleVariable(TEXT("weird.CarRide.Speed")))
+		{
+			SpeedVar->Set(8000.0f);
+		}
+		else
+		{
+			Test->AddError(TEXT("FTD_StartCarRideFast: weird.CarRide.Speed cvar not found"));
+			return true;
+		}
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Driver->ForceStartCarRide())
+		{
+			Test->AddError(TEXT("FTD_StartCarRideFast: ForceStartCarRide failed"));
+		}
+		return true;
+	}
+};
+
+// Assert the conveyor exists with props, and snapshot their conveyor-space Xs.
+class FTD_SnapshotConveyor : public FTD_Base
+{
+public:
+	FTD_SnapshotConveyor(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Snapshotting car-ride conveyor"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AActor* Conveyor = Driver ? Driver->FindCarRideConveyor() : nullptr;
+		if (!Conveyor)
+		{
+			Test->AddError(TEXT("FTD_SnapshotConveyor: no CarRideScenery conveyor actor"));
+			return true;
+		}
+		CarRideTest::GetConveyorItemXs(Conveyor, CarRideTest::SnapshotXs);
+		if (CarRideTest::SnapshotXs.Num() == 0)
+		{
+			Test->AddError(TEXT("FTD_SnapshotConveyor: conveyor has no props"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_SnapshotConveyor: %d props"), CarRideTest::SnapshotXs.Num());
+		return true;
+	}
+};
+
+// Assert every prop's conveyor-space X changed since the snapshot, and at
+// least one wrapped forward (X increased = a recycle happened).
+class FTD_AssertConveyorMovedAndRecycled : public FTD_Base
+{
+public:
+	FTD_AssertConveyorMovedAndRecycled(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting conveyor moved + recycled"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AActor* Conveyor = Driver ? Driver->FindCarRideConveyor() : nullptr;
+		if (!Conveyor)
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorMovedAndRecycled: no conveyor actor"));
+			return true;
+		}
+		TArray<float> NowXs;
+		CarRideTest::GetConveyorItemXs(Conveyor, NowXs);
+		if (NowXs.Num() != CarRideTest::SnapshotXs.Num())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertConveyorMovedAndRecycled: prop count changed %d -> %d"),
+				CarRideTest::SnapshotXs.Num(), NowXs.Num()));
+			return true;
+		}
+		int32 RecycledCount = 0;
+		for (int32 i = 0; i < NowXs.Num(); ++i)
+		{
+			const float Delta = NowXs[i] - CarRideTest::SnapshotXs[i];
+			if (FMath::Abs(Delta) < 1.0f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertConveyorMovedAndRecycled: prop %d did not move (X %.1f)"), i, NowXs[i]));
+			}
+			if (Delta > 0.0f)
+			{
+				++RecycledCount;
+			}
+		}
+		if (RecycledCount == 0)
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorMovedAndRecycled: no prop wrapped forward — recycle never fired"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertConveyorMovedAndRecycled: %d/%d props recycled"), RecycledCount, NowXs.Num());
+		return true;
+	}
+};
+
+// Assert the conveyor was destroyed on ride end.
+class FTD_AssertConveyorGone : public FTD_Base
+{
+public:
+	FTD_AssertConveyorGone(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Asserting conveyor destroyed"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (Driver && Driver->FindCarRideConveyor())
+		{
+			Test->AddError(TEXT("FTD_AssertConveyorGone: CarRideScenery conveyor still exists after ride end"));
+		}
+		return true;
+	}
+};
+
+// One-shot: drive the ride's EndRide path (fade + teleport + scenery teardown).
+class FTD_EndCarRide : public FTD_Base
+{
+public:
+	FTD_EndCarRide(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Ending car ride"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Driver->EndCarRideNow())
+		{
+			Test->AddError(TEXT("FTD_EndCarRide: EndCarRideNow failed"));
+		}
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideScenery,
+	"Weirdplace2.E2E.Level1.Regression.CarRideScenery",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideScenery")
+
+	// E2E runs take the SkipRide path at map load (play-from-camera heuristic),
+	// so the ride must be forced. 8000 cm/s guarantees a recycle inside the 3s
+	// observation window (default 20m loop).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SnapshotConveyor(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T1")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorMovedAndRecycled(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T2")));
+
+	// End the ride and verify the conveyor is torn down after the fade.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.FirstPlayEffects — evidence run for the "fog wall + bladder
+// indicator invisible on the first play after opening the editor" bug.
+// A fresh UnrealEditor-Cmd process IS a first play (cold in-memory PSO /
+// shader caches): screenshot the oasis waterfall steam and a forced
+// bladder-vignette pulse as early as the harness allows. (A second
+// AutomationOpenMap in the same test loses the driver subsystem, so the
+// warm-play comparison is simply a second run of this diagnostic.)
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_FirstPlayEffects,
+	"Weirdplace2.E2E.Level1.Diagnostic.FirstPlayEffects",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_FirstPlayEffects::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("FirstPlayEffects")
+
+	// The user's fog-wall judgment vantage ("bookmark 3"): the pole overlook,
+	// camera ~(8949,-4483,206) looking yaw -46.5 pitch -4.3 at the distant
+	// cloud bank. Healthy = clouds dimmed by fog, bottoms fading to black
+	// (cloud-region luminance ~25 on the reference pair); broken = vivid
+	// bright clouds down to a hard horizon line (~34).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(8949.0, -4483.0, 40.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	{
+		const FVector Eye(8949.0, -4483.0, 200.0);
+		const FVector LookTarget = Eye + FRotator(-4.325f, -46.52f, 0.f).Vector() * 2000.f;
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, LookTarget));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_BM3_Early")));
+
+	// Persistence check — the user reports the whole first play stays broken.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(10.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_BM3_Late")));
+
+	// Bladder vignette mid-pulse (the warm-at-load fix: no corrupt border on
+	// a session's first pulse).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerBladderPulse(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.8f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Fog_D_BladderPulse")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.ClockClose — close-up of the store wall clock
+// (SM_Wall_Decor_Set_NN_02c) to verify its face is illegibly blurred.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_ClockClose,
+	"Weirdplace2.E2E.Level1.Diagnostic.ClockClose",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_ClockClose::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("ClockClose")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3519.0, -430.0, 0.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("SM_Wall_Decor_Set_NN_02c")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_ClockClose")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.ClockHunt — panoramic screenshot tour of the store and oasis
+// interiors to visually locate the wall clock (todo: "clock should be
+// blurred out"); no clock-named asset exists, so it's baked into some prop.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_ClockHunt,
+	"Weirdplace2.E2E.Level1.Diagnostic.ClockHunt",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_ClockHunt::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("ClockHunt")
+
+	// Let the world settle (car-ride skip, PSO warmup, spawn state) before
+	// driving the camera; the first attempt screenshotted at t~8s and every
+	// frame rendered from a stale spawn-side view.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	struct FSpot { const TCHAR* Name; FVector Ground; };
+	const FSpot Spots[] = {
+		{ TEXT("Store"), FVector(3300.0, 200.0, 0.0) },
+		{ TEXT("Oasis"), FVector(-2982.0, -236.0, -2825.0) },
+	};
+	for (const FSpot& Spot : Spots)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, Spot.Ground));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		for (int32 i = 0; i < 8; ++i)
+		{
+			const float Yaw = i * 45.f;
+			const FVector Eye = Spot.Ground + FVector(0, 0, 160);
+			const FVector LookTarget = Eye + FRotator(15.f, Yaw, 0.f).Vector() * 500.f;
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, LookTarget));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_ClockHunt_%s_%d"), Spot.Name, i)));
+		}
+	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.VisualInspect — per-NPC visual inspection: an in-place timed
+// screenshot burst (catches warmup-vs-persistent artifacts), then stage the
+// actor at the lit "PhotoBooth" waypoint and orbit-screenshot it from all
+// sides. Targets come from `e2e.InspectTargets` (comma-separated labels) so
+// new subjects need no rebuild. Staging note: Seneca teleports are only safe
+// while her smoking-appear deferral is idle — true at map start.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_VisualInspect,
+	"Weirdplace2.E2E.Level1.Diagnostic.VisualInspect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("VisualInspect")
+
+	TArray<FString> Targets;
+	CVarE2EInspectTargets.GetValueOnGameThread().ParseIntoArray(Targets, TEXT(","));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+
+	for (const FString& Label : Targets)
+	{
+		// In-situ: how the NPC actually looks where it stands, over time.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, Label, 250.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, Label));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_ScreenshotBurst(this, FString::Printf(TEXT("Inspect_%s_insitu"), *Label), 2, 6.f));
+
+		// Photo booth: full orbit under known lighting.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_StageActorAtWaypoint(this, Label, TEXT("PhotoBooth")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OrbitScreenshotActor(this, Label, FString::Printf(TEXT("Inspect_%s_orbit"), *Label)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_UnstageActor(this, Label));
+	}
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

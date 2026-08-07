@@ -85,6 +85,7 @@ private:
 
 	FTimerHandle ReminderTimerHandle;
 	FTimerHandle DeathTimerHandle;
+	FTimerHandle WarmupTimerHandle;
 	float StartTimeSeconds = 0.f;
 	float PulseElapsed = 0.f;
 	bool bIsPulsing = false;

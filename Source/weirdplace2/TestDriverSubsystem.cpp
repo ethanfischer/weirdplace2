@@ -1,6 +1,9 @@
 #include "TestDriverSubsystem.h"
+#include "BladderUrgencyComponent.h"
+#include "CarRideComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/ExponentialHeightFog.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "KeypadUIComponent.h"
@@ -11,6 +14,8 @@
 #endif
 #include "MovieBox.h"
 #include "InspectablePickup.h"
+#include "Door.h"
+#include "Interactable.h"
 #include "OutsideBathroomDoor.h"
 #include "PropActor.h"
 #include "SpawnerActorComponent.h"
@@ -26,6 +31,7 @@
 #include "Seneca.h"
 #include "TestWaypoint.h"
 #include "UI_Dialogue.h"
+#include "DialogueWidgetProvider.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -44,6 +50,22 @@
 #include "InputActionValue.h"
 #include "Kismet/GameplayStatics.h"
 #include "WeirdplaceGameUserSettings.h"
+
+// Returns the first actor of type T in the world, or nullptr. Collapses the
+// otherwise-identical singleton finders (Seneca/Rick/Hudson/PayPhone/pickup).
+template<typename T>
+static T* FindFirstActor(UWorld* World)
+{
+	if (!World)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<T> It(World); It; ++It)
+	{
+		return *It;
+	}
+	return nullptr;
+}
 
 AFirstPersonCharacter* UTestDriverSubsystem::GetPlayer() const
 {
@@ -248,19 +270,9 @@ bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const
 	return Root->IsVisible();
 }
 
-static APayPhone* FindPayPhoneInternal(UWorld* World)
-{
-	if (!World) { return nullptr; }
-	for (TActorIterator<APayPhone> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
-}
-
 bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneAudioPlaying - no APayPhone in level"));
@@ -271,7 +283,7 @@ bool UTestDriverSubsystem::IsPayPhoneAudioPlaying() const
 
 bool UTestDriverSubsystem::CanPayPhoneInteract() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::CanPayPhoneInteract - no APayPhone in level"));
@@ -282,7 +294,7 @@ bool UTestDriverSubsystem::CanPayPhoneInteract() const
 
 bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneDialtonePlaying - no APayPhone in level"));
@@ -293,7 +305,7 @@ bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 
 void UTestDriverSubsystem::TriggerPayPhonePickup()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhonePickup - no APayPhone in level"));
@@ -304,7 +316,7 @@ void UTestDriverSubsystem::TriggerPayPhonePickup()
 
 void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerPayPhoneHangUp - no APayPhone in level"));
@@ -315,7 +327,7 @@ void UTestDriverSubsystem::TriggerPayPhoneHangUp()
 
 void UTestDriverSubsystem::MarkPayPhoneCodeSpoken()
 {
-	APayPhone* Phone = FindPayPhoneInternal(GetWorld());
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
 	if (!Phone)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::MarkPayPhoneCodeSpoken - no APayPhone in level"));
@@ -413,7 +425,25 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	}
 
 	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	const FVector NewLoc = TargetLoc + Dir * Distance + FVector(0.f, 0.f, HalfHeight);
+	FVector NewLoc = TargetLoc + Dir * Distance + FVector(0.f, 0.f, HalfHeight);
+
+	// The target's Z may be well above the floor (e.g. a wall-mounted TV), which
+	// would leave the player falling for a second after the teleport — any look
+	// rotation baked during that fall goes stale once the capsule settles. Trace
+	// down and place the capsule on the floor so it settles immediately.
+	FHitResult FloorHit;
+	FCollisionQueryParams FloorParams(FName("TeleportNearActorFloorSnap"), false);
+	FloorParams.AddIgnoredActor(Player);
+	if (Player->GetWorld()->LineTraceSingleByChannel(FloorHit, NewLoc, NewLoc + FVector(0.f, 0.f, -2000.f),
+		ECC_Visibility, FloorParams))
+	{
+		NewLoc.Z = FloorHit.ImpactPoint.Z + HalfHeight;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportNearActor - no floor beneath %s"), *NewLoc.ToString());
+	}
+
 	Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
 
 	// Face the target.
@@ -424,6 +454,103 @@ bool UTestDriverSubsystem::TeleportNearActor(AActor* Target, float Distance)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportNearActor - near %s at %s"), *Target->GetName(), *NewLoc.ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::TriggerBladderPulse()
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	UBladderUrgencyComponent* Bladder = Player ? Player->FindComponentByClass<UBladderUrgencyComponent>() : nullptr;
+	if (!Bladder)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerBladderPulse - no bladder component"));
+		return false;
+	}
+	Bladder->FireSinglePulse();
+	return true;
+}
+
+bool UTestDriverSubsystem::SetHeightFogVisible(bool bVisible)
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+	for (TActorIterator<AExponentialHeightFog> It(World); It; ++It)
+	{
+		if (UExponentialHeightFogComponent* Fog = It->GetComponent())
+		{
+			Fog->SetVisibility(bVisible);
+			UE_LOG(LogTemp, Log, TEXT("TestDriver::SetHeightFogVisible - %d"), bVisible ? 1 : 0);
+			return true;
+		}
+	}
+	UE_LOG(LogTemp, Error, TEXT("TestDriver::SetHeightFogVisible - no ExponentialHeightFog in world"));
+	return false;
+}
+
+bool UTestDriverSubsystem::GetNamedComponentVisible(const FString& ActorLabel, const FString& ComponentName, bool& bOutVisible) const
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	if (!Actor)
+	{
+		return false;
+	}
+	USceneComponent* Component = FindComponentOnActorByName(Actor, ComponentName);
+	if (!Component)
+	{
+		return false;
+	}
+	bOutVisible = Component->IsVisible();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	UCameraComponent* Camera = Player ? Player->GetFirstPersonCamera() : nullptr;
+	if (!Camera)
+	{
+		return false;
+	}
+	const FPostProcessSettings& PP = Camera->PostProcessSettings;
+	bOutOverrideActive = PP.bOverride_DepthOfFieldFstop && PP.bOverride_DepthOfFieldFocalDistance;
+	OutFstop = PP.DepthOfFieldFstop;
+	OutFocalDistance = PP.DepthOfFieldFocalDistance;
+	return true;
+}
+
+bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(Actor);
+	if (!Provider)
+	{
+		return false;
+	}
+	UUI_Dialogue* Widget = Provider->GetDialogueWidget();
+	if (!Widget)
+	{
+		return false;
+	}
+	bOutHasBacking = Widget->HasTextBacking();
+	bOutDialogueOpen = Widget->IsDialogueOpen();
+	return true;
+}
+
+bool UTestDriverSubsystem::TeleportToWorldPoint(const FVector& GroundPoint)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TeleportToWorldPoint - no player"));
+		return false;
+	}
+	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector NewLoc = GroundPoint + FVector(0.f, 0.f, HalfHeight);
+	Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TeleportToWorldPoint - %s"), *NewLoc.ToString());
 	return true;
 }
 
@@ -452,19 +579,7 @@ bool UTestDriverSubsystem::LookAt(AActor* Target)
 		return false;
 	}
 
-	// For MetaHuman NPCs the actor root sits at world Z=0, so aim at the
-	// "Body" skeletal mesh component which reflects the rendered position.
-	// Falls back to the full bounds for non-MetaHumans (props, MovieBoxes).
-	FVector AimPoint;
-	if (USkeletalMeshComponent* Face = Cast<USkeletalMeshComponent>(Target->GetDefaultSubobjectByName(TEXT("Face"))))
-	{
-		AimPoint = Face->Bounds.Origin;
-	}
-	else
-	{
-		AimPoint = Target->GetComponentsBoundingBox(/*bNonColliding*/ true).GetCenter();
-	}
-
+	const FVector AimPoint = GetAimPointForActor(Target);
 	const FVector CamLoc = Camera->GetComponentLocation();
 	const FVector Dir = (AimPoint - CamLoc).GetSafeNormal();
 	const FRotator NewRot = Dir.Rotation();
@@ -545,6 +660,64 @@ bool UTestDriverSubsystem::LookAtWorldPoint(const FVector& Point)
 	return true;
 }
 
+FVector UTestDriverSubsystem::GetAimPointForActor(AActor* Target) const
+{
+	// For MetaHuman NPCs the actor root sits at world Z=0, so aim at the
+	// Face skeletal mesh component which reflects the rendered position.
+	// Falls back to the full bounds for non-MetaHumans (props, MovieBoxes).
+	if (USkeletalMeshComponent* Face = Cast<USkeletalMeshComponent>(Target->GetDefaultSubobjectByName(TEXT("Face"))))
+	{
+		return Face->Bounds.Origin;
+	}
+	return Target->GetComponentsBoundingBox(/*bNonColliding*/ true).GetCenter();
+}
+
+bool UTestDriverSubsystem::StageActorAtWaypoint(const FString& Label, FName WaypointTag)
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::StageActorAtWaypoint - no actor '%s'"), *Label);
+		return false;
+	}
+	ATestWaypoint* Waypoint = ATestWaypoint::FindByTag(this, WaypointTag);
+	if (!Waypoint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::StageActorAtWaypoint - no waypoint '%s'"), *WaypointTag.ToString());
+		return false;
+	}
+	if (!StagedActorTransforms.Contains(Label))
+	{
+		StagedActorTransforms.Add(Label, Actor->GetActorTransform());
+	}
+	Actor->SetActorLocationAndRotation(Waypoint->GetActorLocation(), Waypoint->GetActorRotation(),
+		false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::StageActorAtWaypoint - '%s' -> %s"),
+		*Label, *Waypoint->GetActorLocation().ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::UnstageActor(const FString& Label)
+{
+	const FTransform* Original = StagedActorTransforms.Find(Label);
+	if (!Original)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::UnstageActor - '%s' was never staged"), *Label);
+		return false;
+	}
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::UnstageActor - no actor '%s'"), *Label);
+		return false;
+	}
+	Actor->SetActorLocationAndRotation(Original->GetLocation(), Original->GetRotation(),
+		false, nullptr, ETeleportType::TeleportPhysics);
+	StagedActorTransforms.Remove(Label);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::UnstageActor - '%s' restored"), *Label);
+	return true;
+}
+
 USceneComponent* UTestDriverSubsystem::FindComponentOnActorByName(AActor* Actor, const FString& ComponentName) const
 {
 	if (!Actor)
@@ -574,6 +747,17 @@ bool UTestDriverSubsystem::LookAtSeneca()
 		return false;
 	}
 	return LookAt(Seneca);
+}
+
+bool UTestDriverSubsystem::LookAtTelephone()
+{
+	APayPhone* PayPhone = FindPayPhone();
+	if (!PayPhone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::LookAtTelephone - no APayPhone in level"));
+		return false;
+	}
+	return LookAt(PayPhone);
 }
 
 bool UTestDriverSubsystem::LookAtRick()
@@ -632,47 +816,22 @@ AActor* UTestDriverSubsystem::FindActorByLabel(const FString& Label) const
 
 ASeneca* UTestDriverSubsystem::FindSeneca() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
+	return FindFirstActor<ASeneca>(GetWorld());
+}
 
-	for (TActorIterator<ASeneca> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+APayPhone* UTestDriverSubsystem::FindPayPhone() const
+{
+	return FindFirstActor<APayPhone>(GetWorld());
 }
 
 ARick* UTestDriverSubsystem::FindRick() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<ARick> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<ARick>(GetWorld());
 }
 
 AHudson* UTestDriverSubsystem::FindHudson() const
 {
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return nullptr;
-	}
-
-	for (TActorIterator<AHudson> It(World); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<AHudson>(GetWorld());
 }
 
 bool UTestDriverSubsystem::LookAtHudson()
@@ -762,6 +921,27 @@ void UTestDriverSubsystem::SimulateKeyRelease(FKey Key)
 		return;
 	}
 	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Released, /*AmountDepressed=*/0.0f));
+}
+
+void UTestDriverSubsystem::SimulatePutBack()
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::SimulatePutBack - no PlayerController"));
+		return;
+	}
+
+	// "Put back" exits item inspection via the legacy "Exit Interaction"
+	// BindAction (see AMovieBox::SetupPlayerInputComponent), so it fires through
+	// APlayerController::InputKey — not Enhanced Input injection. Press the key
+	// for the player's current input device: keyboard Q or gamepad B.
+	AFirstPersonCharacter* Player = GetPlayer();
+	const bool bGamepad = Player && Player->IsUsingGamepad();
+	const FKey Key = bGamepad ? EKeys::Gamepad_FaceButton_Right : EKeys::Q;
+	PC->InputKey(FInputKeyEventArgs::CreateSimulated(Key, EInputEvent::IE_Pressed, /*AmountDepressed=*/1.0f));
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::SimulatePutBack - %s (%s)"),
+		*Key.ToString(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
 }
 
 void UTestDriverSubsystem::SimulateMouseX(float Delta)
@@ -866,6 +1046,56 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	AFirstPersonCharacter* Player = GetPlayer();
 	if (!Player) { return; }
 	InjectInputAction(Player->GetSettingsAction(), false);
+}
+
+// --- Car ride ---
+
+static UCarRideComponent* FindCarRideComponent(UWorld* World)
+{
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (UCarRideComponent* Comp = It->FindComponentByClass<UCarRideComponent>())
+		{
+			return Comp;
+		}
+	}
+	return nullptr;
+}
+
+bool UTestDriverSubsystem::ForceStartCarRide()
+{
+	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	if (!Comp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceStartCarRide - no CarRideComponent in world"));
+		return false;
+	}
+	Comp->ForceStartRide();
+	return true;
+}
+
+bool UTestDriverSubsystem::EndCarRideNow()
+{
+	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	if (!Comp)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::EndCarRideNow - no CarRideComponent in world"));
+		return false;
+	}
+	Comp->ForceEndRide();
+	return true;
+}
+
+AActor* UTestDriverSubsystem::FindCarRideConveyor() const
+{
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(FName("CarRideScenery")))
+		{
+			return *It;
+		}
+	}
+	return nullptr;
 }
 
 // --- Sensitivity / look diagnostics ---
@@ -1009,6 +1239,19 @@ void UTestDriverSubsystem::MarkLastFoundMovieCollected()
 	}
 }
 
+bool UTestDriverSubsystem::TriggerKeypadDoorOpen(const FString& DoorLabel)
+{
+	ADoor* Door = Cast<ADoor>(FindActorByLabel(DoorLabel));
+	if (!Door)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::TriggerKeypadDoorOpen - no ADoor labeled '%s'"), *DoorLabel);
+		return false;
+	}
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::TriggerKeypadDoorOpen - %s"), *Door->GetName());
+	IInteractable::Execute_Interact(Door);
+	return true;
+}
+
 bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 {
 	for (TActorIterator<AMovieBox> It(GetWorld()); It; ++It)
@@ -1029,11 +1272,7 @@ bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 
 AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup() const
 {
-	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
-	{
-		return *It;
-	}
-	return nullptr;
+	return FindFirstActor<AInspectablePickup>(GetWorld());
 }
 
 bool UTestDriverSubsystem::TriggerCollectInspectedPickup()
@@ -1081,6 +1320,68 @@ int32 UTestDriverSubsystem::GetInventoryCount() const
 {
 	UInventoryComponent* Inv = GetInventoryComponent();
 	return Inv ? Inv->GetItemCount() : 0;
+}
+
+FName UTestDriverSubsystem::GetInventoryItemAt(int32 SlotIndex) const
+{
+	UInventoryComponent* Inv = GetInventoryComponent();
+	if (!Inv)
+	{
+		return NAME_None;
+	}
+	const TArray<FName> Items = Inv->GetItems();
+	return Items.IsValidIndex(SlotIndex) ? Items[SlotIndex] : NAME_None;
+}
+
+bool UTestDriverSubsystem::GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return false;
+	}
+
+	const FName Tag(*FString::Printf(TEXT("MoviePoster%d"), PosterIndex));
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		if (!It->ActorHasTag(Tag))
+		{
+			continue;
+		}
+
+		TArray<UStaticMeshComponent*> Meshes;
+		It->GetComponents(Meshes);
+		UStaticMeshComponent* Surface = nullptr;
+		for (UStaticMeshComponent* Mesh : Meshes)
+		{
+			if (Mesh->GetName() == TEXT("PosterSheet"))
+			{
+				Surface = Mesh;
+				break;
+			}
+		}
+		if (!Surface && Meshes.Num() == 1)
+		{
+			Surface = Meshes[0];
+		}
+		if (!Surface)
+		{
+			return false;
+		}
+
+		bOutVisible = Surface->IsVisible();
+		UMaterialInterface* Mat = Surface->GetMaterial(0);
+		OutMaterialName = Mat ? Mat->GetName() : FString();
+		// Poster MIDs carry the cover in their CoverTexture param — report the
+		// texture name (== ItemID) as the poster's identity when present.
+		UTexture* CoverTex = nullptr;
+		if (Mat && Mat->GetTextureParameterValue(FMaterialParameterInfo(FName("CoverTexture")), CoverTex) && CoverTex)
+		{
+			OutMaterialName = CoverTex->GetName();
+		}
+		return true;
+	}
+	return false;
 }
 
 int32 UTestDriverSubsystem::GetSelectedSlot() const

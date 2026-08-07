@@ -1,6 +1,5 @@
 #include "Rick.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "Seneca.h"
 #include "Inventory.h"
 #include "ItemDefinition.h"
@@ -40,6 +39,14 @@ void ARick::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
+					// alpha blending. Force Transparent blend so BackingOpacity is a
+					// true gradient -- Masked blend clips it binary at the 0.333 mask
+					// threshold, which reads as a hard step near ~0.35.
+					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+				}
 			}
 			break;
 		}
@@ -234,8 +241,7 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 	bMoneyBeatArmed = false;
 	FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
 
-	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
 	if (!Inventory || !MoneyDef)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Rick::OnMoneyDialogueLineShown - missing Inventory or MoneyDef"));

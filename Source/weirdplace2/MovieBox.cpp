@@ -26,9 +26,8 @@ static FStreamableManager& GetCoverStreamableManager()
 // Sets default values
 AMovieBox::AMovieBox()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
 // Called when the game starts or when spawned
@@ -52,6 +51,7 @@ void AMovieBox::BeginPlay()
 	// mis-inherit AMovieBox without one, is now a plain AActor.) A missing widget is a
 	// setup error, not a state to silently recover from.
 	checkf(InteractionWidget, TEXT("MovieBox %s is missing its InteractionText widget"), *GetName());
+	InteractionWidget->SetTickMode(ETickMode::Automatic);
 
 	EnvelopeMesh = Cast<UStaticMeshComponent>(GetDefaultSubobjectByName(TEXT("Cube")));
 	if (!EnvelopeMesh)
@@ -106,7 +106,7 @@ void AMovieBox::BeginPlay()
 			}));
 	}
 
-	MyCharacter = Cast<AMyCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
 	if (!MyCharacter)
 	{
 		UE_LOG(LogTemp, Error, TEXT("MyCharacter not found!"));
@@ -224,6 +224,7 @@ void AMovieBox::Interact_Implementation()
 
 	// Store reference to inspected actor (this MovieBox)
 	InspectedActor = this;
+	SetActorTickEnabled(true);
 
 	// Freeze player camera and movement; also ensures the PC InputComponent exists.
 	MyCharacter->BeginInteractionHold(/*bFreezeLook*/ true);
@@ -440,6 +441,7 @@ void AMovieBox::StopInspection()
 
 	// Clear inspected actor reference
 	InspectedActor = nullptr;
+	SetActorTickEnabled(false);
 
 	GetWorldTimerManager().ClearTimer(CantCarryTimerHandle);
 	if (CantCarryWidget) CantCarryWidget->SetVisibility(false);

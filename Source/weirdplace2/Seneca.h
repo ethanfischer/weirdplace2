@@ -9,6 +9,7 @@ class APropActor;
 #include "Seneca.generated.h"
 
 class UWidgetComponent;
+class UStaticMeshComponent;
 class UUI_Dialogue;
 class UItemDefinition;
 class UTexture2D;
@@ -16,7 +17,6 @@ class UChildActorComponent;
 class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
-class AMyCharacter;
 class UInventoryComponent;
 class USpawnerActorComponent;
 
@@ -220,12 +220,6 @@ private:
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);
 
-	// Returns the loaded dialogue lines for the current state
-	const TArray<FText>* GetDialogueLinesForCurrentState() const;
-
-	// Check if player has enough movies and update state accordingly
-	void CheckMovieCount();
-
 	// Loaded dialogue lines per state
 	TMap<ESenecaState, TArray<FText>> DialogueLines;
 
@@ -254,15 +248,8 @@ private:
 	// Helper to load a single dialogue file
 	void LoadDialogueFile(ESenecaState State, const FString& RelativePath);
 
-	// Delegate listener for inventory changes
-	UFUNCTION()
-	void OnInventoryChanged(const TArray<FName>& CurrentItems);
-
 	// Returns true if the player camera is facing the given world position
 	bool IsPlayerLookingAt(const FVector& Position) const;
-
-	// Returns true if the player camera is looking at Seneca
-	bool IsPlayerLookingAtMe() const;
 
 	// Cached skeletal mesh for computing look-at bounds target
 	UPROPERTY()
@@ -274,7 +261,6 @@ private:
 
 public:
 	void StartSmokingAnim();
-	void StopSmokingAnim();
 private:
 
 	// Timer for delayed appearance at smoking position
@@ -315,7 +301,7 @@ private:
 	static bool IsMovieItem(FName ItemID);
 
 	// Open the inventory in give-mode bound to OnInventoryItemOffered.
-	void OpenGiveForOffer(AMyCharacter* MyCharacter);
+	void OpenGiveForOffer(AFirstPersonCharacter* MyCharacter);
 
 	// Inventory give-mode callback: validates the offered item for the current
 	// give-state, consumes + advances on accept (returns true), else false.

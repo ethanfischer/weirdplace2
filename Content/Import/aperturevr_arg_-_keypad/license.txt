@@ -1,0 +1,11 @@
+Model Information:
+* title:	ApertureVR ARG - Keypad
+* source:	https://sketchfab.com/3d-models/aperturevr-arg-keypad-2c0e189ff0244fc8b04c999d1acc21ac
+* author:	josephthekp (https://sketchfab.com/josephthekp)
+
+Model License:
+* license type:	CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)
+* requirements:	Author must be credited. No commercial use.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "ApertureVR ARG - Keypad" (https://sketchfab.com/3d-models/aperturevr-arg-keypad-2c0e189ff0244fc8b04c999d1acc21ac) by josephthekp (https://sketchfab.com/josephthekp) licensed under CC-BY-NC-4.0 (http://creativecommons.org/licenses/by-nc/4.0/)

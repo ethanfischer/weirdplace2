@@ -1,5 +1,9 @@
 #include "FirstPersonCharacter.h"
+#include "Scalability.h"
+#include "Components/InputComponent.h"
+#include "GameFramework/PlayerController.h"
 #include "BladderUrgencyComponent.h"
+#include "StormFogComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -91,6 +95,15 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	PrimaryActorTick.bCanEverTick = true;
 	SpawnCollisionHandlingMethod = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
+	// Create and attach the inventory component (merged from AMyCharacter)
+	InventoryComponent = CreateDefaultSubobject<UInventoryComponent>(TEXT("InventoryComponent"));
+
+	// Create and attach the inventory UI component
+	InventoryUIComponent = CreateDefaultSubobject<UInventoryUIComponent>(TEXT("InventoryUIComponent"));
+
+	// Create and attach the keypad UI component (code-entry on locked doors)
+	KeypadUIComponent = CreateDefaultSubobject<UKeypadUIComponent>(TEXT("KeypadUIComponent"));
+
 	// Create first person camera
 	FirstPersonCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FirstPersonCamera"));
 	FirstPersonCamera->SetupAttachment(RootComponent);
@@ -106,6 +119,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
+
+	// Create the storm pea-soup fog component (rolls in the near-field murk on the storm beat)
+	StormFogComponent = CreateDefaultSubobject<UStormFogComponent>(TEXT("StormFogComponent"));
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
@@ -137,7 +153,14 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 void AFirstPersonCharacter::BeginPlay()
 {
-	Super::BeginPlay();
+	Super::BeginPlay(); // calls ACharacter::BeginPlay()
+
+	// DeviceProfile cvars are applied before Lumen has fully warmed up, so
+	// the first frame uses stale lighting state. Re-applying scalability after
+	// the world begins play forces Lumen to pick up the configured quality.
+	// (Inlined from former AMyCharacter::BeginPlay)
+	Scalability::FQualityLevels Levels = Scalability::GetQualityLevels();
+	Scalability::SetQualityLevels(Levels, /*bForce=*/true);
 
 	// Self-illumination overlay for item-notification popups so received items
 	// read in the game's dark areas (same material held items / pickups use).
@@ -237,6 +260,24 @@ void AFirstPersonCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 	InputDeviceTracker.Reset();
 	Super::EndPlay(EndPlayReason);
+}
+
+void AFirstPersonCharacter::PeaSoup()
+{
+	if (StormFogComponent)
+	{
+		StormFogComponent->ToggleFog();
+	}
+}
+
+void AFirstPersonCharacter::PeaSoupDist(float Centimeters)
+{
+	if (StormFogComponent)
+	{
+		// Tick keeps the MID in sync while the fog is visible, so this applies live.
+		StormFogComponent->FogDistance = FMath::Max(1.f, Centimeters);
+		UE_LOG(LogTemp, Log, TEXT("PeaSoupDist -> %.0f cm"), StormFogComponent->FogDistance);
+	}
 }
 
 #if PLATFORM_LINUX
@@ -1147,6 +1188,10 @@ void AFirstPersonCharacter::AdvanceSimpleDialogue()
 		{
 			Seneca->OnDialogueEnded();
 		}
+		else if (ARick* Rick = Cast<ARick>(EndedNPC))
+		{
+			Rick->OnDialogueEnded();
+		}
 		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
 		{
 			Hudson->OnDialogueEnded();
@@ -1249,3 +1294,89 @@ void AFirstPersonCharacter::AdvanceDialogue()
 	}
 }
 
+// --- Merged from AMyCharacter ---
+
+void AFirstPersonCharacter::LockMovieCollection()
+{
+	bMovieCollectionLocked = true;
+	UE_LOG(LogTemp, Log, TEXT("AFirstPersonCharacter::LockMovieCollection - Movie collection locked"));
+}
+
+void AFirstPersonCharacter::SetCanInteract(bool value)
+{
+	CanInteract = value;
+}
+
+void AFirstPersonCharacter::BeginInteractionHold(bool bFreezeLook)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	PC->SetIgnoreMoveInput(true);
+	if (bFreezeLook)
+	{
+		PC->SetIgnoreLookInput(true);
+	}
+
+	SetCanInteract(false);
+	SetActivityState(EPlayerActivityState::Interacting);
+
+	// Callers bind their exit/rotate actions on PC->InputComponent; ensure it exists.
+	if (!PC->InputComponent)
+	{
+		PC->InputComponent = NewObject<UInputComponent>(PC);
+		PC->InputComponent->RegisterComponent();
+	}
+}
+
+void AFirstPersonCharacter::EndInteractionHold(bool bUnfreezeLook)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	if (!PC)
+	{
+		return;
+	}
+
+	PC->SetIgnoreMoveInput(false);
+	if (bUnfreezeLook)
+	{
+		PC->SetIgnoreLookInput(false);
+	}
+
+	SetCanInteract(true);
+	SetActivityState(EPlayerActivityState::FreeRoaming);
+}
+
+void AFirstPersonCharacter::SetActivityState(EPlayerActivityState NewState)
+{
+	if (IsInAnyDialogue() && NewState == EPlayerActivityState::FreeRoaming)
+	{
+		LastDialogueEndTime = GetWorld()->GetTimeSeconds();
+	}
+	ActivityState = NewState;
+}
+
+bool AFirstPersonCharacter::IsDialogueCooldownActive() const
+{
+	return GetWorld()->GetTimeSeconds() - LastDialogueEndTime < 1.0;
+}
+
+bool AFirstPersonCharacter::IsInAnyDialogue() const
+{
+	return ActivityState == EPlayerActivityState::InSimpleDialogue
+		|| ActivityState == EPlayerActivityState::InDialogue;
+}
+
+void AFirstPersonCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
+{
+	if (!bForce && IsInAnyDialogue())
+	{
+		return;
+	}
+	Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
+}
+
+// --- End merged from AMyCharacter ---

@@ -34,13 +34,22 @@
 #include "Tests/AutomationEditorCommon.h"
 #include "UnrealClient.h"
 
-// Post-step delay applied after every FTD_Base command finishes. Set to 0 for
-// fastest possible runs, or increase to slow the test down for visual review.
+// Post-step delay applied after every FTD_Base command finishes. Default 0 for
+// fastest possible runs. Increase via the console command to slow the test down
+// for visual review (e.g. `e2e.StepDelay 0.3` restores the old 300ms pacing).
 // Configurable at runtime via `e2e.StepDelay <seconds>` console command.
 static TAutoConsoleVariable<float> CVarE2EStepDelay(
 	TEXT("e2e.StepDelay"),
-	0.5f,
-	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay."),
+	0.0f,
+	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay (default)."),
+	ECVF_Default);
+
+// Comma-separated editor labels inspected by Diagnostic.VisualInspect. Override
+// to point the orbit/burst camera rig at different actors without a rebuild.
+static TAutoConsoleVariable<FString> CVarE2EInspectTargets(
+	TEXT("e2e.InspectTargets"),
+	TEXT("BP_Seneca,BP_Rick,BP_Hudson"),
+	TEXT("Comma-separated actor labels for the VisualInspect diagnostic."),
 	ECVF_Default);
 
 // =======================================================================
@@ -98,6 +107,38 @@ public:
 			FirstTickTime = FPlatformTime::Seconds();
 		}
 
+		// Fail-fast: once any command AddErrors, drain the rest of the queue without
+		// running them so the suite doesn't burn the full per-step timeout per remaining
+		// command. On the first trip, emit a log marker and (if not NullRHI) request a
+		// screenshot named FAILURE_<TestName> for post-mortem inspection.
+		// Static state is reset whenever the owning test object changes (new test run).
+		if (Test)
+		{
+			// Track which test is running; reset per-test fail-fast state on change.
+			static FAutomationTestBase* GFailFastOwner = nullptr;
+			static bool GFailFastFired = false;
+			if (Test != GFailFastOwner)
+			{
+				GFailFastOwner = Test;
+				GFailFastFired = false;
+			}
+
+			if (Test->HasAnyErrors())
+			{
+				if (!GFailFastFired)
+				{
+					GFailFastFired = true;
+					UE_LOG(LogTemp, Warning, TEXT("E2E FAIL-FAST: short-circuiting remaining commands after first error"));
+					if (!FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+					{
+						const FString FailName = FString::Printf(TEXT("FAILURE_%s"), *Test->GetTestName());
+						FScreenshotRequest::RequestScreenshot(FailName, false, false);
+					}
+				}
+				return true;
+			}
+		}
+
 		if (!bStatusEmitted)
 		{
 			const FString Status = GetStatusText();
@@ -122,10 +163,19 @@ public:
 		}
 
 		// Hold for the globally configured post-step delay so tests can be
-		// slowed down for visual review. Skip the wait entirely when 0.
+		// slowed down for visual review. At 0 delay we still yield exactly one
+		// tick after each step so the engine can propagate the step's side-effects
+		// (e.g. camera rotation from LookAt) before the next command fires.
+		// Without this yield, LookAt and Interact can collapse onto the same tick
+		// and the interact trace fires before the camera has updated, causing misses.
 		const float Delay = CVarE2EStepDelay.GetValueOnGameThread();
 		if (Delay <= 0.f)
 		{
+			if (!bYielded)
+			{
+				bYielded = true;
+				return false;
+			}
 			return true;
 		}
 		return (FPlatformTime::Seconds() - StepDoneTime) >= Delay;
@@ -149,6 +199,10 @@ private:
 	bool bStatusEmitted = false;
 	bool bStepDone = false;
 	double StepDoneTime = 0.0;
+	// Set to true after the one-tick yield that follows each completed step when
+	// step delay is 0. Ensures adjacent commands (e.g. LookAt then Interact) run
+	// on different ticks so camera-rotation side-effects have time to propagate.
+	bool bYielded = false;
 };
 
 // =======================================================================
@@ -257,6 +311,11 @@ public:
 			Test->AddError(FString::Printf(TEXT("FTD_LookAtWaypoint: no waypoint '%s'"), *Tag.ToString()));
 			return true;
 		}
+		if (GetElapsedSinceFirstTick() > 15.0)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_LookAtWaypoint: timed out aiming at waypoint '%s'"), *Tag.ToString()));
+			return true;
+		}
 		return Driver->LookAt(Waypoint);
 	}
 private:
@@ -331,6 +390,26 @@ public:
 		if (!Driver->LookAtSeneca())
 		{
 			Test->AddError(TEXT("FTD_LookAtSeneca: failed"));
+		}
+		return true;
+	}
+};
+
+
+class FTD_LookAtTelephone : public FTD_Base
+{
+public:
+	FTD_LookAtTelephone(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Looking at Telephone"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtTelephone: no driver")); return true; }
+		if (!Driver->LookAtSeneca())
+		{
+			Test->AddError(TEXT("FTD_LookAtTelephone: failed"));
 		}
 		return true;
 	}
@@ -446,6 +525,59 @@ public:
 private:
 	FString Label;
 	float Distance;
+};
+
+// Aim the camera at an explicit world-space point.
+class FTD_LookAtWorldPoint : public FTD_Base
+{
+public:
+	FTD_LookAtWorldPoint(FAutomationTestBase* InTest, FVector InPoint)
+		: FTD_Base(InTest), Point(InPoint) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Looking at %s"), *Point.ToCompactString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_LookAtWorldPoint: no driver")); return true; }
+		if (!Driver->LookAtWorldPoint(Point))
+		{
+			Test->AddError(TEXT("FTD_LookAtWorldPoint: aim failed"));
+		}
+		return true;
+	}
+private:
+	FVector Point;
+};
+
+// Teleport the player capsule onto an explicit ground point — for screenshot
+// vantages that no waypoint or actor-relative teleport gives.
+class FTD_TeleportToWorldPoint : public FTD_Base
+{
+public:
+	FTD_TeleportToWorldPoint(FAutomationTestBase* InTest, FVector InGroundPoint)
+		: FTD_Base(InTest), GroundPoint(InGroundPoint) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Teleporting to %s"), *GroundPoint.ToCompactString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TeleportToWorldPoint: no driver")); return true; }
+		if (!Driver->TeleportToWorldPoint(GroundPoint))
+		{
+			Test->AddError(TEXT("FTD_TeleportToWorldPoint: teleport failed"));
+		}
+		return true;
+	}
+private:
+	FVector GroundPoint;
 };
 
 class FTD_TeleportNearRick : public FTD_Base
@@ -596,6 +728,28 @@ public:
 		{
 			Test->AddError(TEXT("FTD_TeleportNearBlankTape: neither side of the tape has a clear interact trace to it"));
 			return true;
+		}
+
+		// NewLoc.Z is at shelf height (TapeLoc.Z + HalfHeight), which would leave
+		// the player floating in the air. Trace straight down from there to the
+		// floor and rest the capsule on it so the player stands on the ground.
+		{
+			FHitResult FloorHit;
+			const FVector DownStart = NewLoc;
+			const FVector DownEnd = NewLoc - FVector(0.f, 0.f, 100000.f);
+			FCollisionQueryParams FloorParams(SCENE_QUERY_STAT(BlankTapeFloor), /*bTraceComplex*/ false);
+			FloorParams.AddIgnoredActor(Player);
+			if (Tape->GetWorld()->LineTraceSingleByObjectType(FloorHit, DownStart, DownEnd, ObjectParams, FloorParams))
+			{
+				NewLoc.Z = FloorHit.ImpactPoint.Z + HalfHeight;
+				UE_LOG(LogTemp, Log, TEXT("FTD_TeleportNearBlankTape: floor at %s -> stand Z=%.1f"),
+					*FloorHit.ImpactPoint.ToString(), NewLoc.Z);
+			}
+			else
+			{
+				Test->AddError(TEXT("FTD_TeleportNearBlankTape: no floor found below the stand spot"));
+				return true;
+			}
 		}
 
 		Player->SetActorLocation(NewLoc, false, nullptr, ETeleportType::TeleportPhysics);
@@ -1598,6 +1752,240 @@ private:
 };
 
 // =======================================================================
+// FTD_ScreenshotBurst — N screenshots at a fixed wall-clock interval, named
+// <Name>_t<seconds-since-start>. Catches artifacts that heal (or appear) over
+// time — PSO warmup fallbacks vs. persistent skinning/material bugs.
+// =======================================================================
+
+class FTD_ScreenshotBurst : public FTD_Base
+{
+public:
+	FTD_ScreenshotBurst(FAutomationTestBase* InTest, const FString& InName, int32 InCount, float InIntervalSec)
+		: FTD_Base(InTest), Name(InName), Count(InCount), IntervalSec(InIntervalSec) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Screenshot burst '%s' (%d shots @ %.1fs)"), *Name, Count, IntervalSec);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_ScreenshotBurst: '%s' skipped (NullRHI renders nothing)"), *Name);
+			return true;
+		}
+		const double Elapsed = GetElapsedSinceFirstTick();
+		if (bShotPending)
+		{
+			// Wait out the current request; 10s watchdog per shot like FTD_TakeScreenshot.
+			if (!FScreenshotRequest::IsScreenshotRequested())
+			{
+				bShotPending = false;
+			}
+			else if (Elapsed - ShotRequestTime > 10.0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("FTD_ScreenshotBurst: '%s' shot %d never serviced — skipping"), *Name, ShotsTaken);
+				FScreenshotRequest::Reset();
+				bShotPending = false;
+			}
+			return false;
+		}
+		if (ShotsTaken >= Count)
+		{
+			return true;
+		}
+		if (Elapsed >= ShotsTaken * IntervalSec)
+		{
+			FScreenshotRequest::RequestScreenshot(
+				FString::Printf(TEXT("%s_t%d"), *Name, FMath::RoundToInt(Elapsed)), false, false);
+			ShotRequestTime = Elapsed;
+			bShotPending = true;
+			++ShotsTaken;
+		}
+		return false;
+	}
+
+private:
+	FString Name;
+	int32 Count;
+	float IntervalSec;
+	int32 ShotsTaken = 0;
+	bool bShotPending = false;
+	double ShotRequestTime = 0.0;
+};
+
+// =======================================================================
+// FTD_OrbitScreenshotActor — park the player camera at N evenly spaced polar
+// angles around an actor (found by editor label) and screenshot each vantage,
+// named <Prefix>_a<degrees>. If scenery blocks the line to the aim point the
+// camera steps in to 60% radius for that angle (fixes counter-CRT occlusion).
+// Movement + collision are suppressed during the orbit (5.7 floor-snaps a
+// walking character on teleport) and restored at the end.
+// =======================================================================
+
+class FTD_OrbitScreenshotActor : public FTD_Base
+{
+public:
+	FTD_OrbitScreenshotActor(FAutomationTestBase* InTest, const FString& InLabel, const FString& InPrefix,
+		float InRadius = 250.f, int32 InNumAngles = 6, float InZOffset = 30.f)
+		: FTD_Base(InTest), Label(InLabel), Prefix(InPrefix)
+		, Radius(InRadius), NumAngles(InNumAngles), ZOffset(InZOffset) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Orbit-screenshotting '%s' (%d angles)"), *Label, NumAngles);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_OrbitScreenshotActor: '%s' skipped (NullRHI renders nothing)"), *Label);
+			return true;
+		}
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_OrbitScreenshotActor: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_OrbitScreenshotActor: no player")); return true; }
+		AActor* Target = Driver->FindActorByLabel(Label);
+		if (!Target)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_OrbitScreenshotActor: no actor '%s'"), *Label));
+			return true;
+		}
+
+		if (!bSuppressedMovement)
+		{
+			Player->SetActorEnableCollision(false);
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_None);
+			bSuppressedMovement = true;
+		}
+
+		if (bShotPending)
+		{
+			if (!FScreenshotRequest::IsScreenshotRequested() || ++FramesWaitingOnShot > 120)
+			{
+				if (FramesWaitingOnShot > 120)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("FTD_OrbitScreenshotActor: shot at a%d never serviced — skipping"), CurrentAngleDeg());
+					FScreenshotRequest::Reset();
+				}
+				bShotPending = false;
+				FramesWaitingOnShot = 0;
+				++AngleIndex;
+			}
+			return false;
+		}
+
+		if (AngleIndex >= NumAngles)
+		{
+			Player->SetActorEnableCollision(true);
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			return true;
+		}
+
+		if (SettleFramesLeft > 0)
+		{
+			if (--SettleFramesLeft == 0)
+			{
+				FScreenshotRequest::RequestScreenshot(
+					FString::Printf(TEXT("%s_a%d"), *Prefix, CurrentAngleDeg()), false, false);
+				bShotPending = true;
+			}
+			return false;
+		}
+
+		// Place for the current angle.
+		const FVector AimPoint = Driver->GetAimPointForActor(Target);
+		const float AngleRad = FMath::DegreesToRadians((float)CurrentAngleDeg());
+		FVector CamPos = AimPoint + FVector(FMath::Cos(AngleRad) * Radius, FMath::Sin(AngleRad) * Radius, ZOffset);
+
+		FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(OrbitShot), /*bTraceComplex*/ false);
+		TraceParams.AddIgnoredActor(Player);
+		TraceParams.AddIgnoredActor(Target);
+		FHitResult Hit;
+		if (Player->GetWorld()->LineTraceSingleByChannel(Hit, CamPos, AimPoint, ECC_Visibility, TraceParams))
+		{
+			CamPos = AimPoint + FVector(FMath::Cos(AngleRad) * Radius * 0.6f, FMath::Sin(AngleRad) * Radius * 0.6f, ZOffset);
+		}
+		Player->SetActorLocation(CamPos, false, nullptr, ETeleportType::TeleportPhysics);
+		Driver->LookAtWorldPoint(AimPoint);
+		SettleFramesLeft = 3;
+		return false;
+	}
+
+private:
+	int32 CurrentAngleDeg() const { return AngleIndex * (360 / FMath::Max(NumAngles, 1)); }
+
+	FString Label;
+	FString Prefix;
+	float Radius;
+	int32 NumAngles;
+	float ZOffset;
+	int32 AngleIndex = 0;
+	int32 SettleFramesLeft = 0;
+	int32 FramesWaitingOnShot = 0;
+	bool bShotPending = false;
+	bool bSuppressedMovement = false;
+};
+
+// =======================================================================
+// Photo-booth staging — move an actor to a lit TestWaypoint and back.
+// =======================================================================
+
+class FTD_StageActorAtWaypoint : public FTD_Base
+{
+public:
+	FTD_StageActorAtWaypoint(FAutomationTestBase* InTest, const FString& InLabel, FName InWaypointTag)
+		: FTD_Base(InTest), Label(InLabel), WaypointTag(InWaypointTag) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Staging '%s' at waypoint '%s'"), *Label, *WaypointTag.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_StageActorAtWaypoint: no driver")); return true; }
+		if (!Driver->StageActorAtWaypoint(Label, WaypointTag))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_StageActorAtWaypoint: failed for '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	FName WaypointTag;
+};
+
+class FTD_UnstageActor : public FTD_Base
+{
+public:
+	FTD_UnstageActor(FAutomationTestBase* InTest, const FString& InLabel)
+		: FTD_Base(InTest), Label(InLabel) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Unstaging '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_UnstageActor: no driver")); return true; }
+		if (!Driver->UnstageActor(Label))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_UnstageActor: failed for '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+};
+
+// =======================================================================
 // Assertions.
 // =======================================================================
 
@@ -1624,6 +2012,219 @@ public:
 	}
 private:
 	int32 Expected;
+};
+
+// Set the level's height fog component visibility. Use two of these as
+// separate latent commands for a genuine two-frame off/on cycle.
+class FTD_SetHeightFogVisible : public FTD_Base
+{
+public:
+	FTD_SetHeightFogVisible(FAutomationTestBase* InTest, bool bInVisible)
+		: FTD_Base(InTest), bVisible(bInVisible) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Setting height fog visible=%d"), bVisible ? 1 : 0);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_SetHeightFogVisible: no driver")); return true; }
+		if (!Driver->SetHeightFogVisible(bVisible))
+		{
+			Test->AddError(TEXT("FTD_SetHeightFogVisible: no height fog"));
+		}
+		return true;
+	}
+private:
+	bool bVisible;
+};
+
+// Fire a single bladder-urgency vignette pulse (no scheduling).
+class FTD_TriggerBladderPulse : public FTD_Base
+{
+public:
+	FTD_TriggerBladderPulse(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Triggering bladder pulse"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerBladderPulse: no driver")); return true; }
+		if (!Driver->TriggerBladderPulse())
+		{
+			Test->AddError(TEXT("FTD_TriggerBladderPulse: no bladder component"));
+		}
+		return true;
+	}
+};
+
+// Assert a named scene component on a labeled actor exists and matches the
+// expected visibility. Errors (rather than passing) when the actor or the
+// component is missing.
+class FTD_AssertNamedComponentVisible : public FTD_Base
+{
+public:
+	FTD_AssertNamedComponentVisible(FAutomationTestBase* InTest, FString InActorLabel, FString InComponentName, bool bInExpectVisible)
+		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), ComponentName(MoveTemp(InComponentName)), bExpectVisible(bInExpectVisible) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s.%s %s"), *ActorLabel, *ComponentName, bExpectVisible ? TEXT("visible") : TEXT("hidden"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertNamedComponentVisible: no driver")); return true; }
+		bool bVisible = false;
+		if (!Driver->GetNamedComponentVisible(ActorLabel, ComponentName, bVisible))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertNamedComponentVisible: no component '%s' on actor '%s'"), *ComponentName, *ActorLabel));
+			return true;
+		}
+		if (bVisible != bExpectVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertNamedComponentVisible: %s.%s is %s, expected %s"),
+				*ActorLabel, *ComponentName,
+				bVisible ? TEXT("visible") : TEXT("hidden"),
+				bExpectVisible ? TEXT("visible") : TEXT("hidden")));
+		}
+		return true;
+	}
+private:
+	FString ActorLabel;
+	FString ComponentName;
+	bool bExpectVisible;
+};
+
+
+// Assert the in-widget dialogue text backing on a labeled actor: the Text
+// block must be wrapped in the backing plate (structure always present once
+// the widget constructs), and the dialogue widget open-state must match
+// bExpectOpen. Errors if the actor isn't a dialogue provider / has no widget.
+class FTD_AssertDialogueBacking : public FTD_Base
+{
+public:
+	FTD_AssertDialogueBacking(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
+		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), bExpectOpen(bInExpectOpen) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue backing (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueBacking: no driver")); return true; }
+		bool bHasBacking = false, bDialogueOpen = false;
+		if (!Driver->GetDialogueBackingState(ActorLabel, bHasBacking, bDialogueOpen))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s is not a dialogue provider or has no widget"), *ActorLabel));
+			return true;
+		}
+		if (!bHasBacking)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue text is not wrapped in the backing plate"), *ActorLabel));
+		}
+		if (bDialogueOpen != bExpectOpen)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue is %s, expected %s"),
+				*ActorLabel, bDialogueOpen ? TEXT("open") : TEXT("closed"), bExpectOpen ? TEXT("open") : TEXT("closed")));
+		}
+		return true;
+	}
+private:
+	FString ActorLabel;
+	bool bExpectOpen;
+};
+
+// Assert the world movie poster tagged "MoviePoster<Index>" exists and its
+// poster surface is hidden.
+class FTD_AssertMoviePosterHidden : public FTD_Base
+{
+public:
+	FTD_AssertMoviePosterHidden(FAutomationTestBase* InTest, int32 InPosterIndex)
+		: FTD_Base(InTest), PosterIndex(InPosterIndex) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting movie poster %d hidden"), PosterIndex);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterHidden: no driver")); return true; }
+		bool bVisible = false;
+		FString MatName;
+		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: no poster surface tagged MoviePoster%d"), PosterIndex));
+			return true;
+		}
+		if (bVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: poster %d is visible (material '%s')"), PosterIndex, *MatName));
+		}
+		return true;
+	}
+private:
+	int32 PosterIndex;
+};
+
+// Assert the world movie poster tagged "MoviePoster<Index>" is visible and
+// shows the cover of the movie at inventory slot SlotIndex — material name
+// MI_VHSCover_<ItemID> per the project-wide cover convention.
+class FTD_AssertMoviePosterShowsInventoryMovie : public FTD_Base
+{
+public:
+	FTD_AssertMoviePosterShowsInventoryMovie(FAutomationTestBase* InTest, int32 InPosterIndex, int32 InSlotIndex)
+		: FTD_Base(InTest), PosterIndex(InPosterIndex), SlotIndex(InSlotIndex) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting movie poster %d shows inventory slot %d cover"), PosterIndex, SlotIndex);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no driver")); return true; }
+
+		const FName ItemId = Driver->GetInventoryItemAt(SlotIndex);
+		if (ItemId.IsNone())
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: inventory slot %d is empty"), SlotIndex));
+			return true;
+		}
+		// Poster identity is the CoverTexture param's texture name, which is
+		// the movie's ItemID (covers live at /Game/VHSCovers/<ItemID>).
+		const FString Expected = ItemId.ToString();
+
+		bool bVisible = false;
+		FString MatName;
+		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no poster surface tagged MoviePoster%d"), PosterIndex));
+			return true;
+		}
+		if (!bVisible)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d is hidden (expected visible with '%s')"), PosterIndex, *Expected));
+		}
+		if (MatName != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d material '%s', expected '%s'"), PosterIndex, *MatName, *Expected));
+		}
+		return true;
+	}
+private:
+	int32 PosterIndex;
+	int32 SlotIndex;
 };
 
 // Assert the absolute selected item index in the inventory strip.
@@ -2992,6 +3593,27 @@ public:
 };
 
 // =======================================================================
+// FTD_SimulatePutBack — press the "put back" binding (keyboard Q / gamepad
+// B) that exits item inspection. One-shot.
+// =======================================================================
+
+class FTD_SimulatePutBack : public FTD_Base
+{
+public:
+	FTD_SimulatePutBack(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Simulating put-back"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		Driver->SimulatePutBack();
+		return true;
+	}
+};
+
+// =======================================================================
 // FTD_WaitForSenecaAppearedAtSmoking — poll until Seneca has been
 // re-teleported out of the hidden below-world position back to the
 // smoking spot. Depends on the SenecaSmoking waypoint being placed so
@@ -3073,6 +3695,34 @@ private:
 // =======================================================================
 // FTD_WaitForKeypadOpen — wait until the code-entry keypad is fully open.
 // =======================================================================
+
+// FTD_TriggerKeypadDoorOpen — pop a keypad door's code UI by firing its Interact
+// directly (by actor label), bypassing the simulated interact key that 5.7
+// intermittently swallows at fast pacing in headed runs.
+class FTD_TriggerKeypadDoorOpen : public FTD_Base
+{
+public:
+	FTD_TriggerKeypadDoorOpen(FAutomationTestBase* InTest, FString InLabel)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Opening keypad on '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_TriggerKeypadDoorOpen: no driver")); return true; }
+		if (!Driver->TriggerKeypadDoorOpen(Label))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_TriggerKeypadDoorOpen: failed on '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+};
 
 class FTD_WaitForKeypadOpen : public FTD_Base
 {

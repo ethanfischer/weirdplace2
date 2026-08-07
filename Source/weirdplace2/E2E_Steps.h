@@ -26,6 +26,10 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_02_SenecaDialogueStarted")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_04_IntroDialogueDone")));
+		// Wait out the 1-second dialogue cooldown so CollectMovies can interact
+		// immediately. In headless NullRHI the inter-command latency is sub-ms,
+		// so without this the cooldown is still active when the first E-press fires.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void CollectMovies(FAutomationTestBase* T)
@@ -67,6 +71,8 @@ namespace E2ESteps
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));  // select movie slot
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E confirms the give
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+			// Wait out the 1-second dialogue cooldown before the next Seneca interaction.
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_%02d_GaveMovie%d"), 7 + i, i + 1)));
 		}
 	}
@@ -86,6 +92,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_11b_MoneyMeshGone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before the next Seneca interaction.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void GiveMoneyAskForBlank(FAutomationTestBase* T)
@@ -99,6 +107,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // Money at slot 0
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the money
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before CollectBlankTape interacts.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_13_AskedForBlank")));
 	}
 
@@ -131,6 +141,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_15b_KeyMeshGone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before UseKeyOnDoor interacts.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
 	}
 
 	void UseKeyOnDoor(FAutomationTestBase* T)
@@ -167,17 +179,43 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16c_BrokenKeyCollected")));
 	}
 
+	void WatchTornadoWarningTV(FAutomationTestBase* T)
+	{
+		// The key-break sequence set KeyBroke. Re-entering the store flips both
+		// store TVs to the tornado warning; the player must dwell-gaze a warning
+		// TV for StorySubsystem's GazeRequiredSeconds (2s) to register
+		// SeenTornadoWarning — which reveals the roadside payphone and gates the
+		// UseTelephone step below.
+		//
+		// Stand right in front of BP_TV: from the MovieShelf spot itself the
+		// store's own movie-cover shelving occludes the TV (the gaze
+		// line-of-sight trace is blocked by shelf VHS covers), so the dwell
+		// never accrues. Teleport to MovieShelf FIRST so the subsequent
+		// "near TV" placement — which lands the player on the TV side facing
+		// their current position — ends up on the shelf side of the TV, which
+		// has a clear sightline. (Approaching from the bathroom side, where the
+		// player is after collecting the broken key, lands on the occluded side.)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("MovieShelf")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(T, TEXT("BP_TV"), 250.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f)); // let the capsule settle before baking the look rotation
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BP_TV")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_16d_WatchingTornadoTV")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("SeenTornadoWarning"), true, 8.0));
+	}
+
 	void FastForwardSenecaSmoking(FAutomationTestBase* T)
 	{
-		// Seneca won't appear outside smoking until the player has used the
-		// payphone at least once. The happy path doesn't otherwise walk the
-		// tornado/payphone beat, so set the gating flag directly here.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(T, FName("UsedPayPhone"), true));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 	}
 
 	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
+		// The broken-key beat hides Seneca and schedules her to reappear at the
+		// smoking spot after a 30s delay. Skip that wait so the test isn't gated
+		// on real time (FTD_WaitForSenecaAppearedAtSmoking only allows a few
+		// seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
@@ -185,8 +223,23 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 	}
+	
+	void UseTelephone(FAutomationTestBase* T)
+	{
+		// SeenTornadoWarning (set by WatchTornadoWarningTV) revealed the roadside
+		// payphone. Walk up, pick up the receiver — which records UsedPayPhone and
+		// unlocks the bathroom keypad — then hang up via Exit Interaction to release
+		// the player. There is no "Telephone" waypoint; the phone lives far off the
+		// store lot, so teleport near the actor itself.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(T, TEXT("BP_TelephoneScene"), 300.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BP_TelephoneScene")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17a_Telephone")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("UsedPayPhone"), true, 5.0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulatePutBack(T));
+	}
 
-	void OpenBathroomDoor(FAutomationTestBase* T)
+	void OpenKeypadDoor(FAutomationTestBase* T)
 	{
 		// Employee bathroom now opens via the phone-code keypad (Seneca no longer
 		// unlocks it). The lock accepts almost any 4-digit entry, but it must contain
@@ -194,7 +247,10 @@ namespace E2ESteps
 		// selecting each digit cell (digit N lives at cell N-1) and pressing Interact.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BathroomDoor")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// Fire the door's Interact directly rather than via the simulated interact
+		// key: 5.7 intermittently swallows the press at fast step-delay in headed
+		// runs, leaving the keypad closed (same reason EnterKeypadCode bypasses input).
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerKeypadDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19a_KeypadOpen")));
 		// Enter the first two digits to capture the fill row (now above the grid), then
@@ -204,6 +260,18 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_EnterKeypadCode(T, TEXT("89")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19_BathroomDoorOpen")));
+	}
+
+	void OpenGasHallwayDoor(FAutomationTestBase* T)
+	{
+		// Past the keypad door, walk down into the gas-station hallway and open the
+		// bathroom door at its end. This is a normal (non-keypad) door — interacting
+		// while looking at it swings it open.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("GasHallway"), 2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("GasHallwayBathroomDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("GasHallwayBathroomDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19c_GasHallwayDoorOpen")));
 	}
 
 	void EnterStall(FAutomationTestBase* T)

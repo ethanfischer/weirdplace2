@@ -91,6 +91,15 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 - Use `CreateDefaultSubobject` for owned components in constructors
 - Null-check pointers before dereference; early-return on failure
 - Use `UE_LOG(LogTemp, ...)` for debugging
+- **Tunable gameplay constants**: don't hardcode magic numbers you (or the user) will want to dial in — declare them with `WP_TUNABLE_FLOAT/INT/BOOL` from `Tunable.h` (cvar prefix `weird.<System>.<Name>`), then tune live via `uq cvar` and bake the final value back into the default. New tunables need a full editor restart to register (Live Coding won't); tweaking existing ones is always live. See docs/dev-tooling.md.
+
+## Dev tooling — use these before writing one-off scripts
+
+Full reference: **docs/dev-tooling.md**. TL;DR:
+
+- **`python scripts/uq.py <verb>`** — query/command the live editor: `actors`, `components`, `props` (actors, components, assets, `cdo:` Blueprint defaults), `get`/`set`, `bounds`, `screenshot`, `mat-params`, `assets`/`refs`, `cvar`, `exec`, `py`, `save`. **Do NOT write a new `scripts/local/*.py` inspection script until you've checked uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
+- **`python scripts/logq.py`** — error/warning triage for `weirdplace2.log` (auto-scoped to the latest PIE session) and `--e2e` for `E2ETest.log`. Prefer this over hand-rolled grep.
+- **`python scripts/e2e_report.py`** — diff headed E2E screenshots against `Tests/E2EGoldens/`, HTML gallery in `Saved/E2EReport/report.html`; `--bless` to accept new baselines; `run_e2e.ps1 ... -Report` runs it after a suite.
 
 ## Hiding Actors at Runtime
 
@@ -110,6 +119,7 @@ Setting "Hidden in Game" in the editor Details panel is also unreliable — alwa
 ## Reading Output Logs
 
 Always read logs directly — never ask the user to copy-paste them.
+Prefer `python scripts/logq.py` (see Dev tooling above) for triage; raw grep below for targeted digs.
 
 The active log is at:
 ```

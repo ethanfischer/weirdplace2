@@ -67,7 +67,19 @@ void UBladderUrgencyComponent::BeginPlay()
 
 	ResetLegacyPostProcessOverrides();
 	InitializeVignetteMaterial();
-	SetVignetteIntensity(0.f);
+
+	// Warm the vignette's post-process pipeline at load: a weight-0 blendable
+	// is culled from rendering, so its shaders otherwise compile at the FIRST
+	// real pulse — which renders garbage exactly when the player is meant to
+	// see it (verified live 2026-07-02: first render draws a corrupt border,
+	// correct from the second render on). Hold a just-above-threshold weight
+	// for the first second instead, then drop to 0. Weights below ~1/255
+	// (e.g. the 0.002 tried first) are culled and never compile.
+	SetVignetteIntensity(0.05f);
+	GetWorld()->GetTimerManager().SetTimer(
+		WarmupTimerHandle,
+		FTimerDelegate::CreateWeakLambda(this, [this]() { SetVignetteIntensity(0.f); }),
+		1.0f, false);
 
 	if (!UrgencySound)
 	{

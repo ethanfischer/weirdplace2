@@ -160,6 +160,9 @@ Project folders:
 - `Content/FirstPerson/`, `Content/FirstPersonArms/`, `Content/FPWeapon/`, `Content/ThirdPerson/` — Epic templates
 - `Content/LevelPrototyping/` — Epic prototype materials
 
+### Sketchfab "ApertureVR ARG - Keypad"
+(https://skfb.ly/opru9) by nyctomatic is licensed under Creative Commons Attribution-NonCommercial (http://creativecommons.org/licenses/by-nc/4.0/).
+
 ---
 
 ## Code / Plugins
@@ -184,3 +187,6 @@ Project folders:
 ## Fonts
 
 _(none yet)_
+
+
+

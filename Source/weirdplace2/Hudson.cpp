@@ -1,6 +1,5 @@
 #include "Hudson.h"
 #include "FirstPersonCharacter.h"
-#include "MyCharacter.h"
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "UI_Dialogue.h"
@@ -36,6 +35,14 @@ void AHudson::BeginPlay()
 			if (AActor* ChildActor = ChildActorComp->GetChildActor())
 			{
 				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
+				if (DialogueWidgetComponent)
+				{
+					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
+					// alpha blending. Force Transparent blend so BackingOpacity is a
+					// true gradient -- Masked blend clips it binary at the 0.333 mask
+					// threshold, which reads as a hard step near ~0.35.
+					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
+				}
 			}
 			break;
 		}
@@ -94,8 +101,7 @@ void AHudson::Interact_Implementation()
 	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
 	if (!FPChar) { UE_LOG(LogTemp, Error, TEXT("Hudson::Interact - no FPChar")); return; }
 
-	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
 	if (!Inventory) { UE_LOG(LogTemp, Error, TEXT("Hudson::Interact - no Inventory")); return; }
 
 	bool bHasMoney = Inventory->HasItem(FName("Money"));
@@ -119,7 +125,7 @@ void AHudson::Interact_Implementation()
 		if (Inventory->HasItem(FName("Money")))
 		{
 			// Pop the inventory; the player picks Money and presses E to hand it over.
-			if (UInventoryUIComponent* InvUI = MyChar->GetInventoryUIComponent())
+			if (UInventoryUIComponent* InvUI = FPChar->GetInventoryUIComponent())
 			{
 				InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &AHudson::OnMoneyOffered));
 			}
@@ -145,9 +151,8 @@ bool AHudson::OnMoneyOffered(FName ItemID)
 	}
 
 	ACharacter* PlayerCharacter = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
-	AMyCharacter* MyChar = Cast<AMyCharacter>(PlayerCharacter);
 	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter);
-	UInventoryComponent* Inventory = MyChar ? MyChar->GetInventoryComponent() : nullptr;
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
 	if (!Inventory || !FPChar)
 	{
 		return false;
