@@ -44,6 +44,14 @@ static TAutoConsoleVariable<float> CVarE2EStepDelay(
 	TEXT("Seconds to pause after each E2E latent command completes. 0 = no delay (default)."),
 	ECVF_Default);
 
+// Comma-separated editor labels inspected by Diagnostic.VisualInspect. Override
+// to point the orbit/burst camera rig at different actors without a rebuild.
+static TAutoConsoleVariable<FString> CVarE2EInspectTargets(
+	TEXT("e2e.InspectTargets"),
+	TEXT("BP_Seneca,BP_Rick,BP_Hudson"),
+	TEXT("Comma-separated actor labels for the VisualInspect diagnostic."),
+	ECVF_Default);
+
 // =======================================================================
 // Helpers
 // =======================================================================
@@ -1741,6 +1749,240 @@ public:
 private:
 	FString Name;
 	bool bRequested;
+};
+
+// =======================================================================
+// FTD_ScreenshotBurst — N screenshots at a fixed wall-clock interval, named
+// <Name>_t<seconds-since-start>. Catches artifacts that heal (or appear) over
+// time — PSO warmup fallbacks vs. persistent skinning/material bugs.
+// =======================================================================
+
+class FTD_ScreenshotBurst : public FTD_Base
+{
+public:
+	FTD_ScreenshotBurst(FAutomationTestBase* InTest, const FString& InName, int32 InCount, float InIntervalSec)
+		: FTD_Base(InTest), Name(InName), Count(InCount), IntervalSec(InIntervalSec) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Screenshot burst '%s' (%d shots @ %.1fs)"), *Name, Count, IntervalSec);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_ScreenshotBurst: '%s' skipped (NullRHI renders nothing)"), *Name);
+			return true;
+		}
+		const double Elapsed = GetElapsedSinceFirstTick();
+		if (bShotPending)
+		{
+			// Wait out the current request; 10s watchdog per shot like FTD_TakeScreenshot.
+			if (!FScreenshotRequest::IsScreenshotRequested())
+			{
+				bShotPending = false;
+			}
+			else if (Elapsed - ShotRequestTime > 10.0)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("FTD_ScreenshotBurst: '%s' shot %d never serviced — skipping"), *Name, ShotsTaken);
+				FScreenshotRequest::Reset();
+				bShotPending = false;
+			}
+			return false;
+		}
+		if (ShotsTaken >= Count)
+		{
+			return true;
+		}
+		if (Elapsed >= ShotsTaken * IntervalSec)
+		{
+			FScreenshotRequest::RequestScreenshot(
+				FString::Printf(TEXT("%s_t%d"), *Name, FMath::RoundToInt(Elapsed)), false, false);
+			ShotRequestTime = Elapsed;
+			bShotPending = true;
+			++ShotsTaken;
+		}
+		return false;
+	}
+
+private:
+	FString Name;
+	int32 Count;
+	float IntervalSec;
+	int32 ShotsTaken = 0;
+	bool bShotPending = false;
+	double ShotRequestTime = 0.0;
+};
+
+// =======================================================================
+// FTD_OrbitScreenshotActor — park the player camera at N evenly spaced polar
+// angles around an actor (found by editor label) and screenshot each vantage,
+// named <Prefix>_a<degrees>. If scenery blocks the line to the aim point the
+// camera steps in to 60% radius for that angle (fixes counter-CRT occlusion).
+// Movement + collision are suppressed during the orbit (5.7 floor-snaps a
+// walking character on teleport) and restored at the end.
+// =======================================================================
+
+class FTD_OrbitScreenshotActor : public FTD_Base
+{
+public:
+	FTD_OrbitScreenshotActor(FAutomationTestBase* InTest, const FString& InLabel, const FString& InPrefix,
+		float InRadius = 250.f, int32 InNumAngles = 6, float InZOffset = 30.f)
+		: FTD_Base(InTest), Label(InLabel), Prefix(InPrefix)
+		, Radius(InRadius), NumAngles(InNumAngles), ZOffset(InZOffset) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Orbit-screenshotting '%s' (%d angles)"), *Label, NumAngles);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		if (FParse::Param(FCommandLine::Get(), TEXT("nullrhi")))
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_OrbitScreenshotActor: '%s' skipped (NullRHI renders nothing)"), *Label);
+			return true;
+		}
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_OrbitScreenshotActor: no driver")); return true; }
+		AFirstPersonCharacter* Player = Driver->GetPlayer();
+		if (!Player) { Test->AddError(TEXT("FTD_OrbitScreenshotActor: no player")); return true; }
+		AActor* Target = Driver->FindActorByLabel(Label);
+		if (!Target)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_OrbitScreenshotActor: no actor '%s'"), *Label));
+			return true;
+		}
+
+		if (!bSuppressedMovement)
+		{
+			Player->SetActorEnableCollision(false);
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_None);
+			bSuppressedMovement = true;
+		}
+
+		if (bShotPending)
+		{
+			if (!FScreenshotRequest::IsScreenshotRequested() || ++FramesWaitingOnShot > 120)
+			{
+				if (FramesWaitingOnShot > 120)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("FTD_OrbitScreenshotActor: shot at a%d never serviced — skipping"), CurrentAngleDeg());
+					FScreenshotRequest::Reset();
+				}
+				bShotPending = false;
+				FramesWaitingOnShot = 0;
+				++AngleIndex;
+			}
+			return false;
+		}
+
+		if (AngleIndex >= NumAngles)
+		{
+			Player->SetActorEnableCollision(true);
+			Player->GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			return true;
+		}
+
+		if (SettleFramesLeft > 0)
+		{
+			if (--SettleFramesLeft == 0)
+			{
+				FScreenshotRequest::RequestScreenshot(
+					FString::Printf(TEXT("%s_a%d"), *Prefix, CurrentAngleDeg()), false, false);
+				bShotPending = true;
+			}
+			return false;
+		}
+
+		// Place for the current angle.
+		const FVector AimPoint = Driver->GetAimPointForActor(Target);
+		const float AngleRad = FMath::DegreesToRadians((float)CurrentAngleDeg());
+		FVector CamPos = AimPoint + FVector(FMath::Cos(AngleRad) * Radius, FMath::Sin(AngleRad) * Radius, ZOffset);
+
+		FCollisionQueryParams TraceParams(SCENE_QUERY_STAT(OrbitShot), /*bTraceComplex*/ false);
+		TraceParams.AddIgnoredActor(Player);
+		TraceParams.AddIgnoredActor(Target);
+		FHitResult Hit;
+		if (Player->GetWorld()->LineTraceSingleByChannel(Hit, CamPos, AimPoint, ECC_Visibility, TraceParams))
+		{
+			CamPos = AimPoint + FVector(FMath::Cos(AngleRad) * Radius * 0.6f, FMath::Sin(AngleRad) * Radius * 0.6f, ZOffset);
+		}
+		Player->SetActorLocation(CamPos, false, nullptr, ETeleportType::TeleportPhysics);
+		Driver->LookAtWorldPoint(AimPoint);
+		SettleFramesLeft = 3;
+		return false;
+	}
+
+private:
+	int32 CurrentAngleDeg() const { return AngleIndex * (360 / FMath::Max(NumAngles, 1)); }
+
+	FString Label;
+	FString Prefix;
+	float Radius;
+	int32 NumAngles;
+	float ZOffset;
+	int32 AngleIndex = 0;
+	int32 SettleFramesLeft = 0;
+	int32 FramesWaitingOnShot = 0;
+	bool bShotPending = false;
+	bool bSuppressedMovement = false;
+};
+
+// =======================================================================
+// Photo-booth staging — move an actor to a lit TestWaypoint and back.
+// =======================================================================
+
+class FTD_StageActorAtWaypoint : public FTD_Base
+{
+public:
+	FTD_StageActorAtWaypoint(FAutomationTestBase* InTest, const FString& InLabel, FName InWaypointTag)
+		: FTD_Base(InTest), Label(InLabel), WaypointTag(InWaypointTag) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Staging '%s' at waypoint '%s'"), *Label, *WaypointTag.ToString());
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_StageActorAtWaypoint: no driver")); return true; }
+		if (!Driver->StageActorAtWaypoint(Label, WaypointTag))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_StageActorAtWaypoint: failed for '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	FName WaypointTag;
+};
+
+class FTD_UnstageActor : public FTD_Base
+{
+public:
+	FTD_UnstageActor(FAutomationTestBase* InTest, const FString& InLabel)
+		: FTD_Base(InTest), Label(InLabel) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Unstaging '%s'"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_UnstageActor: no driver")); return true; }
+		if (!Driver->UnstageActor(Label))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_UnstageActor: failed for '%s'"), *Label));
+		}
+		return true;
+	}
+private:
+	FString Label;
 };
 
 // =======================================================================

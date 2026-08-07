@@ -2028,4 +2028,45 @@ bool FE2E_Level1_Diag_ClockHunt::RunTest(const FString& Parameters)
 	return true;
 }
 
+// =======================================================================
+// Diagnostic.VisualInspect — per-NPC visual inspection: an in-place timed
+// screenshot burst (catches warmup-vs-persistent artifacts), then stage the
+// actor at the lit "PhotoBooth" waypoint and orbit-screenshot it from all
+// sides. Targets come from `e2e.InspectTargets` (comma-separated labels) so
+// new subjects need no rebuild. Staging note: Seneca teleports are only safe
+// while her smoking-appear deferral is idle — true at map start.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_VisualInspect,
+	"Weirdplace2.E2E.Level1.Diagnostic.VisualInspect",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("VisualInspect")
+
+	TArray<FString> Targets;
+	CVarE2EInspectTargets.GetValueOnGameThread().ParseIntoArray(Targets, TEXT(","));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(8.0f));
+
+	for (const FString& Label : Targets)
+	{
+		// In-situ: how the NPC actually looks where it stands, over time.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, Label, 250.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, Label));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_ScreenshotBurst(this, FString::Printf(TEXT("Inspect_%s_insitu"), *Label), 2, 6.f));
+
+		// Photo booth: full orbit under known lighting.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_StageActorAtWaypoint(this, Label, TEXT("PhotoBooth")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_OrbitScreenshotActor(this, Label, FString::Printf(TEXT("Inspect_%s_orbit"), *Label)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_UnstageActor(this, Label));
+	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

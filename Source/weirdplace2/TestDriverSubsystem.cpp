@@ -578,19 +578,7 @@ bool UTestDriverSubsystem::LookAt(AActor* Target)
 		return false;
 	}
 
-	// For MetaHuman NPCs the actor root sits at world Z=0, so aim at the
-	// "Body" skeletal mesh component which reflects the rendered position.
-	// Falls back to the full bounds for non-MetaHumans (props, MovieBoxes).
-	FVector AimPoint;
-	if (USkeletalMeshComponent* Face = Cast<USkeletalMeshComponent>(Target->GetDefaultSubobjectByName(TEXT("Face"))))
-	{
-		AimPoint = Face->Bounds.Origin;
-	}
-	else
-	{
-		AimPoint = Target->GetComponentsBoundingBox(/*bNonColliding*/ true).GetCenter();
-	}
-
+	const FVector AimPoint = GetAimPointForActor(Target);
 	const FVector CamLoc = Camera->GetComponentLocation();
 	const FVector Dir = (AimPoint - CamLoc).GetSafeNormal();
 	const FRotator NewRot = Dir.Rotation();
@@ -668,6 +656,64 @@ bool UTestDriverSubsystem::LookAtWorldPoint(const FVector& Point)
 	PC->SetControlRotation((Point - CamLoc).GetSafeNormal().Rotation());
 	UE_LOG(LogTemp, Log, TEXT("TestDriver::LookAtWorldPoint - aim=%s cam=%s dist=%.1f"),
 		*Point.ToString(), *CamLoc.ToString(), FVector::Dist(Point, CamLoc));
+	return true;
+}
+
+FVector UTestDriverSubsystem::GetAimPointForActor(AActor* Target) const
+{
+	// For MetaHuman NPCs the actor root sits at world Z=0, so aim at the
+	// Face skeletal mesh component which reflects the rendered position.
+	// Falls back to the full bounds for non-MetaHumans (props, MovieBoxes).
+	if (USkeletalMeshComponent* Face = Cast<USkeletalMeshComponent>(Target->GetDefaultSubobjectByName(TEXT("Face"))))
+	{
+		return Face->Bounds.Origin;
+	}
+	return Target->GetComponentsBoundingBox(/*bNonColliding*/ true).GetCenter();
+}
+
+bool UTestDriverSubsystem::StageActorAtWaypoint(const FString& Label, FName WaypointTag)
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::StageActorAtWaypoint - no actor '%s'"), *Label);
+		return false;
+	}
+	ATestWaypoint* Waypoint = ATestWaypoint::FindByTag(this, WaypointTag);
+	if (!Waypoint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::StageActorAtWaypoint - no waypoint '%s'"), *WaypointTag.ToString());
+		return false;
+	}
+	if (!StagedActorTransforms.Contains(Label))
+	{
+		StagedActorTransforms.Add(Label, Actor->GetActorTransform());
+	}
+	Actor->SetActorLocationAndRotation(Waypoint->GetActorLocation(), Waypoint->GetActorRotation(),
+		false, nullptr, ETeleportType::TeleportPhysics);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::StageActorAtWaypoint - '%s' -> %s"),
+		*Label, *Waypoint->GetActorLocation().ToString());
+	return true;
+}
+
+bool UTestDriverSubsystem::UnstageActor(const FString& Label)
+{
+	const FTransform* Original = StagedActorTransforms.Find(Label);
+	if (!Original)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::UnstageActor - '%s' was never staged"), *Label);
+		return false;
+	}
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::UnstageActor - no actor '%s'"), *Label);
+		return false;
+	}
+	Actor->SetActorLocationAndRotation(Original->GetLocation(), Original->GetRotation(),
+		false, nullptr, ETeleportType::TeleportPhysics);
+	StagedActorTransforms.Remove(Label);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::UnstageActor - '%s' restored"), *Label);
 	return true;
 }
 

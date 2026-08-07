@@ -61,6 +61,20 @@ public:
 	// Aim the camera at an exact world position.
 	bool LookAtWorldPoint(const FVector& Point);
 
+	// The point LookAt() aims at for a given actor: the Face mesh bounds origin
+	// for MetaHumans (their root sits at Z=0), else the full bounds center.
+	FVector GetAimPointForActor(AActor* Target) const;
+
+	// --- Photo-booth staging (visual-inspection diagnostics) ---
+
+	// Teleport the actor found by editor label onto the ATestWaypoint with the
+	// given tag, recording its original transform for UnstageActor. Fails (and
+	// logs Error) if actor or waypoint is missing.
+	bool StageActorAtWaypoint(const FString& Label, FName WaypointTag);
+
+	// Restore a previously staged actor to its recorded transform.
+	bool UnstageActor(const FString& Label);
+
 	// Set by FTD_TeleportNearBlankTape: a verified-hittable point just inside
 	// the blank tape's collision surface. FTD_LookAtBlankTape aims here —
 	// derived centers (actor bounds, envelope bounds) miss the Memphis mesh's
@@ -400,4 +414,7 @@ private:
 
 	TSet<TWeakObjectPtr<AMovieBox>> CollectedMovies;
 	TWeakObjectPtr<AMovieBox> LastFoundMovie;
+
+	// Original transforms of actors moved by StageActorAtWaypoint, keyed by label.
+	TMap<FString, FTransform> StagedActorTransforms;
 };
