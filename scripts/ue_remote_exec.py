@@ -6,6 +6,8 @@ Python -> Enable Remote Execution to be ON.
 Usage:
     python scripts/ue_remote_exec.py --file path/to/script.py
     python scripts/ue_remote_exec.py --code 'print(unreal.EditorLevelLibrary.get_editor_world().get_name())'
+
+Also importable: run_code(code, mode, ...) -> (success, output_text).
 """
 
 import argparse
@@ -18,6 +20,53 @@ REMOTE_EXEC_PATH = Path(r"C:\Program Files\Epic Games\UE_5.7\Engine\Plugins\Expe
 sys.path.insert(0, str(REMOTE_EXEC_PATH))
 
 import remote_execution as re_mod  # type: ignore
+
+
+class EditorNotFound(RuntimeError):
+    pass
+
+
+def run_code(code, mode="ExecuteFile", discover_timeout=5.0):
+    """Execute code (or, in ExecuteFile mode, the file at the absolute path in
+    `code` — UE 5.7's MODE_EXEC_FILE resolves a path, not file contents) in the
+    running editor. Returns (success: bool, output: str).
+    Raises EditorNotFound if no editor answers the multicast probe."""
+    config = re_mod.RemoteExecutionConfig()
+    # Defaults match the UE editor's defaults: multicast 239.0.0.1:6766.
+    conn = re_mod.RemoteExecution(config)
+    conn.start()
+    try:
+        deadline = time.time() + discover_timeout
+        while not conn.remote_nodes:
+            if time.time() > deadline:
+                raise EditorNotFound(
+                    "no UE editor found via remote execution. Is the editor running "
+                    "and is the setting in Project Settings (not Editor Preferences)?")
+            time.sleep(0.1)
+        node = conn.remote_nodes[0]
+        conn.open_command_connection(node["node_id"])
+        try:
+            result = conn.run_command(
+                code,
+                unattended=True,
+                exec_mode=getattr(re_mod, "MODE_" + (
+                    "EXEC_FILE" if mode == "ExecuteFile" else
+                    "EXEC_STATEMENT" if mode == "ExecuteStatement" else
+                    "EVAL_STATEMENT"
+                )),
+            )
+        finally:
+            conn.close_command_connection()
+    finally:
+        conn.stop()
+
+    if not result:
+        return (False, "ERROR: no result from UE")
+    text = "".join(entry.get("output", "") for entry in (result.get("output") or []))
+    ret = result.get("result")
+    if result.get("success") and ret is not None and ret != "None":
+        text += f"\n[result] {ret}"
+    return (bool(result.get("success")), text)
 
 
 def main():
@@ -34,51 +83,20 @@ def main():
     else:
         code = args.code
 
-    config = re_mod.RemoteExecutionConfig()
-    # Defaults match the UE editor's defaults: multicast 239.0.0.1:6766.
-    conn = re_mod.RemoteExecution(config)
-    conn.start()
     try:
-        # Discover at least one node.
-        deadline = time.time() + 5.0
-        while not conn.remote_nodes:
-            if time.time() > deadline:
-                print("ERROR: no UE editor found via remote execution. Is the editor running and is the setting in Project Settings (not Editor Preferences)?", file=sys.stderr)
-                sys.exit(2)
-            time.sleep(0.1)
-        node = conn.remote_nodes[0]
-        conn.open_command_connection(node["node_id"])
-        try:
-            result = conn.run_command(
-                code,
-                unattended=True,
-                exec_mode=getattr(re_mod, "MODE_" + (
-                    "EXEC_FILE" if args.mode == "ExecuteFile" else
-                    "EXEC_STATEMENT" if args.mode == "ExecuteStatement" else
-                    "EVAL_STATEMENT"
-                )),
-            )
-        finally:
-            conn.close_command_connection()
-    finally:
-        conn.stop()
+        success, text = run_code(code, mode=args.mode)
+    except EditorNotFound as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(2)
 
-    if not result:
-        print("ERROR: no result from UE", file=sys.stderr)
-        sys.exit(3)
-
-    if result.get("success"):
-        out = result.get("output") or []
-        for entry in out:
-            print(entry.get("output", ""), end="")
-        ret = result.get("result")
-        if ret is not None:
-            print("\n[result]", ret)
+    if success:
+        print(text, end="")
+        if text and not text.endswith("\n"):
+            print()
     else:
         print("ERROR: command failed", file=sys.stderr)
-        out = result.get("output") or []
-        for entry in out:
-            print(entry.get("output", ""), file=sys.stderr, end="")
+        print(text, file=sys.stderr, end="")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,10 @@ param(
     [string]$ExtraExec = "",
     # Capture an Unreal Insights .utrace (cpu+gpu+frame) to Saved/Profiling/walk_trace.utrace
     # for offline analysis of render-thread / GPU / Lumen costs. Implies rendering.
-    [switch]$Trace
+    [switch]$Trace,
+    # After the run, diff E2E_* screenshots against Tests/E2EGoldens and build the
+    # HTML gallery (scripts/e2e_report.py). Meaningful with -Headed only.
+    [switch]$Report
 )
 
 $ProjectRoot = $PSScriptRoot
@@ -114,6 +117,15 @@ if ((-not $timedOut) -and ($started.Count -gt 0) -and ($failedTests.Count -eq 0)
     Write-Host "  ($($completed.Count) test(s) passed)"
     $steps = ([regex]::Matches($log, 'TestDriver::Status')).Count
     Write-Host "  ($steps test steps executed)"
+    if ($Report) {
+        Write-Host ""
+        Write-Host "Screenshot report (scripts/e2e_report.py):"
+        python "$ProjectRoot\scripts\e2e_report.py"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "REPORT FAIL - screenshot diffs above; tests themselves passed"
+            exit 1
+        }
+    }
     exit 0
 }
 

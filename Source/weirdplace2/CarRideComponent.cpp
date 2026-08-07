@@ -10,6 +10,7 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Tunable.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
@@ -21,12 +22,8 @@
 static constexpr float MoteLoopMinX = 150.0f;
 static constexpr float MoteLoopMaxX = 1100.0f;
 
-// 0 = use the component's RideSpeed UPROPERTY
-static float GCarRideSpeedOverride = 0.0f;
-static FAutoConsoleVariableRef CVarCarRideSpeed(
-	TEXT("weird.CarRide.Speed"),
-	GCarRideSpeedOverride,
-	TEXT("Override car-ride scenery speed in cm/s (0 = use component RideSpeed)."));
+WP_TUNABLE_FLOAT(GCarRideSpeedOverride, "weird.CarRide.Speed", 0.0f,
+	"Override car-ride scenery speed in cm/s (0 = use component RideSpeed).");
 
 static FAutoConsoleCommandWithWorld GCarRideRebuildSceneryCmd(
 	TEXT("weird.CarRide.RebuildScenery"),
