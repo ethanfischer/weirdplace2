@@ -5,6 +5,12 @@ the system `python` (3.13); `e2e_report.py` needs Pillow + numpy (`pip install -
 
 ## uq — query/command the live editor (`scripts/uq.py`)
 
+> **2026-08-07: prefer the unreal-mcp server for live-editor work** — same operations,
+> 8-180x faster per call (persistent HTTP session vs uq's per-call interpreter start +
+> UDP discovery; benchmarked with `scripts/local/ab_mcp_vs_uq.py`, 0 failures both sides).
+> uq remains the fallback when the editor/MCP is down and the only path for `mat-params`,
+> `refs`, `save`, and arbitrary editor Python (`py`/`pyfile`).
+
 Talks to the running editor via Python Remote Execution. **Reach for this before
 writing a new `scripts/local/*.py` script** — most one-off needs are a uq verb.
 

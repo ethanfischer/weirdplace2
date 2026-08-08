@@ -97,7 +97,8 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 
 Full reference: **docs/dev-tooling.md**. TL;DR:
 
-- **`python scripts/uq.py <verb>`** — query/command the live editor: `actors`, `components`, `props` (actors, components, assets, `cdo:` Blueprint defaults), `get`/`set`, `bounds`, `screenshot`, `mat-params`, `assets`/`refs`, `cvar`, `exec`, `py`, `save`. **Do NOT write a new `scripts/local/*.py` inspection script until you've checked uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
+- **unreal-mcp (default for live-editor work)** — the Epic MCP server (`.mcp.json`, port 8000) is 8-180x faster per call than uq (persistent session vs ~780ms interpreter+discovery per CLI call; A/B'd 2026-08-07). Use it for finding/inspecting/modifying actors, properties, cvars, screenshots, PIE control. Discovery: `list_toolsets` → `describe_toolset` → `call_tool` (tool_name WITHOUT the toolset prefix, toolset_name separate; schema-"optional" params must still be passed, as null).
+- **`python scripts/uq.py <verb>`** — fallback when the editor/MCP is down, and still the only path for `mat-params`, `refs`, `save`, and arbitrary editor Python (`py`/`pyfile`). **Do NOT write a new `scripts/local/*.py` inspection script until you've checked MCP and uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
 - **`python scripts/logq.py`** — error/warning triage for `weirdplace2.log` (auto-scoped to the latest PIE session) and `--e2e` for `E2ETest.log`. Prefer this over hand-rolled grep.
 - **`python scripts/e2e_report.py`** — diff headed E2E screenshots against `Tests/E2EGoldens/`, HTML gallery in `Saved/E2EReport/report.html`; `--bless` to accept new baselines; `run_e2e.ps1 ... -Report` runs it after a suite.
 
@@ -180,7 +181,7 @@ Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeRew
 
 Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". You are capable of running python scripts for me.
 
-Two paths depending on what you need:
+Two paths depending on what you need. (For standard live-editor operations — actors, properties, cvars, screenshots — prefer the unreal-mcp tools over Python; see Dev tooling above. The paths below are for *arbitrary* Python.)
 
 **Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
 ```bash
