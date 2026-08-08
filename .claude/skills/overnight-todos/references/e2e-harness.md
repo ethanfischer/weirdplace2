@@ -16,7 +16,7 @@ patch. Every E2E iteration therefore needs a real `Build.bat` link, not livecode
 
 ### Build (editor target)
 ```cmd
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
 ```
 Run it via the Bash tool. If you added a new class, `UPROPERTY`/`UFUNCTION`, or
 changed a signature, this full build is mandatory (header changes never reach a

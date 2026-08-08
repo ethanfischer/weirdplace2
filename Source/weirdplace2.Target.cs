@@ -9,7 +9,7 @@ public class weirdplace2Target : TargetRules
 	{
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.V6;
-		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_7;
+		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_8;
 
 		ExtraModuleNames.AddRange( new string[] { "weirdplace2" } );
 	}

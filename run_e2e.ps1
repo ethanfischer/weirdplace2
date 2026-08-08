@@ -17,7 +17,7 @@ param(
 
 $ProjectRoot = $PSScriptRoot
 $LogFile = "$ProjectRoot\Saved\Logs\E2ETest.log"
-$UECmd = "C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
+$UECmd = "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe"
 $UProject = "$ProjectRoot\weirdplace2.uproject"
 
 # Resolve subgroup: if caller already named Regression/Diagnostic (whole suite or a

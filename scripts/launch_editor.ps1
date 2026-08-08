@@ -9,13 +9,13 @@ $UProject = Join-Path $RepoRoot 'weirdplace2.uproject'
 $ProbeScript = Join-Path $RepoRoot 'scripts\ue_remote_exec.py'
 
 if ($Headless) {
-    $EditorExe = 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
+    $EditorExe = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
     # Fab is enabled in the .uproject, but its browser tab auto-restores at startup and
     # CreateBrowserWindow returns null without a renderer -> FFabBrowser::OpenTab asserts
     # (exit 3). Headless never needs Fab, so disable it here. The GUI launch keeps Fab.
     $ExtraArgs = ' -DisablePlugins=Fab'
 } else {
-    $EditorExe = 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe'
+    $EditorExe = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe'
     $ExtraArgs = ''
 }
 

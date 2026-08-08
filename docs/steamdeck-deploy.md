@@ -16,7 +16,10 @@ From PowerShell so env vars inherit:
 
 ```powershell
 $env:LINUX_MULTIARCH_ROOT = 'C:\UnrealToolchains\v26_clang-20.1.8-rockylinux8\'
-& "C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
+# NOTE (2026-08): project moved to UE 5.8. The Linux cross-toolchain version 5.8 requires
+# is TBD (v26 clang-20.1.8 was the 5.7 pin) — verify against 5.8 release notes before the
+# next Deck deploy; a mismatched toolchain fails the cook before any compile.
+& "C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\RunUAT.bat" BuildCookRun `
   -project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" `
   -noP4 -platform=Linux -clientconfig=Development `
   -cook -allmaps -build -stage -pak -archive `

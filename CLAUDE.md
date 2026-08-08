@@ -1,7 +1,7 @@
 # CLAUDE.md
 ## Project Overview
 
-Weirdplace2 is an Unreal Engine 5.7 first-person exploration game targeting VR 
+Weirdplace2 is an Unreal Engine 5.8 first-person exploration game targeting VR 
 
 ## Build Commands
 
@@ -37,13 +37,13 @@ If an editor is already running the wrapper prints `EDITOR ALREADY RUNNING` and 
 Build commands (fallback if MCP is unavailable):
 ```cmd
 # Build editor target (typical for C++ changes)
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
 
 # Regenerate project files (if modules/targets change)
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
+"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
 
 # Run automation tests
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
+"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
 ## Retargeting Mocap Animations to MetaHumans
