@@ -751,7 +751,12 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	// Fire the door's Interact directly rather than via the simulated interact
+	// key, same as OpenKeypadDoor in E2E_Steps.h: this test runs first in the
+	// suite and teleports straight to the door, and under 5.8 the injected
+	// press races cell streaming (interact trace hits nothing) right after
+	// PIE start. The rules under test are the keypad's, not the input path's.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerKeypadDoorOpen(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(this));
 
 	// "4729" has no 8 -> rejected. Wait past WrongCodeClearDelay (0.5s) for the
