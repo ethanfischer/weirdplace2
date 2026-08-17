@@ -6,6 +6,7 @@ class APropActor;
 #include "DialogueWidgetProvider.h"
 #include "GameFramework/Actor.h"
 #include "Inventory.h"
+#include "DialogueScript.h"
 #include "Seneca.generated.h"
 
 class UWidgetComponent;
@@ -113,49 +114,52 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
 	UChildActorComponent* CigaretteComp;
 
-	// --- Dialogue per state (txt file paths relative to Content/) ---
+	// --- Dialogue (sectioned file parsed by FDialogueScript; see scripts/dq.py) ---
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForMoviesDialoguePath = TEXT("Dialogue/WaitingForMovies.txt");
+	FString DialogueFilePath = TEXT("Dialogue/Seneca.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString MovieCommentsPath = TEXT("Dialogue/MovieComments.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString MoviePurchaseDialoguePath = TEXT("Dialogue/MoviePurchase.txt");
+	FString WaitingForMoviesSection = TEXT("WaitingForMovies");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForMoneyDialoguePath = TEXT("Dialogue/WaitingForMoney.txt");
+	FString MoviePurchaseSection = TEXT("MoviePurchase");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForBlankTapeDialoguePath = TEXT("Dialogue/WaitingForBlankTape.txt");
+	FString WaitingForMoneySection = TEXT("WaitingForMoney");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForBlankTapeReminderPath = TEXT("Dialogue/WaitingForBlankTapeReminder.txt");
+	FString WaitingForBlankTapeSection = TEXT("WaitingForBlankTape");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString AwaitingTapeBurnDialoguePath = TEXT("Dialogue/AwaitingTapeBurn.txt");
+	FString WaitingForBlankTapeReminderSection = TEXT("WaitingForBlankTapeReminder");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString ReadyToGiveCombinedTapeDialoguePath = TEXT("Dialogue/ReadyToGiveCombinedTape.txt");
+	FString AwaitingTapeBurnSection = TEXT("AwaitingTapeBurn");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForMoviePurchaseDialoguePath = TEXT("Dialogue/WaitingForMoviePurchase.txt");
+	FString ReadyToGiveCombinedTapeSection = TEXT("ReadyToGiveCombinedTape");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString ReadyToGiveKeyDialoguePath = TEXT("Dialogue/ReadyToGiveKey.txt");
+	FString WaitingForMoviePurchaseSection = TEXT("WaitingForMoviePurchase");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString GaveKeyDialoguePath = TEXT("Dialogue/GaveKey.txt");
+	FString ReadyToGiveKeySection = TEXT("ReadyToGiveKey");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString SmokingDialoguePath = TEXT("Dialogue/Smoking.txt");
+	FString GaveKeySection = TEXT("GaveKey");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForMoviesReminderPath = TEXT("Dialogue/WaitingForMoviesReminder.txt");
+	FString SmokingSection = TEXT("Smoking");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString WaitingForMoviePurchaseReminderPath = TEXT("Dialogue/WaitingForMoviePurchaseReminder.txt");
+	FString WaitingForMoviesReminderSection = TEXT("WaitingForMoviesReminder");
+
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString WaitingForMoviePurchaseReminderSection = TEXT("WaitingForMoviePurchaseReminder");
 
 	// --- Blank Tape Beat ---
 
@@ -245,8 +249,14 @@ private:
 	TArray<FText> WaitingForMoviesReminderLines;
 	TArray<FText> WaitingForMoviePurchaseReminderLines;
 
-	// Helper to load a single dialogue file
-	void LoadDialogueFile(ESenecaState State, const FString& RelativePath);
+	// Parsed sectioned dialogue file (DialogueFilePath)
+	FDialogueScript DialogueScript;
+
+	// Copies a section of DialogueScript into DialogueLines/LineActions for a state
+	void LoadDialogueSection(ESenecaState State, const FString& SectionName);
+
+	// Copies a section's text into a flat line array (reminder lines)
+	void LoadReminderSection(const FString& SectionName, TArray<FText>& OutLines);
 
 	// Returns true if the player camera is facing the given world position
 	bool IsPlayerLookingAt(const FVector& Position) const;

@@ -5,6 +5,7 @@
 #include "FirstPersonCharacter.h"
 #include "Interactable.h"
 #include "DialogueWidgetProvider.h"
+#include "DialogueScript.h"
 #include "Rick.generated.h"
 
 class UWidgetComponent;
@@ -54,9 +55,12 @@ public:
 	int32 BladderPulseLineIndex = INDEX_NONE;
 
 protected:
-	// Path to dialogue text file (relative to Content/)
+	// Sectioned dialogue file (relative to Content/), parsed by FDialogueScript
 	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")
-	FString CarDialoguePath = TEXT("Dialogue/CarRide.txt");
+	FString DialogueFilePath = TEXT("Dialogue/Rick.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")
+	FString CarRideSection = TEXT("CarRide");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
 	UItemDefinition* MoneyDef;
@@ -80,12 +84,15 @@ protected:
 	FVector CarActorOffset = FVector(0.f, 250.f, 0.f);
 
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
-	FString RickOutsideIdlePath = TEXT("Dialogue/RickOutsideIdle.txt");
+	FString OutsideIdleSection = TEXT("RickOutsideIdle");
 
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
-	FString RickGivesMoneyPath = TEXT("Dialogue/RickGivesMoney.txt");
+	FString GivesMoneySection = TEXT("RickGivesMoney");
 
 private:
+	// Parsed sectioned dialogue file (DialogueFilePath)
+	FDialogueScript DialogueScript;
+
 	// Parsed car ride dialogue lines (speaker + text per line)
 	TArray<FSimpleDialogueLine> ParsedLines;
 

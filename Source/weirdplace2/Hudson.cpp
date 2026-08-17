@@ -48,9 +48,10 @@ void AHudson::BeginPlay()
 		}
 	}
 
-	LoadDialogue(HudsonIdlePath, IdleLines);
-	LoadDialogue(HudsonBegPath, BegLines);
-	LoadDialogue(HudsonThankYouPath, ThankYouLines);
+	DialogueScript.Load(DialogueFilePath);
+	LoadDialogue(IdleSection, IdleLines);
+	LoadDialogue(BegSection, BegLines);
+	LoadDialogue(ThankYouSection, ThankYouLines);
 }
 
 void AHudson::Tick(float DeltaTime)
@@ -73,26 +74,19 @@ void AHudson::Tick(float DeltaTime)
 	}
 }
 
-void AHudson::LoadDialogue(const FString& RelPath, TArray<FText>& OutLines)
+void AHudson::LoadDialogue(const FString& SectionName, TArray<FText>& OutLines)
 {
-	FString FullPath = FPaths::ProjectContentDir() / RelPath;
-	TArray<FString> RawLines;
-	if (!FFileHelper::LoadFileToStringArray(RawLines, *FullPath))
+	OutLines.Empty();
+	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(SectionName);
+	if (!Section)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Hudson - Failed to load dialogue file: %s"), *FullPath);
 		return;
 	}
-
-	OutLines.Empty();
-	for (const FString& Line : RawLines)
+	for (const FDialogueLine& Line : *Section)
 	{
-		if (!Line.IsEmpty())
-		{
-			OutLines.Add(FText::FromString(Line));
-		}
+		OutLines.Add(FText::FromString(Line.Text));
 	}
-
-	UE_LOG(LogTemp, Log, TEXT("Hudson - Loaded %d lines from %s"), OutLines.Num(), *FullPath);
+	UE_LOG(LogTemp, Log, TEXT("Hudson - Loaded %d lines from section %s"), OutLines.Num(), *SectionName);
 }
 
 void AHudson::Interact_Implementation()

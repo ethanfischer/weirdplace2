@@ -1,0 +1,56 @@
+# Seneca's dialogue, one section per quest state.
+# Format: == Section ==, optional "Speaker:" prefix (default speaker: Seneca),
+# [Tag] lines attach an action to the preceding line. Lint: python scripts/dq.py lint
+
+== WaitingForMovies ==
+You need the bathroom?
+You'll have to rent some videos first
+
+== WaitingForMoviesReminder ==
+You need to rent 3 movies.
+
+== WaitingForMoviePurchase ==
+Just hand me whatever you want to rent
+
+== WaitingForMoviePurchaseReminder ==
+Just hand me whatever you want to rent
+
+== MoviePurchase ==
+Seneca: Alright, let's see what we got here.
+Seneca: That'll be $2.47
+
+== WaitingForMoney ==
+Need that $2.47
+
+== WaitingForBlankTape ==
+One more thing. I need a blank tape to dub these onto.
+There's one somewhere in the collection.
+Can't remember where I put it. Bring it to me.
+
+== WaitingForBlankTapeReminder ==
+Still need that blank tape.
+It's somewhere in the collection.
+
+== AwaitingTapeBurn ==
+This is gonna take a while.
+Find me later.
+
+== ReadyToGiveCombinedTape ==
+All set. One tape, your three movies.
+[Give combined tape]
+
+== ReadyToGiveKey ==
+You found it?
+Okay this is gonna take a while.
+Find me later.
+In the mean time, here's the key to the bathroom.
+[Give key]
+
+== GaveKey ==
+Bathroom's outside around the corner.
+
+== Smoking ==
+We meet again.
+I haven't forgotten about the tape
+Like I said
+These things take time
