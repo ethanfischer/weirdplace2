@@ -14,8 +14,8 @@ class AAmbientSound;
 // the weather's "Wind Intensity" up (gusts), thickens the weather's "Fog" so view
 // distance collapses (socked-in murk), and swells the global wind ambient's
 // volume. This is the *atmospheric* half of the storm beat; the room-wide
-// lights/audio half lives on AStormBeatController. Subscribe/teardown mirrors
-// AStormBeatController / APayPhone.
+// lights/audio half lives on UStorySubsystem (the StormDimLight/StormHideActor/
+// StormSilenceAmbient tag sweep). Subscribe/teardown mirrors APayPhone.
 UCLASS()
 class WEIRDPLACE2_API AUltraDynamicWeatherController : public AActor
 {

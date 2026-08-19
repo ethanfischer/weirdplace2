@@ -4,7 +4,7 @@
 
 # Claude Friendly
 [ ] UE 5.8 upgrade prep: make E2E screenshots deterministic — freeze UDS time-of-day/weather + lock exposure during tests (PauseMenu shots diff 17-57% run-to-run from sky/eye-adaptation drift; goldens must be stable before the post-upgrade re-bless gate)
-[ ] have objects pass you by in driving scene so it actually looks like you're moving. Right now we just have the car staionary in the middle of nowhere. Feel free to use any meshes/blueprints in content that would make sense for this.
+[x] have objects pass you by in driving scene so it actually looks like you're moving. Right now we just have the car staionary in the middle of nowhere. Feel free to use any meshes/blueprints in content that would make sense for this.
 [x] seneca text illegible when viewing with light in background
 [x] clock should be blurred out
 [x] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
@@ -23,6 +23,10 @@
     
     
 # Needs design
+[ ] improve phone pickup beat 
+    [ ] don't love that you have to wait, players seem unlikely to do this
+    [ ] phone pickup should animate or something
+
 [ ] make every single item in the environment interatactable, like a point n click adventure  
 [ ] message on payphone is code to employee bathroom
     [ ] you write it down (wrongly)

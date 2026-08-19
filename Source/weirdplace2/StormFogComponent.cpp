@@ -181,9 +181,44 @@ void UStormFogComponent::StartFog()
 	BeginRamp(1.f, RampDuration);
 }
 
+void UStormFogComponent::RelaxFog(float NewDistance, float BlendSeconds)
+{
+	if (!FogMID || !CachedCamera)
+	{
+		return;
+	}
+	RelaxFromDistance = FMath::Max(1.f, FogDistance);
+	RelaxToDistance = FMath::Max(1.f, NewDistance);
+	RelaxDuration = BlendSeconds;
+	RelaxElapsed = 0.f;
+	if (BlendSeconds <= 0.f)
+	{
+		FogDistance = RelaxToDistance;
+		ApplyFog(FogAmount);
+		return;
+	}
+	bRelaxing = true;
+	SetComponentTickEnabled(true);
+	UE_LOG(LogTemp, Log, TEXT("UStormFogComponent: fog relaxing %.0f -> %.0f cm over %.1fs"), RelaxFromDistance, RelaxToDistance, BlendSeconds);
+}
+
 void UStormFogComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (bRelaxing)
+	{
+		// Ease the settled distance itself; the ApplyFog below (ramping or settled
+		// branch) pushes it to the material this same tick.
+		RelaxElapsed += DeltaTime;
+		const float T = FMath::Clamp(RelaxElapsed / RelaxDuration, 0.f, 1.f);
+		const float Eased = T * T * (3.f - 2.f * T);
+		FogDistance = FMath::Exp(FMath::Lerp(FMath::Loge(RelaxFromDistance), FMath::Loge(RelaxToDistance), Eased));
+		if (T >= 1.f)
+		{
+			bRelaxing = false;
+		}
+	}
 
 	if (bRamping)
 	{
@@ -202,8 +237,8 @@ void UStormFogComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		ApplyFog(FogAmount);
 	}
 
-	// Nothing left to do once fully cleared and not ramping — stop ticking.
-	if (!bRamping && FogAmount <= 0.f)
+	// Nothing left to do once fully cleared and not ramping/relaxing — stop ticking.
+	if (!bRamping && !bRelaxing && FogAmount <= 0.f)
 	{
 		SetComponentTickEnabled(false);
 	}

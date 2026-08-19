@@ -71,7 +71,7 @@ All gameplay code lives flat in `Source/weirdplace2/`. Key pieces:
 - **`AFirstPersonCharacter`** (FirstPersonCharacter.h) — the player. `EPlayerActivityState` (FreeRoaming/Interacting/InSimpleDialogue/InDialogue) gates input and interaction.
 - **Interaction**: `IInteractable` (Interactable.h) implemented by world actors — NPCs (`ASeneca`, `ARick`, `AHudson`, each with a state enum + `IDialogueWidgetProvider` for diegetic dialogue plates), `AMovieBox`, `ADoor`, `APayPhone`, etc.
 - **Inventory**: `UInventoryComponent` (Inventory.h) on the player; items are `UItemDefinition` primary data assets; diegetic UI via `InventoryUIActor`/`InventoryUIComponent` (same UIActor/UIComponent pattern as Keypad and Menu).
-- **Story state**: `UStorySubsystem` (WorldSubsystem) tracks `EStoryFlag` progression; `AStormBeatController`/`UStormFogComponent` drive the storm beats off those flags.
+- **Story state**: `UStorySubsystem` (WorldSubsystem) tracks `EStoryFlag` progression and owns the beat side effects (storm dim/hide/silence + station relight, via `StormDimLight`/`StormHideActor`/`StormSilenceAmbient` actor tags on level actors); `UStormFogComponent` drives the pea-soup fog off those flags.
 - **E2E harness**: `UTestDriverSubsystem` + `E2E_Steps.h`/`E2E_LatentCommands.h` back the tests in E2E_Level1Test.cpp; `ATestWaypoint` actors mark teleport targets.
 - **Tunables**: `Tunable.h` defines the `WP_TUNABLE_*` macros (see Code Conventions).
 

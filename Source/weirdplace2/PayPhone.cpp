@@ -352,6 +352,13 @@ void APayPhone::HangUp()
 	ReleasePlayer();
 
 	bOffHook = false;
+
+	// Hanging up arms the station-relight countdown (UStorySubsystem).
+	if (UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr)
+	{
+		Story->SetFlag(EStoryFlag::HungUpPhone);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: hung up"), *GetName());
 }
 

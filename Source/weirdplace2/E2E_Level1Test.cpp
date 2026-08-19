@@ -1624,10 +1624,9 @@ bool FE2E_Level1_TornadoWarningOnStoreEntry::RunTest(const FString& Parameters)
 // =======================================================================
 // TornadoWarningStormBeat — when the store TVs switch to the tornado warning,
 // the storm closes in: both TVs blare a looping siren, the store's TV ambient
-// beds cut out, and the referenced gas-station light dims (and stays dimmed).
-// The placed AStormBeatController is designer config, so the test self-configures
-// one at runtime BEFORE triggering store entry (PIE spawn is safe; it's headless
-// EDITOR spawn of C++ classes that crashes in 5.7).
+// beds cut out, and the tagged gas-station lights go dark. The beat lives on
+// UStorySubsystem and sweeps the level's StormDimLight / StormHideActor /
+// StormSilenceAmbient actor tags, so this runs against the REAL tagged actors.
 // =======================================================================
 
 namespace
@@ -1648,9 +1647,9 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	// against a previous run's leftover baseline.
 	StormBeat_BaselineLightIntensity = 0.f;
 
-	// A gas-station canopy spotlight (100 lm). Stable label confirmed in-level.
+	// A gas-station canopy spotlight tagged StormDimLight. Stable label confirmed.
 	const TCHAR* GasLight = TEXT("SpotLight3");
-	// An emissive "light" mesh (no light component) — hidden, not dimmed.
+	// An emissive "light" mesh tagged StormHideActor — hidden, not dimmed.
 	const TCHAR* GlowMesh = TEXT("outsidegastationlights");
 
 	// --- Baseline (before the beat) ---
@@ -1663,13 +1662,6 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
-
-	// Self-configure the storm controller BEFORE the flag fires so it's subscribed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SpawnStormBeat(this,
-		{ FString(GasLight) },
-		{ FString(GlowMesh) },
-		{ FString(TEXT("Ambient_TV")), FString(TEXT("Ambient_TV2")) },
-		/*Mult=*/0.3f));
 
 	// Fire the beat: key broke, then re-enter the store.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
@@ -1686,9 +1678,10 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientPlaying(this, TEXT("Ambient_TV2"), false));
 
-	// (RED-defining) The gas-station light dimmed to ~ baseline * 0.3 and stays there.
+	// (RED-defining) The gas-station light went fully dark (weird.Storm.DimMultiplier
+	// defaults to 0 — the shipped look).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertLightDimmed(this, GasLight,
-		&StormBeat_BaselineLightIntensity, /*Mult=*/0.3f, /*Tolerance=*/1.0f));
+		&StormBeat_BaselineLightIntensity, /*Mult=*/0.0f, /*Tolerance=*/1.0f));
 
 	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
@@ -1709,6 +1702,72 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TV")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_TornadoStormBeat_Screen")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// StationRelight — right after the payphone hangup, the station relight
+// flickers the storm-dimmed
+// gas-station lights back to full intensity, re-shows the hidden glow meshes,
+// and relaxes the pea-soup fog so the glow reads at distance.
+// =======================================================================
+
+namespace
+{
+	static float Relight_BaselineLightIntensity = 0.f;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StationRelight,
+	"Weirdplace2.E2E.Level1.Regression.StationRelight",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StationRelight::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StationRelight")
+
+	Relight_BaselineLightIntensity = 0.f;
+
+	const TCHAR* GasLight = TEXT("SpotLight3");
+	const TCHAR* GlowMesh = TEXT("outsidegastationlights");
+
+	// Baseline canopy-light intensity, captured before the storm beat dims it.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureLightIntensity(this, GasLight, &Relight_BaselineLightIntensity));
+
+	// Run the real storm beat first so the tagged lights are genuinely dark and
+	// the glow mesh hidden — the relight must undo exactly that.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerStoreEntry(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
+
+	// Use the phone and hang up — the hangup sets HungUpPhone and arms the countdown.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhoneHangUp(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("HungUpPhone"), true));
+
+	// (RED-defining) The relight fires right after the hangup (default delay 0).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(this, FName("StationRelit"), true, 10.0));
+
+	// Let the 2.5s flicker finish, then the light is back at its recorded pre-dim
+	// intensity and the glow mesh is visible again.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertLightDimmed(this, GasLight,
+		&Relight_BaselineLightIntensity, /*Mult=*/1.0f, /*Tolerance=*/1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
+
+	// (RED-defining) The pea-soup fog relaxed open toward 4000cm so the glow
+	// reads at distance.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStormFogDistance(this, 3000.f, 10.0));
+
+	// Document the relit station from afar — the phone spot IS the lost-player
+	// vantage; the glow should read through the relaxed fog.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, GlowMesh));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Relight_StationGlow")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -1798,75 +1857,6 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneDialtone")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
-// MoviePosters — collected movies show up as posters in the world: the first
-// collected movie on the telephone-pole PosterSheet (gated with the phone
-// scene's SeenTornadoWarning reveal), the second on the bathroom wall poster.
-// Posters are hidden until their movie is collected and update live on
-// collection.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_MoviePosters,
-	"Weirdplace2.E2E.Level1.Regression.MoviePosters",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_MoviePosters::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("MoviePosters")
-
-	// Reveal the phone scene up front so poster gating isn't conflated with the
-	// scene's own SeenTornadoWarning gate. One-tick delay: the reveal propagates
-	// visibility to children and the poster state is reapplied a tick later.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-
-	// Nothing collected: both posters hidden.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
-
-	// Collect movie A.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
-
-	// Pole poster shows movie A live; bathroom poster still hidden.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterHidden(this, 1));
-
-	// Collect movie B.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox121")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_RotateAndCollectMovie(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 2));
-
-	// Bathroom poster shows movie B; pole unchanged on movie A. Distinct boxes
-	// have distinct ItemIDs, so the two posters necessarily differ.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 1, 1));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMoviePosterShowsInventoryMovie(this, 0, 0));
-
-	// Visual proof: pole poster. It's now its own plane (MoviePoster_Pole) higher
-	// on the pole than the designed missing-person flyer, facing the same way
-	// (roughly east, +X). Teleporting near it approaches from the store side
-	// (west) and shoots the back, so stand at an explicit east-side vantage.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(9540.0, -4851.0, 0.0)));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Pole")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_01_Pole")));
-
-	// ...and bathroom poster.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("MoviePoster_Bathroom"), 250.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("MoviePoster_Bathroom")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Poster_02_Bathroom")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

@@ -68,6 +68,17 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Storm Fog")
 	float GetFogAmount() const { return FogAmount; }
 
+	// Current settled fog distance (cm). For tests/debug.
+	UFUNCTION(BlueprintPure, Category = "Storm Fog")
+	float GetFogDistance() const { return FogDistance; }
+
+	// Ease the SETTLED fog distance from its current value to NewDistance over
+	// BlendSeconds (geometric interp, same feel as the roll-in). The fog stays
+	// engaged — this opens (or closes) the murk radius without clearing it. Used
+	// by the station-relight beat so the restored glow reads at distance.
+	UFUNCTION(BlueprintCallable, Category = "Storm Fog")
+	void RelaxFog(float NewDistance, float BlendSeconds);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -99,6 +110,11 @@ private:
 	TObjectPtr<UMaterialInstanceDynamic> FogMID;
 
 	bool bRamping = false;
+	bool bRelaxing = false;
+	float RelaxFromDistance = 0.f;
+	float RelaxToDistance = 0.f;
+	float RelaxElapsed = 0.f;
+	float RelaxDuration = 0.f;
 	float RampElapsed = 0.f;
 	float FogAmount = 0.f;     // 0 = clear, 1 = fully closed in
 	float RampFromAmount = 0.f;

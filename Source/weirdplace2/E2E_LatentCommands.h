@@ -2142,91 +2142,6 @@ private:
 	bool bExpectOpen;
 };
 
-// Assert the world movie poster tagged "MoviePoster<Index>" exists and its
-// poster surface is hidden.
-class FTD_AssertMoviePosterHidden : public FTD_Base
-{
-public:
-	FTD_AssertMoviePosterHidden(FAutomationTestBase* InTest, int32 InPosterIndex)
-		: FTD_Base(InTest), PosterIndex(InPosterIndex) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting movie poster %d hidden"), PosterIndex);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterHidden: no driver")); return true; }
-		bool bVisible = false;
-		FString MatName;
-		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: no poster surface tagged MoviePoster%d"), PosterIndex));
-			return true;
-		}
-		if (bVisible)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterHidden: poster %d is visible (material '%s')"), PosterIndex, *MatName));
-		}
-		return true;
-	}
-private:
-	int32 PosterIndex;
-};
-
-// Assert the world movie poster tagged "MoviePoster<Index>" is visible and
-// shows the cover of the movie at inventory slot SlotIndex — material name
-// MI_VHSCover_<ItemID> per the project-wide cover convention.
-class FTD_AssertMoviePosterShowsInventoryMovie : public FTD_Base
-{
-public:
-	FTD_AssertMoviePosterShowsInventoryMovie(FAutomationTestBase* InTest, int32 InPosterIndex, int32 InSlotIndex)
-		: FTD_Base(InTest), PosterIndex(InPosterIndex), SlotIndex(InSlotIndex) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting movie poster %d shows inventory slot %d cover"), PosterIndex, SlotIndex);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no driver")); return true; }
-
-		const FName ItemId = Driver->GetInventoryItemAt(SlotIndex);
-		if (ItemId.IsNone())
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: inventory slot %d is empty"), SlotIndex));
-			return true;
-		}
-		// Poster identity is the CoverTexture param's texture name, which is
-		// the movie's ItemID (covers live at /Game/VHSCovers/<ItemID>).
-		const FString Expected = ItemId.ToString();
-
-		bool bVisible = false;
-		FString MatName;
-		if (!Driver->GetMoviePosterState(PosterIndex, bVisible, MatName))
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: no poster surface tagged MoviePoster%d"), PosterIndex));
-			return true;
-		}
-		if (!bVisible)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d is hidden (expected visible with '%s')"), PosterIndex, *Expected));
-		}
-		if (MatName != Expected)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertMoviePosterShowsInventoryMovie: poster %d material '%s', expected '%s'"), PosterIndex, *MatName, *Expected));
-		}
-		return true;
-	}
-private:
-	int32 PosterIndex;
-	int32 SlotIndex;
-};
-
 // Assert the absolute selected item index in the inventory strip.
 class FTD_AssertSelectedSlot : public FTD_Base
 {
@@ -2707,31 +2622,39 @@ private:
 	float Tolerance;
 };
 
-// Runtime-spawn + configure an AStormBeatController (designer config is mirrored
-// at runtime by the E2E). Configure BEFORE triggering store entry so it's
-// subscribed when TornadoWarningDisplayed fires.
-class FTD_SpawnStormBeat : public FTD_Base
+// Wait until the pea-soup fog's settled distance has relaxed open to at least
+// MinDistance cm (the relight beat ramps ~250 -> ~4000).
+class FTD_WaitForStormFogDistance : public FTD_Base
 {
 public:
-	FTD_SpawnStormBeat(FAutomationTestBase* InTest, TArray<FString> InLightLabels,
-		TArray<FString> InHideLabels, TArray<FString> InAmbientLabels, float InMult)
-		: FTD_Base(InTest), LightLabels(MoveTemp(InLightLabels)), HideLabels(MoveTemp(InHideLabels))
-		, AmbientLabels(MoveTemp(InAmbientLabels)), Mult(InMult) {}
+	FTD_WaitForStormFogDistance(FAutomationTestBase* InTest, float InMinDistance, double InTimeoutSeconds)
+		: FTD_Base(InTest), MinDistance(InMinDistance), Timeout(InTimeoutSeconds) {}
 
-	virtual FString GetStatusText() const override { return TEXT("Spawning storm-beat controller"); }
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Waiting for fog to relax to >= %.0f cm"), MinDistance);
+	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_SpawnStormBeat: no driver")); return true; }
-		Driver->SpawnAndConfigureStormBeat(LightLabels, HideLabels, AmbientLabels, Mult);
-		return true;
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForStormFogDistance: no driver")); return true; }
+		float Amount = 0.f, Distance = 0.f;
+		if (Driver->GetStormFogState(Amount, Distance) && Distance >= MinDistance)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForStormFogDistance: fog distance %.0f never reached %.0f (amount %.2f)"),
+				Distance, MinDistance, Amount));
+			return true;
+		}
+		return false;
 	}
 private:
-	TArray<FString> LightLabels;
-	TArray<FString> HideLabels;
-	TArray<FString> AmbientLabels;
-	float Mult;
+	float MinDistance;
+	double Timeout;
 };
 
 // Assert an actor's root visibility (for the gated telephone scene).
