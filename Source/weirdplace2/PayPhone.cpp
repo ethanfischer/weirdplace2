@@ -5,6 +5,7 @@
 #include "Components/InputComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "FirstPersonCharacter.h"
@@ -62,6 +63,25 @@ void APayPhone::BeginPlay()
 	if (!HandsetMesh)
 	{
 		HandsetMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Fab/SM_Payphone_Handset.SM_Payphone_Handset"));
+	}
+
+	// The diegetic code text authored in BP_TelephoneScene: cache the full line
+	// and blank it — it types on in sync with the spoken code (PlayCodeOnce).
+	TArray<UTextRenderComponent*> TextComps;
+	GetComponents<UTextRenderComponent>(TextComps);
+	for (UTextRenderComponent* Comp : TextComps)
+	{
+		if (Comp->GetName().Contains(TEXT("DiegeticText")))
+		{
+			CodeTextRender = Comp;
+			CodeFullText = Comp->Text.ToString();
+			Comp->SetText(FText::GetEmpty());
+			break;
+		}
+	}
+	if (!CodeTextRender)
+	{
+		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no DiegeticText component — code text will not display"), *GetName());
 	}
 
 	USceneComponent* Root = GetRootComponent();
@@ -190,6 +210,7 @@ void APayPhone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 			World->GetTimerManager().ClearTimer(CodeEndTimer);
 			World->GetTimerManager().ClearTimer(BusyToneTimer);
 		}
+		ResetCodeText();
 		ReleasePlayer();
 		bOffHook = false;
 	}
@@ -341,6 +362,18 @@ void APayPhone::PlayCodeOnce()
 	{
 		World->GetTimerManager().SetTimer(CodeEndTimer, this, &APayPhone::OnCodeFinished, CodeDuration, false);
 	}
+
+	// Type the diegetic code text on in sync with the audio: the last character
+	// lands as the spoken code finishes.
+	if (CodeTextRender && !CodeFullText.IsEmpty())
+	{
+		CodeTypewriter.OnUpdate = [this](const FString& DisplayText)
+		{
+			CodeTextRender->SetText(FText::FromString(DisplayText));
+		};
+		CodeTypewriter.StartWithDuration(this, CodeFullText, CodeDuration);
+	}
+
 	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: speaking the bathroom code (finishes in %.2fs)"), *GetName(), CodeDuration);
 }
 
@@ -426,6 +459,9 @@ void APayPhone::HangUp()
 		HangupAudio->Play();
 	}
 
+	// The code text lives only for the call — like an NPC dialogue line closing.
+	ResetCodeText();
+
 	// Return the receiver to the cradle: reparent back onto the kiosk (keeping
 	// its world pose) and interp home.
 	if (ReceiverMesh && KioskMesh)
@@ -479,6 +515,15 @@ void APayPhone::Tick(float DeltaSeconds)
 	if (!bReceiverAnimating)
 	{
 		SetActorTickEnabled(false);
+	}
+}
+
+void APayPhone::ResetCodeText()
+{
+	CodeTypewriter.Stop();
+	if (CodeTextRender)
+	{
+		CodeTextRender->SetText(FText::GetEmpty());
 	}
 }
 

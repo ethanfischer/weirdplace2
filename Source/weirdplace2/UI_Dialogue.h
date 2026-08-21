@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "Typewriter.h"
 #include "UI_Dialogue.generated.h"
 
 class UTextBlock;
@@ -29,7 +30,7 @@ public:
 	// What the widget is currently showing (FullText is the complete line the
 	// typewriter is revealing). Used by E2E asserts on displayed dialogue.
 	FString GetDisplayedSpeaker() const;
-	FString GetFullLineText() const { return FullText; }
+	FString GetFullLineText() const { return Typewriter.GetFullText(); }
 
 	// True once the dialogue Text block has been wrapped in the dark backing
 	// plate (see SetupTextBacking). Used by E2E asserts.
@@ -97,15 +98,10 @@ private:
 	// Wraps the bound Text block in TextBacking so the plate hugs the words.
 	void SetupTextBacking();
 
-	void SetNextDisplayTextCharacter();
 	void ClearSpeakerText();
 
 	UPROPERTY()
 	UAudioComponent* SpawnedSound;
 
-	FString FullText;
-	FString DisplayText;
-	int32 CurrentCharIndex = 0;
-
-	FTimerHandle TypewriterTimerHandle;
+	FTypewriterReveal Typewriter;
 };

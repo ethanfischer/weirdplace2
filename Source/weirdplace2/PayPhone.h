@@ -4,12 +4,14 @@
 #include "GameFramework/Actor.h"
 #include "Engine/TimerHandle.h"
 #include "Interactable.h"
+#include "Typewriter.h"
 #include "PayPhone.generated.h"
 
 class USoundBase;
 class UAudioComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
+class UTextRenderComponent;
 enum class EStoryFlag : uint8;
 
 // Roadside pay-phone scene. Hidden until the player has seen the tornado
@@ -150,6 +152,9 @@ private:
 	// Timer callback (BusyToneDelay after the code finishes): play the busy tone.
 	void PlayBusyTone();
 
+	// Stop the typewriter and hide the diegetic text (hang-up / teardown).
+	void ResetCodeText();
+
 	// Release the player's movement and remove the "Exit Interaction" binding.
 	// Shared by HangUp and EndPlay (mid-call teardown).
 	void ReleasePlayer();
@@ -183,6 +188,19 @@ private:
 	// kiosk (cradled) and the player camera (held).
 	UPROPERTY()
 	UStaticMeshComponent* ReceiverMesh = nullptr;
+
+	// The "DiegeticText" TextRender authored in BP_TelephoneScene. Its authored
+	// text is the full line; hidden until the spoken code plays, then revealed
+	// typewriter-style in sync with the audio. Named differently from the BP
+	// component — sharing the name breaks the BP compile (property collision).
+	UPROPERTY()
+	UTextRenderComponent* CodeTextRender = nullptr;
+
+	// Full authored DiegeticText line, cached at BeginPlay before blanking.
+	FString CodeFullText;
+
+	// Reveals CodeFullText onto DiegeticText, paced to the code audio's length.
+	FTypewriterReveal CodeTypewriter;
 
 	// True while the receiver is up (between pickup and hang up).
 	bool bOffHook = false;

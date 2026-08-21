@@ -127,10 +127,6 @@ void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLin
 
 	}
 
-	FullText = DialogueLine.ToString();
-	DisplayText.Empty();
-	CurrentCharIndex = 0;
-
 	if (VoiceSound && (!IsValid(SpawnedSound) || !SpawnedSound->IsPlaying()))
 	{
 		float RandomPitch = FMath::RandRange(0.75f, 1.25f);
@@ -138,50 +134,30 @@ void UUI_Dialogue::UpdateWithText(const FText& Speaker, const FText& DialogueLin
 		SpawnedSound = UGameplayStatics::SpawnSound2D(GetWorld(), VoiceSound, 1.0f, RandomPitch, RandomStartTime);
 	}
 
-	FTimerDelegate TimerDelegate = FTimerDelegate::CreateWeakLambda(this, [this]()
+	Typewriter.OnUpdate = [this](const FString& DisplayText)
 	{
-		SetNextDisplayTextCharacter();
-	});
-	GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, TimerDelegate, 0.04f, false);
-}
-
-void UUI_Dialogue::SetNextDisplayTextCharacter()
-{
-	if (DisplayText.Equals(FullText, ESearchCase::CaseSensitive))
-	{
-		// Finished typing
-		if (IsValid(SpawnedSound))
-		{
-			SpawnedSound->Stop();
-		}
-		return;
-	}
-
-	// Add next character
-	if (CurrentCharIndex < FullText.Len())
-	{
-		DisplayText.AppendChar(FullText[CurrentCharIndex]);
-		CurrentCharIndex++;
-
 		if (Text)
 		{
 			Text->SetText(FText::FromString(DisplayText));
 		}
-
-		// Play blip with randomized pitch on non-whitespace characters
-		TCHAR NewChar = FullText[CurrentCharIndex - 1];
+	};
+	// Blip with randomized pitch on non-whitespace characters.
+	Typewriter.OnCharacterRevealed = [this](TCHAR NewChar)
+	{
 		if (BlipSound && !FChar::IsWhitespace(NewChar))
 		{
 			float Pitch = FMath::RandRange(0.8f, 1.2f);
 			UGameplayStatics::PlaySound2D(GetWorld(), BlipSound, 1.0f, Pitch);
 		}
-
-		FTimerDelegate Cont = FTimerDelegate::CreateWeakLambda(this, [this]()
+	};
+	Typewriter.OnFinished = [this]()
+	{
+		if (IsValid(SpawnedSound))
 		{
-			SetNextDisplayTextCharacter();
-		});
-		GetWorld()->GetTimerManager().SetTimer(TypewriterTimerHandle, Cont, 0.03f, false);
-	}
+			SpawnedSound->Stop();
+		}
+	};
+	Typewriter.Start(this, DialogueLine.ToString(), /*CharInterval*/ 0.03f, /*FirstCharDelay*/ 0.04f);
 }
 
 void UUI_Dialogue::ClearSpeakerText()
