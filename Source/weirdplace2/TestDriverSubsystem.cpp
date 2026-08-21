@@ -238,6 +238,17 @@ bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 	return Phone->IsDialtonePlaying();
 }
 
+bool UTestDriverSubsystem::IsPayPhoneHangupLocked() const
+{
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneHangupLocked - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsHangupLocked();
+}
+
 void UTestDriverSubsystem::TriggerPayPhonePickup()
 {
 	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());

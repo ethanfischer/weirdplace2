@@ -232,10 +232,15 @@ namespace E2ESteps
 		// the player. There is no "Telephone" waypoint; the phone lives far off the
 		// store lot, so teleport near the actor itself.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(T, TEXT("BP_TelephoneScene"), 300.f));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("BP_TelephoneScene")));
+		// Aim at the receiver (it sits on the phone unit ~1.1m up): only the
+		// kiosk is interactable (the pole isn't), and the kiosk component's
+		// pivot is at ground level so aiming at it traces into the ground.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BP_TelephoneScene"), TEXT("PayPhoneReceiver")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17a_Telephone")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("UsedPayPhone"), true, 5.0));
+		// A first call refuses hang-up until the spoken code has fully played.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForPayPhoneHangupUnlocked(T, 20.0));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulatePutBack(T));
 	}
 

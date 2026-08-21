@@ -43,6 +43,15 @@ public:
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
 
+	// Storm beat: remove Rick from the world until a much-later beat brings him
+	// back. MetaHuman grooms break if root visibility is toggled, so this
+	// teleports him far below the level and disables collision instead.
+	void StashForStorm();
+
+	// Restore Rick to where he stood before the storm stash. (No caller yet —
+	// the "much later" return beat will use this.)
+	void ReturnFromStorm();
+
 	// Delegate fired when dialogue ends (CarRideComponent binds to this)
 	UPROPERTY(BlueprintAssignable, Category = "Rick|Dialogue")
 	FOnRickDialogueEnded OnRickDialogueEnded;
@@ -101,6 +110,10 @@ private:
 
 	bool bGaveMoney = false;
 	bool bMoneyBeatArmed = false;
+
+	// Storm stash state (StashForStorm / ReturnFromStorm).
+	bool bStashedForStorm = false;
+	FTransform PreStormTransform;
 
 	void LoadDialogueFile();
 	void LoadOutsideDialogue();

@@ -1,6 +1,7 @@
 #include "StorySubsystem.h"
 
 #include "CRTTV.h"
+#include "Rick.h"
 #include "FirstPersonCharacter.h"
 #include "GazeUtils.h"
 #include "StormFogComponent.h"
@@ -416,6 +417,13 @@ void UStorySubsystem::ApplyStorm()
 				UE_LOG(LogTemp, Error, TEXT("StorySubsystem: StormSilenceAmbient-tagged '%s' is not an AAmbientSound with audio"), *Actor->GetName());
 			}
 		}
+	}
+
+	// Rick leaves with the storm — he only comes back much later in the game.
+	// MetaHuman: teleport-stash, never a visibility toggle (grooms break on re-show).
+	for (TActorIterator<ARick> RickIt(World); RickIt; ++RickIt)
+	{
+		RickIt->StashForStorm();
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: storm applied — dimmed %d light comp(s) x%.2f, hid %d actor(s), silenced %d ambient bed(s)"),

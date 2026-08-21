@@ -208,6 +208,31 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 	FPChar->ShowItemNotification(ItemData, MoneyDef->NotificationRotation);
 }
 
+void ARick::StashForStorm()
+{
+	if (bStashedForStorm)
+	{
+		return;
+	}
+	bStashedForStorm = true;
+	PreStormTransform = GetActorTransform();
+	SetActorEnableCollision(false);
+	SetActorLocation(GetActorLocation() - FVector(0.f, 0.f, 10000.f));
+	UE_LOG(LogTemp, Log, TEXT("Rick: stashed for the storm (teleported below level, collision off)"));
+}
+
+void ARick::ReturnFromStorm()
+{
+	if (!bStashedForStorm)
+	{
+		return;
+	}
+	bStashedForStorm = false;
+	SetActorTransform(PreStormTransform);
+	SetActorEnableCollision(true);
+	UE_LOG(LogTemp, Log, TEXT("Rick: returned from the storm stash"));
+}
+
 void ARick::AppearOutside()
 {
 	if (!OutsidePositionTarget)

@@ -2703,6 +2703,34 @@ public:
 	}
 };
 
+// Wait until the pay-phone allows hang-up (first-call code finished).
+class FTD_WaitForPayPhoneHangupUnlocked : public FTD_Base
+{
+public:
+	FTD_WaitForPayPhoneHangupUnlocked(FAutomationTestBase* InTest, double InTimeout = 15.0)
+		: FTD_Base(InTest), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override { return TEXT("Waiting for pay-phone hang-up unlock"); }
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WaitForPayPhoneHangupUnlocked: no driver")); return true; }
+		if (!Driver->IsPayPhoneHangupLocked())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForPayPhoneHangupUnlocked: still locked after %.0fs"), Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
 // Assert whether the pay-phone audio bed is playing.
 class FTD_AssertPayPhoneAudioPlaying : public FTD_Base
 {

@@ -10,9 +10,11 @@
 [x] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
 [x] Chosen movies show up as poster on telephone pole, in bathroom
 [x] blur the background when in item inspection state
+[ ] hide rick on storm beat
     
 # Needs human
 [x] add lock mesh to employee door
+[ ] walking sfx
 [ ] claude added the movie poster to phone pole but it looks like shit
 [ ] review dialogue
 [ ] seneca dialogue cigarrete tweaks
@@ -23,9 +25,9 @@
     
     
 # Needs design
-[ ] improve phone pickup beat 
-    [ ] don't love that you have to wait, players seem unlikely to do this
-    [ ] phone pickup should animate or something
+[x] improve phone pickup beat 
+    [x] don't love that you have to wait, players seem unlikely to do this (code now starts ~1.5s in; hang-up locked until it finishes)
+    [x] phone pickup should animate or something (handset mesh animates cradle<->ear; dialogue plate shows the code line)
 
 [ ] make every single item in the environment interatactable, like a point n click adventure  
 [ ] message on payphone is code to employee bathroom

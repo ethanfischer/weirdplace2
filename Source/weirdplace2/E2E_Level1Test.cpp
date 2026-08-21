@@ -1744,6 +1744,9 @@ bool FE2E_Level1_StationRelight::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
 
 	// Use the phone and hang up — the hangup sets HungUpPhone and arms the countdown.
+	// Mark the code heard so this is a mundane call: a first call locks hang-up
+	// until the spoken code finishes, which isn't what this relight test is about.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_MarkPayPhoneCodeSpoken(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhonePickup(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
@@ -1830,10 +1833,23 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
 
+	// Stand at the phone so the receiver screenshots below show the kiosk (aim
+	// at the kiosk component — the actor origin is up the pole).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 150.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+
+	// The telephone pole shares the actor but must NOT answer: aim at the pole
+	// (the actor origin runs up it) and interact — nothing should play.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneAudioPlaying(this, false));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_TelephoneScene"), TEXT("SM_Payphone_NN_01a")));
+
 	// Mark the code already heard so this is a mundane "dialtone only" call — the
-	// persistent looping dialtone. (On a FIRST call the dialtone deliberately cuts
-	// out ~1.5s in, before the spoken code; that transient sequence isn't what this
-	// pickup/hangup/repeat mechanic test is about.)
+	// persistent looping dialtone. (On a FIRST call there is no dialtone at all:
+	// static+voices come up, the spoken code plays, and hang-up is locked until it
+	// finishes; that sequence isn't what this pickup/hangup/repeat test is about.)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_MarkPayPhoneCodeSpoken(this));
 
 	// Pick up: pickup one-shot plays immediately, and we're now off the hook
@@ -1847,15 +1863,17 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, true));
 
+	// Receiver held to the ear (attached to the camera) — visual check.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhone_ReceiverHeld")));
+
 	// Hang up: dialtone stops and we can pick up again (repeatable).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerPayPhoneHangUp(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, true));
 
-	// Screenshot of the revealed phone.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearActorByLabel(this, TEXT("BP_TelephoneScene"), 300.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BP_TelephoneScene")));
+	// Receiver back in the cradle after the return animation — visual check.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.8f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_TelephoneScene"), TEXT("SM_Payphone_NN_01a")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PayPhoneDialtone")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

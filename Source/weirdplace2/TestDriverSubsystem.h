@@ -142,6 +142,9 @@ public:
 	// True while the pay-phone's dialtone loop is playing.
 	bool IsPayPhoneDialtonePlaying() const;
 
+	// True while the pay-phone refuses hang-up (first-call code still playing).
+	bool IsPayPhoneHangupLocked() const;
+
 	// Trigger the pay-phone pickup directly (5.7 simulated-input gotcha — drive
 	// via the subsystem, not a raw key).
 	void TriggerPayPhonePickup();

@@ -1066,10 +1066,18 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			return;
 		}
 
-		if (IInteractable* Interactable = Cast<IInteractable>(HitActor);
-			Interactable && !Interactable->CanInteract())
+		if (IInteractable* Interactable = Cast<IInteractable>(HitActor))
 		{
-			continue;
+			if (!Interactable->CanInteract())
+			{
+				continue;
+			}
+			// Some actors are only interactable on part of their geometry
+			// (payphone kiosk vs the telephone pole in the same actor).
+			if (!Interactable->IsComponentInteractable(HitResult.GetComponent()))
+			{
+				continue;
+			}
 		}
 		// NPC-specific checks: LoS (prevents through-wall capsule interaction)
 		// and range (LookAtPlayerComponent sphere). Only apply to actors that
