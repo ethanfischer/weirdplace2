@@ -9,6 +9,7 @@
 
 class USoundBase;
 class UAudioComponent;
+class UCableComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -109,9 +110,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Receiver")
 	FVector ReceiverCradleOffset = FVector(0.38f, 12.45f, 111.37f);
 
-	// Held-to-ear pose relative to the player camera (X fwd, Y right, Z up).
+	// Held pose relative to the player camera (X fwd, Y right, Z up). Sits just
+	// BEHIND the camera on the left — the lift animation sweeps through view,
+	// then the handset parks out of sight so it never occludes the scene.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Receiver")
-	FVector ReceiverEarOffset = FVector(12.0f, -16.0f, -10.0f);
+	FVector ReceiverEarOffset = FVector(-12.0f, -16.0f, -6.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Receiver")
 	FRotator ReceiverEarRotation = FRotator(-25.0f, 160.0f, -20.0f);
@@ -119,6 +122,18 @@ public:
 	// Seconds for the cradle <-> ear handset animation.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Receiver")
 	float ReceiverAnimDuration = 0.45f;
+
+	// Where the cord roots on the kiosk (relative to the kiosk mesh) — matches
+	// the static curly cord's anchor on the phone unit.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
+	FVector CordAnchorOffset = FVector(-9.0f, 11.0f, 70.0f);
+
+	// Slack length of the off-hook cable cord (cm).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
+	float CordLength = 120.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
+	float CordWidth = 1.2f;
 
 protected:
 	virtual void BeginPlay() override;
@@ -188,6 +203,11 @@ private:
 	// kiosk (cradled) and the player camera (held).
 	UPROPERTY()
 	UStaticMeshComponent* ReceiverMesh = nullptr;
+
+	// Simulated cord from the kiosk to the held receiver. Hidden while on-hook
+	// (the mesh's static curly cord shows instead).
+	UPROPERTY()
+	UCableComponent* CordCable = nullptr;
 
 	// The "DiegeticText" TextRender authored in BP_TelephoneScene. Its authored
 	// text is the full line; hidden until the spoken code plays, then revealed

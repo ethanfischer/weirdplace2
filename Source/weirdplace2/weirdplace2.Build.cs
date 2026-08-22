@@ -19,7 +19,10 @@ public class weirdplace2 : ModuleRules
 
 			"HeadMountedDisplay",
 
-			"MediaAssets"
+			"MediaAssets",
+
+			// Payphone receiver cord (UCableComponent)
+			"CableComponent"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });

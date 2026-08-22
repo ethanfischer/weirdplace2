@@ -1859,8 +1859,9 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneCanInteract(this, false));
 
 	// After the 0.52s pickup, the dialtone loop has started — and on a mundane
-	// call it keeps looping (no cut), so the assert is timing-robust.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.7f));
+	// call it keeps looping (no cut), so a generous delay is timing-robust
+	// (cold-DDC frame hitches can push the 0.52s timer well past its due time).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPayPhoneDialtone(this, true));
 
 	// Receiver held to the ear (attached to the camera) — visual check.

@@ -1,5 +1,6 @@
 #include "PayPhone.h"
 
+#include "CableComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/InputComponent.h"
@@ -11,6 +12,7 @@
 #include "FirstPersonCharacter.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInterface.h"
 #include "Sound/SoundBase.h"
 #include "StorySubsystem.h"
 #include "TimerManager.h"
@@ -188,6 +190,30 @@ void APayPhone::SetUpReceiver()
 	ReceiverMesh->SetupAttachment(KioskMesh);
 	ReceiverMesh->SetRelativeLocation(ReceiverCradleOffset);
 	ReceiverMesh->RegisterComponent();
+
+	// Off-hook cord: simulated cable from the kiosk to the held receiver. The
+	// mesh's static curly cord covers the on-hook look, so this stays hidden
+	// until pickup.
+	CordCable = NewObject<UCableComponent>(this, TEXT("PayPhoneCord"));
+	CordCable->SetupAttachment(KioskMesh);
+	CordCable->SetRelativeLocation(CordAnchorOffset);
+	CordCable->SetAttachEndToComponent(ReceiverMesh);
+	CordCable->EndLocation = FVector(0.f, 0.f, -11.f); // handset bottom
+	CordCable->CableLength = CordLength;
+	CordCable->CableWidth = CordWidth;
+	CordCable->NumSegments = 20;
+	// The default cable material renders unlit white — use the dedicated dark
+	// cord material (near-black plastic).
+	if (UMaterialInterface* CordMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_PhoneCord.M_PhoneCord")))
+	{
+		CordCable->SetMaterial(0, CordMat);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: M_PhoneCord missing — cord will render white"), *GetName());
+	}
+	CordCable->SetVisibility(false);
+	CordCable->RegisterComponent();
 }
 
 bool APayPhone::IsComponentInteractable(const UPrimitiveComponent* Component)
@@ -239,6 +265,11 @@ void APayPhone::Reveal()
 	if (USceneComponent* Root = GetRootComponent())
 	{
 		Root->SetVisibility(true, true);
+		// The propagate re-shows the cord cable; it only appears while off-hook.
+		if (CordCable && !bOffHook)
+		{
+			CordCable->SetVisibility(false);
+		}
 		UE_LOG(LogTemp, Log, TEXT("APayPhone %s: revealed (SeenTornadoWarning)"), *GetName());
 	}
 }
@@ -282,6 +313,10 @@ void APayPhone::Interact_Implementation()
 	{
 		ReceiverMesh->AttachToComponent(Character->GetFirstPersonCamera(), FAttachmentTransformRules::KeepWorldTransform);
 		StartReceiverAnim(ReceiverEarOffset, ReceiverEarRotation);
+		if (CordCable)
+		{
+			CordCable->SetVisibility(true);
+		}
 	}
 
 	if (PickupAudio)
@@ -468,6 +503,10 @@ void APayPhone::HangUp()
 	{
 		ReceiverMesh->AttachToComponent(KioskMesh, FAttachmentTransformRules::KeepWorldTransform);
 		StartReceiverAnim(ReceiverCradleOffset, FRotator::ZeroRotator);
+	}
+	if (CordCable)
+	{
+		CordCable->SetVisibility(false);
 	}
 
 	ReleasePlayer();
