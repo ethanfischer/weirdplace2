@@ -48,15 +48,31 @@ void APayPhone::BeginPlay()
 	{
 		DialtoneSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_dialtone.phone_dialtone"));
 	}
-	// Placeholder for the spoken code (low voices stand in until the real
-	// recording is dropped in). Plays once, immediately after a short beat.
+	// Bed under the typewriter code text; starts with the reveal in PlayCodeOnce.
 	if (!CodeSound)
 	{
-		CodeSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/LowVoiceSoundCue.LowVoiceSoundCue"));
+		CodeSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/announcement.announcement"));
 	}
 	if (!HangupSound)
 	{
 		HangupSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/Phone/phone_hangup.phone_hangup"));
+	}
+	if (CodeVoiceChunks.Num() == 0)
+	{
+		for (int32 i = 0; ; ++i)
+		{
+			const FString Path = FString::Printf(TEXT("/Game/Sounds/Phone/VoiceChunks/announcement_voice_%03d.announcement_voice_%03d"), i, i);
+			USoundBase* Chunk = LoadObject<USoundBase>(nullptr, *Path);
+			if (!Chunk)
+			{
+				break;
+			}
+			CodeVoiceChunks.Add(Chunk);
+		}
+		if (CodeVoiceChunks.Num() == 0)
+		{
+			UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no voice chunks found under /Game/Sounds/Phone/VoiceChunks"), *GetName());
+		}
 	}
 	if (!BodyMesh)
 	{
@@ -123,6 +139,7 @@ void APayPhone::BeginPlay()
 		CodeAudio->SetupAttachment(Root);
 		CodeAudio->bAutoActivate = false;
 		CodeAudio->SetSound(CodeSound);
+		CodeAudio->SetVolumeMultiplier(2.0f);
 		CodeAudio->RegisterComponent();
 
 		// Busy tone (supplied later — BusySound may be null, which plays nothing).
@@ -365,7 +382,6 @@ void APayPhone::StartCall()
 	{
 		VoiceAudio->Play();
 	}
-
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(CodeSpeechTimer, this, &APayPhone::PlayCodeOnce, FMath::Max(0.02f, CodeSpeechDelay), false);
@@ -379,37 +395,63 @@ void APayPhone::PlayCodeOnce()
 	{
 		return;
 	}
-	if (CodeAudio)
-	{
-		CodeAudio->Play();
-	}
+	// The typewriter reveal drives the pacing (lines chain with CodeLineDelay
+	// pauses); unlock hang-up only once the last character has landed, plus a
+	// short beat to let it be read.
+	CodeFullText.ParseIntoArrayLines(CodeLines);
+	CodeLineIndex = 0;
 
-	// Unlock hang-up only once the code has FULLY played. Looping placeholder
-	// cues report an indefinite duration — clamp so the player is never locked
-	// to the phone forever.
-	float CodeDuration = CodeSound ? CodeSound->GetDuration() : 0.0f;
-	if (CodeDuration <= 0.0f || CodeDuration >= INDEFINITELY_LOOPING_DURATION)
+	int32 TotalChars = 0;
+	for (const FString& Line : CodeLines)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("APayPhone %s: CodeSound duration unusable (%.1f) — treating as 4s"), *GetName(), CodeDuration);
-		CodeDuration = 4.0f;
+		TotalChars += Line.Len();
 	}
+	const float CodeDuration = TotalChars * FMath::Max(0.01f, CodeCharInterval)
+		+ FMath::Max(0, CodeLines.Num() - 1) * CodeLineDelay + 1.0f;
 	if (UWorld* World = GetWorld())
 	{
 		World->GetTimerManager().SetTimer(CodeEndTimer, this, &APayPhone::OnCodeFinished, CodeDuration, false);
 	}
 
-	// Type the diegetic code text on in sync with the audio: the last character
-	// lands as the spoken code finishes.
-	if (CodeTextRender && !CodeFullText.IsEmpty())
+	StartNextCodeLine();
+
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: speaking the bathroom code (%d lines, finishes in %.2fs)"), *GetName(), CodeLines.Num(), CodeDuration);
+}
+
+void APayPhone::StartNextCodeLine()
+{
+	if (!CodeTextRender || !CodeLines.IsValidIndex(CodeLineIndex))
 	{
-		CodeTypewriter.OnUpdate = [this](const FString& DisplayText)
-		{
-			CodeTextRender->SetText(FText::FromString(DisplayText));
-		};
-		CodeTypewriter.StartWithDuration(this, CodeFullText, CodeDuration);
+		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: speaking the bathroom code (finishes in %.2fs)"), *GetName(), CodeDuration);
+	CodeTypewriter.OnUpdate = [this](const FString& DisplayText)
+	{
+		CodeTextRender->SetText(FText::FromString(DisplayText));
+	};
+	// A random voice-babble syllable per typed character.
+	CodeTypewriter.OnCharacterRevealed = [this](TCHAR NewChar)
+	{
+		if (!FChar::IsWhitespace(NewChar) && CodeVoiceChunks.Num() > 0)
+		{
+			USoundBase* Chunk = CodeVoiceChunks[FMath::RandRange(0, CodeVoiceChunks.Num() - 1)];
+			UGameplayStatics::PlaySound2D(GetWorld(), Chunk, CodeBabbleVolume, FMath::RandRange(0.95f, 1.05f));
+		}
+	};
+	// The finished line lingers through the pause; the next line's first
+	// character replaces it.
+	CodeTypewriter.OnFinished = [this]()
+	{
+		++CodeLineIndex;
+		if (CodeLines.IsValidIndex(CodeLineIndex))
+		{
+			if (UWorld* World = GetWorld())
+			{
+				World->GetTimerManager().SetTimer(CodeLineTimer, this, &APayPhone::StartNextCodeLine, FMath::Max(0.02f, CodeLineDelay), false);
+			}
+		}
+	};
+	CodeTypewriter.Start(this, CodeLines[CodeLineIndex], FMath::Max(0.01f, CodeCharInterval), 0.0f);
 }
 
 void APayPhone::OnCodeFinished()
@@ -556,6 +598,10 @@ void APayPhone::Tick(float DeltaSeconds)
 void APayPhone::ResetCodeText()
 {
 	CodeTypewriter.Stop();
+	if (UWorld* World = GetWorld())
+	{
+		World->GetTimerManager().ClearTimer(CodeLineTimer);
+	}
 	if (CodeTextRender)
 	{
 		CodeTextRender->SetText(FText::GetEmpty());

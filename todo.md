@@ -10,7 +10,11 @@
 [x] the fog wall and bladder indicator never look right on my first play after opening the editor. on the second play, they fix themselves. Is there some kinda shader/material compilation that only happens the first time I hit play after launching the editor fresh or something?
 [x] Chosen movies show up as poster on telephone pole, in bathroom
 [x] blur the background when in item inspection state
-[ ] hide rick on storm beat
+[x] hide rick on storm beat
+[x] payphone whisper line as diegetic typewriter text (AI VO misfire — scrapped)
+    line replaces "8908" on DiegeticText, ends "Ok. 89... 8."; announcement.wav plays under it
+    typewriter blip = textBlip_01 but quiet + pitched down (distinct from NPC plates)
+    note: door accepts any 4-digit code containing an 8, so the dropped digit is intentional
     
 # Needs human
 [x] add lock mesh to employee door

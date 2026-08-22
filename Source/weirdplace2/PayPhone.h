@@ -89,6 +89,26 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	USoundBase* HangupSound = nullptr;
 
+	// Voice babble for the diegetic code text: syllable slices of
+	// announcement-voice.wav (default-loaded from /Game/Sounds/Phone/VoiceChunks
+	// if empty). A random chunk plays per typed character.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	TArray<USoundBase*> CodeVoiceChunks;
+
+	// Seconds per revealed character of the code text. The hang-up lock lasts
+	// until the last character lands.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	float CodeCharInterval = 0.09f;
+
+	// Pause between typed lines: the finished line lingers, then the plate
+	// clears as the next line starts.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	float CodeLineDelay = 2.5f;
+
+	// Volume of the per-character voice-babble chunks.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
+	float CodeBabbleVolume = 1.0f;
+
 	// Seconds after the static/voices begin before the spoken code plays (first call).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone")
 	float CodeSpeechDelay = 1.5f;
@@ -161,6 +181,10 @@ private:
 	// spoken code. First call only.
 	void PlayCodeOnce();
 
+	// Type the next line of the code text (chained via CodeLineTimer with a
+	// CodeLineDelay pause after each finished line).
+	void StartNextCodeLine();
+
 	// Timer callback (code duration after PlayCodeOnce): the code has fully
 	// played — latch bCodeSpoken, unlock hang-up, arm the busy tone.
 	void OnCodeFinished();
@@ -221,6 +245,10 @@ private:
 	// Full authored DiegeticText line, cached at BeginPlay before blanking.
 	FString CodeFullText;
 
+	// CodeFullText split at newlines; typed one line at a time.
+	TArray<FString> CodeLines;
+	int32 CodeLineIndex = 0;
+
 	// Reveals CodeFullText onto DiegeticText, paced to the code audio's length.
 	FTypewriterReveal CodeTypewriter;
 
@@ -245,6 +273,7 @@ private:
 	FDelegateHandle FlagChangedHandle;
 	FTimerHandle CallStartTimer;
 	FTimerHandle CodeSpeechTimer;
+	FTimerHandle CodeLineTimer;
 	FTimerHandle CodeEndTimer;
 	FTimerHandle BusyToneTimer;
 };
