@@ -123,8 +123,8 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Receiver")
 	float ReceiverAnimDuration = 0.45f;
 
-	// Where the cord roots on the kiosk (relative to the kiosk mesh) — matches
-	// the static curly cord's anchor on the phone unit.
+	// Where the cord roots on the kiosk (relative to the kiosk mesh) — where
+	// the original curly cord anchored on the phone unit.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
 	FVector CordAnchorOffset = FVector(-9.0f, 11.0f, 70.0f);
 
@@ -204,8 +204,9 @@ private:
 	UPROPERTY()
 	UStaticMeshComponent* ReceiverMesh = nullptr;
 
-	// Simulated cord from the kiosk to the held receiver. Hidden while on-hook
-	// (the mesh's static curly cord shows instead).
+	// Simulated cord from the kiosk to the receiver — the only cord (the baked
+	// curly cord was removed from the body mesh). Drapes to the cradle on-hook,
+	// stretches toward the player while held.
 	UPROPERTY()
 	UCableComponent* CordCable = nullptr;
 
