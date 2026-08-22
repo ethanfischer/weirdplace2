@@ -128,9 +128,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
 	FVector CordAnchorOffset = FVector(-9.0f, 11.0f, 70.0f);
 
-	// Slack length of the off-hook cable cord (cm).
+	// Slack length of the cable cord (cm). Short enough that the on-hook drape
+	// stays above the booth shelf; while held it pulls taut regardless.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
-	float CordLength = 120.0f;
+	float CordLength = 38.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
 	float CordWidth = 1.2f;

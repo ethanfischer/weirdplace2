@@ -198,11 +198,20 @@ void APayPhone::SetUpReceiver()
 	CordCable = NewObject<UCableComponent>(this, TEXT("PayPhoneCord"));
 	CordCable->SetupAttachment(KioskMesh);
 	CordCable->SetRelativeLocation(CordAnchorOffset);
-	CordCable->SetAttachEndToComponent(ReceiverMesh);
+	// Attach the end by reflected property name, NOT SetAttachEndToComponent:
+	// the raw component pointer is dropped whenever the cable re-resolves its
+	// FComponentReference (re-register, solver param change), which snapped the
+	// cord to the actor root underground. The property path survives re-resolution.
+	CordCable->AttachEndTo.OtherActor = this;
+	CordCable->AttachEndTo.ComponentProperty = FName("ReceiverMesh");
 	CordCable->EndLocation = FVector(0.f, 0.f, -11.f); // handset bottom
 	CordCable->CableLength = CordLength;
 	CordCable->CableWidth = CordWidth;
 	CordCable->NumSegments = 20;
+	// The default single solver iteration lets gravity stretch the cable to ~2x
+	// its rest length (measured 76cm for a 38cm cord) — that was the cord
+	// sinking through the booth shelf. More iterations keep it near rest length.
+	CordCable->SolverIterations = 16;
 	// The default cable material renders unlit white — use the dedicated dark
 	// cord material (near-black plastic).
 	if (UMaterialInterface* CordMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_PhoneCord.M_PhoneCord")))
