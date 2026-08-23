@@ -198,5 +198,15 @@ Do not use `--file <path>` — the wrapper ships file contents, but MODE_EXEC_FI
 
 **Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in `todo.md` at the repo root (sectioned checklist; `# Claude Friendly` is the agent queue). See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.
+
 ## Ending your turn
 If you've made changes that I need to manually verify, launch the editor via `scripts/launch_editor.ps1` so it's ready to go when I return to my computer
