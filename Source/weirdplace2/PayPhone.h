@@ -10,6 +10,7 @@
 class USoundBase;
 class UAudioComponent;
 class UCableComponent;
+class ULocalLightComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UTextRenderComponent;
@@ -156,6 +157,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
 	float CordWidth = 1.2f;
 
+	// Forced perspective: the phone reads larger/closer from afar, settling to
+	// true scale as the player approaches. Distances in cm from the player pawn.
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	bool bEnableForcedPerspective = true;
+
+	// At/beyond this distance the actor is at PerspectiveMaxScale.
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveMaxDistance = 4000.0f;
+
+	// At/below this distance the actor is at PerspectiveMinScale (true scale).
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveMinDistance = 400.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveMaxScale = 2.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveMinScale = 1.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveInterpSpeed = 2.0f;
+
+	// Extra multiplier on the lights' authored attenuation radii, applied on
+	// top of the perspective scale (radius = authored * scale * this).
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
+	float PerspectiveLightRadiusMultiplier = 1.0f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -194,6 +222,9 @@ private:
 
 	// Stop the typewriter and hide the diegetic text (hang-up / teardown).
 	void ResetCodeText();
+
+	// Interp the actor's uniform scale toward the distance-mapped target.
+	void UpdateForcedPerspective(float DeltaTime);
 
 	// Release the player's movement and remove the "Exit Interaction" binding.
 	// Shared by HangUp and EndPlay (mid-call teardown).
@@ -251,6 +282,17 @@ private:
 
 	// Reveals CodeFullText onto DiegeticText, paced to the code audio's length.
 	FTypewriterReveal CodeTypewriter;
+
+	// Current forced-perspective scale, interped toward the distance target.
+	float CurrentPerspectiveScale = 1.0f;
+
+	// Lights on the actor (the kiosk spotlight): attenuation radius is authored
+	// in absolute cm and ignores actor scale, so it's re-derived from these
+	// cached base values each time the perspective scale changes.
+	UPROPERTY()
+	TArray<ULocalLightComponent*> PerspectiveLights;
+
+	TArray<float> PerspectiveLightBaseRadii;
 
 	// True while the receiver is up (between pickup and hang up).
 	bool bOffHook = false;

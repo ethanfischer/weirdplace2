@@ -4,6 +4,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/InputComponent.h"
+#include "Components/LocalLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -19,9 +20,10 @@
 
 APayPhone::APayPhone()
 {
-	// Ticks only while the receiver is animating (enabled on demand).
+	// Ticks from spawn for forced-perspective scaling; with perspective off,
+	// tick is enabled on demand for the receiver animation only.
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
 void APayPhone::BeginPlay()
@@ -100,6 +102,26 @@ void APayPhone::BeginPlay()
 	if (!CodeTextRender)
 	{
 		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no DiegeticText component — code text will not display"), *GetName());
+	}
+
+	// Query-only collision everywhere: interaction gaze traces still hit, but
+	// the forced-perspective scale-up can never physically block the car/pawn.
+	TArray<UPrimitiveComponent*> PrimComps;
+	GetComponents<UPrimitiveComponent>(PrimComps);
+	for (UPrimitiveComponent* Prim : PrimComps)
+	{
+		Prim->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+
+	// Cache the authored light radii — attenuation is absolute cm, so it must
+	// be scaled alongside the actor in UpdateForcedPerspective.
+	GetComponents<ULocalLightComponent>(PerspectiveLights);
+	for (ULocalLightComponent* Light : PerspectiveLights)
+	{
+		// Authored Static: a static light ignores runtime attenuation changes
+		// and doesn't follow the actor's runtime scaling.
+		Light->SetMobility(EComponentMobility::Movable);
+		PerspectiveLightBaseRadii.Add(Light->AttenuationRadius);
 	}
 
 	USceneComponent* Root = GetRootComponent();
@@ -589,9 +611,43 @@ void APayPhone::Tick(float DeltaSeconds)
 		}
 	}
 
-	if (!bReceiverAnimating)
+	if (bEnableForcedPerspective)
+	{
+		UpdateForcedPerspective(DeltaSeconds);
+	}
+	else if (!bReceiverAnimating)
 	{
 		SetActorTickEnabled(false);
+	}
+}
+
+void APayPhone::UpdateForcedPerspective(float DeltaTime)
+{
+	const APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
+	const APawn* Pawn = PC ? PC->GetPawn() : nullptr;
+	if (!Pawn)
+	{
+		return;
+	}
+
+	const float Dist = FVector::Dist(GetActorLocation(), Pawn->GetActorLocation());
+
+	// Far away and already settled at max scale — skip the interp/set work.
+	if (Dist > PerspectiveMaxDistance * 2.0f && FMath::IsNearlyEqual(CurrentPerspectiveScale, PerspectiveMaxScale, 0.001f))
+	{
+		return;
+	}
+
+	const float Target = FMath::GetMappedRangeValueClamped(
+		FVector2D(PerspectiveMinDistance, PerspectiveMaxDistance),
+		FVector2D(PerspectiveMinScale, PerspectiveMaxScale),
+		Dist);
+	CurrentPerspectiveScale = FMath::FInterpTo(CurrentPerspectiveScale, Target, DeltaTime, PerspectiveInterpSpeed);
+	SetActorScale3D(FVector(CurrentPerspectiveScale));
+
+	for (int32 i = 0; i < PerspectiveLights.Num(); ++i)
+	{
+		PerspectiveLights[i]->SetAttenuationRadius(PerspectiveLightBaseRadii[i] * CurrentPerspectiveScale * PerspectiveLightRadiusMultiplier);
 	}
 }
 
