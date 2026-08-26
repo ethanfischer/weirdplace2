@@ -202,7 +202,7 @@ Do not use `--file <path>` — the wrapper ships file contents, but MODE_EXEC_FI
 
 ### Issue tracker
 
-Issues are tracked in `todo.md` at the repo root (sectioned checklist; `# Claude Friendly` is the agent queue). See `docs/agents/issue-tracker.md`.
+Issues are tracked on the Trello board "weirdplace" (https://trello.com/b/apYW69HZ/weirdplace) via the Trello MCP tools. Green label = agent queue. `todo.md` is deprecated. See `docs/agents/issue-tracker.md` for IDs and conventions.
 
 ### Domain docs
 
