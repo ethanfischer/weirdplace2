@@ -13,6 +13,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Sound/AmbientSound.h"
 #include "TimerManager.h"
 
@@ -44,6 +45,13 @@ namespace StorySubsystemConst
 	// TVs are small and close; keep the box-expand tight and the range modest.
 	static constexpr float GazeBoxExpand = 10.f;
 	static constexpr float GazeMaxDistance = 4000.f;
+
+	// Persistent AutoSkip storage (per-user GameUserSettings ini).
+	static const TCHAR* AutoSkipSection = TEXT("Weirdplace.Dev");
+	static const TCHAR* AutoSkipKey = TEXT("AutoSkipTo");
+	// Delay before applying, so actors that subscribe to OnStoryFlagChanged in
+	// their BeginPlay (payphone reveal, weather controller) are bound first.
+	static constexpr float AutoSkipDelaySeconds = 0.5f;
 }
 
 void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
@@ -51,6 +59,16 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	Super::OnWorldBeginPlay(InWorld);
 
 	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
+
+#if !UE_BUILD_SHIPPING
+	// Dev convenience: a saved `AutoSkip <beat>` applies on every play. Skipped
+	// during automation so a leftover setting can't skew E2E runs.
+	if (!GIsAutomationTesting && InWorld.IsGameWorld() && !GetAutoSkipBeat().IsEmpty())
+	{
+		InWorld.GetTimerManager().SetTimer(AutoSkipTimer, this,
+			&UStorySubsystem::ApplyAutoSkip, StorySubsystemConst::AutoSkipDelaySeconds, false);
+	}
+#endif
 
 	// NOTE (first-play fog bug, 2026-07-02): do NOT "fix" the invisible fog
 	// wall by rebuilding the fog's render state here — a mid-play
@@ -226,6 +244,43 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 		SetFlag(EStoryFlag::StationRelit, true);
 	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);
+}
+
+FString UStorySubsystem::GetAutoSkipBeat()
+{
+	FString Beat;
+	GConfig->GetString(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, Beat, GGameUserSettingsIni);
+	return Beat;
+}
+
+void UStorySubsystem::SetAutoSkipBeat(const FString& BeatName)
+{
+	if (BeatName.IsEmpty())
+	{
+		GConfig->RemoveKey(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, GGameUserSettingsIni);
+	}
+	else
+	{
+		GConfig->SetString(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, *BeatName, GGameUserSettingsIni);
+	}
+	GConfig->Flush(false, GGameUserSettingsIni);
+}
+
+void UStorySubsystem::ApplyAutoSkip()
+{
+	const FString Beat = GetAutoSkipBeat();
+	EStoryFlag Target;
+	if (!ResolveBeat(Beat, Target))
+	{
+		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: AutoSkip beat '%s' no longer resolves - run `AutoSkip clear`"), *Beat);
+		return;
+	}
+
+	SkipToBeat(Target);
+
+	const FString Msg = FString::Printf(TEXT("AutoSkip: skipped to '%s' (type `AutoSkip clear` to disable)"), *GetBeatDisplayName(Target));
+	UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
+	if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
 }
 
 void UStorySubsystem::HandleStoreEntry()

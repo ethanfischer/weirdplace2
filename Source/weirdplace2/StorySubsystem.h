@@ -73,6 +73,13 @@ public:
 	// declared in story order. Used by the `SkipTo` dev console command.
 	void SkipToBeat(EStoryFlag Target);
 
+	// Persistent auto-skip (dev): the beat name saved by the `AutoSkip` cheat,
+	// applied automatically shortly after every play session begins. Empty when
+	// unset. Stored in the per-user GameUserSettings ini.
+	static FString GetAutoSkipBeat();
+	// Save (or clear, when empty) the auto-skip beat name.
+	static void SetAutoSkipBeat(const FString& BeatName);
+
 	// The store-entry beat: player crossed TriggerBox_Inside. If the key has
 	// broken and the warning hasn't shown yet, switches both store TVs to the
 	// tornado-warning screen. Also invoked directly by the TestDriver so E2E
@@ -100,6 +107,9 @@ private:
 	// Guarded to run once.
 	void Relight();
 	void TickFlicker();
+
+	// Fires once, shortly after begin-play, when an AutoSkip beat is saved.
+	void ApplyAutoSkip();
 
 	// Polls whether the player is gazing at a warning TV; sets SeenTornadoWarning
 	// after the dwell. Runs on a repeating timer only while the warning is up.
@@ -134,4 +144,5 @@ private:
 
 	FTimerHandle RelightDelayTimer;
 	FTimerHandle FlickerTimer;
+	FTimerHandle AutoSkipTimer;
 };
