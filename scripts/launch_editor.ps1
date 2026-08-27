@@ -41,6 +41,12 @@ if (Test-EditorReady) {
 $proc = Start-Process -FilePath $EditorExe -ArgumentList "`"$UProject`"$ExtraArgs" -PassThru
 $pidVal = $proc.Id
 
+# Chime on Live Coding results (UE's own compile jingle is broken). The watcher
+# is single-instance and exits with the editor.
+if (-not $Headless) {
+    Start-Process powershell -ArgumentList '-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'livecode_chime_watcher.ps1') -WindowStyle Hidden
+}
+
 for ($i = 1; $i -le 60; $i++) {
     Start-Sleep -Seconds 3
     if (Test-EditorReady) {
