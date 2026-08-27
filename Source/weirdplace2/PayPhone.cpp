@@ -104,6 +104,15 @@ void APayPhone::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no DiegeticText component — code text will not display"), *GetName());
 	}
 
+	// The BP is authored Static, but Static components silently ignore runtime
+	// transforms — everything must be Movable for the perspective scaling.
+	TArray<USceneComponent*> SceneComps;
+	GetComponents<USceneComponent>(SceneComps);
+	for (USceneComponent* Comp : SceneComps)
+	{
+		Comp->SetMobility(EComponentMobility::Movable);
+	}
+
 	// Query-only collision everywhere: interaction gaze traces still hit, but
 	// the forced-perspective scale-up can never physically block the car/pawn.
 	TArray<UPrimitiveComponent*> PrimComps;
@@ -116,11 +125,8 @@ void APayPhone::BeginPlay()
 	// Cache the authored light radii — attenuation is absolute cm, so it must
 	// be scaled alongside the actor in UpdateForcedPerspective.
 	GetComponents<ULocalLightComponent>(PerspectiveLights);
-	for (ULocalLightComponent* Light : PerspectiveLights)
+	for (const ULocalLightComponent* Light : PerspectiveLights)
 	{
-		// Authored Static: a static light ignores runtime attenuation changes
-		// and doesn't follow the actor's runtime scaling.
-		Light->SetMobility(EComponentMobility::Movable);
 		PerspectiveLightBaseRadii.Add(Light->AttenuationRadius);
 	}
 
@@ -633,15 +639,21 @@ void APayPhone::UpdateForcedPerspective(float DeltaTime)
 	const float Dist = FVector::Dist(GetActorLocation(), Pawn->GetActorLocation());
 
 	// Far away and already settled at max scale — skip the interp/set work.
-	if (Dist > PerspectiveMaxDistance * 2.0f && FMath::IsNearlyEqual(CurrentPerspectiveScale, PerspectiveMaxScale, 0.001f))
+	if (Dist > TrueScaleDistance * PerspectiveMaxScale * 2.0f && FMath::IsNearlyEqual(CurrentPerspectiveScale, PerspectiveMaxScale, 0.001f))
 	{
 		return;
 	}
 
-	const float Target = FMath::GetMappedRangeValueClamped(
-		FVector2D(PerspectiveMinDistance, PerspectiveMaxDistance),
-		FVector2D(PerspectiveMinScale, PerspectiveMaxScale),
-		Dist);
+	// (distance ratio)^strength: at strength 1 the on-screen size holds exactly
+	// constant during the approach; below 1 the phone still grows, just slower
+	// than true perspective, so the player keeps a sense of progress. The
+	// smoothstep eases the curve in over [1x, 2x] TrueScaleDistance — without
+	// it the growth rate steps at the seam where the illusion hands off to
+	// true perspective, which reads as a sudden speed-up near the phone.
+	const float DistRatio = Dist / FMath::Max(1.0f, TrueScaleDistance);
+	const float Raw = FMath::Pow(DistRatio, PerspectiveStrength);
+	const float Blend = FMath::SmoothStep(1.0f, 10.0f, DistRatio);
+	const float Target = FMath::Clamp(FMath::Lerp(1.0f, Raw, Blend), 1.0f, PerspectiveMaxScale);
 	CurrentPerspectiveScale = FMath::FInterpTo(CurrentPerspectiveScale, Target, DeltaTime, PerspectiveInterpSpeed);
 	SetActorScale3D(FVector(CurrentPerspectiveScale));
 

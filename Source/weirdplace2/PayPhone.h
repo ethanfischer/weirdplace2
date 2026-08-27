@@ -157,27 +157,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PayPhone|Cord")
 	float CordWidth = 1.2f;
 
-	// Forced perspective: the phone reads larger/closer from afar, settling to
-	// true scale as the player approaches. Distances in cm from the player pawn.
+	// Forced perspective: scale = distance / TrueScaleDistance (clamped to
+	// [1, PerspectiveMaxScale]). That holds the phone's on-screen size exactly
+	// constant while the player approaches — "it's taking longer to reach than
+	// it looks" — until they're inside TrueScaleDistance, where it's true-sized
+	// and behaves as a normal object.
 	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
 	bool bEnableForcedPerspective = true;
 
-	// At/beyond this distance the actor is at PerspectiveMaxScale.
+	// Inside this distance (cm) the phone is true-sized. Bigger = the illusion
+	// holds deeper into the approach.
 	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
-	float PerspectiveMaxDistance = 4000.0f;
+	float TrueScaleDistance = 2000.0f;
 
-	// At/below this distance the actor is at PerspectiveMinScale (true scale).
-	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
-	float PerspectiveMinDistance = 400.0f;
-
+	// Scale cap, so the phone can't grow absurd from very far away. Engages
+	// beyond TrueScaleDistance * PerspectiveMaxScale cm.
 	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
 	float PerspectiveMaxScale = 2.0f;
 
-	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
-	float PerspectiveMinScale = 1.0f;
+	// How much of the perspective shrink is compensated. 1 = on-screen size
+	// frozen during the approach (no sense of progress); 0 = no effect.
+	// ~0.5-0.7 = the phone still grows as you approach, just slower than
+	// reality, so it reads "farther than it looks" while progress stays felt.
+	UPROPERTY(EditAnywhere, Category = "Forced Perspective", meta = (ClampMin = "0.0", ClampMax = "1.0"))
+	float PerspectiveStrength = 0.6f;
 
+	// Smoothing toward the target scale (~1/speed seconds of lag).
 	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
-	float PerspectiveInterpSpeed = 2.0f;
+	float PerspectiveInterpSpeed = 8.0f;
 
 	// Extra multiplier on the lights' authored attenuation radii, applied on
 	// top of the perspective scale (radius = authored * scale * this).
