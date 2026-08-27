@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "BladderUrgencyComponent.h"
 #include "StormFogComponent.h"
+#include "FootstepComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -122,6 +123,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create the storm pea-soup fog component (rolls in the near-field murk on the storm beat)
 	StormFogComponent = CreateDefaultSubobject<UStormFogComponent>(TEXT("StormFogComponent"));
+
+	// Footstep sounds while walking
+	FootstepComponent = CreateDefaultSubobject<UFootstepComponent>(TEXT("FootstepComponent"));
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));

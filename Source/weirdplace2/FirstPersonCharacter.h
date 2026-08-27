@@ -14,6 +14,7 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStormFogComponent;
+class UFootstepComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
@@ -116,6 +117,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Storm Fog")
 	UStormFogComponent* StormFogComponent;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	UFootstepComponent* FootstepComponent;
 
 	// Console (~): toggle the pea-soup storm fog on/off for testing. Type "PeaSoup".
 	UFUNCTION(Exec)

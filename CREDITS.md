@@ -84,6 +84,13 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Used in:** `Content/welcomebell.wav` / `welcomebell.uasset` (and the related `SColor_GreetingBell.uasset` if it references this SoundWave)
 - **Required attribution:** `"Convenience Store Door Chime (16bit, 44.1kHz, Stereo)" by zebragrrl (freesound.org) -- License: Creative Commons Attribution 4.0`
 
+### Player footsteps — FreeToUseSounds "All In One Bundle" (FOOTSTEPS_01)
+- **Author:** Marcel Gnauk / FreeToUseSounds
+- **Source:** FTUS All In One Bundle (Gumroad), set FOOTSTEPS_01. Source takes: Carpet = "Japan … Wooden Floor, Walking, Stepping, Carpet, Apartment, Hiroshima" 01–02; WetDirt = "FranceLaReunion … Walking, Stomping, Mud, Wet"
+- **License:** FTUS bundle license (royalty-free, purchased)
+- **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` (Carpet ×3, WetDirt ×4) — one-shot steps sliced from the takes and processed (RMS loudness-matched; Carpet +3x gain; WetDirt 1 kHz lowpass, pitched −10 semitones). Played by `UFootstepComponent`; `weird.Footstep.Set` selects the set (WetDirt also covers tar surfaces)
+- **Required attribution:** None required; credited anyway.
+
 ### Audio files with unconfirmed source
 These project files have no obvious match in the user's freesound history. Could be original recordings, from a marketplace pack, or freesound files renamed beyond recognition. Verify and credit if third-party.
 
