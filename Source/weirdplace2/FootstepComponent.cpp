@@ -1,6 +1,8 @@
 #include "FootstepComponent.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
+#include "EngineUtils.h"
+#include "GameFramework/Volume.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -57,6 +59,16 @@ void UFootstepComponent::BeginPlay()
 	}
 	LastSoundIndexPerSet.Init(INDEX_NONE, Sets.Num());
 
+	// Collect Footstep.*-tagged volumes (e.g. the AV_* audio volumes) once.
+	for (TActorIterator<AVolume> It(GetWorld()); It; ++It)
+	{
+		if (SetIndexFromTags(*It) != INDEX_NONE)
+		{
+			TaggedVolumes.Add(*It);
+			UE_LOG(LogTemp, Display, TEXT("FootstepComponent: surface volume %s"), *It->GetActorNameOrLabel());
+		}
+	}
+
 	if (Sets.Num() == 0)
 	{
 		UE_LOG(LogTemp, Error, TEXT("FootstepComponent: no sound sets under /Game/Sounds/Footsteps — footsteps will be silent."));
@@ -101,22 +113,9 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	bWasWalking = bWalking;
 }
 
-int32 UFootstepComponent::ResolveSetIndex() const
+int32 UFootstepComponent::SetIndexFromTags(const AActor* Actor) const
 {
-	const int32 Fallback = FMath::Clamp(GFootstepSet, 0, Sets.Num() - 1);
-
-	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	const FVector Start = Character->GetActorLocation();
-	const FVector End = Start - FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight() + 100.f);
-
-	FCollisionQueryParams Params(SCENE_QUERY_STAT(FootstepSurface), /*bTraceComplex=*/false, Character);
-	FHitResult Hit;
-	if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) || !Hit.GetActor())
-	{
-		return Fallback;
-	}
-
-	for (const FName& Tag : Hit.GetActor()->Tags)
+	for (const FName& Tag : Actor->Tags)
 	{
 		const FString TagStr = Tag.ToString();
 		if (TagStr.StartsWith(FootstepTagPrefix))
@@ -130,10 +129,45 @@ int32 UFootstepComponent::ResolveSetIndex() const
 				}
 			}
 			UE_LOG(LogTemp, Warning, TEXT("FootstepComponent: actor %s has tag %s but no set named %s exists"),
-				*Hit.GetActor()->GetName(), *TagStr, *SetName);
+				*Actor->GetName(), *TagStr, *SetName);
 		}
 	}
-	return Fallback;
+	return INDEX_NONE;
+}
+
+int32 UFootstepComponent::ResolveSetIndex() const
+{
+	const int32 Fallback = FMath::Clamp(GFootstepSet, 0, Sets.Num() - 1);
+
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	const FVector Feet = Character->GetActorLocation()
+		- FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight());
+
+	// Tagged volumes take priority — they carve out regions (e.g. the bathroom)
+	// inside a floor mesh that carries its own tag.
+	for (const TObjectPtr<AActor>& VolumeActor : TaggedVolumes)
+	{
+		const AVolume* Volume = Cast<AVolume>(VolumeActor);
+		if (Volume && Volume->EncompassesPoint(Feet))
+		{
+			LastFloorActor = const_cast<AVolume*>(Volume);
+			return SetIndexFromTags(Volume);
+		}
+	}
+
+	const FVector Start = Character->GetActorLocation();
+	const FVector End = Feet - FVector(0.f, 0.f, 100.f);
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(FootstepSurface), /*bTraceComplex=*/false, Character);
+	FHitResult Hit;
+	if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) || !Hit.GetActor())
+	{
+		LastFloorActor = nullptr;
+		return Fallback;
+	}
+	LastFloorActor = Hit.GetActor();
+
+	const int32 Tagged = SetIndexFromTags(Hit.GetActor());
+	return Tagged != INDEX_NONE ? Tagged : Fallback;
 }
 
 void UFootstepComponent::PlayFootstep()
@@ -154,5 +188,6 @@ void UFootstepComponent::PlayFootstep()
 		- FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight());
 	const float Pitch = 1.f + FMath::FRandRange(-GFootstepPitchJitter, GFootstepPitchJitter);
 	UGameplayStatics::PlaySoundAtLocation(this, Set.Sounds[Index], FootLocation, GFootstepVolume, Pitch);
-	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s/%s"), *Set.Name, *Set.Sounds[Index]->GetName());
+	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s/%s (floor: %s)"),
+		*Set.Name, *Set.Sounds[Index]->GetName(), *GetNameSafe(LastFloorActor.Get()));
 }

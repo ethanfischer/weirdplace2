@@ -33,8 +33,12 @@ private:
 	};
 
 	void PlayFootstep();
-	// Trace to the floor and resolve which set index to use for this step.
+	// Resolve which set index to use for this step: a Footstep.<SetName>-tagged
+	// volume containing the feet wins, then the floor trace's tag, then the
+	// weird.Footstep.Set fallback.
 	int32 ResolveSetIndex() const;
+	// Index of the set named by this actor's Footstep.<SetName> tag, or INDEX_NONE.
+	int32 SetIndexFromTags(const AActor* Actor) const;
 
 	// All sets, sorted by name. Sounds are rooted via KeepAliveSounds.
 	TArray<FFootstepSet> Sets;
@@ -49,4 +53,13 @@ private:
 
 	// Last variant played per set, to avoid immediate repeats.
 	TArray<int32> LastSoundIndexPerSet;
+
+	// Footstep.<SetName>-tagged AVolumes in the level (e.g. the AV_* audio
+	// volumes), collected at BeginPlay. Checked before the floor trace so a
+	// region within one floor mesh can override its surface.
+	UPROPERTY()
+	TArray<TObjectPtr<AActor>> TaggedVolumes;
+
+	// Floor actor hit by the last step's trace (diagnostics for tag setup).
+	mutable TWeakObjectPtr<AActor> LastFloorActor;
 };
