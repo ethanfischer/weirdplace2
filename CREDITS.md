@@ -84,11 +84,11 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Used in:** `Content/welcomebell.wav` / `welcomebell.uasset` (and the related `SColor_GreetingBell.uasset` if it references this SoundWave)
 - **Required attribution:** `"Convenience Store Door Chime (16bit, 44.1kHz, Stereo)" by zebragrrl (freesound.org) -- License: Creative Commons Attribution 4.0`
 
-### Player footsteps — FreeToUseSounds "All In One Bundle" (FOOTSTEPS_01)
-- **Author:** Marcel Gnauk / FreeToUseSounds
-- **Source:** FTUS All In One Bundle (Gumroad), set FOOTSTEPS_01. Source takes: Carpet = "Japan … Wooden Floor, Walking, Stepping, Carpet, Apartment, Hiroshima" 01–02; WetDirt = "FranceLaReunion … Walking, Stomping, Mud, Wet"
-- **License:** FTUS bundle license (royalty-free, purchased)
-- **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` (Carpet ×3, WetDirt ×4) — one-shot steps sliced from the takes and processed (RMS loudness-matched; Carpet +3x gain; WetDirt 1 kHz lowpass, pitched −10 semitones). Played by `UFootstepComponent`; `weird.Footstep.Set` selects the set (WetDirt also covers tar surfaces)
+### Player footsteps — "UltimateRealism Footsteps Collection" (dpsounds)
+- **Author:** dpsounds
+- **Source:** https://dpsounds.gumroad.com/l/ultimaterealism (purchased 2026-08-27)
+- **License:** Gumroad purchase; no license file ships in the zip — royalty-free game use per listing. Receipt retained.
+- **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` — Carpet ×47 (pack Carpet), Tar ×27 (pack Concrete), Tile ×28 (pack Tile), WetDirt ×9 (pack MuddyGravel), all RMS loudness-matched on import. Played by `UFootstepComponent`: floor actors / volumes tagged `Footstep.<Set>` pick the set, untagged floors use the `weird.Footstep.Set` fallback (Tar).
 - **Required attribution:** None required; credited anyway.
 
 ### Audio files with unconfirmed source
