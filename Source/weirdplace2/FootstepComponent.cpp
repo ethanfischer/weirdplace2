@@ -13,8 +13,10 @@ WP_TUNABLE_FLOAT(GFootstepVolume, "weird.Footstep.Volume", 3.0f,
 	"Footstep sound volume multiplier.");
 WP_TUNABLE_FLOAT(GFootstepPitchJitter, "weird.Footstep.PitchJitter", 0.08f,
 	"Random pitch variance (+/-) applied per step for variety.");
-WP_TUNABLE_INT(GFootstepSet, "weird.Footstep.Set", 0,
-	"Which footstep sound set (subfolder of /Game/Sounds/Footsteps, sorted alphabetically) to use. Switchable live.");
+WP_TUNABLE_INT(GFootstepSet, "weird.Footstep.Set", 1,
+	"Fallback footstep set index (subfolders of /Game/Sounds/Footsteps, sorted) for floors without a Footstep.<SetName> actor tag.");
+
+static const FString FootstepTagPrefix = TEXT("Footstep.");
 
 UFootstepComponent::UFootstepComponent()
 {
@@ -25,56 +27,45 @@ void UFootstepComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Each subfolder of /Game/Sounds/Footsteps is one selectable sound set.
+	// Load every set (= subfolder of /Game/Sounds/Footsteps) up front so the
+	// per-step surface switch never hitches. Deleted folders linger as empty
+	// paths in the asset registry — folders without sounds are skipped.
 	FAssetRegistryModule& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 	TArray<FString> SubPaths;
 	AssetRegistry.Get().GetSubPaths(TEXT("/Game/Sounds/Footsteps"), SubPaths, /*bInRecurse=*/false);
 	SubPaths.Sort();
-	// Deleted folders linger as empty paths in the asset registry — skip them.
-	SetPaths.Reset();
+
 	for (const FString& SubPath : SubPaths)
 	{
 		TArray<FAssetData> Assets;
 		AssetRegistry.Get().GetAssetsByPath(FName(*SubPath), Assets, /*bRecursive=*/true);
-		if (Assets.Num() > 0)
+
+		FFootstepSet Set;
+		Set.Name = FPaths::GetPathLeaf(SubPath);
+		for (const FAssetData& Asset : Assets)
 		{
-			SetPaths.Add(SubPath);
+			if (USoundBase* Sound = Cast<USoundBase>(Asset.GetAsset()))
+			{
+				Set.Sounds.Add(Sound);
+				KeepAliveSounds.Add(Sound);
+			}
+		}
+		if (Set.Sounds.Num() > 0)
+		{
+			Sets.Add(MoveTemp(Set));
 		}
 	}
+	LastSoundIndexPerSet.Init(INDEX_NONE, Sets.Num());
 
-	if (SetPaths.Num() == 0)
+	if (Sets.Num() == 0)
 	{
-		UE_LOG(LogTemp, Error, TEXT("FootstepComponent: no set folders under /Game/Sounds/Footsteps — footsteps will be silent."));
+		UE_LOG(LogTemp, Error, TEXT("FootstepComponent: no sound sets under /Game/Sounds/Footsteps — footsteps will be silent."));
 		return;
 	}
-	for (int32 i = 0; i < SetPaths.Num(); ++i)
+	for (int32 i = 0; i < Sets.Num(); ++i)
 	{
-		UE_LOG(LogTemp, Display, TEXT("FootstepComponent: weird.Footstep.Set %d = %s"), i, *SetPaths[i]);
-	}
-	LoadSet(FMath::Clamp(GFootstepSet, 0, SetPaths.Num() - 1));
-}
-
-void UFootstepComponent::LoadSet(int32 SetIndex)
-{
-	FootstepSounds.Reset();
-	LoadedSetIndex = SetIndex;
-
-	FAssetRegistryModule& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	TArray<FAssetData> Assets;
-	AssetRegistry.Get().GetAssetsByPath(FName(*SetPaths[SetIndex]), Assets, /*bRecursive=*/true);
-
-	for (const FAssetData& Asset : Assets)
-	{
-		if (USoundBase* Sound = Cast<USoundBase>(Asset.GetAsset()))
-		{
-			FootstepSounds.Add(Sound);
-		}
-	}
-	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: loaded set %d (%s), %d sound(s)"),
-		SetIndex, *SetPaths[SetIndex], FootstepSounds.Num());
-	if (FootstepSounds.Num() == 0)
-	{
-		UE_LOG(LogTemp, Error, TEXT("FootstepComponent: set %s has no sounds — footsteps will be silent."), *SetPaths[SetIndex]);
+		UE_LOG(LogTemp, Display, TEXT("FootstepComponent: set %d = %s (%d sounds), tag \"Footstep.%s\""),
+			i, *Sets[i].Name, Sets[i].Sounds.Num(), *Sets[i].Name);
 	}
 }
 
@@ -82,18 +73,8 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// Live A/B: reload when the weird.Footstep.Set cvar changes.
-	if (SetPaths.Num() > 0)
-	{
-		const int32 WantedSet = FMath::Clamp(GFootstepSet, 0, SetPaths.Num() - 1);
-		if (WantedSet != LoadedSetIndex)
-		{
-			LoadSet(WantedSet);
-		}
-	}
-
 	ACharacter* Character = Cast<ACharacter>(GetOwner());
-	if (!Character || FootstepSounds.Num() == 0)
+	if (!Character || Sets.Num() == 0)
 	{
 		return;
 	}
@@ -120,21 +101,58 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	bWasWalking = bWalking;
 }
 
+int32 UFootstepComponent::ResolveSetIndex() const
+{
+	const int32 Fallback = FMath::Clamp(GFootstepSet, 0, Sets.Num() - 1);
+
+	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	const FVector Start = Character->GetActorLocation();
+	const FVector End = Start - FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight() + 100.f);
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(FootstepSurface), /*bTraceComplex=*/false, Character);
+	FHitResult Hit;
+	if (!GetWorld()->LineTraceSingleByChannel(Hit, Start, End, ECC_Visibility, Params) || !Hit.GetActor())
+	{
+		return Fallback;
+	}
+
+	for (const FName& Tag : Hit.GetActor()->Tags)
+	{
+		const FString TagStr = Tag.ToString();
+		if (TagStr.StartsWith(FootstepTagPrefix))
+		{
+			const FString SetName = TagStr.RightChop(FootstepTagPrefix.Len());
+			for (int32 i = 0; i < Sets.Num(); ++i)
+			{
+				if (Sets[i].Name.Equals(SetName, ESearchCase::IgnoreCase))
+				{
+					return i;
+				}
+			}
+			UE_LOG(LogTemp, Warning, TEXT("FootstepComponent: actor %s has tag %s but no set named %s exists"),
+				*Hit.GetActor()->GetName(), *TagStr, *SetName);
+		}
+	}
+	return Fallback;
+}
+
 void UFootstepComponent::PlayFootstep()
 {
 	ACharacter* Character = Cast<ACharacter>(GetOwner());
+	const int32 SetIndex = ResolveSetIndex();
+	const FFootstepSet& Set = Sets[SetIndex];
 
 	// Pick a random variant, avoiding an immediate repeat when we have >1.
-	int32 Index = FMath::RandRange(0, FootstepSounds.Num() - 1);
-	if (FootstepSounds.Num() > 1 && Index == LastSoundIndex)
+	int32 Index = FMath::RandRange(0, Set.Sounds.Num() - 1);
+	if (Set.Sounds.Num() > 1 && Index == LastSoundIndexPerSet[SetIndex])
 	{
-		Index = (Index + 1) % FootstepSounds.Num();
+		Index = (Index + 1) % Set.Sounds.Num();
 	}
-	LastSoundIndex = Index;
+	LastSoundIndexPerSet[SetIndex] = Index;
 
 	const FVector FootLocation = Character->GetActorLocation()
 		- FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight());
 	const float Pitch = 1.f + FMath::FRandRange(-GFootstepPitchJitter, GFootstepPitchJitter);
-	UGameplayStatics::PlaySoundAtLocation(this, FootstepSounds[Index], FootLocation, GFootstepVolume, Pitch);
-	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s"), *FootstepSounds[Index]->GetName());
+	UGameplayStatics::PlaySoundAtLocation(this, Set.Sounds[Index], FootLocation, GFootstepVolume, Pitch);
+	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s/%s"), *Set.Name, *Set.Sounds[Index]->GetName());
 }

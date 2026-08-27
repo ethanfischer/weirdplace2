@@ -6,10 +6,14 @@
 
 class USoundBase;
 
-// Plays a randomized footstep sound each stride while the owning character is
-// walking on the ground. Diegetic: sounds are played at the character's feet.
-// Sound assets are loaded from /Game/Sounds/Footsteps at BeginPlay — drop new
-// variants in that folder and they're picked up automatically.
+// Plays a randomized footstep sound at a fixed interval while the owning
+// character walks. Diegetic: sounds are played at the character's feet.
+//
+// Sound sets are the subfolders of /Game/Sounds/Footsteps (e.g. Carpet,
+// WetDirt), all loaded at BeginPlay. Each step line-traces to the floor and
+// picks the set named by a "Footstep.<SetName>" actor tag on whatever it hit
+// (same tag pattern as Storm*); untagged floors fall back to the
+// weird.Footstep.Set cvar index.
 UCLASS(ClassGroup = (Audio), meta = (BlueprintSpawnableComponent))
 class WEIRDPLACE2_API UFootstepComponent : public UActorComponent
 {
@@ -22,21 +26,27 @@ public:
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
+	struct FFootstepSet
+	{
+		FString Name;
+		TArray<USoundBase*> Sounds;
+	};
+
 	void PlayFootstep();
-	void LoadSet(int32 SetIndex);
+	// Trace to the floor and resolve which set index to use for this step.
+	int32 ResolveSetIndex() const;
 
-	// Subfolders of /Game/Sounds/Footsteps, sorted; weird.Footstep.Set indexes this.
-	TArray<FString> SetPaths;
-	int32 LoadedSetIndex = INDEX_NONE;
+	// All sets, sorted by name. Sounds are rooted via KeepAliveSounds.
+	TArray<FFootstepSet> Sets;
 
-	// Sounds of the currently selected set.
+	// GC root for every loaded footstep sound (FFootstepSet isn't a USTRUCT).
 	UPROPERTY()
-	TArray<TObjectPtr<USoundBase>> FootstepSounds;
+	TArray<TObjectPtr<USoundBase>> KeepAliveSounds;
 
 	// Seconds since the last footstep (steps fire on a fixed interval).
 	float TimeSinceLastStep = 0.f;
 	bool bWasWalking = false;
 
-	// Index into FootstepSounds of the last variant played, to avoid repeats.
-	int32 LastSoundIndex = INDEX_NONE;
+	// Last variant played per set, to avoid immediate repeats.
+	TArray<int32> LastSoundIndexPerSet;
 };
