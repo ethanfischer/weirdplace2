@@ -1,4 +1,5 @@
 #include "CarRideComponent.h"
+#include "LookAtPlayerComponent.h"
 #include "Rick.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
@@ -168,6 +169,14 @@ void UCarRideComponent::StartRide()
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: PassengerSeatTarget is null!"));
 	}
 
+	// Rick stares at the road until his first line of dialogue — the seat
+	// teleport puts the player inside his LookAtPlayerComponent sphere, which
+	// would otherwise lock his gaze onto the player for the whole ride.
+	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
+	{
+		LookAt->SetSuppressed(true);
+	}
+
 	// Spawn the silhouette conveyor and start scenery movement
 	SpawnScenery();
 	bSceneryMoving = true;
@@ -317,6 +326,13 @@ void UCarRideComponent::OnDialogueEnded()
 
 void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
 {
+	// First line of the ride dialogue: start the glance cycle
+	if (!bGlanceCycleStarted)
+	{
+		bGlanceCycleStarted = true;
+		GlanceAtPlayer();
+	}
+
 	if (!Rick || Rick->BladderPulseLineIndex == INDEX_NONE || LineIndex != Rick->BladderPulseLineIndex)
 	{
 		return;
@@ -360,6 +376,55 @@ void UCarRideComponent::OnDialogueLineShown(int32 LineIndex)
 			false
 		);
 	}
+}
+
+ULookAtPlayerComponent* UCarRideComponent::GetRickLookAtComponent() const
+{
+	if (!Rick)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::GetRickLookAtComponent - Rick is null"));
+		return nullptr;
+	}
+	ULookAtPlayerComponent* LookAt = Rick->FindComponentByClass<ULookAtPlayerComponent>();
+	if (!LookAt)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::GetRickLookAtComponent - Rick has no ULookAtPlayerComponent"));
+	}
+	return LookAt;
+}
+
+void UCarRideComponent::GlanceAtPlayer()
+{
+	ULookAtPlayerComponent* LookAt = GetRickLookAtComponent();
+	if (!LookAt)
+	{
+		return;
+	}
+	LookAt->SetLookAtPlayer(true);
+	GetWorld()->GetTimerManager().SetTimer(
+		GlanceTimerHandle,
+		this,
+		&UCarRideComponent::GlanceAtRoad,
+		GlanceAtPlayerDuration,
+		false
+	);
+}
+
+void UCarRideComponent::GlanceAtRoad()
+{
+	ULookAtPlayerComponent* LookAt = GetRickLookAtComponent();
+	if (!LookAt)
+	{
+		return;
+	}
+	LookAt->SetLookAtPlayer(false);
+	GetWorld()->GetTimerManager().SetTimer(
+		GlanceTimerHandle,
+		this,
+		&UCarRideComponent::GlanceAtPlayer,
+		FMath::FRandRange(GlanceAtRoadDurationMin, GlanceAtRoadDurationMax),
+		false
+	);
 }
 
 void UCarRideComponent::OnBladderPulseFinished()
@@ -411,6 +476,11 @@ void UCarRideComponent::EndRide()
 
 void UCarRideComponent::OnFadeOutComplete()
 {
+	// End the glance cycle (suppression is lifted after the teleport below,
+	// once the player is out of Rick's look-at sphere)
+	GetWorld()->GetTimerManager().ClearTimer(GlanceTimerHandle);
+	bGlanceCycleStarted = false;
+
 	// Stop scenery movement and tear the conveyor down while the screen is black
 	bSceneryMoving = false;
 	SetComponentTickEnabled(false);
@@ -453,6 +523,14 @@ void UCarRideComponent::OnFadeOutComplete()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnFadeOutComplete - ArrivalTarget is null!"));
+	}
+
+	// Player is now at the gas station, outside Rick's look-at sphere —
+	// unsuppressing resolves the look to false and normal proximity behavior
+	// resumes for the outside-store beats.
+	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
+	{
+		LookAt->SetSuppressed(false);
 	}
 
 	// Show the gas station now that the ride is over

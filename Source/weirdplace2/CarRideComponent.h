@@ -61,6 +61,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
 
+	// How long Rick glances at the player per glance during the ride
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtPlayerDuration = 2.5f;
+
+	// Randomized time Rick looks back at the road between glances
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtRoadDurationMin = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtRoadDurationMax = 8.0f;
+
 	// --- Scenery (runtime-spawned silhouette conveyor; no level assignment needed) ---
 
 	// Apparent car speed in cm/s (scenery moves backward at this rate)
@@ -171,8 +182,15 @@ private:
 
 	void OnBladderPulseFinished();
 
+	// Rick gaze: stare at the road until his first line, then alternate
+	// glances at the player with looks back at the road.
+	class ULookAtPlayerComponent* GetRickLookAtComponent() const;
+	void GlanceAtPlayer();
+	void GlanceAtRoad();
+
 	bool bSceneryMoving = false;
 	bool bBladderPulseArmed = false;
+	bool bGlanceCycleStarted = false;
 
 	// Cached widget actor relative transform before car-ride overwrites it
 	FVector CachedWidgetRelativeLocation = FVector::ZeroVector;
@@ -182,4 +200,5 @@ private:
 	FTimerHandle PostDialogueTimerHandle;
 	FTimerHandle FadeOutTimerHandle;
 	FTimerHandle BladderPulseTimerHandle;
+	FTimerHandle GlanceTimerHandle;
 };
