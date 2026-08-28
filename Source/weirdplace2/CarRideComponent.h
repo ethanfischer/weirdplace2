@@ -55,7 +55,7 @@ public:
 
 	// Fade in from black when the ride starts
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float RideStartFadeInDuration = 10.0f;
+	float RideStartFadeInDuration = 30.0f;
 
 	// Hold pure black for this long before the ride-start fade-in begins
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
