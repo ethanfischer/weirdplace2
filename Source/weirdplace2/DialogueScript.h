@@ -13,6 +13,10 @@ struct FDialogueLine
 
 	// Action cue attached to this line via a following `[Tag]` line, or empty.
 	FString Tag;
+
+	// Seconds of silence after this line before the next one shows, from a
+	// following `[Pause N]` line. 0 = no pause.
+	float PauseAfter = 0.f;
 };
 
 // Shared parser for the sectioned dialogue format under Content/Dialogue/:

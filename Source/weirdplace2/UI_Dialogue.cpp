@@ -11,9 +11,9 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Tunable.h"
 
-WP_TUNABLE_FLOAT(GDialoguePitchShift, "weird.Dialogue.PitchShift", 0.8f,
+WP_TUNABLE_FLOAT(GDialoguePitchShift, "weird.Dialogue.PitchShift", 0.55f,
 	"Pitch multiplier applied on top of the random pitch for dialogue voice and blip sounds.");
-WP_TUNABLE_FLOAT(GDialogueLowPassFreq, "weird.Dialogue.LowPassFreq", 3000.f,
+WP_TUNABLE_FLOAT(GDialogueLowPassFreq, "weird.Dialogue.LowPassFreq", 300.f,
 	"Low-pass filter cutoff frequency (Hz) for dialogue voice and blip sounds.");
 void UUI_Dialogue::NativeConstruct()
 {

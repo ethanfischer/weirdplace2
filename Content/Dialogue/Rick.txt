@@ -6,15 +6,18 @@ Rick: Nice
 Rick: Uhuh
 Rick: Yep
 Rick: ...
+[Pause 5]
 Rick: Well
 Rick: Me too
 Rick: In fact
 Rick: ...
+[Pause 5]
 Rick: Well
 Rick: Nevermind
 Rick: You know how it is
 [Bladder]
 Rick: You need to pee?
+[Pause 2]
 Rick: Alright I'll find a place to stop
 
 == RickOutsideIdle ==

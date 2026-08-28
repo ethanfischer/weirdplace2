@@ -49,10 +49,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float DialogueStartDelay = 3.0f;
 
-	// Seconds of riding after dialogue ends
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float PostDialogueRideTime = 3.0f;
-
 	// Fade to/from black duration in seconds
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float FadeDuration = 1.0f;

@@ -25,6 +25,9 @@ static constexpr float MoteLoopMaxX = 1100.0f;
 WP_TUNABLE_FLOAT(GCarRideSpeedOverride, "weird.CarRide.Speed", 0.0f,
 	"Override car-ride scenery speed in cm/s (0 = use component RideSpeed).");
 
+WP_TUNABLE_FLOAT(GCarRidePostDialogueRideTime, "weird.CarRide.PostDialogueRideTime", 3.0f,
+	"Seconds between Rick's last car line and the fade-out to the gas station.");
+
 static FAutoConsoleCommandWithWorld GCarRideRebuildSceneryCmd(
 	TEXT("weird.CarRide.RebuildScenery"),
 	TEXT("Destroy and respawn the car-ride scenery conveyor with current property values."),
@@ -307,7 +310,7 @@ void UCarRideComponent::OnDialogueEnded()
 		PostDialogueTimerHandle,
 		this,
 		&UCarRideComponent::EndRide,
-		PostDialogueRideTime,
+		GCarRidePostDialogueRideTime,
 		false
 	);
 }

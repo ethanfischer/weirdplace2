@@ -93,6 +93,7 @@ void ARick::LoadDialogueFile()
 		FSimpleDialogueLine DialogueLine;
 		DialogueLine.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Rick") : *Parsed.Speaker);
 		DialogueLine.Text = FText::FromString(Parsed.Text);
+		DialogueLine.PauseAfter = Parsed.PauseAfter;
 		ParsedLines.Add(DialogueLine);
 
 		// [Bladder] tag marks the transition point — pulse fires after this line
@@ -124,6 +125,7 @@ void ARick::LoadOutsideDialogue()
 			FSimpleDialogueLine DL;
 			DL.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Rick") : *Parsed.Speaker);
 			DL.Text = FText::FromString(Parsed.Text);
+			DL.PauseAfter = Parsed.PauseAfter;
 			GivesMoneyLines.Add(DL);
 
 			// [Gives Cash] cue — money is handed over on this line

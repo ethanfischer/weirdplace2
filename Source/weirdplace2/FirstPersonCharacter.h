@@ -35,6 +35,10 @@ struct FSimpleDialogueLine
 
 	UPROPERTY()
 	FText Text;
+
+	// Seconds of silence (plate hidden, advance ignored) after this line
+	UPROPERTY()
+	float PauseAfter = 0.f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueLineShown, int32, LineIndex);
@@ -312,6 +316,7 @@ public:
 
 	void StartDialogue(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
 	void AdvanceDialogue();
+	void AdvanceDialogueInternal();
 
 	// Fires whenever a dialogue line is displayed, carrying the line index
 	UPROPERTY(BlueprintAssignable, Category = "Dialogue")
@@ -406,6 +411,10 @@ private:
 	// Dialogue state (lines with per-line speaker)
 	TArray<FSimpleDialogueLine> DialogueLines;
 	int32 DialogueLineIndex = 0;
+
+	// [Pause N] beat: plate hidden, advance input ignored until the timer fires
+	bool bDialoguePauseActive = false;
+	FTimerHandle DialoguePauseTimerHandle;
 
 	// --- Interaction helpers (used by RaycastInteractableCheck) ---
 

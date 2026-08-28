@@ -1250,6 +1250,9 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 		return;
 	}
 
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+
 	DialogueLines = Lines;
 	DialogueLineIndex = 0;
 	SetActivityState(EPlayerActivityState::InDialogue);
@@ -1261,6 +1264,41 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 }
 
 void AFirstPersonCharacter::AdvanceDialogue()
+{
+	// During a [Pause N] silence beat, advance input is ignored
+	if (bDialoguePauseActive)
+	{
+		return;
+	}
+
+	// [Pause N] on the current line: hide the plate, hold N seconds of
+	// silence, then auto-show the next line without another advance press.
+	if (DialogueLines.IsValidIndex(DialogueLineIndex) &&
+		DialogueLines[DialogueLineIndex].PauseAfter > 0.f &&
+		!bBlockNextDialogueAdvance)
+	{
+		bDialoguePauseActive = true;
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+		GetWorldTimerManager().SetTimer(
+			DialoguePauseTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				bDialoguePauseActive = false;
+				AdvanceDialogueInternal();
+			}),
+			DialogueLines[DialogueLineIndex].PauseAfter,
+			false
+		);
+		return;
+	}
+
+	AdvanceDialogueInternal();
+}
+
+void AFirstPersonCharacter::AdvanceDialogueInternal()
 {
 	if (ItemNotificationMesh)
 	{
