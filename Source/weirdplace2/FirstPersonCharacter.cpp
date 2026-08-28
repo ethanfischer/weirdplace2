@@ -403,7 +403,16 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 		}
 		else if (IsInAnyDialogue())
 		{
-			CrosshairWidget->ShowDialogueCrosshair();
+			// Gaze-gated dialogue (car ride): dialogue reticle only while
+			// looking out the windshield, since E does nothing elsewhere.
+			if (IsDialogueGazeSatisfied())
+			{
+				CrosshairWidget->ShowDialogueCrosshair();
+			}
+			else
+			{
+				CrosshairWidget->ShowNormalCrosshair();
+			}
 		}
 		else if (IsDialogueCooldownActive())
 		{
@@ -767,6 +776,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	if (State == EPlayerActivityState::InDialogue)
 	{
+		// Car ride: E only advances while looking out the windshield
+		if (!IsDialogueGazeSatisfied())
+		{
+			return;
+		}
 		AdvanceDialogue();
 		return;
 	}
@@ -1288,6 +1302,34 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 	UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
 
 	OnDialogueLineShown.Broadcast(0);
+}
+
+void AFirstPersonCharacter::SetDialogueGazeGate(const FVector& ForwardDir, float MaxAngleDeg)
+{
+	bDialogueGazeGated = true;
+	DialogueGazeForward = ForwardDir.GetSafeNormal();
+	DialogueGazeMaxAngleDeg = MaxAngleDeg;
+}
+
+void AFirstPersonCharacter::ClearDialogueGazeGate()
+{
+	bDialogueGazeGated = false;
+}
+
+bool AFirstPersonCharacter::IsDialogueGazeSatisfied() const
+{
+	if (!bDialogueGazeGated)
+	{
+		return true;
+	}
+	const UCameraComponent* Camera = FirstPersonCamera;
+	if (!Camera)
+	{
+		UE_LOG(LogTemp, Error, TEXT("IsDialogueGazeSatisfied: FirstPersonCamera is null"));
+		return true;
+	}
+	const float CosAngle = FVector::DotProduct(Camera->GetForwardVector(), DialogueGazeForward);
+	return CosAngle >= FMath::Cos(FMath::DegreesToRadians(DialogueGazeMaxAngleDeg));
 }
 
 void AFirstPersonCharacter::AdvanceDialogue()

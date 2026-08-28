@@ -281,12 +281,21 @@ void UCarRideComponent::StartDialogue()
 		}
 	}
 
-	// Bind to player's dialogue line delegate for bladder pulse trigger
+	// Bind to player's dialogue line delegate for bladder pulse trigger, and
+	// gate dialogue advance behind looking out the windshield
 	if (PC)
 	{
 		if (AFirstPersonCharacter* FPPlayer = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 		{
 			FPPlayer->OnDialogueLineShown.AddDynamic(this, &UCarRideComponent::OnDialogueLineShown);
+			if (PassengerSeatTarget)
+			{
+				FPPlayer->SetDialogueGazeGate(PassengerSeatTarget->GetActorForwardVector(), DialogueGazeMaxAngleDeg);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("CarRideComponent::StartDialogue - PassengerSeatTarget is null, gaze gate not set"));
+			}
 		}
 	}
 
@@ -306,6 +315,8 @@ void UCarRideComponent::OnDialogueEnded()
 		if (AFirstPersonCharacter* FPPlayer = Cast<AFirstPersonCharacter>(PC->GetPawn()))
 		{
 			FPPlayer->OnDialogueLineShown.RemoveDynamic(this, &UCarRideComponent::OnDialogueLineShown);
+			// Gas-station dialogues (money, idle) are not gaze-gated
+			FPPlayer->ClearDialogueGazeGate();
 		}
 
 		if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn()))
@@ -555,6 +566,10 @@ void UCarRideComponent::OnFadeOutComplete()
 			Actor->SetActorEnableCollision(true);
 		}
 	}
+
+	// Safety: gate is normally cleared in OnDialogueEnded, but clear again in
+	// case the ride was force-ended mid-dialogue
+	Player->ClearDialogueGazeGate();
 
 	// Re-enable movement and gravity (StartRide set MOVE_None to suppress floor-snap)
 	PC->SetIgnoreMoveInput(false);

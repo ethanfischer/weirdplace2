@@ -72,6 +72,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float GlanceAtRoadDurationMax = 8.0f;
 
+	// Dialogue only advances (and shows the dialogue reticle) while the player
+	// looks within this cone of the windshield direction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float DialogueGazeMaxAngleDeg = 35.0f;
+
 	// --- Scenery (runtime-spawned silhouette conveyor; no level assignment needed) ---
 
 	// Apparent car speed in cm/s (scenery moves backward at this rate)

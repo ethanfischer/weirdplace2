@@ -72,6 +72,14 @@ public:
 	bool IsInAnyDialogue() const;
 	bool IsDialogueCooldownActive() const;
 
+	// Car ride: gate player-initiated dialogue advance behind gaze direction.
+	// While gated, E only advances dialogue when the camera forward is within
+	// MaxAngleDeg of ForwardDir, and the crosshair shows the dialogue state
+	// only inside that cone (normal reticle outside it).
+	void SetDialogueGazeGate(const FVector& ForwardDir, float MaxAngleDeg);
+	void ClearDialogueGazeGate();
+	bool IsDialogueGazeSatisfied() const; // true when no gate is set
+
 	// Enter an interaction "hold": freeze movement (and look if bFreezeLook),
 	// disable environment interaction, set Interacting, and ensure the player
 	// controller has an InputComponent so the caller can bind its own exit/rotate
@@ -419,6 +427,11 @@ private:
 	// [Pause N] beat: plate hidden, advance input ignored until the timer fires
 	bool bDialoguePauseActive = false;
 	FTimerHandle DialoguePauseTimerHandle;
+
+	// Dialogue gaze gate (see SetDialogueGazeGate)
+	bool bDialogueGazeGated = false;
+	FVector DialogueGazeForward = FVector::ForwardVector;
+	float DialogueGazeMaxAngleDeg = 35.0f;
 
 	// --- Interaction helpers (used by RaycastInteractableCheck) ---
 
