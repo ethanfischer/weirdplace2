@@ -25,6 +25,7 @@ bool FDialogueScript::Load(const FString& RelativePath)
 	}
 
 	TArray<FDialogueLine>* Current = nullptr;
+	float PendingPauseBefore = 0.f; // [Pause N] at section start, applied to the next line
 	for (const FString& Raw : RawLines)
 	{
 		FString Line = Raw.TrimStartAndEnd();
@@ -42,6 +43,7 @@ bool FDialogueScript::Load(const FString& RelativePath)
 				UE_LOG(LogTemp, Error, TEXT("DialogueScript - Duplicate section '%s' in %s"), *Name, *RelativePath);
 			}
 			Current = &Sections.FindOrAdd(Name);
+			PendingPauseBefore = 0.f;
 			continue;
 		}
 
@@ -54,26 +56,33 @@ bool FDialogueScript::Load(const FString& RelativePath)
 		// `[Tag]` attaches an action cue to the preceding dialogue line.
 		if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
 		{
-			if (Current->Num() == 0)
-			{
-				UE_LOG(LogTemp, Error, TEXT("DialogueScript - Tag '%s' with no preceding line in %s"), *Line, *RelativePath);
-				continue;
-			}
 			const FString TagBody = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd();
 
 			// `[Pause N]` is timing, not an action cue — store seconds separately.
+			// At section start (no preceding line) it pauses before the first line.
 			if (TagBody.StartsWith(TEXT("Pause "), ESearchCase::IgnoreCase))
 			{
 				const float Seconds = FCString::Atof(*TagBody.Mid(6));
 				if (Seconds <= 0.f)
 				{
 					UE_LOG(LogTemp, Error, TEXT("DialogueScript - Bad pause '%s' in %s"), *Line, *RelativePath);
-					continue;
 				}
-				Current->Last().PauseAfter = Seconds;
+				else if (Current->Num() == 0)
+				{
+					PendingPauseBefore = Seconds;
+				}
+				else
+				{
+					Current->Last().PauseAfter = Seconds;
+				}
 				continue;
 			}
 
+			if (Current->Num() == 0)
+			{
+				UE_LOG(LogTemp, Error, TEXT("DialogueScript - Tag '%s' with no preceding line in %s"), *Line, *RelativePath);
+				continue;
+			}
 			Current->Last().Tag = TagBody;
 			continue;
 		}
@@ -95,6 +104,8 @@ bool FDialogueScript::Load(const FString& RelativePath)
 		{
 			Parsed.Text = Line;
 		}
+		Parsed.PauseBefore = PendingPauseBefore;
+		PendingPauseBefore = 0.f;
 		Current->Add(Parsed);
 	}
 

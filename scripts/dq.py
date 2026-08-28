@@ -68,6 +68,7 @@ class Line:
         self.tag = None
         self.tag_lineno = None
         self.pause = 0.0  # [Pause N] seconds of silence after this line
+        self.pause_before = 0.0  # [Pause N] at section start: silence before this line
         self.lineno = lineno
 
 
@@ -77,6 +78,7 @@ def parse_dialogue_file(path):
     sections = {}
     errors = []
     current = None
+    pending_pause_before = 0.0
     for lineno, raw in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -87,6 +89,7 @@ def parse_dialogue_file(path):
             if name in sections:
                 errors.append((lineno, f"duplicate section '{name}'"))
             current = sections.setdefault(name, [])
+            pending_pause_before = 0.0
             continue
 
         if current is None:
@@ -94,17 +97,20 @@ def parse_dialogue_file(path):
             continue
 
         if line.startswith("[") and line.endswith("]"):
-            if not current:
-                errors.append((lineno, f"tag {line} has no preceding dialogue line"))
-                continue
             body = line[1:-1].strip()
-            # [Pause N] is timing, not an action cue (DialogueScript.cpp mirrors this)
+            # [Pause N] is timing, not an action cue (DialogueScript.cpp mirrors
+            # this); at section start it pauses before the first line.
             m = re.fullmatch(r"[Pp]ause\s+(\d+(?:\.\d+)?)", body)
             if m:
                 if float(m.group(1)) <= 0:
                     errors.append((lineno, f"bad pause {line}"))
+                elif not current:
+                    pending_pause_before = float(m.group(1))
                 else:
                     current[-1].pause = float(m.group(1))
+                continue
+            if not current:
+                errors.append((lineno, f"tag {line} has no preceding dialogue line"))
                 continue
             current[-1].tag = body
             current[-1].tag_lineno = lineno
@@ -117,7 +123,10 @@ def parse_dialogue_file(path):
             if " " not in prefix:
                 speaker = prefix
                 text = line[colon + 1:].strip() or line
-        current.append(Line(speaker, text, lineno))
+        parsed = Line(speaker, text, lineno)
+        parsed.pause_before = pending_pause_before
+        pending_pause_before = 0.0
+        current.append(parsed)
     return sections, errors
 
 
@@ -264,6 +273,7 @@ def build_preview():
                             "text": ln.text,
                             "tag": ln.tag,
                             "pause": ln.pause,
+                            "pauseBefore": ln.pause_before,
                             "chars": len(ln.text),
                             "secs": round(type_seconds(ln.text), 2),
                             "rows": -(-len(ln.text) // CHARS_PER_ROW),
@@ -370,7 +380,7 @@ for (const npc of DATA.npcs) {
   const h = document.createElement('h2'); h.textContent = npc.npc + '.txt'; npcsDiv.appendChild(h);
   for (const sec of npc.sections) {
     const d = document.createElement('div'); d.className = 'section';
-    const total = sec.lines.reduce((a, l) => a + l.secs + 0.7 + (l.pause || 0), 0).toFixed(1);
+    const total = sec.lines.reduce((a, l) => a + l.secs + 0.7 + (l.pause || 0) + (l.pauseBefore || 0), 0).toFixed(1);
     d.innerHTML = '<div class="sec-head"><span class="sec-name">== ' + sec.name +
       ' ==</span><button class="playAll">&#9654; play section</button>' +
       '<span class="meta">' + sec.lines.length + ' lines, ~' + total + 's</span></div>';

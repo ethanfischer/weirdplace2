@@ -395,7 +395,13 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		if (IsInAnyDialogue())
+		if (bDialoguePauseActive)
+		{
+			// [Pause N] silence beat: nothing is said and E does nothing, so
+			// don't show the chat-bubble reticle.
+			CrosshairWidget->ShowNormalCrosshair();
+		}
+		else if (IsInAnyDialogue())
 		{
 			CrosshairWidget->ShowDialogueCrosshair();
 		}
@@ -1257,6 +1263,27 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 	DialogueLineIndex = 0;
 	SetActivityState(EPlayerActivityState::InDialogue);
 	CurrentDialogueNPC = NPC;
+
+	// [Pause N] before the first line: hold silence before the plate opens
+	if (DialogueLines[0].PauseBefore > 0.f)
+	{
+		bDialoguePauseActive = true;
+		GetWorldTimerManager().SetTimer(
+			DialoguePauseTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				bDialoguePauseActive = false;
+				if (UI_Dialogue)
+				{
+					UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
+				}
+				OnDialogueLineShown.Broadcast(0);
+			}),
+			DialogueLines[0].PauseBefore,
+			false
+		);
+		return;
+	}
 
 	UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
 

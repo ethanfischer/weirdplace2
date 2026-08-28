@@ -39,6 +39,10 @@ struct FSimpleDialogueLine
 	// Seconds of silence (plate hidden, advance ignored) after this line
 	UPROPERTY()
 	float PauseAfter = 0.f;
+
+	// Seconds of silence before this line shows (only honored on the first line)
+	UPROPERTY()
+	float PauseBefore = 0.f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueLineShown, int32, LineIndex);

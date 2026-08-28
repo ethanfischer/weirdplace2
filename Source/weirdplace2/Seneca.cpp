@@ -794,6 +794,7 @@ void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
 		Line.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Seneca") : *Parsed.Speaker);
 		Line.Text = FText::FromString(Parsed.Text);
 		Line.PauseAfter = Parsed.PauseAfter;
+		Line.PauseBefore = Parsed.PauseBefore;
 		MultiLines.Add(Line);
 	}
 

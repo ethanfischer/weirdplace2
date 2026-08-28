@@ -17,6 +17,10 @@ struct FDialogueLine
 	// Seconds of silence after this line before the next one shows, from a
 	// following `[Pause N]` line. 0 = no pause.
 	float PauseAfter = 0.f;
+
+	// Seconds of silence before this line shows, from a `[Pause N]` line at
+	// the start of a section. 0 = no pause.
+	float PauseBefore = 0.f;
 };
 
 // Shared parser for the sectioned dialogue format under Content/Dialogue/:

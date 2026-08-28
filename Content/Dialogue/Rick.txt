@@ -1,6 +1,7 @@
 # Rick's dialogue. Default speaker: Rick. Lint: python scripts/dq.py lint
 
 == CarRide ==
+[Pause 30]
 Rick: Hey man, how've you been?
 Rick: Nice
 Rick: Uhuh
