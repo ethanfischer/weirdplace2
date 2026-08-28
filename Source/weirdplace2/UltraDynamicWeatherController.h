@@ -67,6 +67,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", DisplayName = "Target Wind Volume"), Category = "Storm Weather")
 	float TargetWindVolume = 3.f;
 
+	// The music bed (AmbientSound tagged with this) crossfades OUT as the wind
+	// swells — its volume ramps to 0 over the same transition, then it stops.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Storm Weather")
+	FName MusicActorTag = FName("CarRideMusic");
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -105,6 +110,11 @@ private:
 	// Ambient wind "Volume Multiplier" channel (ramps WindVolumeStart -> TargetWindVolume).
 	bool bLoudenWind = false;
 	float WindVolumeStart = 1.f;
+
+	// Music crossfade-out channel (ramps MusicVolumeStart -> 0, then Stop()).
+	bool bFadeMusicOut = false;
+	float MusicVolumeStart = 1.f;
+	TWeakObjectPtr<class UAudioComponent> MusicAudioComp;
 
 	FDelegateHandle FlagChangedHandle;
 

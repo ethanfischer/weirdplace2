@@ -176,6 +176,27 @@ void AUltraDynamicWeatherController::BeginFade()
 		UE_LOG(LogTemp, Warning, TEXT("AUltraDynamicWeatherController %s: AmbientGlobalWind unassigned or has no AudioComponent; wind volume swell skipped"), *GetName());
 	}
 
+	// Music crossfade-out channel: the storm swallows the music as the wind
+	// swells. Found by tag so the level needs no extra reference.
+	bFadeMusicOut = false;
+	for (TActorIterator<AAmbientSound> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(MusicActorTag))
+		{
+			if (UAudioComponent* AudioComp = It->GetAudioComponent())
+			{
+				MusicAudioComp = AudioComp;
+				MusicVolumeStart = AudioComp->VolumeMultiplier;
+				bFadeMusicOut = true;
+			}
+			break;
+		}
+	}
+	if (!bFadeMusicOut)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AUltraDynamicWeatherController %s: no AmbientSound tagged '%s'; music crossfade-out skipped"), *GetName(), *MusicActorTag.ToString());
+	}
+
 	// Weather "Wind Intensity" channel. Engage manual override (UDW ignores the value
 	// otherwise) and seed the start value; ApplyAtAlpha drives it from here. All-or-
 	// nothing so we never half-enable the override.
@@ -276,6 +297,20 @@ void AUltraDynamicWeatherController::ApplyAtAlpha(float Alpha)
 		if (UAudioComponent* AudioComp = AmbientGlobalWind ? AmbientGlobalWind->GetAudioComponent() : nullptr)
 		{
 			AudioComp->SetVolumeMultiplier(FMath::Lerp(WindVolumeStart, TargetWindVolume, Alpha));
+		}
+	}
+	if (bFadeMusicOut)
+	{
+		if (UAudioComponent* AudioComp = MusicAudioComp.Get())
+		{
+			if (Alpha >= 1.f)
+			{
+				AudioComp->Stop();
+			}
+			else
+			{
+				AudioComp->SetVolumeMultiplier(FMath::Lerp(MusicVolumeStart, 0.f, Alpha));
+			}
 		}
 	}
 }
