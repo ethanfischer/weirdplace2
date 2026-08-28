@@ -49,9 +49,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float DialogueStartDelay = 3.0f;
 
-	// Fade to/from black duration in seconds
+	// Fade to/from black duration in seconds (ride end)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float FadeDuration = 1.0f;
+
+	// Fade in from black when the ride starts
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideStartFadeInDuration = 10.0f;
+
+	// Hold pure black for this long before the ride-start fade-in begins
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideStartBlackHoldDuration = 3.0f;
 
 	// Empty actor positioned behind windshield where dialogue widget appears
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
@@ -206,4 +214,5 @@ private:
 	FTimerHandle FadeOutTimerHandle;
 	FTimerHandle BladderPulseTimerHandle;
 	FTimerHandle GlanceTimerHandle;
+	FTimerHandle RideStartFadeTimerHandle;
 };

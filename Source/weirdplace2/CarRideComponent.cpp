@@ -72,11 +72,30 @@ void UCarRideComponent::BeginPlay()
 	bSkipRide |= GIsAutomationTesting;
 #endif
 
+	// Black out video+audio right away on the ride path — StartRide only runs
+	// once the pawn poll succeeds, and world audio starting in that gap would
+	// pierce the black hold.
+	auto ApplyStartFade = [this]()
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC && PC->PlayerCameraManager)
+		{
+			PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/true);
+			return true;
+		}
+		return false;
+	};
+	bool bStartFadeApplied = bSkipRide || ApplyStartFade();
+
 	// Poll until the player pawn is the right type, then start (or skip) the ride
 	GetWorld()->GetTimerManager().SetTimer(
 		DialogueStartTimerHandle,
-		FTimerDelegate::CreateWeakLambda(this, [this, bSkipRide]()
+		FTimerDelegate::CreateWeakLambda(this, [this, bSkipRide, bStartFadeApplied, ApplyStartFade]() mutable
 		{
+			if (!bStartFadeApplied)
+			{
+				bStartFadeApplied = ApplyStartFade();
+			}
 			APlayerController* PC = GetWorld()->GetFirstPlayerController();
 			if (PC && Cast<AFirstPersonCharacter>(PC->GetPawn()))
 			{
@@ -167,6 +186,25 @@ void UCarRideComponent::StartRide()
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: PassengerSeatTarget is null!"));
+	}
+
+	// Open the ride on pure black, hold, then a long fade in
+	if (PC->PlayerCameraManager)
+	{
+		PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/true);
+		GetWorld()->GetTimerManager().SetTimer(
+			RideStartFadeTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				APlayerController* FadePC = GetWorld()->GetFirstPlayerController();
+				if (FadePC && FadePC->PlayerCameraManager)
+				{
+					FadePC->PlayerCameraManager->StartCameraFade(1.f, 0.f, RideStartFadeInDuration, FLinearColor::Black, /*bShouldFadeAudio=*/true, false);
+				}
+			}),
+			RideStartBlackHoldDuration,
+			false
+		);
 	}
 
 	// Rick stares at the road until his first line of dialogue — the seat
