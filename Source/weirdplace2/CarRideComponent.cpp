@@ -11,6 +11,9 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/AmbientSound.h"
+#include "Components/AudioComponent.h"
+#include "EngineUtils.h"
 #include "Tunable.h"
 #include "UObject/UObjectIterator.h"
 
@@ -28,6 +31,27 @@ WP_TUNABLE_FLOAT(GCarRideSpeedOverride, "weird.CarRide.Speed", 0.0f,
 
 WP_TUNABLE_FLOAT(GCarRidePostDialogueRideTime, "weird.CarRide.PostDialogueRideTime", 3.0f,
 	"Seconds between Rick's last car line and the fade-out to the gas station.");
+
+WP_TUNABLE_FLOAT(GCarRideStartBlackHoldOverride, "weird.CarRide.StartBlackHold", 0.0f,
+	"Override ride-start pure-black hold in seconds (0 = use component RideStartBlackHoldDuration). Takes effect on next PIE.");
+
+WP_TUNABLE_FLOAT(GCarRideStartFadeInOverride, "weird.CarRide.StartFadeIn", 0.0f,
+	"Override ride-start fade-in-from-black duration in seconds (0 = use component RideStartFadeInDuration). Takes effect on next PIE.");
+
+WP_TUNABLE_FLOAT(GCarRideMusicFadeDelayOverride, "weird.CarRide.MusicFadeDelay", -1.0f,
+	"Override delay from ride start until the music fade-in begins, in seconds (<0 = use component MusicFadeInDelay). Takes effect on next PIE.");
+
+WP_TUNABLE_FLOAT(GCarRideMusicFadeInOverride, "weird.CarRide.MusicFadeIn", 0.0f,
+	"Override music fade-in duration in seconds (0 = use component MusicFadeInDuration). Takes effect on next PIE.");
+
+WP_TUNABLE_FLOAT(GCarRideEndFadeOutOverride, "weird.CarRide.EndFadeOut", 0.0f,
+	"Override ride-end fade-to-black duration in seconds (0 = use component RideEndFadeOutDuration).");
+
+WP_TUNABLE_FLOAT(GCarRideEndBlackHoldOverride, "weird.CarRide.EndBlackHold", -1.0f,
+	"Override ride-end pure-black hold in seconds (<0 = use component RideEndBlackHoldDuration).");
+
+WP_TUNABLE_FLOAT(GCarRideEndFadeInOverride, "weird.CarRide.EndFadeIn", 0.0f,
+	"Override ride-end fade-in at the gas station in seconds (0 = use component RideEndFadeInDuration).");
 
 static FAutoConsoleCommandWithWorld GCarRideRebuildSceneryCmd(
 	TEXT("weird.CarRide.RebuildScenery"),
@@ -72,15 +96,18 @@ void UCarRideComponent::BeginPlay()
 	bSkipRide |= GIsAutomationTesting;
 #endif
 
-	// Black out video+audio right away on the ride path — StartRide only runs
-	// once the pawn poll succeeds, and world audio starting in that gap would
-	// pierce the black hold.
+	// Black out video and silence world audio right away on the ride path —
+	// StartRide only runs once the pawn poll succeeds, and audio starting in
+	// that gap would pierce the black hold. The camera fade is video-only:
+	// ambients and music get per-component fades so the music timeline is
+	// independent of the visual fade.
 	auto ApplyStartFade = [this]()
 	{
 		APlayerController* PC = GetWorld()->GetFirstPlayerController();
 		if (PC && PC->PlayerCameraManager)
 		{
-			PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/true);
+			PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/false);
+			SilenceWorldAudioForRideStart();
 			return true;
 		}
 		return false;
@@ -112,6 +139,77 @@ void UCarRideComponent::BeginPlay()
 		0.1f,
 		true
 	);
+}
+
+void UCarRideComponent::SilenceWorldAudioForRideStart()
+{
+	SilencedAmbients.Empty();
+	SilencedAmbientVolumes.Empty();
+	MusicComponent = nullptr;
+
+	for (TActorIterator<AAmbientSound> It(GetWorld()); It; ++It)
+	{
+		UAudioComponent* AC = It->GetAudioComponent();
+		if (!AC)
+		{
+			continue;
+		}
+		// Non-auto-activated ambients (e.g. aliensound) are script-triggered
+		// later — leave them untouched: silencing would mute their trigger,
+		// and FadeIn would start a sound that isn't supposed to play yet.
+		if (!AC->bAutoActivate)
+		{
+			continue;
+		}
+		if (It->ActorHasTag(MusicActorTag))
+		{
+			MusicComponent = AC;
+			MusicOriginalVolume = AC->VolumeMultiplier;
+		}
+		else if (AC->Sound && AC->Sound->IsLooping())
+		{
+			SilencedAmbients.Add(AC);
+			SilencedAmbientVolumes.Add(AC->VolumeMultiplier);
+		}
+		else
+		{
+			// One-shot (e.g. aliensound): silence it but don't restart it at
+			// fade time — re-triggering a finished one-shot mid-ride is wrong,
+			// and pre-fade it was inaudible under the old master audio duck.
+			UE_LOG(LogTemp, Display, TEXT("CarRideComponent: skipping restart of one-shot ambient '%s'"), *It->GetActorNameOrLabel());
+		}
+		AC->SetVolumeMultiplier(0.0f);
+	}
+
+	if (!MusicComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SilenceWorldAudioForRideStart - no AmbientSound tagged '%s' found"), *MusicActorTag.ToString());
+	}
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SilenceWorldAudioForRideStart - silenced %d ambients (+music: %d)"),
+		SilencedAmbients.Num(), MusicComponent ? 1 : 0);
+
+	// Music fade-in starts immediately (plus optional MusicFadeInDelay),
+	// independent of the black hold / visual fade. FadeIn restarts the sound
+	// (VolumeMultiplier 0 culled it), so no is-playing dance is needed.
+	if (MusicComponent)
+	{
+		const float MusicDelay = GCarRideMusicFadeDelayOverride >= 0.0f ? GCarRideMusicFadeDelayOverride : MusicFadeInDelay;
+		GetWorld()->GetTimerManager().SetTimer(
+			MusicFadeTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				if (!MusicComponent)
+				{
+					return;
+				}
+				const float MusicFadeIn = GCarRideMusicFadeInOverride > 0.0f ? GCarRideMusicFadeInOverride : MusicFadeInDuration;
+				MusicComponent->SetVolumeMultiplier(MusicOriginalVolume);
+				MusicComponent->FadeIn(MusicFadeIn, 1.0f);
+			}),
+			FMath::Max(MusicDelay, 0.05f),
+			false
+		);
+	}
 }
 
 void UCarRideComponent::StartRide()
@@ -188,23 +286,37 @@ void UCarRideComponent::StartRide()
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: PassengerSeatTarget is null!"));
 	}
 
-	// Open the ride on pure black, hold, then a long fade in
+	// Open the ride on pure black, hold, then a long fade in. Visuals and
+	// ambients share the hold+fade timeline; music runs its own delay+fade.
 	if (PC->PlayerCameraManager)
 	{
-		PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/true);
+		PC->PlayerCameraManager->SetManualCameraFade(1.0f, FLinearColor::Black, /*bFadeAudio=*/false);
 		GetWorld()->GetTimerManager().SetTimer(
 			RideStartFadeTimerHandle,
 			FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
+				const float FadeIn = GCarRideStartFadeInOverride > 0.0f ? GCarRideStartFadeInOverride : RideStartFadeInDuration;
 				APlayerController* FadePC = GetWorld()->GetFirstPlayerController();
 				if (FadePC && FadePC->PlayerCameraManager)
 				{
-					FadePC->PlayerCameraManager->StartCameraFade(1.f, 0.f, RideStartFadeInDuration, FLinearColor::Black, /*bShouldFadeAudio=*/true, false);
+					FadePC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeIn, FLinearColor::Black, /*bShouldFadeAudio=*/false, false);
+				}
+				// VolumeMultiplier was zeroed at BeginPlay, which culls the
+				// active sounds entirely — so restart each one with FadeIn
+				// (it Plays internally) rather than ramping a dead sound.
+				for (int32 i = 0; i < SilencedAmbients.Num(); ++i)
+				{
+					if (SilencedAmbients[i])
+					{
+						SilencedAmbients[i]->SetVolumeMultiplier(SilencedAmbientVolumes[i]);
+						SilencedAmbients[i]->FadeIn(FadeIn, 1.0f);
+					}
 				}
 			}),
-			RideStartBlackHoldDuration,
+			GCarRideStartBlackHoldOverride > 0.0f ? GCarRideStartBlackHoldOverride : RideStartBlackHoldDuration,
 			false
 		);
+
 	}
 
 	// Rick stares at the road until his first line of dialogue — the seat
@@ -506,19 +618,21 @@ void UCarRideComponent::OnBladderPulseFinished()
 
 void UCarRideComponent::EndRide()
 {
-	// Fade camera to black
+	// Fade camera to black, then hold black before the teleport + fade-in
+	const float FadeOut = GCarRideEndFadeOutOverride > 0.0f ? GCarRideEndFadeOutOverride : RideEndFadeOutDuration;
+	const float BlackHold = GCarRideEndBlackHoldOverride >= 0.0f ? GCarRideEndBlackHoldOverride : RideEndBlackHoldDuration;
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (PC && PC->PlayerCameraManager)
 	{
-		PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, FadeDuration, FLinearColor::Black, false, true);
+		PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, FadeOut, FLinearColor::Black, false, true);
 	}
 
-	// Schedule teleport after fade completes
+	// Teleport + fade-in after the fade-out and black hold complete
 	GetWorld()->GetTimerManager().SetTimer(
 		FadeOutTimerHandle,
 		this,
 		&UCarRideComponent::OnFadeOutComplete,
-		FadeDuration,
+		FadeOut + BlackHold,
 		false
 	);
 }
@@ -628,7 +742,8 @@ void UCarRideComponent::OnFadeOutComplete()
 	// Fade camera back in
 	if (PC->PlayerCameraManager)
 	{
-		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeDuration, FLinearColor::Black, false, false);
+		const float FadeIn = GCarRideEndFadeInOverride > 0.0f ? GCarRideEndFadeInOverride : RideEndFadeInDuration;
+		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeIn, FLinearColor::Black, false, false);
 	}
 
 	if (Rick)

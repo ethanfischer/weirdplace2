@@ -49,9 +49,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float DialogueStartDelay = 3.0f;
 
-	// Fade to/from black duration in seconds (ride end)
+	// Ride end: fade to black, hold black (teleport happens under it), fade back in
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float FadeDuration = 1.0f;
+	float RideEndFadeOutDuration = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideEndBlackHoldDuration = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideEndFadeInDuration = 3.0f;
 
 	// Fade in from black when the ride starts
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
@@ -60,6 +66,17 @@ public:
 	// Hold pure black for this long before the ride-start fade-in begins
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float RideStartBlackHoldDuration = 3.0f;
+
+	// Music (actor tagged MusicActorTag) fades in on its own timeline,
+	// independent of the black hold / visual+ambient fade
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float MusicFadeInDelay = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float MusicFadeInDuration = 20.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	FName MusicActorTag = FName("CarRideMusic");
 
 	// Empty actor positioned behind windshield where dialogue widget appears
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
@@ -215,4 +232,17 @@ private:
 	FTimerHandle BladderPulseTimerHandle;
 	FTimerHandle GlanceTimerHandle;
 	FTimerHandle RideStartFadeTimerHandle;
+	FTimerHandle MusicFadeTimerHandle;
+
+	// Ambient/music components silenced at ride start, with their original
+	// volume multipliers to fade back up to
+	UPROPERTY()
+	TArray<class UAudioComponent*> SilencedAmbients;
+	TArray<float> SilencedAmbientVolumes;
+
+	UPROPERTY()
+	class UAudioComponent* MusicComponent = nullptr;
+	float MusicOriginalVolume = 1.0f;
+
+	void SilenceWorldAudioForRideStart();
 };
