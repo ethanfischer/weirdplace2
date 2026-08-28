@@ -2058,23 +2058,35 @@ public:
 	}
 };
 
-// Assert the conveyor was destroyed on ride end.
+// Assert the conveyor gets destroyed on ride end. Polls: teardown happens in
+// OnFadeOutComplete after RideEndFadeOutDuration + RideEndBlackHoldDuration,
+// which are tunable — a fixed delay would rot whenever they're re-tuned.
 class FTD_AssertConveyorGone : public FTD_Base
 {
 public:
-	FTD_AssertConveyorGone(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	FTD_AssertConveyorGone(FAutomationTestBase* InTest, double InTimeoutSeconds = 12.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
 
-	virtual FString GetStatusText() const override { return TEXT("Asserting conveyor destroyed"); }
+	virtual FString GetStatusText() const override { return TEXT("Waiting for conveyor teardown"); }
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (Driver && Driver->FindCarRideConveyor())
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		if (!Driver->FindCarRideConveyor())
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
 		{
 			Test->AddError(TEXT("FTD_AssertConveyorGone: CarRideScenery conveyor still exists after ride end"));
+			return true;
 		}
-		return true;
+		return false;
 	}
+
+private:
+	double Timeout;
 };
 
 // One-shot: drive the ride's EndRide path (fade + teleport + scenery teardown).
