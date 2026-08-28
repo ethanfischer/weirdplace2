@@ -88,7 +88,7 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Author:** dpsounds
 - **Source:** https://dpsounds.gumroad.com/l/ultimaterealism (purchased 2026-08-27)
 - **License:** Gumroad purchase; no license file ships in the zip — royalty-free game use per listing. Receipt retained.
-- **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` — Carpet ×47 (pack Carpet), Tar ×27 (pack Concrete), Tile ×28 (pack Tile), WetDirt ×9 (pack MuddyGravel), all RMS loudness-matched on import. Played by `UFootstepComponent`: floor actors / volumes tagged `Footstep.<Set>` pick the set, untagged floors use the `weird.Footstep.Set` fallback (Tar).
+- **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` — Carpet ×1 (75/25 layered blend of pack Carpet 11+16, 2 kHz lowpass), Tar ×1 (pack MuddyGravel 3: 120 ms attack fade, 3 kHz then 2 kHz lowpass), Tile ×28 (pack Tile), WetDirt ×9 (pack MuddyGravel); RMS loudness-matched. Played by `UFootstepComponent`: floor actors / volumes tagged `Footstep.<Set>` pick the set, untagged floors use the `weird.Footstep.Set` fallback (Tar); per-set pitch/jitter/vol/interval via `weird.Footstep.SetTuning`.
 - **Required attribution:** None required; credited anyway.
 
 ### Audio files with unconfirmed source

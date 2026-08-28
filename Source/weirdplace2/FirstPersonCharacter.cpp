@@ -284,6 +284,26 @@ void AFirstPersonCharacter::PeaSoupDist(float Centimeters)
 	}
 }
 
+void AFirstPersonCharacter::FootstepVol(const FString& SetName, float Multiplier)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("vol"), Multiplier);
+}
+
+void AFirstPersonCharacter::FootstepPitch(const FString& SetName, float BasePitch)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("pitch"), BasePitch);
+}
+
+void AFirstPersonCharacter::FootstepJitter(const FString& SetName, float Jitter)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("jitter"), Jitter);
+}
+
+void AFirstPersonCharacter::FootstepInterval(const FString& SetName, float Seconds)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("interval"), Seconds);
+}
+
 #if PLATFORM_LINUX
 void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
 {
