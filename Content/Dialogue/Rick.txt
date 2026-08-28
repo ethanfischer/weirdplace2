@@ -15,7 +15,7 @@ Rick: Nevermind
 Rick: You know how it is
 [Bladder]
 Rick: You need to pee?
-Rick: Alright I'll see if I can find a place to stop
+Rick: Alright I'll find a place to stop
 
 == RickOutsideIdle ==
 Rick: I'll meet you inside once I'm done here
