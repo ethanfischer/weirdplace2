@@ -1,20 +1,18 @@
 # Rick's dialogue. Default speaker: Rick. Lint: python scripts/dq.py lint
 
 == CarRide ==
-Rick: Man, it feels good to be on the road
-Rick: If you can call this thing a road
-Rick: How've you been?
-Rick: How's the wife?
+Rick: Hey man, how've you been?
+Rick: Nice
+Rick: Uhuh
+Rick: Yep
 Rick: ...
-Rick: Yeah that sounds about right
-Rick: You got a nice life, all things considered
-Rick: Honestly, I do too
-Rick: But that doesn't stop me from bitchin
-Rick: This piece of shit I'm drivin for instance
-Rick: Had to change the tail light last week
-Rick: Damn thing almost fell apart on me
-Rick: And of course they had to use their own custom screws
-Rick: And of course that took me a week to research
+Rick: Well
+Rick: Me too
+Rick: In fact
+Rick: ...
+Rick: Well
+Rick: Nevermind
+Rick: You know how it is
 [Bladder]
 Rick: You need to pee?
 Rick: Alright I'll see if I can find a place to stop
