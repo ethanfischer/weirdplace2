@@ -67,6 +67,7 @@ class Line:
         self.text = text
         self.tag = None
         self.tag_lineno = None
+        self.pause = 0.0  # [Pause N] seconds of silence after this line
         self.lineno = lineno
 
 
@@ -96,7 +97,16 @@ def parse_dialogue_file(path):
             if not current:
                 errors.append((lineno, f"tag {line} has no preceding dialogue line"))
                 continue
-            current[-1].tag = line[1:-1].strip()
+            body = line[1:-1].strip()
+            # [Pause N] is timing, not an action cue (DialogueScript.cpp mirrors this)
+            m = re.fullmatch(r"[Pp]ause\s+(\d+(?:\.\d+)?)", body)
+            if m:
+                if float(m.group(1)) <= 0:
+                    errors.append((lineno, f"bad pause {line}"))
+                else:
+                    current[-1].pause = float(m.group(1))
+                continue
+            current[-1].tag = body
             current[-1].tag_lineno = lineno
             continue
 
@@ -253,6 +263,7 @@ def build_preview():
                             "speaker": ln.speaker or owner,
                             "text": ln.text,
                             "tag": ln.tag,
+                            "pause": ln.pause,
                             "chars": len(ln.text),
                             "secs": round(type_seconds(ln.text), 2),
                             "rows": -(-len(ln.text) // CHARS_PER_ROW),
@@ -359,7 +370,7 @@ for (const npc of DATA.npcs) {
   const h = document.createElement('h2'); h.textContent = npc.npc + '.txt'; npcsDiv.appendChild(h);
   for (const sec of npc.sections) {
     const d = document.createElement('div'); d.className = 'section';
-    const total = sec.lines.reduce((a, l) => a + l.secs + 0.7, 0).toFixed(1);
+    const total = sec.lines.reduce((a, l) => a + l.secs + 0.7 + (l.pause || 0), 0).toFixed(1);
     d.innerHTML = '<div class="sec-head"><span class="sec-name">== ' + sec.name +
       ' ==</span><button class="playAll">&#9654; play section</button>' +
       '<span class="meta">' + sec.lines.length + ' lines, ~' + total + 's</span></div>';
@@ -375,6 +386,8 @@ for (const npc of DATA.npcs) {
       const t = document.createElement('span'); t.textContent = l.text; r.appendChild(t);
       if (l.tag) { const c = document.createElement('span'); c.className = 'chip';
                    c.textContent = '[' + l.tag + ']'; r.appendChild(c); }
+      if (l.pause) { const c = document.createElement('span'); c.className = 'chip';
+                     c.textContent = '[Pause ' + l.pause + ']'; r.appendChild(c); }
       const st = document.createElement('span'); st.className = 'stats';
       st.textContent = l.chars + ' ch · ' + l.secs + 's · ' + l.rows + ' row' + (l.rows > 1 ? 's' : '');
       r.appendChild(st);

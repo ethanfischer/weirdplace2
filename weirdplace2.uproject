@@ -27,6 +27,10 @@
 			]
 		},
 		{
+			"Name": "Metasound",
+			"Enabled": true
+		},
+		{
 			"Name": "Soundscape",
 			"Enabled": true
 		},
