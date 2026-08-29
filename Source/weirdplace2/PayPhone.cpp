@@ -429,6 +429,11 @@ void APayPhone::PlayCodeOnce()
 	CodeFullText.ParseIntoArrayLines(CodeLines);
 	CodeLineIndex = 0;
 
+	if (CodeAudio)
+	{
+		CodeAudio->Play();
+	}
+
 	int32 TotalChars = 0;
 	for (const FString& Line : CodeLines)
 	{

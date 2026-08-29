@@ -179,10 +179,13 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	// Fixed, metronome-like rhythm: a step every interval while moving (the
 	// current surface's set can override the global interval), first step
 	// immediately on starting to walk.
-	float BasePitch, Jitter, SetVolume, Interval;
-	GetSetTuning(Sets[ResolveSetIndex()].Name, BasePitch, Jitter, SetVolume, Interval);
 	if (bWalking)
 	{
+		// Resolving the set costs a line trace plus a volume sweep, so only pay
+		// for it on the frames that can actually fire a step.
+		float BasePitch, Jitter, SetVolume, Interval;
+		GetSetTuning(Sets[ResolveSetIndex()].Name, BasePitch, Jitter, SetVolume, Interval);
+
 		TimeSinceLastStep += DeltaTime;
 		if (!bWasWalking || TimeSinceLastStep >= Interval)
 		{
@@ -193,7 +196,7 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	else
 	{
 		// Keep partial progress so a stop-start doesn't fire instantly.
-		TimeSinceLastStep = FMath::Min(TimeSinceLastStep, Interval * 0.5f);
+		TimeSinceLastStep = FMath::Min(TimeSinceLastStep, GFootstepInterval * 0.5f);
 	}
 	bWasWalking = bWalking;
 }
