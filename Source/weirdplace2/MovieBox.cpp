@@ -106,13 +106,6 @@ void AMovieBox::BeginPlay()
 			}));
 	}
 
-	MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
-	if (!MyCharacter)
-	{
-		UE_LOG(LogTemp, Error, TEXT("MyCharacter not found!"));
-		return;
-	}
-
 	// Hide it initially
 	InteractionWidget->SetVisibility(false);
 
@@ -178,9 +171,18 @@ void AMovieBox::Tick(float DeltaTime)
 	}
 }
 
+AFirstPersonCharacter* AMovieBox::GetMyCharacter()
+{
+	if (!MyCharacter)
+	{
+		MyCharacter = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	}
+	return MyCharacter;
+}
+
 bool AMovieBox::CanInteract()
 {
-	return MyCharacter != nullptr;
+	return GetMyCharacter() != nullptr;
 }
 
 void AMovieBox::Interact_Implementation()
@@ -190,7 +192,7 @@ void AMovieBox::Interact_Implementation()
 		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: Interact called with missing components — BeginPlay failed to initialize"), *GetName());
 		return;
 	}
-	if (!MyCharacter)
+	if (!GetMyCharacter())
 	{
 		return;
 	}
