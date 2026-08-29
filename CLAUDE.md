@@ -1,7 +1,7 @@
 # CLAUDE.md
 ## Project Overview
 
-Weirdplace2 is an Unreal Engine 5.7 first-person exploration game targeting VR 
+Weirdplace2 is an Unreal Engine 5.8 first-person exploration game
 
 ## Build Commands
 
@@ -14,8 +14,8 @@ powershell -ExecutionPolicy Bypass -File livecode.ps1
 
 **Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
 1. `taskkill //F //IM UnrealEditor.exe` (Note: `//F //IM` is Windows CMD syntax; run from a CMD terminal if Git Bash rejects the flags.)
-2. `mcp__jetbrains__build_project`
-3. Relaunch the editor via `scripts/launch_editor.ps1` (see "Launching the editor" below) — NOT `mcp__jetbrains__execute_run_configuration` or raw `UnrealEditor.exe`, both of which silently hang.
+2. Build with `Build.bat` (see "Build commands" below; ~15s incremental)
+3. Relaunch the editor via `scripts/launch_editor.ps1` (see "Launching the editor" below) — NOT raw `UnrealEditor.exe`, which silently hangs the agent.
 
 ## Launching the editor
 
@@ -34,16 +34,16 @@ powershell -ExecutionPolicy Bypass -File scripts/launch_editor.ps1 -Headless
 
 If an editor is already running the wrapper prints `EDITOR ALREADY RUNNING` and exits 0 without spawning a duplicate.
 
-Build commands (fallback if MCP is unavailable):
+Build commands:
 ```cmd
 # Build editor target (typical for C++ changes)
-"C:\Program Files\Epic Games\UE_5.7\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
+"C:\Program Files\Epic Games\UE_5.8\Engine\Build\BatchFiles\Build.bat" weirdplace2Editor Win64 Development -Project="C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -WaitMutex -FromMsBuild
 
 # Regenerate project files (if modules/targets change)
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
+"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
 
 # Run automation tests
-"C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
+"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
 ## Retargeting Mocap Animations to MetaHumans
@@ -66,11 +66,14 @@ Full command + setup + log retrieval + Deck device profile notes: `docs/steamdec
 
 ## Architecture
 
-### Core Systems
+All gameplay code lives flat in `Source/weirdplace2/`. Key pieces:
 
-**Player Character (`AMyCharacter`)**
-**Interaction System**
-**Inventory System**
+- **`AFirstPersonCharacter`** (FirstPersonCharacter.h) — the player. `EPlayerActivityState` (FreeRoaming/Interacting/InSimpleDialogue/InDialogue) gates input and interaction.
+- **Interaction**: `IInteractable` (Interactable.h) implemented by world actors — NPCs (`ASeneca`, `ARick`, `AHudson`, each with a state enum + `IDialogueWidgetProvider` for diegetic dialogue plates), `AMovieBox`, `ADoor`, `APayPhone`, etc.
+- **Inventory**: `UInventoryComponent` (Inventory.h) on the player; items are `UItemDefinition` primary data assets; diegetic UI via `InventoryUIActor`/`InventoryUIComponent` (same UIActor/UIComponent pattern as Keypad and Menu).
+- **Story state**: `UStorySubsystem` (WorldSubsystem) tracks `EStoryFlag` progression and owns the beat side effects (storm dim/hide/silence + station relight, via `StormDimLight`/`StormHideActor`/`StormSilenceAmbient` actor tags on level actors); `UStormFogComponent` drives the pea-soup fog off those flags.
+- **E2E harness**: `UTestDriverSubsystem` + `E2E_Steps.h`/`E2E_LatentCommands.h` back the tests in E2E_Level1Test.cpp; `ATestWaypoint` actors mark teleport targets.
+- **Tunables**: `Tunable.h` defines the `WP_TUNABLE_*` macros (see Code Conventions).
 
 ## Editor Property Assignment
 
@@ -91,14 +94,17 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 - Use `CreateDefaultSubobject` for owned components in constructors
 - Null-check pointers before dereference; early-return on failure
 - Use `UE_LOG(LogTemp, ...)` for debugging
-- **Tunable gameplay constants**: don't hardcode magic numbers you (or the user) will want to dial in — declare them with `WP_TUNABLE_FLOAT/INT/BOOL` from `Tunable.h` (cvar prefix `weird.<System>.<Name>`), then tune live via `uq cvar` and bake the final value back into the default. New tunables need a full editor restart to register (Live Coding won't); tweaking existing ones is always live. See docs/dev-tooling.md.
+- **Tunable gameplay constants**: don't hardcode magic numbers you (or the user) will want to dial in — declare them with `WP_TUNABLE_FLOAT/INT/BOOL` from `Tunable.h` (cvar prefix `weird.<System>.<Name>`), then tune live via the unreal-mcp cvar tools (EditorToolset; `uq cvar` as fallback) and bake the final value back into the default. New tunables need a full editor restart to register (Live Coding won't); tweaking existing ones is always live. See docs/dev-tooling.md.
 
 ## Dev tooling — use these before writing one-off scripts
 
 Full reference: **docs/dev-tooling.md**. TL;DR:
 
-- **`python scripts/uq.py <verb>`** — query/command the live editor: `actors`, `components`, `props` (actors, components, assets, `cdo:` Blueprint defaults), `get`/`set`, `bounds`, `screenshot`, `mat-params`, `assets`/`refs`, `cvar`, `exec`, `py`, `save`. **Do NOT write a new `scripts/local/*.py` inspection script until you've checked uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
+- **unreal-mcp (default for live-editor work)** — the Epic MCP server (`.mcp.json`, port 8000) is 8-180x faster per call than uq (persistent session vs ~780ms interpreter+discovery per CLI call; A/B'd 2026-08-07). Use it for finding/inspecting/modifying actors, properties, cvars, screenshots, PIE control. Discovery: `list_toolsets` → `describe_toolset` → `call_tool` (tool_name WITHOUT the toolset prefix, toolset_name separate; schema-"optional" params must still be passed, as null). Beyond actor/property basics it also has: **LogsToolset** (read the live editor log + set category verbosity), **AutomationTestToolset** (run automation tests in the live editor — handy for quick single-test iteration; `run_e2e.ps1` remains the gate since it's a fresh process loading the on-disk DLL), **SemanticSearchToolset** (hybrid vector+BM25 asset search), and **SlateInspectorToolset** (drive/inspect editor UI, Playwright-style).
+- **`python scripts/uq.py <verb>`** — fallback when the editor/MCP is down, and still the only path for `mat-params`, `refs`, `save`, and arbitrary editor Python (`py`/`pyfile`). **Do NOT write a new `scripts/local/*.py` inspection script until you've checked MCP and uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
 - **`python scripts/logq.py`** — error/warning triage for `weirdplace2.log` (auto-scoped to the latest PIE session) and `--e2e` for `E2ETest.log`. Prefer this over hand-rolled grep.
+- **`python scripts/dq.py`** — dialogue lint (`lint`, exit 1 on error) + HTML previewer with runtime typewriter timing (`preview`). Dialogue is one sectioned file per NPC in `Content/Dialogue/` (`== Section ==`, optional `Speaker:` prefix, `[Tag]` action cues, `#` comments), parsed by the shared `FDialogueScript`. Run `dq.py lint` after any dialogue edit; format spec + rules in docs/dev-tooling.md.
+- **`python scripts/sfx.py`** — FTUS "All In One Bundle" SFX catalog: `search`/`sets` (local metadata CSV), `fetch` (browser-assisted Gumroad set download + extract), `locate`, `import` (into UE + auto-credit in CREDITS.md). When asked to add a sound, search here first. Workflow details: `.claude/skills/ftus-sfx/SKILL.md`.
 - **`python scripts/e2e_report.py`** — diff headed E2E screenshots against `Tests/E2EGoldens/`, HTML gallery in `Saved/E2EReport/report.html`; `--bless` to accept new baselines; `run_e2e.ps1 ... -Report` runs it after a suite.
 
 ## Hiding Actors at Runtime
@@ -171,30 +177,37 @@ powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Heade
 Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
 
 # Misc
-- We modified and used nodetocode to convert blueprints to c++. Modifications are here: https://github.com/protospatial/NodeToCode/pull/14
 - This is gonna be a VR game. Implement features diagetically (no screenspace UI)
-- Doors are 110x215
 - If you add 3rd party assets, make sure to give them credit in credits.md
 
 ## Running Python in UE
 
 Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". You are capable of running python scripts for me.
 
-Two paths depending on what you need:
+Two paths depending on what you need. (For standard live-editor operations — actors, properties, cvars, screenshots — prefer the unreal-mcp tools over Python; see Dev tooling above. The paths below are for *arbitrary* Python.)
 
 **Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
 ```bash
-# File (must be an ABSOLUTE path — UE 5.7's MODE_EXEC_FILE resolves it directly):
+# File (must be an ABSOLUTE path — MODE_EXEC_FILE resolves it directly):
 python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Content/Python/your_script.py" --mode ExecuteFile
 
 # Inline:
 python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
 ```
-Do not use `--file <path>` — the wrapper ships file contents, but 5.7's MODE_EXEC_FILE expects a path and the run silently fails with empty output. Always pass the absolute path through `--code`.
+Do not use `--file <path>` — the wrapper ships file contents, but MODE_EXEC_FILE expects a path and the run silently fails with empty output (verified on 5.7; unchanged in 5.8). Always pass the absolute path through `--code`.
 `scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
 
 **Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
 
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked on the Trello board "weirdplace" (https://trello.com/b/apYW69HZ/weirdplace) via the Trello MCP tools. Green label = agent queue. `todo.md` is deprecated. See `docs/agents/issue-tracker.md` for IDs and conventions.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root (created lazily). See `docs/agents/domain.md`.
 
 ## Ending your turn
-If you've made changes that I need to manually verify, please use Rider to launch unreal for me so it's ready to go when I return to my computer
+If you've made changes that I need to manually verify, launch the editor via `scripts/launch_editor.ps1` so it's ready to go when I return to my computer

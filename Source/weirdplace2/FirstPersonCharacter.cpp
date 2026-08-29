@@ -4,6 +4,7 @@
 #include "GameFramework/PlayerController.h"
 #include "BladderUrgencyComponent.h"
 #include "StormFogComponent.h"
+#include "FootstepComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/RectLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -122,6 +123,9 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 
 	// Create the storm pea-soup fog component (rolls in the near-field murk on the storm beat)
 	StormFogComponent = CreateDefaultSubobject<UStormFogComponent>(TEXT("StormFogComponent"));
+
+	// Footstep sounds while walking
+	FootstepComponent = CreateDefaultSubobject<UFootstepComponent>(TEXT("FootstepComponent"));
 
 	// Create the menu UI component (mirrors InventoryUIComponent on AMyCharacter)
 	MenuUIComponent = CreateDefaultSubobject<UMenuUIComponent>(TEXT("MenuUIComponent"));
@@ -280,6 +284,26 @@ void AFirstPersonCharacter::PeaSoupDist(float Centimeters)
 	}
 }
 
+void AFirstPersonCharacter::FootstepVol(const FString& SetName, float Multiplier)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("vol"), Multiplier);
+}
+
+void AFirstPersonCharacter::FootstepPitch(const FString& SetName, float BasePitch)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("pitch"), BasePitch);
+}
+
+void AFirstPersonCharacter::FootstepJitter(const FString& SetName, float Jitter)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("jitter"), Jitter);
+}
+
+void AFirstPersonCharacter::FootstepInterval(const FString& SetName, float Seconds)
+{
+	UFootstepComponent::UpdateSetTuning(SetName, TEXT("interval"), Seconds);
+}
+
 #if PLATFORM_LINUX
 void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
 {
@@ -371,9 +395,24 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	// - Inventory closed: react to world interactables.
 	if (bCreatedCrosshair && IsValid(CrosshairWidget))
 	{
-		if (IsInAnyDialogue())
+		if (bDialoguePauseActive)
 		{
-			CrosshairWidget->ShowDialogueCrosshair();
+			// [Pause N] silence beat: nothing is said and E does nothing, so
+			// don't show the chat-bubble reticle.
+			CrosshairWidget->ShowNormalCrosshair();
+		}
+		else if (IsInAnyDialogue())
+		{
+			// Gaze-gated dialogue (car ride): dialogue reticle only while
+			// looking out the windshield, since E does nothing elsewhere.
+			if (IsDialogueGazeSatisfied())
+			{
+				CrosshairWidget->ShowDialogueCrosshair();
+			}
+			else
+			{
+				CrosshairWidget->ShowNormalCrosshair();
+			}
 		}
 		else if (IsDialogueCooldownActive())
 		{
@@ -737,6 +776,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 	if (State == EPlayerActivityState::InDialogue)
 	{
+		// Car ride: E only advances while looking out the windshield
+		if (!IsDialogueGazeSatisfied())
+		{
+			return;
+		}
 		AdvanceDialogue();
 		return;
 	}
@@ -1066,10 +1110,18 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 			return;
 		}
 
-		if (IInteractable* Interactable = Cast<IInteractable>(HitActor);
-			Interactable && !Interactable->CanInteract())
+		if (IInteractable* Interactable = Cast<IInteractable>(HitActor))
 		{
-			continue;
+			if (!Interactable->CanInteract())
+			{
+				continue;
+			}
+			// Some actors are only interactable on part of their geometry
+			// (payphone kiosk vs the telephone pole in the same actor).
+			if (!Interactable->IsComponentInteractable(HitResult.GetComponent()))
+			{
+				continue;
+			}
 		}
 		// NPC-specific checks: LoS (prevents through-wall capsule interaction)
 		// and range (LookAtPlayerComponent sphere). Only apply to actors that
@@ -1218,17 +1270,104 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 		return;
 	}
 
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+
 	DialogueLines = Lines;
 	DialogueLineIndex = 0;
 	SetActivityState(EPlayerActivityState::InDialogue);
 	CurrentDialogueNPC = NPC;
+
+	// [Pause N] before the first line: hold silence before the plate opens
+	if (DialogueLines[0].PauseBefore > 0.f)
+	{
+		bDialoguePauseActive = true;
+		GetWorldTimerManager().SetTimer(
+			DialoguePauseTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				bDialoguePauseActive = false;
+				if (UI_Dialogue)
+				{
+					UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
+				}
+				OnDialogueLineShown.Broadcast(0);
+			}),
+			DialogueLines[0].PauseBefore,
+			false
+		);
+		return;
+	}
 
 	UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
 
 	OnDialogueLineShown.Broadcast(0);
 }
 
+void AFirstPersonCharacter::SetDialogueGazeGate(const FVector& ForwardDir, float MaxAngleDeg)
+{
+	bDialogueGazeGated = true;
+	DialogueGazeForward = ForwardDir.GetSafeNormal();
+	DialogueGazeMaxAngleDeg = MaxAngleDeg;
+}
+
+void AFirstPersonCharacter::ClearDialogueGazeGate()
+{
+	bDialogueGazeGated = false;
+}
+
+bool AFirstPersonCharacter::IsDialogueGazeSatisfied() const
+{
+	if (!bDialogueGazeGated)
+	{
+		return true;
+	}
+	const UCameraComponent* Camera = FirstPersonCamera;
+	if (!Camera)
+	{
+		UE_LOG(LogTemp, Error, TEXT("IsDialogueGazeSatisfied: FirstPersonCamera is null"));
+		return true;
+	}
+	const float CosAngle = FVector::DotProduct(Camera->GetForwardVector(), DialogueGazeForward);
+	return CosAngle >= FMath::Cos(FMath::DegreesToRadians(DialogueGazeMaxAngleDeg));
+}
+
 void AFirstPersonCharacter::AdvanceDialogue()
+{
+	// During a [Pause N] silence beat, advance input is ignored
+	if (bDialoguePauseActive)
+	{
+		return;
+	}
+
+	// [Pause N] on the current line: hide the plate, hold N seconds of
+	// silence, then auto-show the next line without another advance press.
+	if (DialogueLines.IsValidIndex(DialogueLineIndex) &&
+		DialogueLines[DialogueLineIndex].PauseAfter > 0.f &&
+		!bBlockNextDialogueAdvance)
+	{
+		bDialoguePauseActive = true;
+		if (UI_Dialogue)
+		{
+			UI_Dialogue->Close();
+		}
+		GetWorldTimerManager().SetTimer(
+			DialoguePauseTimerHandle,
+			FTimerDelegate::CreateWeakLambda(this, [this]()
+			{
+				bDialoguePauseActive = false;
+				AdvanceDialogueInternal();
+			}),
+			DialogueLines[DialogueLineIndex].PauseAfter,
+			false
+		);
+		return;
+	}
+
+	AdvanceDialogueInternal();
+}
+
+void AFirstPersonCharacter::AdvanceDialogueInternal()
 {
 	if (ItemNotificationMesh)
 	{

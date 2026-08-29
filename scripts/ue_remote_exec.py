@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 # UE's remote_execution module lives in the engine plugin dir.
-REMOTE_EXEC_PATH = Path(r"C:\Program Files\Epic Games\UE_5.7\Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python")
+REMOTE_EXEC_PATH = Path(r"C:\Program Files\Epic Games\UE_5.8\Engine\Plugins\Experimental\PythonScriptPlugin\Content\Python")
 sys.path.insert(0, str(REMOTE_EXEC_PATH))
 
 import remote_execution as re_mod  # type: ignore

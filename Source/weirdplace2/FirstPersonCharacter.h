@@ -14,6 +14,7 @@ class UInputMappingContext;
 class URectLightComponent;
 class UBladderUrgencyComponent;
 class UStormFogComponent;
+class UFootstepComponent;
 class UStaticMeshComponent;
 class UMaterialInterface;
 class UWeirdplaceGameUserSettings;
@@ -34,6 +35,14 @@ struct FSimpleDialogueLine
 
 	UPROPERTY()
 	FText Text;
+
+	// Seconds of silence (plate hidden, advance ignored) after this line
+	UPROPERTY()
+	float PauseAfter = 0.f;
+
+	// Seconds of silence before this line shows (only honored on the first line)
+	UPROPERTY()
+	float PauseBefore = 0.f;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDialogueLineShown, int32, LineIndex);
@@ -62,6 +71,14 @@ public:
 	EPlayerActivityState GetActivityState() const { return ActivityState; }
 	bool IsInAnyDialogue() const;
 	bool IsDialogueCooldownActive() const;
+
+	// Car ride: gate player-initiated dialogue advance behind gaze direction.
+	// While gated, E only advances dialogue when the camera forward is within
+	// MaxAngleDeg of ForwardDir, and the crosshair shows the dialogue state
+	// only inside that cone (normal reticle outside it).
+	void SetDialogueGazeGate(const FVector& ForwardDir, float MaxAngleDeg);
+	void ClearDialogueGazeGate();
+	bool IsDialogueGazeSatisfied() const; // true when no gate is set
 
 	// Enter an interaction "hold": freeze movement (and look if bFreezeLook),
 	// disable environment interaction, set Interacting, and ensure the player
@@ -117,6 +134,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Storm Fog")
 	UStormFogComponent* StormFogComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	UFootstepComponent* FootstepComponent;
+
 	// Console (~): toggle the pea-soup storm fog on/off for testing. Type "PeaSoup".
 	UFUNCTION(Exec)
 	void PeaSoup();
@@ -124,6 +144,20 @@ protected:
 	// Console: set the fog view distance in cm live, e.g. "PeaSoupDist 80" (thicker).
 	UFUNCTION(Exec)
 	void PeaSoupDist(float Centimeters);
+
+	// Console: per-set footstep tuning, e.g. "FootstepVol Carpet 1.25".
+	// Shorthand for editing the weird.Footstep.SetTuning cvar.
+	UFUNCTION(Exec)
+	void FootstepVol(const FString& SetName, float Multiplier);
+
+	UFUNCTION(Exec)
+	void FootstepPitch(const FString& SetName, float BasePitch);
+
+	UFUNCTION(Exec)
+	void FootstepJitter(const FString& SetName, float Jitter);
+
+	UFUNCTION(Exec)
+	void FootstepInterval(const FString& SetName, float Seconds);
 
 	// --- Crosshair Widget ---
 
@@ -294,6 +328,7 @@ public:
 
 	void StartDialogue(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
 	void AdvanceDialogue();
+	void AdvanceDialogueInternal();
 
 	// Fires whenever a dialogue line is displayed, carrying the line index
 	UPROPERTY(BlueprintAssignable, Category = "Dialogue")
@@ -388,6 +423,15 @@ private:
 	// Dialogue state (lines with per-line speaker)
 	TArray<FSimpleDialogueLine> DialogueLines;
 	int32 DialogueLineIndex = 0;
+
+	// [Pause N] beat: plate hidden, advance input ignored until the timer fires
+	bool bDialoguePauseActive = false;
+	FTimerHandle DialoguePauseTimerHandle;
+
+	// Dialogue gaze gate (see SetDialogueGazeGate)
+	bool bDialogueGazeGated = false;
+	FVector DialogueGazeForward = FVector::ForwardVector;
+	float DialogueGazeMaxAngleDeg = 35.0f;
 
 	// --- Interaction helpers (used by RaycastInteractableCheck) ---
 

@@ -1,0 +1,40 @@
+# Rick's dialogue. Default speaker: Rick. Lint: python scripts/dq.py lint
+
+== CarRide ==
+[Pause 85]
+Rick: Hey man, how've you been?
+Rick: ...
+Rick: Nice
+Rick: ...
+Rick: Uhuh
+Rick: ...
+Rick: Yep
+Rick: ...
+[Pause 10]
+Rick: Well
+Rick: ...
+Rick: Me too
+Rick: ...
+Rick: In fact
+Rick: ...
+[Pause 2]
+Rick: Well
+Rick: ...
+Rick: Nevermind
+Rick: You know how it is
+[Pause 10]
+Rick: *
+[Bladder]
+[Pause 3]
+Rick: You need to pee?
+[Pause 4]
+Rick: Alright I'll find a place to stop
+
+== RickOutsideIdle ==
+Rick: I'll meet you inside once I'm done here
+
+== RickGivesMoney ==
+Rick: You need cash?
+Rick: No worries, man. I got you
+[Gives Cash]
+Rick: You can get me back next time

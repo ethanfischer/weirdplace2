@@ -43,9 +43,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Bladder Urgency|Audio")
 	TObjectPtr<USoundBase> UrgencySound = nullptr;
 
-	/** If false, urgency won't start in BeginPlay. Call StartUrgency() manually. */
+	/** If false, urgency won't start in BeginPlay. Call StartUrgency() manually.
+	 * The car ride introduces the bladder via a scripted dialogue pulse and then
+	 * starts the real urgency loop at ride end (SkipRide path starts it too), so
+	 * nothing should fire on its own before that. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
-	bool bAutoStart = true;
+	bool bAutoStart = false;
 
 	UPROPERTY(BlueprintAssignable, Category = "Bladder Urgency")
 	FOnBladderDeath OnBladderDeath;

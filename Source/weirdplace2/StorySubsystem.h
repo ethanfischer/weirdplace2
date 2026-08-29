@@ -5,6 +5,7 @@
 #include "StorySubsystem.generated.h"
 
 class ACRTTV;
+class ULightComponent;
 
 // Central narrative-state store for the tornado/telephone beat chain. Lives on
 // the world (not the game instance) so flags reset per-PIE — clean E2E isolation
@@ -20,7 +21,13 @@ enum class EStoryFlag : uint8
 	SeenTornadoWarning,
 	// Player has picked up the payphone at least once (gates Seneca's smoking
 	// appearance outside). Set by APayPhone on the first off-hook.
-	UsedPayPhone
+	UsedPayPhone,
+	// Player hung the payphone back up — the world is near-black and the
+	// station-relight countdown arms (Relight side effect below).
+	HungUpPhone,
+	// The gas-station lights flickered back on ("the generator kicked back in"),
+	// giving the lost player a glow to walk toward.
+	StationRelit
 };
 
 // Broadcast whenever a flag's value changes. APayPhone subscribes to drive its
@@ -66,6 +73,13 @@ public:
 	// declared in story order. Used by the `SkipTo` dev console command.
 	void SkipToBeat(EStoryFlag Target);
 
+	// Persistent auto-skip (dev): the beat name saved by the `AutoSkip` cheat,
+	// applied automatically shortly after every play session begins. Empty when
+	// unset. Stored in the per-user GameUserSettings ini.
+	static FString GetAutoSkipBeat();
+	// Save (or clear, when empty) the auto-skip beat name.
+	static void SetAutoSkipBeat(const FString& BeatName);
+
 	// The store-entry beat: player crossed TriggerBox_Inside. If the key has
 	// broken and the warning hasn't shown yet, switches both store TVs to the
 	// tornado-warning screen. Also invoked directly by the TestDriver so E2E
@@ -76,9 +90,26 @@ private:
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
-	// Reacts to our own flag changes: when UsedPayPhone is set, silences the
-	// warning sirens on the TVs (the screens stay up).
+	// Reacts to our own flag changes: TornadoWarningDisplayed applies the storm
+	// mood, UsedPayPhone silences the TV sirens (the screens stay up), and
+	// HungUpPhone arms the station-relight countdown.
 	void OnStoryFlagSet(EStoryFlag Flag, bool bValue);
+
+	// The storm closes in: dim every StormDimLight-tagged light (recording each
+	// component's pre-dim intensity for the relight restore), hide the
+	// StormHideActor-tagged emissive meshes, and stop the StormSilenceAmbient-
+	// tagged ambient beds. Guarded to run once.
+	void ApplyStorm();
+
+	// "The generator kicked back in": sets StationRelit, flickers the dimmed
+	// lights back to their recorded intensities (re-showing the hidden meshes in
+	// step), and relaxes the player's pea-soup fog so the glow reads at distance.
+	// Guarded to run once.
+	void Relight();
+	void TickFlicker();
+
+	// Fires once, shortly after begin-play, when an AutoSkip beat is saved.
+	void ApplyAutoSkip();
 
 	// Polls whether the player is gazing at a warning TV; sets SeenTornadoWarning
 	// after the dwell. Runs on a repeating timer only while the warning is up.
@@ -93,4 +124,25 @@ private:
 
 	FTimerHandle GazeWatchTimer;
 	float GazeDwellSeconds = 0.f;
+
+	// --- Storm dim / station relight state ---
+
+	bool bStormApplied = false;
+	bool bRelit = false;
+
+	// Light components dimmed by ApplyStorm, parallel to their pre-dim
+	// intensities — the relight restores these recorded values (the dim
+	// multiplier is 0 in the level, so dividing back out is not an option).
+	TArray<TWeakObjectPtr<ULightComponent>> DimmedLights;
+	TArray<float> DimmedOriginalIntensities;
+
+	// StormHideActor-tagged actors hidden by ApplyStorm, re-shown on relight.
+	UPROPERTY()
+	TArray<AActor*> HiddenActors;
+
+	int32 FlickerStep = 0;
+
+	FTimerHandle RelightDelayTimer;
+	FTimerHandle FlickerTimer;
+	FTimerHandle AutoSkipTimer;
 };

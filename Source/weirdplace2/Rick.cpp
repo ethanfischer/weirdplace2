@@ -52,6 +52,7 @@ void ARick::BeginPlay()
 		}
 	}
 
+	DialogueScript.Load(DialogueFilePath);
 	LoadDialogueFile();
 	LoadOutsideDialogue();
 }
@@ -78,109 +79,64 @@ void ARick::Tick(float DeltaTime)
 
 void ARick::LoadDialogueFile()
 {
-	FString FullPath = FPaths::ProjectContentDir() / CarDialoguePath;
-	TArray<FString> RawLines;
-	if (!FFileHelper::LoadFileToStringArray(RawLines, *FullPath))
+	ParsedLines.Empty();
+	BladderPulseLineIndex = INDEX_NONE;
+
+	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(CarRideSection);
+	if (!Section)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Rick - Failed to load dialogue file: %s"), *FullPath);
 		return;
 	}
 
-	ParsedLines.Empty();
-	BladderPulseLineIndex = INDEX_NONE;
-	for (const FString& Line : RawLines)
+	for (const FDialogueLine& Parsed : *Section)
 	{
-		if (Line.IsEmpty())
-		{
-			continue;
-		}
+		FSimpleDialogueLine DialogueLine;
+		DialogueLine.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Rick") : *Parsed.Speaker);
+		DialogueLine.Text = FText::FromString(Parsed.Text);
+		DialogueLine.PauseAfter = Parsed.PauseAfter;
+		DialogueLine.PauseBefore = Parsed.PauseBefore;
+		ParsedLines.Add(DialogueLine);
 
-		if (Line.TrimStartAndEnd().Equals(TEXT("[Bladder]"), ESearchCase::IgnoreCase))
+		// [Bladder] tag marks the transition point — pulse fires after this line
+		if (Parsed.Tag.Equals(TEXT("Bladder"), ESearchCase::IgnoreCase))
 		{
-			// Tag marks the transition point — pulse fires after the preceding line
 			BladderPulseLineIndex = ParsedLines.Num() - 1;
-			continue;
-		}
-
-		int32 ColonIndex;
-		if (Line.FindChar(TEXT(':'), ColonIndex))
-		{
-			FString Speaker = Line.Left(ColonIndex).TrimStartAndEnd();
-			FString Text = Line.Mid(ColonIndex + 1).TrimStartAndEnd();
-
-			FSimpleDialogueLine DialogueLine;
-			DialogueLine.Speaker = FText::FromString(Speaker);
-			DialogueLine.Text = FText::FromString(Text);
-			ParsedLines.Add(DialogueLine);
 		}
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Rick - Loaded %d dialogue lines from %s"), ParsedLines.Num(), *FullPath);
+	UE_LOG(LogTemp, Log, TEXT("Rick - Loaded %d dialogue lines from section %s"), ParsedLines.Num(), *CarRideSection);
 }
 
 void ARick::LoadOutsideDialogue()
 {
-	FString IdlePath = FPaths::ProjectContentDir() / RickOutsideIdlePath;
-	TArray<FString> IdleRaw;
-	if (FFileHelper::LoadFileToStringArray(IdleRaw, *IdlePath))
+	// The plate names the speaker, so idle line bodies drop any speaker prefix.
+	if (const TArray<FDialogueLine>* IdleSection = DialogueScript.FindSection(OutsideIdleSection))
 	{
-		for (const FString& Raw : IdleRaw)
+		for (const FDialogueLine& Parsed : *IdleSection)
 		{
-			FString Line = Raw;
-			Line.TrimStartAndEndInline();
-			if (Line.IsEmpty()) continue;
-
-			// Lines are authored "Speaker: text" like the other dialogue
-			// files; the plate names the speaker, so the body must not
-			// repeat it.
-			int32 ColonIndex;
-			if (Line.FindChar(TEXT(':'), ColonIndex))
-			{
-				Line = Line.Mid(ColonIndex + 1).TrimStartAndEnd();
-			}
-			OutsideIdleLines.Add(FText::FromString(Line));
+			OutsideIdleLines.Add(FText::FromString(Parsed.Text));
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Rick - Failed to load: %s"), *IdlePath);
-	}
 
-	FString MoneyPath = FPaths::ProjectContentDir() / RickGivesMoneyPath;
-	TArray<FString> MoneyRaw;
-	if (FFileHelper::LoadFileToStringArray(MoneyRaw, *MoneyPath))
+	MoneyGiveLineIndex = INDEX_NONE;
+	if (const TArray<FDialogueLine>* MoneySection = DialogueScript.FindSection(GivesMoneySection))
 	{
-		MoneyGiveLineIndex = INDEX_NONE;
-		for (const FString& Raw : MoneyRaw)
+		for (const FDialogueLine& Parsed : *MoneySection)
 		{
-			FString Line = Raw;
-			Line.TrimStartAndEndInline();
-			if (Line.IsEmpty()) continue;
+			FSimpleDialogueLine DL;
+			DL.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Rick") : *Parsed.Speaker);
+			DL.Text = FText::FromString(Parsed.Text);
+			DL.PauseAfter = Parsed.PauseAfter;
+			DL.PauseBefore = Parsed.PauseBefore;
+			GivesMoneyLines.Add(DL);
 
-			// [Action] cue — ties to the preceding display line
-			if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+			// [Gives Cash] cue — money is handed over on this line
+			if (!Parsed.Tag.IsEmpty())
 			{
-				if (GivesMoneyLines.Num() > 0)
-				{
-					MoneyGiveLineIndex = GivesMoneyLines.Num() - 1;
-				}
-				continue;
-			}
-
-			int32 ColonIndex;
-			if (Line.FindChar(TEXT(':'), ColonIndex))
-			{
-				FSimpleDialogueLine DL;
-				DL.Speaker = FText::FromString(Line.Left(ColonIndex).TrimStartAndEnd());
-				DL.Text    = FText::FromString(Line.Mid(ColonIndex + 1).TrimStartAndEnd());
-				GivesMoneyLines.Add(DL);
+				MoneyGiveLineIndex = GivesMoneyLines.Num() - 1;
 			}
 		}
 		UE_LOG(LogTemp, Log, TEXT("Rick - Loaded %d money lines, MoneyGiveLineIndex=%d"), GivesMoneyLines.Num(), MoneyGiveLineIndex);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Rick - Failed to load: %s"), *MoneyPath);
 	}
 }
 
@@ -254,6 +210,31 @@ void ARick::OnMoneyDialogueLineShown(int32 LineIndex)
 	UE_LOG(LogTemp, Log, TEXT("Rick - Gave Money to player"));
 
 	FPChar->ShowItemNotification(ItemData, MoneyDef->NotificationRotation);
+}
+
+void ARick::StashForStorm()
+{
+	if (bStashedForStorm)
+	{
+		return;
+	}
+	bStashedForStorm = true;
+	PreStormTransform = GetActorTransform();
+	SetActorEnableCollision(false);
+	SetActorLocation(GetActorLocation() - FVector(0.f, 0.f, 10000.f));
+	UE_LOG(LogTemp, Log, TEXT("Rick: stashed for the storm (teleported below level, collision off)"));
+}
+
+void ARick::ReturnFromStorm()
+{
+	if (!bStashedForStorm)
+	{
+		return;
+	}
+	bStashedForStorm = false;
+	SetActorTransform(PreStormTransform);
+	SetActorEnableCollision(true);
+	UE_LOG(LogTemp, Log, TEXT("Rick: returned from the storm stash"));
 }
 
 void ARick::AppearOutside()

@@ -1,21 +1,57 @@
 #include "StorySubsystem.h"
 
 #include "CRTTV.h"
+#include "Rick.h"
+#include "FirstPersonCharacter.h"
 #include "GazeUtils.h"
+#include "StormFogComponent.h"
+#include "Tunable.h"
+#include "Components/AudioComponent.h"
+#include "Components/LightComponent.h"
+#include "Components/SceneComponent.h"
 #include "Engine/TriggerBox.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/ConfigCacheIni.h"
+#include "Sound/AmbientSound.h"
 #include "TimerManager.h"
+
+WP_TUNABLE_FLOAT(GStormDimMultiplier, "weird.Storm.DimMultiplier", 0.f,
+	"Each StormDimLight-tagged light's intensity is multiplied by this when the tornado warning shows (0 = fully off).");
+WP_TUNABLE_FLOAT(GRelightDelaySeconds, "weird.Relight.DelaySeconds", 0.f,
+	"Seconds after the payphone hangup before the station lights flicker back on (0 = immediately).");
+WP_TUNABLE_FLOAT(GRelightFlickerDuration, "weird.Relight.FlickerDuration", 2.5f,
+	"Seconds of light flicker before the station lights settle fully on.");
+WP_TUNABLE_FLOAT(GRelightRelaxedFogDistance, "weird.Relight.RelaxedFogDistance", 4000.f,
+	"Fog distance (cm) the pea soup relaxes to on relight, so the glow reads from afar.");
+WP_TUNABLE_FLOAT(GRelightFogRelaxSeconds, "weird.Relight.FogRelaxSeconds", 4.f,
+	"Seconds for the fog to relax open on relight.");
 
 namespace StorySubsystemConst
 {
+	// Actor tags marking the storm-beat targets in the level (a subsystem has no
+	// Details panel, so tags replace the old controller's wired arrays).
+	static const FName StormDimLightTag("StormDimLight");
+	static const FName StormHideActorTag("StormHideActor");
+	static const FName StormSilenceAmbientTag("StormSilenceAmbient");
+
+	// Odd number of flicker toggles so the sequence starts on and ends on.
+	static constexpr int32 FlickerSteps = 7;
+
 	// Gaze watch: poll cadence + how long the player must look at a warning TV.
 	static constexpr float GazeWatchInterval = 0.1f;
 	static constexpr float GazeRequiredSeconds = 2.0f;
 	// TVs are small and close; keep the box-expand tight and the range modest.
 	static constexpr float GazeBoxExpand = 10.f;
 	static constexpr float GazeMaxDistance = 4000.f;
+
+	// Persistent AutoSkip storage (per-user GameUserSettings ini).
+	static const TCHAR* AutoSkipSection = TEXT("Weirdplace.Dev");
+	static const TCHAR* AutoSkipKey = TEXT("AutoSkipTo");
+	// Delay before applying, so actors that subscribe to OnStoryFlagChanged in
+	// their BeginPlay (payphone reveal, weather controller) are bound first.
+	static constexpr float AutoSkipDelaySeconds = 0.5f;
 }
 
 void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
@@ -23,6 +59,16 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	Super::OnWorldBeginPlay(InWorld);
 
 	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
+
+#if !UE_BUILD_SHIPPING
+	// Dev convenience: a saved `AutoSkip <beat>` applies on every play. Skipped
+	// during automation so a leftover setting can't skew E2E runs.
+	if (!GIsAutomationTesting && InWorld.IsGameWorld() && !GetAutoSkipBeat().IsEmpty())
+	{
+		InWorld.GetTimerManager().SetTimer(AutoSkipTimer, this,
+			&UStorySubsystem::ApplyAutoSkip, StorySubsystemConst::AutoSkipDelaySeconds, false);
+	}
+#endif
 
 	// NOTE (first-play fog bug, 2026-07-02): do NOT "fix" the invisible fog
 	// wall by rebuilding the fog's render state here — a mid-play
@@ -112,6 +158,8 @@ namespace
 		{ EStoryFlag::TornadoWarningDisplayed, TEXT("Tornado"), TEXT("tornadowarning tornadowarningdisplayed tv tvs") },
 		{ EStoryFlag::SeenTornadoWarning,      TEXT("Telephone"),      TEXT("telephone phone payphone seentornadowarning") },
 		{ EStoryFlag::UsedPayPhone,            TEXT("PhoneUsed"),      TEXT("phoneused usedpayphone calledphone offhook") },
+		{ EStoryFlag::HungUpPhone,             TEXT("HungUp"),         TEXT("hungupphone hangup hungup") },
+		{ EStoryFlag::StationRelit,            TEXT("Relight"),        TEXT("relight stationrelit relit generator") },
 	};
 }
 
@@ -166,7 +214,8 @@ TArray<FString> UStorySubsystem::GetBeatDisplayNames()
 void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 {
 	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning
-	// -> UsedPayPhone), so "skip to Target" means apply every beat up to and including it.
+	// -> UsedPayPhone -> HungUpPhone -> StationRelit), so "skip to Target" means
+	// apply every beat up to and including it.
 	const int32 T = static_cast<int32>(Target);
 
 	if (T >= static_cast<int32>(EStoryFlag::KeyBroke))
@@ -186,7 +235,52 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 	{
 		SetFlag(EStoryFlag::UsedPayPhone, true);
 	}
+	if (T >= static_cast<int32>(EStoryFlag::HungUpPhone))
+	{
+		SetFlag(EStoryFlag::HungUpPhone, true);
+	}
+	if (T >= static_cast<int32>(EStoryFlag::StationRelit))
+	{
+		SetFlag(EStoryFlag::StationRelit, true);
+	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);
+}
+
+FString UStorySubsystem::GetAutoSkipBeat()
+{
+	FString Beat;
+	GConfig->GetString(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, Beat, GGameUserSettingsIni);
+	return Beat;
+}
+
+void UStorySubsystem::SetAutoSkipBeat(const FString& BeatName)
+{
+	if (BeatName.IsEmpty())
+	{
+		GConfig->RemoveKey(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, GGameUserSettingsIni);
+	}
+	else
+	{
+		GConfig->SetString(StorySubsystemConst::AutoSkipSection, StorySubsystemConst::AutoSkipKey, *BeatName, GGameUserSettingsIni);
+	}
+	GConfig->Flush(false, GGameUserSettingsIni);
+}
+
+void UStorySubsystem::ApplyAutoSkip()
+{
+	const FString Beat = GetAutoSkipBeat();
+	EStoryFlag Target;
+	if (!ResolveBeat(Beat, Target))
+	{
+		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: AutoSkip beat '%s' no longer resolves - run `AutoSkip clear`"), *Beat);
+		return;
+	}
+
+	SkipToBeat(Target);
+
+	const FString Msg = FString::Printf(TEXT("AutoSkip: skipped to '%s' (type `AutoSkip clear` to disable)"), *GetBeatDisplayName(Target));
+	UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
+	if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
 }
 
 void UStorySubsystem::HandleStoreEntry()
@@ -264,13 +358,44 @@ void UStorySubsystem::TickGazeWatch()
 
 void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
 {
-	if (Flag != EStoryFlag::UsedPayPhone || !bValue)
+	if (!bValue)
 	{
 		return;
 	}
 
 	UWorld* World = GetWorld();
 	if (!World)
+	{
+		return;
+	}
+
+	if (Flag == EStoryFlag::TornadoWarningDisplayed)
+	{
+		ApplyStorm();
+		return;
+	}
+
+	if (Flag == EStoryFlag::HungUpPhone)
+	{
+		if (!bRelit)
+		{
+			World->GetTimerManager().SetTimer(RelightDelayTimer, this, &UStorySubsystem::Relight,
+				FMath::Max(0.01f, GRelightDelaySeconds), /*bLoop*/ false);
+			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: relight armed — fires in %.0fs"), GRelightDelaySeconds);
+		}
+		return;
+	}
+
+	if (Flag == EStoryFlag::StationRelit)
+	{
+		// SkipToBeat sets the flag directly — run the beat now instead of waiting
+		// out the armed countdown. No-op when Relight itself set the flag.
+		World->GetTimerManager().ClearTimer(RelightDelayTimer);
+		Relight();
+		return;
+	}
+
+	if (Flag != EStoryFlag::UsedPayPhone)
 	{
 		return;
 	}
@@ -286,6 +411,158 @@ void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
 		++Silenced;
 	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: payphone used, silenced %d warning siren(s)"), Silenced);
+}
+
+void UStorySubsystem::ApplyStorm()
+{
+	if (bStormApplied)
+	{
+		return;
+	}
+	bStormApplied = true;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	// The storm closes in: dim/hide/silence every tagged actor. Recording each
+	// light's pre-dim intensity is what makes the relight restore possible — the
+	// level dims to 0, so the old divide-out-the-multiplier restore can't work.
+	DimmedLights.Reset();
+	DimmedOriginalIntensities.Reset();
+	HiddenActors.Reset();
+	int32 SilencedBeds = 0;
+	for (TActorIterator<AActor> It(World); It; ++It)
+	{
+		AActor* Actor = *It;
+		if (Actor->ActorHasTag(StorySubsystemConst::StormDimLightTag))
+		{
+			TArray<ULightComponent*> LightComps;
+			Actor->GetComponents<ULightComponent>(LightComps);
+			for (ULightComponent* Light : LightComps)
+			{
+				DimmedLights.Add(Light);
+				DimmedOriginalIntensities.Add(Light->Intensity);
+				Light->SetIntensity(Light->Intensity * GStormDimMultiplier);
+			}
+		}
+		if (Actor->ActorHasTag(StorySubsystemConst::StormHideActorTag))
+		{
+			// Per project convention, drive visibility on the root component —
+			// SetActorHiddenInGame is unreliable (the component's bVisible wins).
+			if (USceneComponent* Root = Actor->GetRootComponent())
+			{
+				Root->SetVisibility(false, /*bPropagateToChildren*/ true);
+				HiddenActors.Add(Actor);
+			}
+		}
+		if (Actor->ActorHasTag(StorySubsystemConst::StormSilenceAmbientTag))
+		{
+			AAmbientSound* Ambient = Cast<AAmbientSound>(Actor);
+			UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr;
+			if (AudioComp)
+			{
+				AudioComp->Stop();
+				++SilencedBeds;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("StorySubsystem: StormSilenceAmbient-tagged '%s' is not an AAmbientSound with audio"), *Actor->GetName());
+			}
+		}
+	}
+
+	// Rick leaves with the storm — he only comes back much later in the game.
+	// MetaHuman: teleport-stash, never a visibility toggle (grooms break on re-show).
+	for (TActorIterator<ARick> RickIt(World); RickIt; ++RickIt)
+	{
+		RickIt->StashForStorm();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: storm applied — dimmed %d light comp(s) x%.2f, hid %d actor(s), silenced %d ambient bed(s)"),
+		DimmedLights.Num(), GStormDimMultiplier, HiddenActors.Num(), SilencedBeds);
+}
+
+void UStorySubsystem::Relight()
+{
+	if (bRelit)
+	{
+		return;
+	}
+	bRelit = true;
+
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+
+	SetFlag(EStoryFlag::StationRelit);
+
+	if (!bStormApplied)
+	{
+		// A hangup without the storm beat (possible in tests and skips) makes the
+		// relight a visual no-op — the lights were never dimmed.
+		UE_LOG(LogTemp, Warning, TEXT("StorySubsystem: relight fired but the storm never applied; nothing to restore"));
+		return;
+	}
+
+	// Flicker: an odd toggle count over FlickerDuration so the lights (and the
+	// re-shown glow meshes) pulse on/off and end fully on.
+	FlickerStep = 0;
+	TickFlicker();
+	World->GetTimerManager().SetTimer(FlickerTimer, this, &UStorySubsystem::TickFlicker,
+		FMath::Max(0.05f, GRelightFlickerDuration / StorySubsystemConst::FlickerSteps), /*bLoop*/ true);
+
+	// Open the fog with the flicker so the glow actually reads at distance —
+	// at the settled ~2.5m visibility a relit station would stay invisible.
+	if (AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(World, 0)))
+	{
+		if (UStormFogComponent* Fog = Player->FindComponentByClass<UStormFogComponent>())
+		{
+			Fog->RelaxFog(GRelightRelaxedFogDistance, GRelightFogRelaxSeconds);
+		}
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: relight — %d light comp(s) flickering up, %d reveal actor(s)"),
+		DimmedLights.Num(), HiddenActors.Num());
+}
+
+void UStorySubsystem::TickFlicker()
+{
+	const bool bLastStep = FlickerStep >= StorySubsystemConst::FlickerSteps - 1;
+	// Even steps (0, 2, ...) are "on"; the final step is even, so it settles on.
+	const bool bOn = bLastStep || (FlickerStep % 2 == 0);
+
+	for (int32 i = 0; i < DimmedLights.Num(); ++i)
+	{
+		if (ULightComponent* Light = DimmedLights[i].Get())
+		{
+			Light->SetIntensity(bOn ? DimmedOriginalIntensities[i] : 0.f);
+		}
+	}
+	for (AActor* Actor : HiddenActors)
+	{
+		if (Actor)
+		{
+			if (USceneComponent* Root = Actor->GetRootComponent())
+			{
+				Root->SetVisibility(bOn, /*bPropagateToChildren*/ true);
+			}
+		}
+	}
+
+	++FlickerStep;
+	if (bLastStep)
+	{
+		if (UWorld* World = GetWorld())
+		{
+			World->GetTimerManager().ClearTimer(FlickerTimer);
+		}
+		UE_LOG(LogTemp, Log, TEXT("StorySubsystem: flicker complete — station lights restored"));
+	}
 }
 
 void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)

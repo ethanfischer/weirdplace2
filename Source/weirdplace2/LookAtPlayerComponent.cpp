@@ -49,10 +49,36 @@ void ULookAtPlayerComponent::BeginPlay()
 	OnComponentEndOverlap.AddDynamic(this, &ULookAtPlayerComponent::OnSphereEndOverlap);
 }
 
+void ULookAtPlayerComponent::SetSuppressed(bool bInSuppressed)
+{
+	bSuppressed = bInSuppressed;
+	ACharacter* Player = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!BodyMesh || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULookAtPlayerComponent::SetSuppressed on '%s': BodyMesh or player is null"),
+			*GetNameSafe(GetOwner()));
+		return;
+	}
+	const bool bLook = bSuppressed ? false : IsOverlappingActor(Player);
+	UBPFL_Utilities::SetShouldLookAtPlayer(bLook, Player, BodyMesh);
+}
+
+void ULookAtPlayerComponent::SetLookAtPlayer(bool bLook)
+{
+	ACharacter* Player = UGameplayStatics::GetPlayerCharacter(GetWorld(), 0);
+	if (!BodyMesh || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULookAtPlayerComponent::SetLookAtPlayer on '%s': BodyMesh or player is null"),
+			*GetNameSafe(GetOwner()));
+		return;
+	}
+	UBPFL_Utilities::SetShouldLookAtPlayer(bLook, Player, BodyMesh);
+}
+
 void ULookAtPlayerComponent::OnSphereBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (!BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
+	if (bSuppressed || !BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
 	{
 		return;
 	}
@@ -62,7 +88,7 @@ void ULookAtPlayerComponent::OnSphereBeginOverlap(UPrimitiveComponent* Overlappe
 void ULookAtPlayerComponent::OnSphereEndOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor,
 	UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
 {
-	if (!BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
+	if (bSuppressed || !BodyMesh || OtherActor != UGameplayStatics::GetPlayerCharacter(GetWorld(), 0))
 	{
 		return;
 	}

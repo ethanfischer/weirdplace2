@@ -14,8 +14,8 @@ class AAmbientSound;
 // the weather's "Wind Intensity" up (gusts), thickens the weather's "Fog" so view
 // distance collapses (socked-in murk), and swells the global wind ambient's
 // volume. This is the *atmospheric* half of the storm beat; the room-wide
-// lights/audio half lives on AStormBeatController. Subscribe/teardown mirrors
-// AStormBeatController / APayPhone.
+// lights/audio half lives on UStorySubsystem (the StormDimLight/StormHideActor/
+// StormSilenceAmbient tag sweep). Subscribe/teardown mirrors APayPhone.
 UCLASS()
 class WEIRDPLACE2_API AUltraDynamicWeatherController : public AActor
 {
@@ -67,6 +67,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0.0", DisplayName = "Target Wind Volume"), Category = "Storm Weather")
 	float TargetWindVolume = 3.f;
 
+	// The music bed (AmbientSound tagged with this) crossfades OUT as the wind
+	// swells — its volume ramps to 0 over the same transition, then it stops.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Storm Weather")
+	FName MusicActorTag = FName("CarRideMusic");
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -105,6 +110,11 @@ private:
 	// Ambient wind "Volume Multiplier" channel (ramps WindVolumeStart -> TargetWindVolume).
 	bool bLoudenWind = false;
 	float WindVolumeStart = 1.f;
+
+	// Music crossfade-out channel (ramps MusicVolumeStart -> 0, then Stop()).
+	bool bFadeMusicOut = false;
+	float MusicVolumeStart = 1.f;
+	TWeakObjectPtr<class UAudioComponent> MusicAudioComp;
 
 	FDelegateHandle FlagChangedHandle;
 

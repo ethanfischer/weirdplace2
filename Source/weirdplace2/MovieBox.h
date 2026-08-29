@@ -61,6 +61,10 @@ private:
 	FRotator   CameraRotation;
 	APlayerController* PlayerController;
 	AFirstPersonCharacter* MyCharacter;
+
+	// Lazily resolves (and caches) the player character. MovieBoxes can
+	// BeginPlay before the pawn spawns, so caching there is a race.
+	AFirstPersonCharacter* GetMyCharacter();
 	bool DidCollectMovie = false;
 	FTimerHandle CantCarryTimerHandle;
 

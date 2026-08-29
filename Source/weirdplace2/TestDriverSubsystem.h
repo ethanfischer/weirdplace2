@@ -123,12 +123,9 @@ public:
 	// actor or it has no light component.
 	float GetActorMaxLightIntensity(const FString& Label) const;
 
-	// Test hook for the storm beat: runtime-spawn an AStormBeatController and wire
-	// its light/hide/ambient arrays from the given editor labels (the placed
-	// controller is designer config, so the E2E builds its own). Call before
-	// TriggerStoreEntry so it's subscribed when the flag fires.
-	void SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
-		const TArray<FString>& AmbientLabels, float Multiplier);
+	// Reads the player's pea-soup fog state (roll-in amount 0..1 + current settled
+	// fog distance in cm). False if the player has no UStormFogComponent.
+	bool GetStormFogState(float& OutAmount, float& OutDistance) const;
 
 	// --- Pay-phone (items 2/5) test helpers ---
 
@@ -144,6 +141,9 @@ public:
 
 	// True while the pay-phone's dialtone loop is playing.
 	bool IsPayPhoneDialtonePlaying() const;
+
+	// True while the pay-phone refuses hang-up (first-call code still playing).
+	bool IsPayPhoneHangupLocked() const;
 
 	// Trigger the pay-phone pickup directly (5.7 simulated-input gotcha — drive
 	// via the subsystem, not a raw key).
@@ -300,15 +300,6 @@ public:
 	// Returns the ItemID at inventory slot SlotIndex, NAME_None if empty or out
 	// of range. Slots are sparse (OoT-style), so a given slot keeps its item.
 	FName GetInventoryItemAt(int32 SlotIndex) const;
-
-	// Reads the world movie poster surface for poster PosterIndex: the actor
-	// tagged "MoviePoster<PosterIndex>", surface = its component named
-	// "PosterSheet" (BP_TelephoneScene) or its sole static mesh component
-	// (plain poster plane actors). OutMaterialName is the CoverTexture param's
-	// texture name when the surface carries a poster MID (== the movie ItemID),
-	// else the raw material name. Returns false if no such actor/surface —
-	// which is also the meaningful missing-placement failure.
-	bool GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const;
 
 	// Fires a single bladder-urgency vignette pulse on the player (no timer
 	// scheduling) — for screenshotting the pulse visual on demand.

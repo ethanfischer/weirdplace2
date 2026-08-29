@@ -5,6 +5,12 @@ the system `python` (3.13); `e2e_report.py` needs Pillow + numpy (`pip install -
 
 ## uq — query/command the live editor (`scripts/uq.py`)
 
+> **2026-08-07: prefer the unreal-mcp server for live-editor work** — same operations,
+> 8-180x faster per call (persistent HTTP session vs uq's per-call interpreter start +
+> UDP discovery; benchmarked with `scripts/local/ab_mcp_vs_uq.py`, 0 failures both sides).
+> uq remains the fallback when the editor/MCP is down and the only path for `mat-params`,
+> `refs`, `save`, and arbitrary editor Python (`py`/`pyfile`).
+
 Talks to the running editor via Python Remote Execution. **Reach for this before
 writing a new `scripts/local/*.py` script** — most one-off needs are a uq verb.
 
@@ -55,6 +61,29 @@ python scripts/logq.py --grep "Seneca|Bladder"   # raw matching lines in scope
 
 Errors first, then warnings, deduped with counts. `LogAutomationController: ... [log]`
 echo lines are unwrapped so nothing double-counts. Exit 1 if the scope contains errors.
+
+## dq — dialogue lint + preview (`scripts/dq.py`)
+
+Dialogue lives in one sectioned file per NPC under `Content/Dialogue/`
+(`Seneca.txt`, `Rick.txt`, `Hudson.txt`), parsed at runtime by the shared
+`FDialogueScript` (`Source/weirdplace2/DialogueScript.h`). Format:
+`== SectionName ==` headers, `# comment` lines, optional single-word
+`Speaker:` prefix (default = the NPC owning the file), `[Tag]` lines that
+attach an action to the preceding line. `MovieComments.txt` stays a keyed
+`KEY: line one|line two` table.
+
+```bash
+python scripts/dq.py lint                 # all files + Source/ cross-ref; exit 1 on error
+python scripts/dq.py lint --file <path>   # single file, per-file rules only
+python scripts/dq.py preview              # write + open Saved/DialoguePreview/preview.html
+```
+
+Lint errors: unknown/misplaced `[Tag]` (exact-match table in dq.py — extend it
+when adding a tag), tag with no preceding line, unknown speaker, duplicate
+sections, sections not referenced from `Source/` (and vice versa), malformed
+MovieComments rows. Warns when a line would wrap to 3+ rows on the 700-unit
+dialogue plate. The previewer replays lines with the runtime typewriter timing
+so dialogue can be written without playing the game.
 
 ## e2e_report — screenshot goldens + gallery (`scripts/e2e_report.py`)
 

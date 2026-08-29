@@ -131,42 +131,22 @@ void ASeneca::BeginPlay()
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - ShoppingBasketActor is not assigned"));
 	}
 
-	// Load dialogue text files
-	LoadDialogueFile(ESenecaState::WaitingForMovies, WaitingForMoviesDialoguePath);
-	LoadDialogueFile(ESenecaState::WaitingForMoviePurchase, WaitingForMoviePurchaseDialoguePath);
-	LoadDialogueFile(ESenecaState::WaitingForMoney, WaitingForMoneyDialoguePath);
-	LoadDialogueFile(ESenecaState::WaitingForBlankTape, WaitingForBlankTapeDialoguePath);
-	LoadDialogueFile(ESenecaState::AwaitingTapeBurn, AwaitingTapeBurnDialoguePath);
-	LoadDialogueFile(ESenecaState::ReadyToGiveCombinedTape, ReadyToGiveCombinedTapeDialoguePath);
-	LoadDialogueFile(ESenecaState::ReadyToGiveKey, ReadyToGiveKeyDialoguePath);
-	LoadDialogueFile(ESenecaState::GaveKey, GaveKeyDialoguePath);
-	LoadDialogueFile(ESenecaState::Smoking, SmokingDialoguePath);
+	// Load + parse the sectioned dialogue file
+	DialogueScript.Load(DialogueFilePath);
+	LoadDialogueSection(ESenecaState::WaitingForMovies, WaitingForMoviesSection);
+	LoadDialogueSection(ESenecaState::WaitingForMoviePurchase, WaitingForMoviePurchaseSection);
+	LoadDialogueSection(ESenecaState::WaitingForMoney, WaitingForMoneySection);
+	LoadDialogueSection(ESenecaState::WaitingForBlankTape, WaitingForBlankTapeSection);
+	LoadDialogueSection(ESenecaState::AwaitingTapeBurn, AwaitingTapeBurnSection);
+	LoadDialogueSection(ESenecaState::ReadyToGiveCombinedTape, ReadyToGiveCombinedTapeSection);
+	LoadDialogueSection(ESenecaState::ReadyToGiveKey, ReadyToGiveKeySection);
+	LoadDialogueSection(ESenecaState::GaveKey, GaveKeySection);
+	LoadDialogueSection(ESenecaState::Smoking, SmokingSection);
 
-	// Load reminder lines (not keyed by state)
-	{
-		auto LoadReminderFile = [](const FString& RelativePath, TArray<FText>& OutLines)
-		{
-			FString FullPath = FPaths::ProjectContentDir() / RelativePath;
-			TArray<FString> Raw;
-			if (FFileHelper::LoadFileToStringArray(Raw, *FullPath))
-			{
-				for (const FString& Line : Raw)
-				{
-					if (!Line.IsEmpty())
-					{
-						OutLines.Add(FText::FromString(Line));
-					}
-				}
-			}
-			else
-			{
-				UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load reminder file: %s"), *FullPath);
-			}
-		};
-		LoadReminderFile(WaitingForMoviesReminderPath, WaitingForMoviesReminderLines);
-		LoadReminderFile(WaitingForMoviePurchaseReminderPath, WaitingForMoviePurchaseReminderLines);
-		LoadReminderFile(WaitingForBlankTapeReminderPath, WaitingForBlankTapeReminderLines);
-	}
+	// Reminder lines (not keyed by state)
+	LoadReminderSection(WaitingForMoviesReminderSection, WaitingForMoviesReminderLines);
+	LoadReminderSection(WaitingForMoviePurchaseReminderSection, WaitingForMoviePurchaseReminderLines);
+	LoadReminderSection(WaitingForBlankTapeReminderSection, WaitingForBlankTapeReminderLines);
 
 	LoadMovieComments();
 
@@ -208,44 +188,36 @@ void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out
 	}
 }
 
-void ASeneca::LoadDialogueFile(ESenecaState State, const FString& RelativePath)
+void ASeneca::LoadDialogueSection(ESenecaState State, const FString& SectionName)
 {
-	FString FullPath = FPaths::ProjectContentDir() / RelativePath;
-	TArray<FString> Lines;
-	if (FFileHelper::LoadFileToStringArray(Lines, *FullPath))
+	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(SectionName);
+	if (!Section)
 	{
-		TArray<FText>& TextLines = DialogueLines.Add(State);
-		TMap<int32, FString>& Actions = LineActions.Add(State);
-		for (const FString& Raw : Lines)
-		{
-			FString Line = Raw;
-			Line.TrimStartAndEndInline();
-			if (Line.IsEmpty())
-			{
-				continue;
-			}
-
-			// `[Action Name]` lines mark a cue tied to the immediately preceding display line.
-			if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
-			{
-				if (TextLines.Num() == 0)
-				{
-					UE_LOG(LogTemp, Warning, TEXT("Seneca - Action cue '%s' in %s has no preceding dialogue line; ignoring"), *Line, *FullPath);
-					continue;
-				}
-				FString ActionName = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd();
-				Actions.Add(TextLines.Num() - 1, ActionName);
-				continue;
-			}
-
-			TextLines.Add(FText::FromString(Line));
-		}
-
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Loaded %d lines from %s"), TextLines.Num(), *FullPath);
+		return;
 	}
-	else
+
+	TArray<FText>& TextLines = DialogueLines.Add(State);
+	TMap<int32, FString>& Actions = LineActions.Add(State);
+	for (const FDialogueLine& Line : *Section)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca - Failed to load dialogue file: %s"), *FullPath);
+		TextLines.Add(FText::FromString(Line.Text));
+		if (!Line.Tag.IsEmpty())
+		{
+			Actions.Add(TextLines.Num() - 1, Line.Tag);
+		}
+	}
+}
+
+void ASeneca::LoadReminderSection(const FString& SectionName, TArray<FText>& OutLines)
+{
+	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(SectionName);
+	if (!Section)
+	{
+		return;
+	}
+	for (const FDialogueLine& Line : *Section)
+	{
+		OutLines.Add(FText::FromString(Line.Text));
 	}
 }
 
@@ -679,11 +651,9 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 
 void ASeneca::LoadMovieComments()
 {
-	FString FullPath = FPaths::ProjectContentDir() / MovieCommentsPath;
 	TArray<FString> Lines;
-	if (!FFileHelper::LoadFileToStringArray(Lines, *FullPath))
+	if (!FDialogueScript::LoadRawLines(MovieCommentsPath, Lines))
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::LoadMovieComments - Failed to load: %s"), *FullPath);
 		return;
 	}
 
@@ -811,29 +781,20 @@ void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent
 
 void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
 {
-	FString FullPath = FPaths::ProjectContentDir() / MoviePurchaseDialoguePath;
-	TArray<FString> RawLines;
-	if (!FFileHelper::LoadFileToStringArray(RawLines, *FullPath))
+	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(MoviePurchaseSection);
+	if (!Section)
 	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::StartMoviePurchaseDialogue - Failed to load: %s"), *FullPath);
 		return;
 	}
 
 	TArray<FSimpleDialogueLine> MultiLines;
-	for (const FString& Raw : RawLines)
+	for (const FDialogueLine& Parsed : *Section)
 	{
-		if (Raw.IsEmpty()) continue;
-
-		FString Speaker, Text;
-		if (!Raw.Split(TEXT(": "), &Speaker, &Text))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("Seneca::StartMoviePurchaseDialogue - Skipping malformed line: %s"), *Raw);
-			continue;
-		}
-
 		FSimpleDialogueLine Line;
-		Line.Speaker = FText::FromString(Speaker.TrimStartAndEnd());
-		Line.Text = FText::FromString(Text.TrimStartAndEnd());
+		Line.Speaker = FText::FromString(Parsed.Speaker.IsEmpty() ? TEXT("Seneca") : *Parsed.Speaker);
+		Line.Text = FText::FromString(Parsed.Text);
+		Line.PauseAfter = Parsed.PauseAfter;
+		Line.PauseBefore = Parsed.PauseBefore;
 		MultiLines.Add(Line);
 	}
 

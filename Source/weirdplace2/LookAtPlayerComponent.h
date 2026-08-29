@@ -16,7 +16,17 @@ protected:
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "LookAt")
 	FName BodyMeshComponentName = FName("Body");
+
+	// While suppressed, proximity overlaps no longer drive the look-at bool.
+	// Suppressing forces ShouldLookAtPlayer=false; unsuppressing restores it
+	// from the current overlap state.
+	void SetSuppressed(bool bInSuppressed);
+
+	// Directly drive the anim bool (use while suppressed for scripted glances)
+	void SetLookAtPlayer(bool bLook);
 private:
+	bool bSuppressed = false;
+
 	UPROPERTY()
 	USkeletalMeshComponent* BodyMesh;
 

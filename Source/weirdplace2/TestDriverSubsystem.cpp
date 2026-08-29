@@ -22,7 +22,7 @@
 #include "GazeRewardComponent.h"
 #include "StorySubsystem.h"
 #include "CRTTV.h"
-#include "StormBeatController.h"
+#include "StormFogComponent.h"
 #include "PayPhone.h"
 #include "Components/LightComponent.h"
 #include "Sound/AmbientSound.h"
@@ -174,83 +174,18 @@ float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) cons
 	return MaxIntensity;
 }
 
-void UTestDriverSubsystem::SpawnAndConfigureStormBeat(const TArray<FString>& LightLabels, const TArray<FString>& HideLabels,
-	const TArray<FString>& AmbientLabels, float Multiplier)
+bool UTestDriverSubsystem::GetStormFogState(float& OutAmount, float& OutDistance) const
 {
-	UWorld* World = GetWorld();
-	if (!World)
+	AFirstPersonCharacter* Player = GetPlayer();
+	UStormFogComponent* Fog = Player ? Player->FindComponentByClass<UStormFogComponent>() : nullptr;
+	if (!Fog)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no world"));
-		return;
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetStormFogState - no player UStormFogComponent"));
+		return false;
 	}
-
-	// Isolate the test: destroy any designer-placed AStormBeatController in the PIE
-	// copy so only this test's controller (known lights/mult) reacts to the flag.
-	// Otherwise a placed controller's own multiplier/targets contaminate the asserts.
-	int32 Removed = 0;
-	for (TActorIterator<AStormBeatController> It(World); It; ++It)
-	{
-		It->Destroy();
-		++Removed;
-	}
-	if (Removed > 0)
-	{
-		UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - removed %d pre-placed controller(s) for test isolation"), Removed);
-	}
-
-	TArray<AActor*> Lights;
-	for (const FString& Label : LightLabels)
-	{
-		if (AActor* Light = FindActorByLabel(Label))
-		{
-			Lights.Add(Light);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no light actor '%s'"), *Label);
-		}
-	}
-
-	TArray<AActor*> Hide;
-	for (const FString& Label : HideLabels)
-	{
-		if (AActor* Actor = FindActorByLabel(Label))
-		{
-			Hide.Add(Actor);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no hide actor '%s'"), *Label);
-		}
-	}
-
-	TArray<AAmbientSound*> Ambients;
-	for (const FString& Label : AmbientLabels)
-	{
-		if (AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label)))
-		{
-			Ambients.Add(Ambient);
-		}
-		else
-		{
-			UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - no AAmbientSound '%s'"), *Label);
-		}
-	}
-
-	// Spawn deferred so it's configured BEFORE BeginPlay subscribes to the flag.
-	FActorSpawnParameters Params;
-	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-	AStormBeatController* Controller = World->SpawnActorDeferred<AStormBeatController>(
-		AStormBeatController::StaticClass(), FTransform::Identity);
-	if (!Controller)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawn failed"));
-		return;
-	}
-	Controller->ConfigureForTest(Lights, Hide, Ambients, Multiplier);
-	Controller->FinishSpawning(FTransform::Identity);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::SpawnAndConfigureStormBeat - spawned controller with %d light(s), %d hide, %d ambient(s), mult %.2f"),
-		Lights.Num(), Hide.Num(), Ambients.Num(), Multiplier);
+	OutAmount = Fog->GetFogAmount();
+	OutDistance = Fog->GetFogDistance();
+	return true;
 }
 
 bool UTestDriverSubsystem::IsActorVisibleByLabel(const FString& Label) const
@@ -301,6 +236,17 @@ bool UTestDriverSubsystem::IsPayPhoneDialtonePlaying() const
 		return false;
 	}
 	return Phone->IsDialtonePlaying();
+}
+
+bool UTestDriverSubsystem::IsPayPhoneHangupLocked() const
+{
+	APayPhone* Phone = FindFirstActor<APayPhone>(GetWorld());
+	if (!Phone)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsPayPhoneHangupLocked - no APayPhone in level"));
+		return false;
+	}
+	return Phone->IsHangupLocked();
 }
 
 void UTestDriverSubsystem::TriggerPayPhonePickup()
@@ -1331,57 +1277,6 @@ FName UTestDriverSubsystem::GetInventoryItemAt(int32 SlotIndex) const
 	}
 	const TArray<FName> Items = Inv->GetItems();
 	return Items.IsValidIndex(SlotIndex) ? Items[SlotIndex] : NAME_None;
-}
-
-bool UTestDriverSubsystem::GetMoviePosterState(int32 PosterIndex, bool& bOutVisible, FString& OutMaterialName) const
-{
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return false;
-	}
-
-	const FName Tag(*FString::Printf(TEXT("MoviePoster%d"), PosterIndex));
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		if (!It->ActorHasTag(Tag))
-		{
-			continue;
-		}
-
-		TArray<UStaticMeshComponent*> Meshes;
-		It->GetComponents(Meshes);
-		UStaticMeshComponent* Surface = nullptr;
-		for (UStaticMeshComponent* Mesh : Meshes)
-		{
-			if (Mesh->GetName() == TEXT("PosterSheet"))
-			{
-				Surface = Mesh;
-				break;
-			}
-		}
-		if (!Surface && Meshes.Num() == 1)
-		{
-			Surface = Meshes[0];
-		}
-		if (!Surface)
-		{
-			return false;
-		}
-
-		bOutVisible = Surface->IsVisible();
-		UMaterialInterface* Mat = Surface->GetMaterial(0);
-		OutMaterialName = Mat ? Mat->GetName() : FString();
-		// Poster MIDs carry the cover in their CoverTexture param — report the
-		// texture name (== ItemID) as the poster's identity when present.
-		UTexture* CoverTex = nullptr;
-		if (Mat && Mat->GetTextureParameterValue(FMaterialParameterInfo(FName("CoverTexture")), CoverTex) && CoverTex)
-		{
-			OutMaterialName = CoverTex->GetName();
-		}
-		return true;
-	}
-	return false;
 }
 
 int32 UTestDriverSubsystem::GetSelectedSlot() const

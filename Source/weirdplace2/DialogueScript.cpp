@@ -1,0 +1,124 @@
+#include "DialogueScript.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+
+bool FDialogueScript::LoadRawLines(const FString& RelativePath, TArray<FString>& OutLines)
+{
+	const FString FullPath = FPaths::ProjectContentDir() / RelativePath;
+	if (!FFileHelper::LoadFileToStringArray(OutLines, *FullPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("DialogueScript - Failed to load file: %s"), *FullPath);
+		return false;
+	}
+	return true;
+}
+
+bool FDialogueScript::Load(const FString& RelativePath)
+{
+	SourcePath = RelativePath;
+	Sections.Empty();
+
+	TArray<FString> RawLines;
+	if (!LoadRawLines(RelativePath, RawLines))
+	{
+		return false;
+	}
+
+	TArray<FDialogueLine>* Current = nullptr;
+	float PendingPauseBefore = 0.f; // [Pause N] at section start, applied to the next line
+	for (const FString& Raw : RawLines)
+	{
+		FString Line = Raw.TrimStartAndEnd();
+		if (Line.IsEmpty() || Line.StartsWith(TEXT("#")))
+		{
+			continue;
+		}
+
+		// `== SectionName ==` header
+		if (Line.StartsWith(TEXT("==")) && Line.EndsWith(TEXT("==")) && Line.Len() > 4)
+		{
+			const FString Name = Line.Mid(2, Line.Len() - 4).TrimStartAndEnd();
+			if (Sections.Contains(Name))
+			{
+				UE_LOG(LogTemp, Error, TEXT("DialogueScript - Duplicate section '%s' in %s"), *Name, *RelativePath);
+			}
+			Current = &Sections.FindOrAdd(Name);
+			PendingPauseBefore = 0.f;
+			continue;
+		}
+
+		if (!Current)
+		{
+			UE_LOG(LogTemp, Error, TEXT("DialogueScript - Line before any section header in %s: %s"), *RelativePath, *Line);
+			continue;
+		}
+
+		// `[Tag]` attaches an action cue to the preceding dialogue line.
+		if (Line.StartsWith(TEXT("[")) && Line.EndsWith(TEXT("]")))
+		{
+			const FString TagBody = Line.Mid(1, Line.Len() - 2).TrimStartAndEnd();
+
+			// `[Pause N]` is timing, not an action cue — store seconds separately.
+			// At section start (no preceding line) it pauses before the first line.
+			if (TagBody.StartsWith(TEXT("Pause "), ESearchCase::IgnoreCase))
+			{
+				const float Seconds = FCString::Atof(*TagBody.Mid(6));
+				if (Seconds <= 0.f)
+				{
+					UE_LOG(LogTemp, Error, TEXT("DialogueScript - Bad pause '%s' in %s"), *Line, *RelativePath);
+				}
+				else if (Current->Num() == 0)
+				{
+					PendingPauseBefore = Seconds;
+				}
+				else
+				{
+					Current->Last().PauseAfter = Seconds;
+				}
+				continue;
+			}
+
+			if (Current->Num() == 0)
+			{
+				UE_LOG(LogTemp, Error, TEXT("DialogueScript - Tag '%s' with no preceding line in %s"), *Line, *RelativePath);
+				continue;
+			}
+			Current->Last().Tag = TagBody;
+			continue;
+		}
+
+		// Optional `Speaker:` prefix — only when the prefix is a single word,
+		// so lines containing a colon mid-sentence don't lose their head.
+		FDialogueLine Parsed;
+		int32 ColonIndex;
+		if (Line.FindChar(TEXT(':'), ColonIndex) && ColonIndex > 0)
+		{
+			const FString Prefix = Line.Left(ColonIndex).TrimStartAndEnd();
+			if (!Prefix.Contains(TEXT(" ")))
+			{
+				Parsed.Speaker = Prefix;
+				Parsed.Text = Line.Mid(ColonIndex + 1).TrimStartAndEnd();
+			}
+		}
+		if (Parsed.Text.IsEmpty())
+		{
+			Parsed.Text = Line;
+		}
+		Parsed.PauseBefore = PendingPauseBefore;
+		PendingPauseBefore = 0.f;
+		Current->Add(Parsed);
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("DialogueScript - Loaded %d sections from %s"), Sections.Num(), *RelativePath);
+	return true;
+}
+
+const TArray<FDialogueLine>* FDialogueScript::FindSection(const FString& SectionName) const
+{
+	const TArray<FDialogueLine>* Found = Sections.Find(SectionName);
+	if (!Found)
+	{
+		UE_LOG(LogTemp, Error, TEXT("DialogueScript - Unknown section '%s' in %s"), *SectionName, *SourcePath);
+	}
+	return Found;
+}

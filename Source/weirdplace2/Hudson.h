@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "Interactable.h"
 #include "DialogueWidgetProvider.h"
+#include "DialogueScript.h"
 #include "Hudson.generated.h"
 
 class UWidgetComponent;
@@ -43,14 +44,18 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
+	// Sectioned dialogue file (relative to Content/), parsed by FDialogueScript
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
-	FString HudsonIdlePath = TEXT("Dialogue/HudsonIdle.txt");
+	FString DialogueFilePath = TEXT("Dialogue/Hudson.txt");
 
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
-	FString HudsonBegPath = TEXT("Dialogue/HudsonBeg.txt");
+	FString IdleSection = TEXT("HudsonIdle");
 
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
-	FString HudsonThankYouPath = TEXT("Dialogue/HudsonThankYou.txt");
+	FString BegSection = TEXT("HudsonBeg");
+
+	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
+	FString ThankYouSection = TEXT("HudsonThankYou");
 
 private:
 	TArray<FText> IdleLines;
@@ -60,5 +65,8 @@ private:
 	// bLastDialogueWasBeg tracks whether the most recent dialogue started from Idle+Money state
 	bool bLastDialogueWasBeg = false;
 
-	void LoadDialogue(const FString& RelPath, TArray<FText>& OutLines);
+	// Parsed sectioned dialogue file (DialogueFilePath)
+	FDialogueScript DialogueScript;
+
+	void LoadDialogue(const FString& SectionName, TArray<FText>& OutLines);
 };

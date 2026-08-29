@@ -9,13 +9,13 @@ $UProject = Join-Path $RepoRoot 'weirdplace2.uproject'
 $ProbeScript = Join-Path $RepoRoot 'scripts\ue_remote_exec.py'
 
 if ($Headless) {
-    $EditorExe = 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
+    $EditorExe = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe'
     # Fab is enabled in the .uproject, but its browser tab auto-restores at startup and
     # CreateBrowserWindow returns null without a renderer -> FFabBrowser::OpenTab asserts
     # (exit 3). Headless never needs Fab, so disable it here. The GUI launch keeps Fab.
     $ExtraArgs = ' -DisablePlugins=Fab'
 } else {
-    $EditorExe = 'C:\Program Files\Epic Games\UE_5.7\Engine\Binaries\Win64\UnrealEditor.exe'
+    $EditorExe = 'C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe'
     $ExtraArgs = ''
 }
 
@@ -40,6 +40,12 @@ if (Test-EditorReady) {
 
 $proc = Start-Process -FilePath $EditorExe -ArgumentList "`"$UProject`"$ExtraArgs" -PassThru
 $pidVal = $proc.Id
+
+# Chime on Live Coding results (UE's own compile jingle is broken). The watcher
+# is single-instance and exits with the editor.
+if (-not $Headless) {
+    Start-Process powershell -ArgumentList '-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'livecode_chime_watcher.ps1') -WindowStyle Hidden
+}
 
 for ($i = 1; $i -le 60; $i++) {
     Start-Sleep -Seconds 3

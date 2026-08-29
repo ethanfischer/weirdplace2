@@ -49,13 +49,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float DialogueStartDelay = 3.0f;
 
-	// Seconds of riding after dialogue ends
+	// Ride end: fade to black, hold black (teleport happens under it), fade back in
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float PostDialogueRideTime = 3.0f;
+	float RideEndFadeOutDuration = 3.0f;
 
-	// Fade to/from black duration in seconds
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float FadeDuration = 1.0f;
+	float RideEndBlackHoldDuration = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideEndFadeInDuration = 3.0f;
+
+	// Fade in from black when the ride starts
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideStartFadeInDuration = 30.0f;
+
+	// Hold pure black for this long before the ride-start fade-in begins
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float RideStartBlackHoldDuration = 3.0f;
+
+	// Music (actor tagged MusicActorTag) fades in on its own timeline,
+	// independent of the black hold / visual+ambient fade
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float MusicFadeInDelay = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float MusicFadeInDuration = 20.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	FName MusicActorTag = FName("CarRideMusic");
 
 	// Empty actor positioned behind windshield where dialogue widget appears
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
@@ -64,6 +85,22 @@ public:
 	// Text color for car ride dialogue (darker for readability against windshield)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	FSlateColor DialogueTextColor = FSlateColor(FLinearColor(0.15f, 0.15f, 0.15f, 1.0f));
+
+	// How long Rick glances at the player per glance during the ride
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtPlayerDuration = 2.5f;
+
+	// Randomized time Rick looks back at the road between glances
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtRoadDurationMin = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float GlanceAtRoadDurationMax = 8.0f;
+
+	// Dialogue only advances (and shows the dialogue reticle) while the player
+	// looks within this cone of the windshield direction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	float DialogueGazeMaxAngleDeg = 35.0f;
 
 	// --- Scenery (runtime-spawned silhouette conveyor; no level assignment needed) ---
 
@@ -175,8 +212,15 @@ private:
 
 	void OnBladderPulseFinished();
 
+	// Rick gaze: stare at the road until his first line, then alternate
+	// glances at the player with looks back at the road.
+	class ULookAtPlayerComponent* GetRickLookAtComponent() const;
+	void GlanceAtPlayer();
+	void GlanceAtRoad();
+
 	bool bSceneryMoving = false;
 	bool bBladderPulseArmed = false;
+	bool bGlanceCycleStarted = false;
 
 	// Cached widget actor relative transform before car-ride overwrites it
 	FVector CachedWidgetRelativeLocation = FVector::ZeroVector;
@@ -186,4 +230,19 @@ private:
 	FTimerHandle PostDialogueTimerHandle;
 	FTimerHandle FadeOutTimerHandle;
 	FTimerHandle BladderPulseTimerHandle;
+	FTimerHandle GlanceTimerHandle;
+	FTimerHandle RideStartFadeTimerHandle;
+	FTimerHandle MusicFadeTimerHandle;
+
+	// Ambient/music components silenced at ride start, with their original
+	// volume multipliers to fade back up to
+	UPROPERTY()
+	TArray<class UAudioComponent*> SilencedAmbients;
+	TArray<float> SilencedAmbientVolumes;
+
+	UPROPERTY()
+	class UAudioComponent* MusicComponent = nullptr;
+	float MusicOriginalVolume = 1.0f;
+
+	void SilenceWorldAudioForRideStart();
 };

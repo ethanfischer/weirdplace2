@@ -52,6 +52,45 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
 }
 
+void UWeirdplaceCheatManager::AutoSkip(const FString& BeatName)
+{
+	auto Show = [](const FString& Msg, FColor Color = FColor::Cyan)
+	{
+		UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
+		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, Color, Msg); }
+	};
+
+	// No argument: report the current setting.
+	if (BeatName.IsEmpty())
+	{
+		const FString Current = UStorySubsystem::GetAutoSkipBeat();
+		Show(Current.IsEmpty()
+			? TEXT("AutoSkip: not set. Usage: AutoSkip <beat> | AutoSkip clear")
+			: FString::Printf(TEXT("AutoSkip: set to '%s'. `AutoSkip clear` to disable."), *Current));
+		return;
+	}
+
+	const FString Lower = BeatName.ToLower();
+	if (Lower == TEXT("clear") || Lower == TEXT("off") || Lower == TEXT("none"))
+	{
+		UStorySubsystem::SetAutoSkipBeat(FString());
+		Show(TEXT("AutoSkip: cleared."));
+		return;
+	}
+
+	EStoryFlag Target;
+	if (!UStorySubsystem::ResolveBeat(BeatName, Target))
+	{
+		Show(FString::Printf(TEXT("AutoSkip - unknown beat '%s'. Try: KeyBroke | Tornado | Telephone"), *BeatName), FColor::Yellow);
+		return;
+	}
+
+	// Store the canonical display name so the saved value stays readable.
+	const FString Canonical = UStorySubsystem::GetBeatDisplayName(Target);
+	UStorySubsystem::SetAutoSkipBeat(Canonical);
+	Show(FString::Printf(TEXT("AutoSkip: every play will now skip to '%s'. `AutoSkip clear` to disable."), *Canonical));
+}
+
 void UWeirdplaceCheatManager::SkipToSmoking()
 {
 	APlayerController* PC = GetOuterAPlayerController();

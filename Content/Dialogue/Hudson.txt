@@ -1,0 +1,17 @@
+# Hudson's dialogue. Default speaker: Hudson. Lint: python scripts/dq.py lint
+
+== HudsonIdle ==
+Hey do you have a second?
+My sister stole from me
+And I don't have anything for the bus
+Could you give me some money?
+
+== HudsonBeg ==
+Hey I could really use the help
+I don't need much
+Please
+Could you give me some money?
+
+== HudsonThankYou ==
+God bless you. Really.
+I mean it. Thank you.

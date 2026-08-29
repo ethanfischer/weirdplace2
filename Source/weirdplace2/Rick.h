@@ -5,6 +5,7 @@
 #include "FirstPersonCharacter.h"
 #include "Interactable.h"
 #include "DialogueWidgetProvider.h"
+#include "DialogueScript.h"
 #include "Rick.generated.h"
 
 class UWidgetComponent;
@@ -42,6 +43,15 @@ public:
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
 
+	// Storm beat: remove Rick from the world until a much-later beat brings him
+	// back. MetaHuman grooms break if root visibility is toggled, so this
+	// teleports him far below the level and disables collision instead.
+	void StashForStorm();
+
+	// Restore Rick to where he stood before the storm stash. (No caller yet —
+	// the "much later" return beat will use this.)
+	void ReturnFromStorm();
+
 	// Delegate fired when dialogue ends (CarRideComponent binds to this)
 	UPROPERTY(BlueprintAssignable, Category = "Rick|Dialogue")
 	FOnRickDialogueEnded OnRickDialogueEnded;
@@ -54,9 +64,12 @@ public:
 	int32 BladderPulseLineIndex = INDEX_NONE;
 
 protected:
-	// Path to dialogue text file (relative to Content/)
+	// Sectioned dialogue file (relative to Content/), parsed by FDialogueScript
 	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")
-	FString CarDialoguePath = TEXT("Dialogue/CarRide.txt");
+	FString DialogueFilePath = TEXT("Dialogue/Rick.txt");
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Dialogue")
+	FString CarRideSection = TEXT("CarRide");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Money")
 	UItemDefinition* MoneyDef;
@@ -80,12 +93,15 @@ protected:
 	FVector CarActorOffset = FVector(0.f, 250.f, 0.f);
 
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
-	FString RickOutsideIdlePath = TEXT("Dialogue/RickOutsideIdle.txt");
+	FString OutsideIdleSection = TEXT("RickOutsideIdle");
 
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
-	FString RickGivesMoneyPath = TEXT("Dialogue/RickGivesMoney.txt");
+	FString GivesMoneySection = TEXT("RickGivesMoney");
 
 private:
+	// Parsed sectioned dialogue file (DialogueFilePath)
+	FDialogueScript DialogueScript;
+
 	// Parsed car ride dialogue lines (speaker + text per line)
 	TArray<FSimpleDialogueLine> ParsedLines;
 
@@ -94,6 +110,10 @@ private:
 
 	bool bGaveMoney = false;
 	bool bMoneyBeatArmed = false;
+
+	// Storm stash state (StashForStorm / ReturnFromStorm).
+	bool bStashedForStorm = false;
+	FTransform PreStormTransform;
 
 	void LoadDialogueFile();
 	void LoadOutsideDialogue();
