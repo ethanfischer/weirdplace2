@@ -69,6 +69,13 @@ void UAudioMixSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 void UAudioMixSubsystem::Deinitialize()
 {
 	IConsoleManager::Get().UnregisterConsoleVariableSink_Handle(SinkHandle);
+	if (Mix)
+	{
+		// The mix was pushed on the world's audio device; pop it so the
+		// overrides don't outlive this subsystem.
+		UGameplayStatics::PopSoundMixModifier(GetWorld(), Mix);
+		Mix = nullptr;
+	}
 	Super::Deinitialize();
 }
 

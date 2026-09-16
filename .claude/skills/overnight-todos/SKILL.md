@@ -203,15 +203,18 @@ a single-run bisect: compare the random outcome across runs in the logs first �
 a base-commit pass may just be a lucky roll of the same pre-existing flake.
 
 ### 5. RECORD — commit the green
-Move the card to **Done** on Trello (tick its checklist items too), and add a short
-note to the desc if the resolution isn't obvious from the diff. Then add its result
-entry to `NIGHTLY_REPORT.md` (template below) — **mark each locked
-acceptance criterion ✅ or ❌ against the kickoff checklist**, not a vague "works,"
-so the morning read is delivered-vs-agreed. Then **commit everything for this item
-to the overnight branch** in one commit:
+First add the item's result entry to `NIGHTLY_REPORT.md` (template below) — **mark
+each locked acceptance criterion ✅ or ❌ against the kickoff checklist**, not a
+vague "works," so the morning read is delivered-vs-agreed. Then **commit everything
+for this item to the overnight branch** in one commit:
 ```
 git add -A && git commit -m "todo: <item summary> — E2E Weirdplace2.E2E.Level1.<Name> green"
 ```
+**Only after that commit succeeds** touch Trello: move the card to **Done** (tick
+its checklist items too), and add a short note to the desc if the resolution isn't
+obvious from the diff. Order matters — a card marked Done with no commit behind it
+is a lie the morning review can't detect, whereas a commit with a stale card is
+just a Trello chore. If the commit fails, fix that first; leave the card in Doing.
 This commit is a restore point: if a later item corrupts the tree you can
 `git reset --hard` back to it. The invariant that makes that safe — **the overnight
 branch tip must build and have green tests before you start the next item** — is
@@ -234,8 +237,18 @@ state:
 ```
 git add -A && git commit -m "WIP(blocked): <item-slug> — <one-line reason>"
 git branch wip/<item-slug>          # park the attempt on its own branch
+# Validate BEFORE resetting — the reset is destructive:
+test "$(git rev-parse wip/<item-slug>)" = "$(git rev-parse HEAD)"   # WIP branch points at the WIP commit
+git log --oneline -1 <last-green-commit>                             # is this really the last "todo: ... green" commit?
 git reset --hard <last-green-commit> # overnight tip is buildable + green again
 ```
+**Stop before `git reset --hard` unless all three hold:** the WIP commit
+succeeded, `wip/<item-slug>` resolves to that exact commit, and
+`<last-green-commit>` is the most recent per-item green commit on the overnight
+branch (check `git log --oneline` — it's the last `todo: … green` entry, not
+a checkpoint commit). If any check fails, do not reset: leave the tree as-is,
+record the failed check in the report, and move on without the reset. A reset
+with the wrong target or an unparked WIP commit deletes the attempt.
 Move the card back to **Todo** with the `wip/<item-slug>` branch name in its desc.
 Record `wip/<item-slug>` and the reason in the report so the morning review knows
 exactly where the partial work lives and how to resume it (`git checkout
