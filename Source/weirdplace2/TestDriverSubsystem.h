@@ -326,14 +326,17 @@ public:
 	// Returns false if the actor isn't a provider or has no widget yet.
 	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
 
-	// Reads where the labeled NPC's dialogue plate sits on screen: its projected
-	// center normalized to 0..1 viewport fractions, its projected height in
-	// pixels (top-to-bottom of the widget's draw size), its world location, and
-	// the authored anchor it rests at when unclamped. World/anchor are filled in
-	// before projection. Returns false if the actor has no
-	// UDialoguePlateComponent/widget or the plate projects behind the camera.
-	bool GetDialoguePlateScreenState(const FString& ActorLabel, FVector2D& OutNormalizedCenter,
-		float& OutProjectedHeightPx, FVector& OutWorldLoc, FVector& OutAnchorWorldLoc) const;
+	// Horizontal distance (cm) from the player to the labeled actor's root.
+	// Returns false if no such actor.
+	bool GetDistance2DToActor(const FString& Label, float& OutDistance) const;
+
+	// Feeds one tick of movement input in the player's control-yaw frame
+	// (X forward, Y right). Drives AddMovementInput directly, bypassing input
+	// bindings, so it exercises movement gating rather than key mapping.
+	void AddWalkInput(const FVector2D& LocalDir);
+
+	// True if walking away left a dialogue with the labeled NPC frozen for resume.
+	bool HasPendingDialogueResume(const FString& Label) const;
 
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component

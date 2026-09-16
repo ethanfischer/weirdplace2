@@ -91,7 +91,6 @@ public:
 	// bUnfreezeLook), re-enable interaction, return to FreeRoaming.
 	void EndInteractionHold(bool bUnfreezeLook);
 
-	virtual void AddMovementInput(FVector WorldDirection, float ScaleValue = 1.0f, bool bForce = false) override;
 
 	// Locks movie collection (called by Seneca when checkout begins)
 	void LockMovieCollection();
@@ -338,6 +337,10 @@ public:
 	// OnDialogueLineShown broadcasts with the CURRENT index so listeners can act.
 	bool bBlockNextDialogueAdvance = false;
 
+	// True if walking away from NPC left a dialogue frozen that the next
+	// interaction with that NPC will resume. Used by E2E asserts.
+	bool HasPendingDialogueResume(UObject* NPC) const { return PendingDialogueResumes.Contains(NPC); }
+
 private:
 	// --- Merged from AMyCharacter ---
 
@@ -427,6 +430,30 @@ private:
 	// [Pause N] beat: plate hidden, advance input ignored until the timer fires
 	bool bDialoguePauseActive = false;
 	FTimerHandle DialoguePauseTimerHandle;
+	// True while the active pause is a [Pause N] *before* the first line (the
+	// plate hasn't opened yet), false for a pause after a line.
+	bool bDialoguePauseIsBefore = false;
+
+	// --- Walk-away dialogue resume ---
+	// The player is free to walk during dialogue. Past WalkAwayDistance the
+	// dialogue freezes (no OnDialogueEnded, so NPC state machines don't advance)
+	// and is stored here; interacting with the same NPC again resumes it at the
+	// frozen line, so line-index side effects still fire exactly once.
+	enum class EDialogueResumeAction : uint8 { Reshow, ShowFirst, AdvanceInternal };
+	struct FDialogueResumeState
+	{
+		bool bSimple = false;
+		TArray<FText> SimpleLines;
+		FText Speaker;
+		TArray<FSimpleDialogueLine> Lines;
+		int32 Index = 0;
+		bool bBlockNextAdvance = false;
+		EDialogueResumeAction Action = EDialogueResumeAction::Reshow;
+	};
+	TMap<TWeakObjectPtr<UObject>, FDialogueResumeState> PendingDialogueResumes;
+	void TickDialogueWalkAway();
+	void CancelDialogueForWalkAway();
+	bool ResumeDialogue(UObject* NPC);
 
 	// Dialogue gaze gate (see SetDialogueGazeGate)
 	bool bDialogueGazeGated = false;

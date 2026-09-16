@@ -4078,158 +4078,95 @@ private:
 };
 
 // =======================================================================
-// Dialogue plate placement (DialoguePlateInView)
+// Walking + NPC personal space + walk-away dialogue
 // =======================================================================
 
-// Assert the labeled NPC's dialogue plate center projects inside the
-// [MinFrac, MaxFrac] viewport band on both axes.
-class FTD_AssertDialoguePlateOnScreen : public FTD_Base
+// Feed movement input every tick for Seconds. LocalDir is in the control-yaw
+// frame: (1,0) forward, (-1,0) backward, (0,1) right.
+class FTD_WalkForDuration : public FTD_Base
 {
 public:
-	FTD_AssertDialoguePlateOnScreen(FAutomationTestBase* InTest, FString InLabel, float InMinFrac, float InMaxFrac)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), MinFrac(InMinFrac), MaxFrac(InMaxFrac) {}
+	FTD_WalkForDuration(FAutomationTestBase* InTest, FVector2D InLocalDir, float InSeconds)
+		: FTD_Base(InTest), LocalDir(InLocalDir), Seconds(InSeconds) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting %s dialogue plate on screen"), *Label);
+		return FString::Printf(TEXT("Walking (%.0f, %.0f) for %.1fs"), LocalDir.X, LocalDir.Y, Seconds);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialoguePlateOnScreen: no driver")); return true; }
-		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc, Anchor;
-		if (!Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor))
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateOnScreen: no plate screen state for '%s'"), *Label));
-			return true;
-		}
-		const bool bInside = Center.X >= MinFrac && Center.X <= MaxFrac && Center.Y >= MinFrac && Center.Y <= MaxFrac;
-		// The draw rect must also be fully on screen vertically: the text sits
-		// at the top of the rect, so a centered-but-oversized plate still clips it.
-		const FVector2D ViewSize = GEngine->GameViewport->Viewport->GetSizeXY();
-		const float HalfFrac = ViewSize.Y > 0.f ? HeightPx / (2.f * ViewSize.Y) : 0.f;
-		const float TopFrac = Center.Y - HalfFrac;
-		const float BottomFrac = Center.Y + HalfFrac;
-		const bool bRectOnScreen = TopFrac >= 0.f && BottomFrac <= 1.f;
-		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateOnScreen[%s]: center=(%.3f, %.3f) band=[%.2f, %.2f] top=%.3f bottom=%.3f -> %s"),
-			*Label, Center.X, Center.Y, MinFrac, MaxFrac, TopFrac, BottomFrac,
-			(bInside && bRectOnScreen) ? TEXT("inside") : TEXT("OUTSIDE"));
-		if (!bInside || !bRectOnScreen)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateOnScreen: '%s' plate center (%.3f, %.3f) band [%.2f, %.2f], rect top=%.3f bottom=%.3f"),
-				*Label, Center.X, Center.Y, MinFrac, MaxFrac, TopFrac, BottomFrac));
-		}
-		return true;
+		if (!Driver) { Test->AddError(TEXT("FTD_WalkForDuration: no driver")); return true; }
+		Driver->AddWalkInput(LocalDir);
+		return GetElapsedSinceFirstTick() >= Seconds;
 	}
 private:
-	FString Label;
-	float MinFrac;
-	float MaxFrac;
+	FVector2D LocalDir;
+	float Seconds;
 };
 
-// Assert the plate's world location is within Tolerance cm of its authored anchor.
-class FTD_AssertDialoguePlateAtAnchor : public FTD_Base
+// Assert the player's horizontal distance to the labeled actor is in [Min, Max].
+class FTD_AssertDistanceToActor : public FTD_Base
 {
 public:
-	FTD_AssertDialoguePlateAtAnchor(FAutomationTestBase* InTest, FString InLabel, float InTolerance)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Tolerance(InTolerance) {}
+	FTD_AssertDistanceToActor(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting %s dialogue plate at anchor"), *Label);
+		return FString::Printf(TEXT("Asserting distance to %s in [%.0f, %.0f]"), *Label, Min, Max);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialoguePlateAtAnchor: no driver")); return true; }
-		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc = FVector::ZeroVector, Anchor = FVector::ZeroVector;
-		// Projection may legitimately fail here (plate behind the camera after a
-		// look-away); only the world/anchor pair matters, which is filled in first.
-		Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor);
-		const float Dist = FVector::Dist(WorldLoc, Anchor);
-		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateAtAnchor[%s]: world=%s anchor=%s dist=%.2fcm tol=%.2f"),
-			*Label, *WorldLoc.ToString(), *Anchor.ToString(), Dist, Tolerance);
-		if (Anchor.IsZero() || Dist > Tolerance)
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDistanceToActor: no driver")); return true; }
+		float Dist = 0.f;
+		if (!Driver->GetDistance2DToActor(Label, Dist))
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateAtAnchor: '%s' plate is %.2fcm from anchor (tol %.2f)"),
-				*Label, Dist, Tolerance));
-		}
-		return true;
-	}
-private:
-	FString Label;
-	float Tolerance;
-};
-
-// Capture the plate's projected height (px) into *OutHeight.
-class FTD_CaptureDialoguePlateHeight : public FTD_Base
-{
-public:
-	FTD_CaptureDialoguePlateHeight(FAutomationTestBase* InTest, FString InLabel, float* InOutHeight)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), OutHeight(InOutHeight) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Capturing %s dialogue plate height"), *Label);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver || !OutHeight) { Test->AddError(TEXT("FTD_CaptureDialoguePlateHeight: missing driver/out")); return true; }
-		FVector2D Center; FVector WorldLoc, Anchor;
-		if (!Driver->GetDialoguePlateScreenState(Label, Center, *OutHeight, WorldLoc, Anchor))
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_CaptureDialoguePlateHeight: no plate screen state for '%s'"), *Label));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDistanceToActor: no actor '%s'"), *Label));
 			return true;
 		}
-		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureDialoguePlateHeight: '%s' = %.1fpx"), *Label, *OutHeight);
+		UE_LOG(LogTemp, Warning, TEXT("AssertDistanceToActor[%s]: dist=%.1fcm range=[%.0f, %.0f]"), *Label, Dist, Min, Max);
+		if (Dist < Min || Dist > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDistanceToActor: '%s' is %.1fcm away, expected [%.0f, %.0f]"), *Label, Dist, Min, Max));
+		}
 		return true;
 	}
 private:
 	FString Label;
-	float* OutHeight;
+	float Min;
+	float Max;
 };
 
-// Assert the plate's current projected height is within +/-Tolerance (fraction)
-// of the captured *Baseline.
-class FTD_AssertDialoguePlateHeightRatio : public FTD_Base
+// Assert whether a walked-away dialogue with the labeled NPC is frozen for resume.
+class FTD_AssertPendingDialogueResume : public FTD_Base
 {
 public:
-	FTD_AssertDialoguePlateHeightRatio(FAutomationTestBase* InTest, FString InLabel, float* InBaseline, float InTolerance)
-		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Baseline(InBaseline), Tolerance(InTolerance) {}
+	FTD_AssertPendingDialogueResume(FAutomationTestBase* InTest, FString InLabel, bool bInExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), bExpected(bInExpected) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting %s dialogue plate height ratio"), *Label);
+		return FString::Printf(TEXT("Asserting %s dialogue resume pending=%d"), *Label, bExpected ? 1 : 0);
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver || !Baseline) { Test->AddError(TEXT("FTD_AssertDialoguePlateHeightRatio: missing driver/baseline")); return true; }
-		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc, Anchor;
-		if (!Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor))
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPendingDialogueResume: no driver")); return true; }
+		const bool bPending = Driver->HasPendingDialogueResume(Label);
+		if (bPending != bExpected)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateHeightRatio: no plate screen state for '%s'"), *Label));
-			return true;
-		}
-		const float Ratio = *Baseline > 0.f ? HeightPx / *Baseline : 0.f;
-		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateHeightRatio[%s]: baseline=%.1fpx now=%.1fpx ratio=%.3f tol=%.2f"),
-			*Label, *Baseline, HeightPx, Ratio, Tolerance);
-		if (*Baseline <= 0.f || FMath::Abs(Ratio - 1.f) > Tolerance)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateHeightRatio: '%s' height %.1fpx vs baseline %.1fpx (ratio %.3f, tol %.2f)"),
-				*Label, HeightPx, *Baseline, Ratio, Tolerance));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPendingDialogueResume: '%s' pending=%d, expected %d"), *Label, bPending ? 1 : 0, bExpected ? 1 : 0));
 		}
 		return true;
 	}
 private:
 	FString Label;
-	float* Baseline;
-	float Tolerance;
+	bool bExpected;
 };
 
 // =======================================================================

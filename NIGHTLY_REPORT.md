@@ -1,87 +1,101 @@
-# Nightly report — 2026-09-15 — Dialogue plate always in view
+# Nightly report — 2026-09-15/16 — NPC dialogue: personal space, walk-away, text
 
 Branch: `overnight/2026-09-15` (from `ImproveNPCText`). Not merged, not pushed.
 Trello: dpGSoWAv "Improve NPC text placement so it's always visible when interacting."
 
-## Result: DONE — all acceptance criteria green
+## What happened
+
+The first pass (commit b4ca3f69) clamped the plate into the viewport. You scrapped
+that in the morning for a simpler model, implemented in the second commit:
+
+1. **Player-only personal-space capsule on every NPC** — you can't walk into them.
+2. **Dialogue no longer locks movement.** Walk past a distance and the dialogue
+   freezes; interact with the same NPC again and it resumes at the frozen line.
+3. **Text sits beside the head**, wrapped to a short two-line block (reference:
+   your sheet-music-store screenshot).
+4. **Text is rendered at 2x resolution** (no more pixelation up close / at 4K).
+
+## Results
 
 | Check | Result |
 |---|---|
-| `Regression.DialoguePlateInView` (headed) | PASS |
-| `Regression.HappyPath` (headless) | PASS |
+| `Regression.NpcPersonalSpace` (headed) | PASS — stopped 134cm from Rick's root |
+| `Regression.DialogueWalkAway` (headed) | PASS — froze at 300cm, resumed same line |
+| Full `Regression` suite (headed, 26 tests) | PASS |
 | `Diagnostic.RickDialoguePrefix` (headed) | PASS |
 
-Measured values from the final headed run (viewport 1518x883):
-
-| Step | Value |
-|---|---|
-| Far (RickApproach, anchor 150cm): plate vs anchor | 0.00cm |
-| Far plate projected height | 555px |
-| Close (80cm): plate center | (0.333, 0.286), rect top 0.006 / bottom 0.565 |
-| Close plate projected height | 497px (ratio 0.90, tol ±25%) |
-| Look-away 120°: plate vs anchor | 0.00cm |
-
-Screenshots (also copied to `Tests/E2EGoldens/`):
-- `Saved/Screenshots/WindowsEditor/E2E_DialoguePlateInView_Far.png` — plate at anchor, readable.
-- `Saved/Screenshots/WindowsEditor/E2E_DialoguePlateInView_Close.png` — full line
-  "I'll meet you inside once I'm done" readable next to Rick's head. Before the
-  fix the same shot showed only the bottom sliver of the text at the top edge.
+Screenshots to look at:
+- `Saved/Screenshots/WindowsEditor/E2E_NpcPersonalSpace_DialogueClosest.png` — the
+  closest the player can get; two-line block beside Rick's head, crisp.
+- `E2E_DialogueWalkAway_Frozen.png` / `E2E_DialogueWalkAway_Resumed.png`.
 
 ## What changed
 
-**New `UDialoguePlateComponent`** (`Source/weirdplace2/DialoguePlateComponent.h/.cpp`),
-added via `CreateDefaultSubobject` on Rick, Seneca, Hudson. It owns the
-`WorldSpace_UI_Dialogue` lookup + Transparent blend mode (previously copy-pasted
-x3), the per-tick billboard (previously copy-pasted x3), and the new clamp.
-Rick and Hudson no longer tick at all; Seneca's Tick keeps only its smoking logic.
-`DialogueWidgetComponent` on each NPC is still populated (CarRideComponent reads it).
+**`UNpcPersonalSpaceComponent`** (new) on Rick/Seneca/Hudson. Spawns a capsule at
+BeginPlay (runtime-created, not a default subobject: these NPCs get their root
+from Blueprint and a native scene subobject would be adopted as root). Object
+type Pawn, blocks only the Pawn channel, so the interaction trace, camera and
+visibility all pass through. `weird.Npc.PersonalSpaceRadius` = 100 (player ends
+~134cm from the root with the player capsule).
 
-Clamp rule: while the NPC's skeletal-mesh bounds center is inside a 60° cone
-around the camera forward, project the authored anchor. If its center is outside
-the 15..85% band **or the draw rect isn't fully on screen**, deproject the
-clamped screen point at `min(anchorDist, 60cm)` and scale the widget by
-`newDist / 150cm` so it reads at conversational-distance size. Otherwise (and
-whenever the NPC is out of the cone) it rests at the anchor. Movement/scale are
-`VInterpTo`-smoothed. The anchor is cached *relative to the widget's attach parent*
-so the car ride's windshield relocation of the child actor stays transparent.
+**Walk-away / resume** (`FirstPersonCharacter`): the `AddMovementInput` override
+that blocked movement in dialogue is gone. `TickDialogueWalkAway` freezes any
+dialogue once the player is `weird.Dialogue.WalkAwayDistance` (300cm, 2D) from
+the NPC — skipped while movement mode is `MOVE_None`, which is how the car ride
+parks the player, so the ride's gaze-gated dialogue is untouched. Freezing does
+**not** call `OnDialogueEnded`, so NPC state machines stay where they were; the
+lines, index, `bBlockNextDialogueAdvance`, and any pending `[Pause N]` are stored
+per NPC. `HandleInteractTriggered` resumes a stored dialogue instead of calling
+the NPC's `Interact`, re-showing the frozen line *without* re-broadcasting its
+line-shown beat (so money/key/tape handoffs fire exactly once). A pause-before
+on line 0 resumes by showing line 0 + broadcast; a pause-after resumes by
+advancing.
 
-Tunables (`weird.DialoguePlate.*`): `SafeMinFrac` 0.15, `SafeMaxFrac` 0.85,
-`MinCameraDistance` 60, `ReferenceDistance` 150, `InterpSpeed` 10,
-`ConeHalfAngleDeg` 60, `Debug` false (per-tick log of the clamp math).
+**Text** (`UI_Dialogue` + `DialoguePlateComponent`):
+- `weird.Dialogue.TextSize` 26 (authored px; speaker 1.5x), `WrapWidth` 420
+  (replaces the `BackingTextWrapWidth` UPROPERTY), left-justified.
+- `weird.Dialogue.RenderScale` 2: draw size, fonts, wrap, padding and feather are
+  multiplied, the widget component scaled by 1/2. Same world size, 2x texels.
+- Plate anchored at its left-middle edge (border slot anchor/alignment (0, 0.5),
+  widget pivot (0, 0.5)). `DialoguePlateComponent` puts the child actor at
+  `weird.DialoguePlate.OffsetUp` (170cm above root) and, every tick, steps the
+  widget `OffsetRight` (20cm) along the **camera's** right axis before
+  billboarding — so the line always starts beside the face and grows away from
+  it, from any viewing angle. (Offsetting in the NPC's frame put the text through
+  his head; that was the first attempt.)
+- The authored per-NPC child-actor offsets (Rick's 36/175 etc.) are now
+  overridden by the tunables at BeginPlay.
 
-**Harness**: `UTestDriverSubsystem::GetDialoguePlateScreenState`,
-`FTD_AssertDialoguePlateOnScreen` / `AtAnchor` / `CaptureDialoguePlateHeight` /
-`AssertDialoguePlateHeightRatio`, `FTD_TeleportNearRick` gained a distance param.
+`UDialoguePlateComponent` keeps the dedup from the first pass (widget lookup +
+Transparent blend + billboard, previously copy-pasted x3). Rick and Hudson no
+longer tick.
 
-## Deviations from the plan (worth a look)
+**Harness**: `FTD_WalkForDuration` (feeds `AddMovementInput` in the control-yaw
+frame), `FTD_AssertDistanceToActor`, `FTD_AssertPendingDialogueResume`;
+driver `GetDistance2DToActor` / `AddWalkInput` / `HasPendingDialogueResume`.
+The DialoguePlateInView test, its primitives and goldens are removed.
 
-1. **Center-in-band alone was not RED.** At 80cm the plate *center* was already at
-   (0.30, 0.18) — inside the band — while the text was clipped, because the widget
-   draw rect is 1000x500 with the text at its top and the rect was 1104px tall on
-   an 883px viewport. The on-screen assertion (and the clamp trigger) now also
-   require the projected rect's top/bottom inside [0, 1]. The plan's RED run failed
-   on the height-ratio criterion instead; after tightening, it fails on the
-   on-screen one as intended.
-2. **Added `ReferenceDistance` (150cm).** The plan scaled by `newDist/anchorDist`,
-   which preserves the *current* apparent size — 2x at 80cm — and fails criterion 3.
-   Scaling relative to a fixed reference distance is what makes close-range size
-   match far-range size.
-3. **Cone test uses the skeletal mesh bounds**, not `GetComponentsBoundingBox`:
-   Rick's whole-actor bounds center lands *behind* the camera (some component's
-   bounds are far off), so the clamp never engaged.
-4. The DialoguePlateInView test needs `-Headed` (no viewport under NullRHI). It
-   fails loudly headless ("viewport size is zero"), same as the other screenshot
-   regressions.
+## Things to check / decide in the morning
 
-## Open questions for the morning
-
-- The text sits at the *top* of a 1000x500 draw rect, so the clamped plate lands
-  fairly high on screen (rect top at 0.006). Shrinking the widget's DrawSize to
-  hug the text (a Blueprint edit in `WorldSpace_UI_Dialogue`) would let the clamp
-  center the text more naturally. Not done — asset change, outside scope.
-- Seneca and Hudson get the same behaviour untested beyond HappyPath. Worth a
-  quick walk-up in the editor.
-- Trello card not moved; do that after review.
+- **Car ride plate**: the ride moves the widget child actor to the windshield
+  target and restores its relative transform afterwards. The plate is now
+  left-anchored and shifted 20cm camera-right of that target, so the windshield
+  text sits slightly differently than before. HappyPath doesn't take the ride;
+  worth one manual ride.
+- **Personal-space radius vs level geometry**: Seneca behind the counter and
+  Hudson weren't checked by eye. If a 100cm capsule pokes through a counter the
+  player could get pinned; `weird.Npc.PersonalSpaceRadius` is live-tunable but
+  applies at BeginPlay (PIE restart).
+- **Character movement slides around the capsule.** Walking straight at an NPC
+  and holding W carries the player around them. That's stock UE behaviour and
+  reads fine, but it's why the test only walks for 0.5s.
+- **Scripted-dialogue resume is untested end to end.** The mechanism is shared
+  with simple dialogue (which is tested), and the beat-broadcast rules are as
+  described above, but no test walks away mid-money-handoff. If you want one,
+  it needs Seneca forced into `WaitingForMoney` first.
+- Text/plate values (`weird.Dialogue.TextSize`/`WrapWidth`, `weird.DialoguePlate.
+  OffsetRight`/`OffsetUp`) are tunables — dial in-editor, then bake.
+- Trello card not moved.
 
 ## Commits
 

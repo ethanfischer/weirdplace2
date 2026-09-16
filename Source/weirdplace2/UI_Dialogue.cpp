@@ -15,6 +15,28 @@ WP_TUNABLE_FLOAT(GDialoguePitchShift, "weird.Dialogue.PitchShift", 0.55f,
 	"Pitch multiplier applied on top of the random pitch for dialogue voice and blip sounds.");
 WP_TUNABLE_FLOAT(GDialogueLowPassFreq, "weird.Dialogue.LowPassFreq", 300.f,
 	"Low-pass filter cutoff frequency (Hz) for dialogue voice and blip sounds.");
+// Dialogue text size in the widget's authored 1000x500 px space (the plate is
+// 200cm wide in the world, so 1 px = 0.2cm). Sized to read beside the NPC's
+// head from weird.Npc.PersonalSpaceRadius.
+WP_TUNABLE_FLOAT(GDialogueTextSize, "weird.Dialogue.TextSize", 26.f,
+	"Dialogue line font size (authored px). Speaker name is 1.5x this.");
+// Wrap column for the line (authored px); also bounds the backing plate width.
+// ~28 characters at the default size, so a sentence reads as a short block
+// beside the head instead of a banner across the screen.
+WP_TUNABLE_FLOAT(GDialogueWrapWidth, "weird.Dialogue.WrapWidth", 420.f,
+	"Dialogue text wrap width (authored px).");
+// Supersampling for the world-space plate: the render target, fonts, wrap width
+// and padding are all multiplied by this, and the widget component is scaled
+// down by the same factor, so the plate keeps its world size but renders at
+// higher resolution (kills the pixelated look up close / at 4K).
+WP_TUNABLE_FLOAT(GDialogueRenderScale, "weird.Dialogue.RenderScale", 2.f,
+	"Resolution multiplier for the world-space dialogue plate render target.");
+
+float UUI_Dialogue::GetRenderScale()
+{
+	return GDialogueRenderScale;
+}
+
 void UUI_Dialogue::NativeConstruct()
 {
 	Super::NativeConstruct();
@@ -42,9 +64,18 @@ void UUI_Dialogue::SetupTextBacking()
 		return;
 	}
 
-	// The Text block fills the lower canvas (top-anchored at this Y, centered).
-	// Reuse that vertical anchor so the plate lands where the text already reads.
-	const float TopOffset = TextSlot->GetOffsets().Top;
+	// Everything in px space scales with the plate's supersampling factor so
+	// the world-space result is resolution-independent.
+	const float RS = GDialogueRenderScale;
+	FSlateFontInfo TextFont = Text->GetFont();
+	TextFont.Size = GDialogueTextSize * RS;
+	Text->SetFont(TextFont);
+	if (SpeakerName)
+	{
+		FSlateFontInfo SpeakerFont = SpeakerName->GetFont();
+		SpeakerFont.Size = GDialogueTextSize * 1.5f * RS;
+		SpeakerName->SetFont(SpeakerFont);
+	}
 
 	// Bound the text to a fixed-width wrapping column so the plate crops to the
 	// words. AutoWrapText MUST be off here: auto-wrap sizes to the allotted
@@ -52,7 +83,9 @@ void UUI_Dialogue::SetupTextBacking()
 	// width — a circular dependency that collapses the block to zero. A fixed
 	// WrapTextAt gives a bounded, non-zero desired size.
 	Text->SetAutoWrapText(false);
-	Text->SetWrapTextAt(BackingTextWrapWidth);
+	Text->SetWrapTextAt(GDialogueWrapWidth * RS);
+	// Left-pinned block: wrapped lines share a left edge.
+	Text->SetJustification(ETextJustify::Left);
 
 	TextBacking = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
 
@@ -76,12 +109,12 @@ void UUI_Dialogue::SetupTextBacking()
 		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(FeatherMat, this);
 		Mid->SetVectorParameterValue(FName("PlateColor"), BackingColor);
 		Mid->SetScalarParameterValue(FName("PlateOpacity"), BackingOpacity);
-		Mid->SetScalarParameterValue(FName("FeatherPixels"), BackingEdgeFeather);
+		Mid->SetScalarParameterValue(FName("FeatherPixels"), BackingEdgeFeather * RS);
 		Brush.SetResourceObject(Mid);
 		Brush.DrawAs = ESlateBrushDrawType::Image;
 	}
 	TextBacking->SetBrush(Brush);
-	TextBacking->SetPadding(BackingPadding);
+	TextBacking->SetPadding(BackingPadding * RS);
 	TextBacking->SetHorizontalAlignment(HAlign_Fill);
 	TextBacking->SetVerticalAlignment(VAlign_Fill);
 
@@ -92,12 +125,17 @@ void UUI_Dialogue::SetupTextBacking()
 	Parent->RemoveChild(Text);
 	TextBacking->SetContent(Text);
 	UCanvasPanelSlot* BorderSlot = Cast<UCanvasPanelSlot>(Parent->AddChild(TextBacking));
+	// Pin the plate to the widget's left-middle edge so it grows rightward and
+	// stays vertically centered on the component location. The hosting
+	// UWidgetComponent uses a matching (0, 0.5) pivot, so the component's world
+	// location IS the plate's left-middle point: place that beside the NPC's
+	// head and the text reads next to it, however many lines it wraps to.
 	if (BorderSlot)
 	{
-		BorderSlot->SetAnchors(FAnchors(0.5f, 0.f));
-		BorderSlot->SetAlignment(FVector2D(0.5f, 0.f));
+		BorderSlot->SetAnchors(FAnchors(0.f, 0.5f));
+		BorderSlot->SetAlignment(FVector2D(0.f, 0.5f));
 		BorderSlot->SetAutoSize(true);
-		BorderSlot->SetPosition(FVector2D(0.f, TopOffset));
+		BorderSlot->SetPosition(FVector2D::ZeroVector);
 	}
 }
 

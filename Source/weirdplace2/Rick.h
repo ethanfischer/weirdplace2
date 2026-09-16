@@ -59,9 +59,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Rick|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
 
-	// Finds/billboards/clamps the plate; DialogueWidgetComponent mirrors its widget.
+	// Finds, positions and billboards the plate; DialogueWidgetComponent mirrors its widget.
 	UPROPERTY(VisibleAnywhere, Category = "Rick|Dialogue")
 	class UDialoguePlateComponent* DialoguePlate;
+
+	// Player-only blocking capsule so the player can't walk into the NPC.
+	UPROPERTY(VisibleAnywhere, Category = "Rick|Dialogue")
+	class UNpcPersonalSpaceComponent* PersonalSpace;
 
 	// Line index parsed from [Bladder] tag in dialogue file (-1 if absent)
 	int32 BladderPulseLineIndex = INDEX_NONE;

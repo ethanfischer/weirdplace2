@@ -39,6 +39,10 @@ public:
 	// True while the dialogue widget itself is showing (not collapsed).
 	bool IsDialogueOpen() const { return GetVisibility() == ESlateVisibility::Visible; }
 
+	// Supersampling factor (weird.Dialogue.RenderScale) the hosting
+	// UWidgetComponent must apply to its draw size / inverse scale.
+	static float GetRenderScale();
+
 protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeOnFocusLost(const FFocusEvent& InFocusEvent) override;
@@ -84,11 +88,6 @@ protected:
 	// plate's ends match its dead centre. Low = crisp, high = soft. Tune live.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Backing", meta = (ClampMin = "1.0", ClampMax = "120.0", UIMin = "1.0", UIMax = "80.0"))
 	float BackingEdgeFeather = 18.f;
-
-	// Wrap width for the dialogue text; also bounds the plate's width so it
-	// reads as a tidy column rather than stretching the full widget.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dialogue|Backing", meta = (ClampMin = "0"))
-	float BackingTextWrapWidth = 700.f;
 
 	// The backing plate (constructed in NativeConstruct; wraps Text).
 	UPROPERTY(BlueprintReadOnly, Category = "Dialogue|Backing")

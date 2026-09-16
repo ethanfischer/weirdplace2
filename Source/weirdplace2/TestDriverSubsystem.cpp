@@ -32,7 +32,6 @@
 #include "TestWaypoint.h"
 #include "UI_Dialogue.h"
 #include "DialogueWidgetProvider.h"
-#include "DialoguePlateComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -486,50 +485,42 @@ bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bo
 	return true;
 }
 
-bool UTestDriverSubsystem::GetDialoguePlateScreenState(const FString& ActorLabel, FVector2D& OutNormalizedCenter,
-	float& OutProjectedHeightPx, FVector& OutWorldLoc, FVector& OutAnchorWorldLoc) const
+bool UTestDriverSubsystem::GetDistance2DToActor(const FString& Label, float& OutDistance) const
 {
-	AActor* Actor = FindActorByLabel(ActorLabel);
-	UDialoguePlateComponent* Plate = Actor ? Actor->FindComponentByClass<UDialoguePlateComponent>() : nullptr;
-	UWidgetComponent* Widget = Plate ? Plate->GetWidgetComponent() : nullptr;
-	if (!Widget)
+	AActor* Actor = FindActorByLabel(Label);
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Actor || !Player)
 	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' has no dialogue plate widget"), *ActorLabel);
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDistance2DToActor - no actor '%s' or no player"), *Label);
 		return false;
 	}
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC)
-	{
-		return false;
-	}
-
-	OutWorldLoc = Widget->GetComponentLocation();
-	OutAnchorWorldLoc = Plate->GetAnchorWorldLocation();
-
-	int32 SizeX = 0, SizeY = 0;
-	PC->GetViewportSize(SizeX, SizeY);
-	if (SizeX <= 0 || SizeY <= 0)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDialoguePlateScreenState - viewport size is zero"));
-		return false;
-	}
-
-	const float HalfHeightWorld = Widget->GetDrawSize().Y * 0.5f * Widget->GetComponentScale().Z;
-	const FVector Up = Widget->GetUpVector();
-	FVector2D Center, Top, Bottom;
-	if (!PC->ProjectWorldLocationToScreen(OutWorldLoc, Center, false)
-		|| !PC->ProjectWorldLocationToScreen(OutWorldLoc + Up * HalfHeightWorld, Top, false)
-		|| !PC->ProjectWorldLocationToScreen(OutWorldLoc - Up * HalfHeightWorld, Bottom, false))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' plate projects behind the camera"), *ActorLabel);
-		return false;
-	}
-	OutNormalizedCenter = FVector2D(Center.X / SizeX, Center.Y / SizeY);
-	OutProjectedHeightPx = FMath::Abs(Bottom.Y - Top.Y);
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' center=(%.3f, %.3f) heightPx=%.1f world=%s anchor=%s viewport=%dx%d"),
-		*ActorLabel, OutNormalizedCenter.X, OutNormalizedCenter.Y, OutProjectedHeightPx,
-		*OutWorldLoc.ToString(), *OutAnchorWorldLoc.ToString(), SizeX, SizeY);
+	OutDistance = FVector::Dist2D(Player->GetActorLocation(), Actor->GetActorLocation());
 	return true;
+}
+
+void UTestDriverSubsystem::AddWalkInput(const FVector2D& LocalDir)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::AddWalkInput - no player"));
+		return;
+	}
+	const FRotator YawRot(0.f, Player->GetControlRotation().Yaw, 0.f);
+	const FVector WorldDir = YawRot.RotateVector(FVector(LocalDir.X, LocalDir.Y, 0.f)).GetSafeNormal();
+	Player->AddMovementInput(WorldDir, 1.f);
+}
+
+bool UTestDriverSubsystem::HasPendingDialogueResume(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Actor || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::HasPendingDialogueResume - no actor '%s' or no player"), *Label);
+		return false;
+	}
+	return Player->HasPendingDialogueResume(Actor);
 }
 
 bool UTestDriverSubsystem::TeleportToWorldPoint(const FVector& GroundPoint)

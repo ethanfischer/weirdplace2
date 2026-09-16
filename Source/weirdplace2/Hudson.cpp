@@ -5,6 +5,7 @@
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "DialoguePlateComponent.h"
+#include "NpcPersonalSpaceComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 
@@ -12,6 +13,7 @@ AHudson::AHudson()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
+	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 }
 
 UUI_Dialogue* AHudson::GetDialogueWidget() const

@@ -12,6 +12,7 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "DialoguePlateComponent.h"
+#include "NpcPersonalSpaceComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
@@ -27,6 +28,7 @@ ASeneca::ASeneca()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
+	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 	PrimaryActorTick.bStartWithTickEnabled = true;
 	// Components are created in Blueprint to preserve MetaHuman setup
 }

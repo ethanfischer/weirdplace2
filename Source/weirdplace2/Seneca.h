@@ -59,9 +59,13 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
 
-	// Finds/billboards/clamps the plate; DialogueWidgetComponent mirrors its widget.
+	// Finds, positions and billboards the plate; DialogueWidgetComponent mirrors its widget.
 	UPROPERTY(VisibleAnywhere, Category = "Seneca|Dialogue")
 	class UDialoguePlateComponent* DialoguePlate;
+
+	// Player-only blocking capsule so the player can't walk into the NPC.
+	UPROPERTY(VisibleAnywhere, Category = "Seneca|Dialogue")
+	class UNpcPersonalSpaceComponent* PersonalSpace;
 
 	// --- Quest State ---
 

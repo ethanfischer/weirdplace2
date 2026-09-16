@@ -1409,58 +1409,93 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// DialoguePlateInView — Rick's dialogue plate must stay inside the viewport
-// when the player stands close (post-car outside position), rest at its
-// authored anchor at conversational distance, keep a constant apparent size
-// when clamped, and fall back to the anchor when the player looks away.
+// NpcPersonalSpace — the player can't walk into an NPC: a player-only capsule
+// holds them at PersonalSpaceRadius. The dialogue plate is sized to read
+// from that closest range, so the screenshot doubles as the text-size check.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_DialoguePlateInView,
-	"Weirdplace2.E2E.Level1.Regression.DialoguePlateInView",
+	FE2E_Level1_NpcPersonalSpace,
+	"Weirdplace2.E2E.Level1.Regression.NpcPersonalSpace",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FE2E_Level1_DialoguePlateInView::RunTest(const FString& Parameters)
+bool FE2E_Level1_NpcPersonalSpace::RunTest(const FString& Parameters)
 {
-	E2E_TEST_PREAMBLE("DialoguePlateInView")
+	E2E_TEST_PREAMBLE("NpcPersonalSpace")
 
-	static float FarPlateHeightPx = 0.f;
-	FarPlateHeightPx = 0.f;
 	const TCHAR* RickLabel = TEXT("BP_Rick");
 
-	// Far: conversational distance. Plate rests at its authored anchor.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	// Walk straight at him; the capsule (100cm) + player capsule stops us ~135cm
+	// out. Keep the walk short: character movement slides around a round
+	// blocker, so a long push would carry the player around and past him.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(1.f, 0.f), 0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(this, RickLabel, 120.f, 160.f));
+
+	// Dialogue still opens from the closest range, and the plate reads there.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	// Let the typewriter finish so the shot isn't mid-reveal.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_NpcPersonalSpace_DialogueClosest")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// DialogueWalkAway — dialogue no longer locks movement. Walking past
+// WalkAwayDistance freezes the dialogue (plate closes, player is free);
+// interacting with the same NPC again resumes it at the frozen line.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_DialogueWalkAway,
+	"Weirdplace2.E2E.Level1.Regression.DialogueWalkAway",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("DialogueWalkAway")
+
+	const TCHAR* RickLabel = TEXT("BP_Rick");
+	const TCHAR* RickLine = TEXT("I'll meet you inside once I'm done here");
+
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureDialoguePlateHeight(this, RickLabel, &FarPlateHeightPx));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateAtAnchor(this, RickLabel, 5.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialoguePlateInView_Far")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
-	// Wait out the dialogue cooldown before re-interacting.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), RickLine));
 
-	// Close: 80cm from Rick, aiming at him. Plate must be inside the safe band
-	// and keep the apparent size it had at conversational distance.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearRick(this, 80.f));
+	// Back away while the plate is open. Movement must not be blocked, and past
+	// WalkAwayDistance the dialogue freezes.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(-1.f, 0.f), 3.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(this, RickLabel, 300.f, 5000.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, RickLabel, /*bExpectOpen*/ false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPendingDialogueResume(this, RickLabel, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Frozen")));
+
+	// Walk back and interact: the frozen line resumes instead of restarting
+	// through Rick's Interact.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateOnScreen(this, RickLabel, 0.15f, 0.85f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateHeightRatio(this, RickLabel, &FarPlateHeightPx, 0.25f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialoguePlateInView_Close")));
-
-	// Look away: with Rick out of the view cone the plate must not chase the
-	// camera — it returns to the anchor.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 0.5f, 120.f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateAtAnchor(this, RickLabel, 5.f));
-
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPendingDialogueResume(this, RickLabel, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), RickLine));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Resumed")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }

@@ -6,6 +6,7 @@
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
 #include "DialoguePlateComponent.h"
+#include "NpcPersonalSpaceComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -15,6 +16,7 @@ ARick::ARick()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
+	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 }
 
 UUI_Dialogue* ARick::GetDialogueWidget() const
