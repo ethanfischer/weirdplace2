@@ -46,34 +46,9 @@ Build commands:
 "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
 
-## Retargeting Mocap Animations to MetaHumans
+## Task skills
 
-`scripts/local/retarget_mocap_to_metahuman.py` retargets a UE5-Mannequin-skeleton
-anim (e.g. mocapcentral) onto a MetaHuman and swaps the matching SequencePlayer
-nodes in a target AnimBlueprint. Idempotent. Edit the constants at the top for a
-new animation. Full workflow + Python API gotchas: `docs/animation-retargeting.md`.
-
-## Steam Deck Deploy
-
-Build → `scripts/push_to_deck.ps1 -DeckHost deck@<ip>` → launch from Steam on the Deck (not directly — Steam Input has to wrap the process for the controller to work).
-
-Build flags depend on what changed:
-- New `UPROPERTY`/class → full `-cook -allmaps -build -stage` (or you'll hit `Bad export index` on cooked Blueprints)
-- `.cpp` only → `-build -skipcook -stage`
-- `.ini` only → `-skipbuild -skipcook -stage`
-
-Full command + setup + log retrieval + Deck device profile notes: `docs/steamdeck-deploy.md`.
-
-## Architecture
-
-All gameplay code lives flat in `Source/weirdplace2/`. Key pieces:
-
-- **`AFirstPersonCharacter`** (FirstPersonCharacter.h) — the player. `EPlayerActivityState` (FreeRoaming/Interacting/InSimpleDialogue/InDialogue) gates input and interaction.
-- **Interaction**: `IInteractable` (Interactable.h) implemented by world actors — NPCs (`ASeneca`, `ARick`, `AHudson`, each with a state enum + `IDialogueWidgetProvider` for diegetic dialogue plates), `AMovieBox`, `ADoor`, `APayPhone`, etc.
-- **Inventory**: `UInventoryComponent` (Inventory.h) on the player; items are `UItemDefinition` primary data assets; diegetic UI via `InventoryUIActor`/`InventoryUIComponent` (same UIActor/UIComponent pattern as Keypad and Menu).
-- **Story state**: `UStorySubsystem` (WorldSubsystem) tracks `EStoryFlag` progression and owns the beat side effects (storm dim/hide/silence + station relight, via `StormDimLight`/`StormHideActor`/`StormSilenceAmbient` actor tags on level actors); `UStormFogComponent` drives the pea-soup fog off those flags.
-- **E2E harness**: `UTestDriverSubsystem` + `E2E_Steps.h`/`E2E_LatentCommands.h` back the tests in E2E_Level1Test.cpp; `ATestWaypoint` actors mark teleport targets.
-- **Tunables**: `Tunable.h` defines the `WP_TUNABLE_*` macros (see Code Conventions).
+Mocap retargeting → `/retarget-mocap`. Steam Deck deploy → `/steam-deck-deploy`.
 
 ## Editor Property Assignment
 
@@ -87,13 +62,6 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 - **Never name C++ classes with `BP_` or `BPI_` prefix** - those stand for Blueprint/BlueprintInterface
 - **Interface naming**: UINTERFACE is `UInteractable`, interface class is `IInteractable`, file is `Interactable.h`
 - Forward declarations in headers; heavy includes only in .cpp
-- `GENERATED_BODY()` first inside UCLASS/USTRUCT
-- `#include "ClassName.generated.h"` must be the **last** `#include` in every header — UHT enforces this and will error if any include follows it
-- Use `TArray`, `TMap`, `TSet` (not STL) for reflection/GC compatibility
-- Mark UObject pointers with `UPROPERTY()` to prevent GC collection
-- Use `CreateDefaultSubobject` for owned components in constructors
-- Null-check pointers before dereference; early-return on failure
-- Use `UE_LOG(LogTemp, ...)` for debugging
 - **Tunable gameplay constants**: don't hardcode magic numbers you (or the user) will want to dial in — declare them with `WP_TUNABLE_FLOAT/INT/BOOL` from `Tunable.h` (cvar prefix `weird.<System>.<Name>`), then tune live via the unreal-mcp cvar tools (EditorToolset; `uq cvar` as fallback) and bake the final value back into the default. New tunables need a full editor restart to register (Live Coding won't); tweaking existing ones is always live. See docs/dev-tooling.md.
 
 ## Dev tooling — use these before writing one-off scripts

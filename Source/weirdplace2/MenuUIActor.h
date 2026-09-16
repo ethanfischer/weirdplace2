@@ -133,7 +133,7 @@ protected:
 	FLinearColor FocusedValueColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Materials")
-	FLinearColor UnfocusedValueColor = FLinearColor(0.6f, 0.6f, 0.6f, 1.0f);
+	FLinearColor UnfocusedValueColor = FLinearColor(0.35f, 0.35f, 0.35f, 1.0f);
 
 private:
 	struct FSettingsRowVisuals
