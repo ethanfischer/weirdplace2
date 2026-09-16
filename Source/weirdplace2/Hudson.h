@@ -37,12 +37,15 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Hudson")
 	UWidgetComponent* DialogueWidgetComponent;
 
+	// Finds/billboards/clamps the plate; DialogueWidgetComponent mirrors its widget.
+	UPROPERTY(VisibleAnywhere, Category = "Hudson")
+	class UDialoguePlateComponent* DialoguePlate;
+
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Hudson")
 	EHudsonState CurrentState = EHudsonState::Idle;
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 
 	// Sectioned dialogue file (relative to Content/), parsed by FDialogueScript
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")

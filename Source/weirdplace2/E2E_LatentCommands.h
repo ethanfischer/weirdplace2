@@ -28,6 +28,8 @@
 #include "MenuUIActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
 #include "Tests/AutomationCommon.h"
@@ -583,9 +585,9 @@ private:
 class FTD_TeleportNearRick : public FTD_Base
 {
 public:
-	FTD_TeleportNearRick(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	FTD_TeleportNearRick(FAutomationTestBase* InTest, float InDistance = 200.f) : FTD_Base(InTest), Distance(InDistance) {}
 
-	virtual FString GetStatusText() const override { return TEXT("Teleporting near Rick"); }
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Teleporting near Rick (%.0fcm)"), Distance); }
 
 	virtual bool UpdateStep() override
 	{
@@ -593,12 +595,14 @@ public:
 		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearRick: no driver")); return true; }
 		ARick* Rick = Driver->FindRick();
 		if (!Rick) { Test->AddError(TEXT("FTD_TeleportNearRick: no Rick")); return true; }
-		if (!Driver->TeleportNearActor(Rick, 200.f))
+		if (!Driver->TeleportNearActor(Rick, Distance))
 		{
 			Test->AddError(TEXT("FTD_TeleportNearRick: teleport failed"));
 		}
 		return true;
 	}
+private:
+	float Distance;
 };
 
 class FTD_LookAtRick : public FTD_Base
@@ -4071,6 +4075,161 @@ private:
 	float TotalDegrees;
 	bool bInitialized;
 	float StartYaw;
+};
+
+// =======================================================================
+// Dialogue plate placement (DialoguePlateInView)
+// =======================================================================
+
+// Assert the labeled NPC's dialogue plate center projects inside the
+// [MinFrac, MaxFrac] viewport band on both axes.
+class FTD_AssertDialoguePlateOnScreen : public FTD_Base
+{
+public:
+	FTD_AssertDialoguePlateOnScreen(FAutomationTestBase* InTest, FString InLabel, float InMinFrac, float InMaxFrac)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), MinFrac(InMinFrac), MaxFrac(InMaxFrac) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue plate on screen"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialoguePlateOnScreen: no driver")); return true; }
+		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc, Anchor;
+		if (!Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateOnScreen: no plate screen state for '%s'"), *Label));
+			return true;
+		}
+		const bool bInside = Center.X >= MinFrac && Center.X <= MaxFrac && Center.Y >= MinFrac && Center.Y <= MaxFrac;
+		// The draw rect must also be fully on screen vertically: the text sits
+		// at the top of the rect, so a centered-but-oversized plate still clips it.
+		const FVector2D ViewSize = GEngine->GameViewport->Viewport->GetSizeXY();
+		const float HalfFrac = ViewSize.Y > 0.f ? HeightPx / (2.f * ViewSize.Y) : 0.f;
+		const float TopFrac = Center.Y - HalfFrac;
+		const float BottomFrac = Center.Y + HalfFrac;
+		const bool bRectOnScreen = TopFrac >= 0.f && BottomFrac <= 1.f;
+		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateOnScreen[%s]: center=(%.3f, %.3f) band=[%.2f, %.2f] top=%.3f bottom=%.3f -> %s"),
+			*Label, Center.X, Center.Y, MinFrac, MaxFrac, TopFrac, BottomFrac,
+			(bInside && bRectOnScreen) ? TEXT("inside") : TEXT("OUTSIDE"));
+		if (!bInside || !bRectOnScreen)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateOnScreen: '%s' plate center (%.3f, %.3f) band [%.2f, %.2f], rect top=%.3f bottom=%.3f"),
+				*Label, Center.X, Center.Y, MinFrac, MaxFrac, TopFrac, BottomFrac));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float MinFrac;
+	float MaxFrac;
+};
+
+// Assert the plate's world location is within Tolerance cm of its authored anchor.
+class FTD_AssertDialoguePlateAtAnchor : public FTD_Base
+{
+public:
+	FTD_AssertDialoguePlateAtAnchor(FAutomationTestBase* InTest, FString InLabel, float InTolerance)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue plate at anchor"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialoguePlateAtAnchor: no driver")); return true; }
+		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc = FVector::ZeroVector, Anchor = FVector::ZeroVector;
+		// Projection may legitimately fail here (plate behind the camera after a
+		// look-away); only the world/anchor pair matters, which is filled in first.
+		Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor);
+		const float Dist = FVector::Dist(WorldLoc, Anchor);
+		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateAtAnchor[%s]: world=%s anchor=%s dist=%.2fcm tol=%.2f"),
+			*Label, *WorldLoc.ToString(), *Anchor.ToString(), Dist, Tolerance);
+		if (Anchor.IsZero() || Dist > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateAtAnchor: '%s' plate is %.2fcm from anchor (tol %.2f)"),
+				*Label, Dist, Tolerance));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Tolerance;
+};
+
+// Capture the plate's projected height (px) into *OutHeight.
+class FTD_CaptureDialoguePlateHeight : public FTD_Base
+{
+public:
+	FTD_CaptureDialoguePlateHeight(FAutomationTestBase* InTest, FString InLabel, float* InOutHeight)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), OutHeight(InOutHeight) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Capturing %s dialogue plate height"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !OutHeight) { Test->AddError(TEXT("FTD_CaptureDialoguePlateHeight: missing driver/out")); return true; }
+		FVector2D Center; FVector WorldLoc, Anchor;
+		if (!Driver->GetDialoguePlateScreenState(Label, Center, *OutHeight, WorldLoc, Anchor))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_CaptureDialoguePlateHeight: no plate screen state for '%s'"), *Label));
+			return true;
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureDialoguePlateHeight: '%s' = %.1fpx"), *Label, *OutHeight);
+		return true;
+	}
+private:
+	FString Label;
+	float* OutHeight;
+};
+
+// Assert the plate's current projected height is within +/-Tolerance (fraction)
+// of the captured *Baseline.
+class FTD_AssertDialoguePlateHeightRatio : public FTD_Base
+{
+public:
+	FTD_AssertDialoguePlateHeightRatio(FAutomationTestBase* InTest, FString InLabel, float* InBaseline, float InTolerance)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Baseline(InBaseline), Tolerance(InTolerance) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue plate height ratio"), *Label);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !Baseline) { Test->AddError(TEXT("FTD_AssertDialoguePlateHeightRatio: missing driver/baseline")); return true; }
+		FVector2D Center; float HeightPx = 0.f; FVector WorldLoc, Anchor;
+		if (!Driver->GetDialoguePlateScreenState(Label, Center, HeightPx, WorldLoc, Anchor))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateHeightRatio: no plate screen state for '%s'"), *Label));
+			return true;
+		}
+		const float Ratio = *Baseline > 0.f ? HeightPx / *Baseline : 0.f;
+		UE_LOG(LogTemp, Warning, TEXT("AssertDialoguePlateHeightRatio[%s]: baseline=%.1fpx now=%.1fpx ratio=%.3f tol=%.2f"),
+			*Label, *Baseline, HeightPx, Ratio, Tolerance);
+		if (*Baseline <= 0.f || FMath::Abs(Ratio - 1.f) > Tolerance)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialoguePlateHeightRatio: '%s' height %.1fpx vs baseline %.1fpx (ratio %.3f, tol %.2f)"),
+				*Label, HeightPx, *Baseline, Ratio, Tolerance));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float* Baseline;
+	float Tolerance;
 };
 
 // =======================================================================

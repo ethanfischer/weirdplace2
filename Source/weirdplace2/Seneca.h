@@ -59,6 +59,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
 
+	// Finds/billboards/clamps the plate; DialogueWidgetComponent mirrors its widget.
+	UPROPERTY(VisibleAnywhere, Category = "Seneca|Dialogue")
+	class UDialoguePlateComponent* DialoguePlate;
+
 	// --- Quest State ---
 
 	// Called by OutsideBathroomDoor when the key is dropped

@@ -4,74 +4,36 @@
 #include "InventoryUIComponent.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
-#include "Components/ChildActorComponent.h"
+#include "DialoguePlateComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
 
 AHudson::AHudson()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
+	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
 }
 
 UUI_Dialogue* AHudson::GetDialogueWidget() const
 {
-	if (!DialogueWidgetComponent)
+	UWidgetComponent* Widget = DialoguePlate->GetWidgetComponent();
+	if (!Widget)
 	{
 		return nullptr;
 	}
-	return Cast<UUI_Dialogue>(DialogueWidgetComponent->GetUserWidgetObject());
+	return Cast<UUI_Dialogue>(Widget->GetUserWidgetObject());
 }
 
 void AHudson::BeginPlay()
 {
 	Super::BeginPlay();
 
-	TArray<UChildActorComponent*> ChildActorComponents;
-	GetComponents<UChildActorComponent>(ChildActorComponents);
-	for (UChildActorComponent* ChildActorComp : ChildActorComponents)
-	{
-		if (ChildActorComp->GetName().Contains(TEXT("WorldSpace_UI_Dialogue")))
-		{
-			if (AActor* ChildActor = ChildActorComp->GetChildActor())
-			{
-				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
-				if (DialogueWidgetComponent)
-				{
-					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
-					// alpha blending. Force Transparent blend so BackingOpacity is a
-					// true gradient -- Masked blend clips it binary at the 0.333 mask
-					// threshold, which reads as a hard step near ~0.35.
-					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
-				}
-			}
-			break;
-		}
-	}
+	DialogueWidgetComponent = DialoguePlate->GetWidgetComponent();
 
 	DialogueScript.Load(DialogueFilePath);
 	LoadDialogue(IdleSection, IdleLines);
 	LoadDialogue(BegSection, BegLines);
 	LoadDialogue(ThankYouSection, ThankYouLines);
-}
-
-void AHudson::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	// Billboard dialogue widget toward player camera
-	if (DialogueWidgetComponent)
-	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
-		{
-			FVector CamLocation;
-			FRotator CamRotation;
-			PC->GetPlayerViewPoint(CamLocation, CamRotation);
-			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
-			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
-			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
-		}
-	}
 }
 
 void AHudson::LoadDialogue(const FString& SectionName, TArray<FText>& OutLines)

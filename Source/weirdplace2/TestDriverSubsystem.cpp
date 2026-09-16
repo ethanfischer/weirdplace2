@@ -32,6 +32,7 @@
 #include "TestWaypoint.h"
 #include "UI_Dialogue.h"
 #include "DialogueWidgetProvider.h"
+#include "DialoguePlateComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -482,6 +483,52 @@ bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bo
 	}
 	bOutHasBacking = Widget->HasTextBacking();
 	bOutDialogueOpen = Widget->IsDialogueOpen();
+	return true;
+}
+
+bool UTestDriverSubsystem::GetDialoguePlateScreenState(const FString& ActorLabel, FVector2D& OutNormalizedCenter,
+	float& OutProjectedHeightPx, FVector& OutWorldLoc, FVector& OutAnchorWorldLoc) const
+{
+	AActor* Actor = FindActorByLabel(ActorLabel);
+	UDialoguePlateComponent* Plate = Actor ? Actor->FindComponentByClass<UDialoguePlateComponent>() : nullptr;
+	UWidgetComponent* Widget = Plate ? Plate->GetWidgetComponent() : nullptr;
+	if (!Widget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' has no dialogue plate widget"), *ActorLabel);
+		return false;
+	}
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (!PC)
+	{
+		return false;
+	}
+
+	OutWorldLoc = Widget->GetComponentLocation();
+	OutAnchorWorldLoc = Plate->GetAnchorWorldLocation();
+
+	int32 SizeX = 0, SizeY = 0;
+	PC->GetViewportSize(SizeX, SizeY);
+	if (SizeX <= 0 || SizeY <= 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDialoguePlateScreenState - viewport size is zero"));
+		return false;
+	}
+
+	const float HalfHeightWorld = Widget->GetDrawSize().Y * 0.5f * Widget->GetComponentScale().Z;
+	const FVector Up = Widget->GetUpVector();
+	FVector2D Center, Top, Bottom;
+	if (!PC->ProjectWorldLocationToScreen(OutWorldLoc, Center, false)
+		|| !PC->ProjectWorldLocationToScreen(OutWorldLoc + Up * HalfHeightWorld, Top, false)
+		|| !PC->ProjectWorldLocationToScreen(OutWorldLoc - Up * HalfHeightWorld, Bottom, false))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' plate projects behind the camera"), *ActorLabel);
+		return false;
+	}
+	OutNormalizedCenter = FVector2D(Center.X / SizeX, Center.Y / SizeY);
+	OutProjectedHeightPx = FMath::Abs(Bottom.Y - Top.Y);
+	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetDialoguePlateScreenState - '%s' center=(%.3f, %.3f) heightPx=%.1f world=%s anchor=%s viewport=%dx%d"),
+		*ActorLabel, OutNormalizedCenter.X, OutNormalizedCenter.Y, OutProjectedHeightPx,
+		*OutWorldLoc.ToString(), *OutAnchorWorldLoc.ToString(), SizeX, SizeY);
 	return true;
 }
 

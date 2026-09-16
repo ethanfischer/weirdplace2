@@ -326,6 +326,15 @@ public:
 	// Returns false if the actor isn't a provider or has no widget yet.
 	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
 
+	// Reads where the labeled NPC's dialogue plate sits on screen: its projected
+	// center normalized to 0..1 viewport fractions, its projected height in
+	// pixels (top-to-bottom of the widget's draw size), its world location, and
+	// the authored anchor it rests at when unclamped. World/anchor are filled in
+	// before projection. Returns false if the actor has no
+	// UDialoguePlateComponent/widget or the plate projects behind the camera.
+	bool GetDialoguePlateScreenState(const FString& ActorLabel, FVector2D& OutNormalizedCenter,
+		float& OutProjectedHeightPx, FVector& OutWorldLoc, FVector& OutAnchorWorldLoc) const;
+
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component
 	// exists — which is also the meaningful red-phase failure.

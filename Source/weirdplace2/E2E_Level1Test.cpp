@@ -1409,6 +1409,63 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// DialoguePlateInView — Rick's dialogue plate must stay inside the viewport
+// when the player stands close (post-car outside position), rest at its
+// authored anchor at conversational distance, keep a constant apparent size
+// when clamped, and fall back to the anchor when the player looks away.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_DialoguePlateInView,
+	"Weirdplace2.E2E.Level1.Regression.DialoguePlateInView",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_DialoguePlateInView::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("DialoguePlateInView")
+
+	static float FarPlateHeightPx = 0.f;
+	FarPlateHeightPx = 0.f;
+	const TCHAR* RickLabel = TEXT("BP_Rick");
+
+	// Far: conversational distance. Plate rests at its authored anchor.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureDialoguePlateHeight(this, RickLabel, &FarPlateHeightPx));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateAtAnchor(this, RickLabel, 5.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialoguePlateInView_Far")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	// Wait out the dialogue cooldown before re-interacting.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+
+	// Close: 80cm from Rick, aiming at him. Plate must be inside the safe band
+	// and keep the apparent size it had at conversational distance.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearRick(this, 80.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateOnScreen(this, RickLabel, 0.15f, 0.85f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateHeightRatio(this, RickLabel, &FarPlateHeightPx, 0.25f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialoguePlateInView_Close")));
+
+	// Look away: with Rick out of the view cone the plate must not chase the
+	// camera — it returns to the anchor.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CameraYawSweep(this, 0.5f, 120.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialoguePlateAtAnchor(this, RickLabel, 5.f));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // MoviePutBackPrompt — while inspecting a movie, a world-space prompt
 // names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
 // facing the player even as the box is rotated. Pressing the prompted key

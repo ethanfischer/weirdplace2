@@ -25,7 +25,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 
 public:
 	// Start the car ride dialogue on the player character
@@ -59,6 +58,10 @@ public:
 	// Widget component hosting the dialogue UI - auto-found by name in BeginPlay
 	UPROPERTY(BlueprintReadOnly, Category = "Rick|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
+
+	// Finds/billboards/clamps the plate; DialogueWidgetComponent mirrors its widget.
+	UPROPERTY(VisibleAnywhere, Category = "Rick|Dialogue")
+	class UDialoguePlateComponent* DialoguePlate;
 
 	// Line index parsed from [Bladder] tag in dialogue file (-1 if absent)
 	int32 BladderPulseLineIndex = INDEX_NONE;
