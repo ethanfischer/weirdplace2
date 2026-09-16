@@ -145,19 +145,9 @@ protected:
 	UFUNCTION(Exec)
 	void PeaSoupDist(float Centimeters);
 
-	// Console: per-set footstep tuning, e.g. "FootstepVol Carpet 1.25".
-	// Shorthand for editing the weird.Footstep.SetTuning cvar.
-	UFUNCTION(Exec)
-	void FootstepVol(const FString& SetName, float Multiplier);
-
-	UFUNCTION(Exec)
-	void FootstepPitch(const FString& SetName, float BasePitch);
-
-	UFUNCTION(Exec)
-	void FootstepJitter(const FString& SetName, float Jitter);
-
-	UFUNCTION(Exec)
-	void FootstepInterval(const FString& SetName, float Seconds);
+	// Per-surface footstep tuning is now individual cvars
+	// (weird.Footstep.<Surface>.Pitch/Jitter/Volume) — tune via the in-game
+	// Tunables menu, the console, or uq/MCP cvar tools.
 
 	// --- Crosshair Widget ---
 

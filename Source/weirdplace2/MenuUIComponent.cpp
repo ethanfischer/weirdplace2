@@ -225,6 +225,11 @@ void UMenuUIComponent::HandleConfirm()
 			MenuActor->SetPage(EMenuPage::Graphics);
 			MenuActor->SyncGraphicsFromCVars();
 			break;
+		case EPauseMenuItem::Tunables:
+#if !UE_BUILD_SHIPPING
+			MenuActor->SetPage(EMenuPage::Tunables);
+#endif
+			break;
 		case EPauseMenuItem::Quit:
 			if (CachedSettings)
 			{
@@ -260,6 +265,17 @@ void UMenuUIComponent::HandleConfirm()
 			break;
 		default:
 			break;
+		}
+		break;
+
+	case EMenuPage::Tunables:
+		if (MenuActor->IsTunablesResetFocused())
+		{
+			MenuActor->ResetActiveTunablesToDefaults();
+		}
+		else if (MenuActor->IsTunablesBackFocused())
+		{
+			MenuActor->SetPage(EMenuPage::Pause);
 		}
 		break;
 	}

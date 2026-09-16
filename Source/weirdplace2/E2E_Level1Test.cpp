@@ -1111,6 +1111,74 @@ bool FE2E_Level1_PauseMenu::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// Diagnostic.TunablesPage — authoring tour of the dev Tunables page: open the
+// pause menu, navigate Resume → Settings → Graphics → Tunables, confirm, and
+// screenshot the scrolling weird.* cvar list. Adjusts the focused row once in
+// each direction (net zero) to exercise AdjustTunable, then backs out.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_TunablesPage,
+	"Weirdplace2.E2E.Level1.Diagnostic.TunablesPage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_TunablesPage::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("TunablesPage")
+
+	// Open the menu — Pause page.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Pause));
+
+	// Resume → Settings → Graphics → Tunables, confirm.
+	for (int32 i = 0; i < 3; i++)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Tunables));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tunables_01_PageOpen")));
+
+	// Selection starts on the tab bar: right switches to the next system tab.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NavigateRight));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tunables_02_TabSwitched")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NavigateLeft));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+
+	// Down to the first cvar row, bump it right then left (net-ish zero).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NavigateRight));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tunables_03_AdjustedRight")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NavigateLeft));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.2f));
+
+	// Walk to the bottom of the tab's list (rows + Back).
+	for (int32 i = 0; i < 10; i++)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::NextOption));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.1f));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tunables_04_ListBottom")));
+
+	// Back to Pause, then close.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateNavAction(this, ENavInputAction::Back));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertMenuPage(this, EMenuPage::Pause));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateSettingsPress(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // PauseMenuLight — the menu/inventory UI is fully self-illuminated (emissive
 // panels/thumbnails + unlit M_UnlitText for the labels), so the player's
 // inventory RectLight is intentionally never enabled. This guards that the menu

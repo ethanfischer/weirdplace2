@@ -1,8 +1,9 @@
 ---
 name: overnight-todos
 description: >-
-  Autonomously work through the "# Claude Friendly" section of todo.md overnight
-  using red-green-refactor TDD against the project's E2E harness. At kickoff it
+  Autonomously work through the green-labeled (Claude Friendly) Todo cards on the
+  weirdplace Trello board overnight using red-green-refactor TDD against the
+  project's E2E harness. At kickoff it
   interviews you item-by-item to lock the E2E acceptance criteria for each task,
   then verifies each change with headed screenshots and leaves a NIGHTLY_REPORT.md
   handoff. Use
@@ -36,19 +37,19 @@ build, and re-consult it whenever a build or test behaves unexpectedly.
 
 This is the single human touchpoint. Get scope nailed down, then go dark.
 
-1. **Read `todo.md`** and extract the `# Claude Friendly` section — every line
-   from the `# Claude Friendly` heading down to the next `# ` heading. Top-level
-   items are `[ ]` lines; their indented `[ ]` lines are sub-tasks of that item.
-   Ignore items already marked `[x]`.
+1. **Read the Trello board** (`docs/agents/issue-tracker.md` has the board/label
+   IDs and conventions). The queue is every **green**-labeled card in the **Todo**
+   list, top of list = higher priority. A card's `desc` and checklists are its
+   sub-tasks. Ignore cards in Doing/Done.
 
-2. **If the section has no open items**, tell the user it's empty and ask whether
-   they want help with `# Needs human`, `# Needs design`, or `# Stretch goals`.
+2. **If there are no green Todo cards**, tell the user the queue is empty and ask
+   whether they want help with red (Needs human) or yellow (Needs design) cards.
    Be honest that those are categorized as *not* autonomously completable — they
    need their decisions, assets, or animation work — so an overnight run can at
    best scaffold or investigate them, not finish them. Let the user redirect.
 
-3. **If there are open items**, list them back to the user as numbered candidates
-   (top-level item + its sub-bullets), and for each give a one-line read on how
+3. **If there are open cards**, list them back to the user as numbered candidates
+   (card name + desc/checklist summary), and for each give a one-line read on how
    you'd verify it (E2E-assertable? screenshot-only? not autonomously
    verifiable?). Then **agree on scope**: which items, in what order. Set
    expectations plainly — each item is a full build + E2E + screenshot cycle, so
@@ -60,8 +61,8 @@ This is the single human touchpoint. Get scope nailed down, then go dark.
    *which* items; this step settles *what each test must prove*, and it is the heart
    of the kickoff. The acceptance criteria are **not** something you arrive with and
    ask the user to rubber-stamp — they are precisely what the interview exists to
-   pull out of them. `todo.md` lines are one-liners with no written criteria, so you
-   generate the criteria *together*, before any code.
+   pull out of them. Card names are one-liners and descs rarely contain test
+   criteria, so you generate the criteria *together*, before any code.
 
    Take **one item at a time** (a few sharp questions, lock its criteria, then the
    next — don't dump one wall of questions across all items). For each item:
@@ -129,8 +130,9 @@ on-disk DLL and `run_e2e.ps1` spawns its own headless instance, so a live editor
 only gets in the way. See `references/e2e-harness.md` for why Live Coding is not
 enough here.
 
-Then work the agreed items **one at a time**, each through the loop below. Mark
-its task `in_progress` when you start, `completed` when its E2E is green and the
+Then work the agreed items **one at a time**, each through the loop below. When
+you start an item, move its Trello card to **Doing** and mark its task
+`in_progress`; mark it `completed` when its E2E is green and the
 screenshot checks out (or `completed` with a blocked note if you had to leave it
 as WIP).
 
@@ -201,14 +203,18 @@ a single-run bisect: compare the random outcome across runs in the logs first �
 a base-commit pass may just be a lucky roll of the same pre-existing flake.
 
 ### 5. RECORD — commit the green
-Check the item off in `todo.md` (flip its `[ ]` to `[x]`, sub-bullets too), then add
-its result entry to `NIGHTLY_REPORT.md` (template below) — **mark each locked
-acceptance criterion ✅ or ❌ against the kickoff checklist**, not a vague "works,"
-so the morning read is delivered-vs-agreed. Then **commit everything for this item
-to the overnight branch** in one commit:
+First add the item's result entry to `NIGHTLY_REPORT.md` (template below) — **mark
+each locked acceptance criterion ✅ or ❌ against the kickoff checklist**, not a
+vague "works," so the morning read is delivered-vs-agreed. Then **commit everything
+for this item to the overnight branch** in one commit:
 ```
 git add -A && git commit -m "todo: <item summary> — E2E Weirdplace2.E2E.Level1.<Name> green"
 ```
+**Only after that commit succeeds** touch Trello: move the card to **Done** (tick
+its checklist items too), and add a short note to the desc if the resolution isn't
+obvious from the diff. Order matters — a card marked Done with no commit behind it
+is a lie the morning review can't detect, whereas a commit with a stale card is
+just a Trello chore. If the commit fails, fix that first; leave the card in Doing.
 This commit is a restore point: if a later item corrupts the tree you can
 `git reset --hard` back to it. The invariant that makes that safe — **the overnight
 branch tip must build and have green tests before you start the next item** — is
@@ -231,8 +237,19 @@ state:
 ```
 git add -A && git commit -m "WIP(blocked): <item-slug> — <one-line reason>"
 git branch wip/<item-slug>          # park the attempt on its own branch
+# Validate BEFORE resetting — the reset is destructive:
+test "$(git rev-parse wip/<item-slug>)" = "$(git rev-parse HEAD)"   # WIP branch points at the WIP commit
+git log --oneline -1 <last-green-commit>                             # is this really the last "todo: ... green" commit?
 git reset --hard <last-green-commit> # overnight tip is buildable + green again
 ```
+**Stop before `git reset --hard` unless all three hold:** the WIP commit
+succeeded, `wip/<item-slug>` resolves to that exact commit, and
+`<last-green-commit>` is the most recent per-item green commit on the overnight
+branch (check `git log --oneline` — it's the last `todo: … green` entry, not
+a checkpoint commit). If any check fails, do not reset: leave the tree as-is,
+record the failed check in the report, and move on without the reset. A reset
+with the wrong target or an unparked WIP commit deletes the attempt.
+Move the card back to **Todo** with the `wip/<item-slug>` branch name in its desc.
 Record `wip/<item-slug>` and the reason in the report so the morning review knows
 exactly where the partial work lives and how to resume it (`git checkout
 wip/<item-slug>`). If the blocked attempt actually still *builds and passes*, you
