@@ -285,9 +285,9 @@ void AMenuUIActor::BeginPlay()
 	UpdateFocusColors();
 
 	// Self-illuminated UI (no RectLight): unlit text material so all menu labels
-	// stay readable in dark areas. M_UnlitText tints by vertex color, so
+	// stay readable in dark areas. MI_MenuText (M_UnlitText at EmissiveScale 0.4, so menu text sits below bloom) tints by vertex color, so
 	// UpdateFocusColors' per-option highlight colors still show.
-	if (UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText")))
+	if (UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/MI_MenuText.MI_MenuText")))
 	{
 		TArray<UTextRenderComponent*> TextComps;
 		GetComponents<UTextRenderComponent>(TextComps);
@@ -298,7 +298,7 @@ void AMenuUIActor::BeginPlay()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor: M_UnlitText not found; menu text may be dark."));
+		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor: MI_MenuText not found; menu text may be dark."));
 	}
 }
 
@@ -427,8 +427,8 @@ void AMenuUIActor::RefreshTunablesTabs()
 {
 	// Grow the tab text pool if a new system appeared; reuse existing comps.
 	// These are created after BeginPlay's unlit-material pass, so apply
-	// M_UnlitText here or the tabs render lit (dark) instead of white.
-	UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText"));
+	// MI_MenuText here or the tabs render lit (dark) instead of white.
+	UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/MI_MenuText.MI_MenuText"));
 	while (TunableTabTexts.Num() < TunableSystems.Num())
 	{
 		UTextRenderComponent* TabText = NewObject<UTextRenderComponent>(this);
