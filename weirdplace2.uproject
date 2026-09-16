@@ -16,6 +16,11 @@
 			"Name": "weirdplace2DeviceProfileSelector",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit"
+		},
+		{
+			"Name": "weirdplace2Editor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
 		}
 	],
 	"Plugins": [
@@ -87,6 +92,13 @@
 		{
 			"Name": "AllToolsets",
 			"Enabled": true
+		},
+		{
+			"Name": "ToolsetRegistry",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
 		}
 	],
 	"TargetPlatforms": [

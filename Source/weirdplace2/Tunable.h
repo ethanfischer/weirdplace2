@@ -14,7 +14,8 @@
 //
 // `weird.Tunables` (or `uq cvar --dump`) lists every weird.* value; '*' marks ones
 // changed via console this session — bake those back into the Default here when
-// dialed in. Name new tunables "weird.<System>.<Name>" ("wp." is taken: World Partition).
+// dialed in. In-game (non-Shipping): Pause menu → Tunables browses and tweaks
+// all weird.* cvars. Name new tunables "weird.<System>.<Name>" ("wp." is taken: World Partition).
 // NOTE: cvar registration happens in static initializers — a NEW tunable needs a
 // full editor restart, not Live Coding. Tweaks to existing ones are always live.
 

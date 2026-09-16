@@ -4324,6 +4324,7 @@ enum class ENavInputAction : uint8
 	PreviousOption,
 	NavigateLeft,
 	NavigateRight,
+	Back,
 };
 
 // =======================================================================
@@ -4347,6 +4348,7 @@ public:
 		case ENavInputAction::PreviousOption: Name = TEXT("PreviousOption"); break;
 		case ENavInputAction::NavigateLeft:   Name = TEXT("NavigateLeft"); break;
 		case ENavInputAction::NavigateRight:  Name = TEXT("NavigateRight"); break;
+		case ENavInputAction::Back:           Name = TEXT("Back"); break;
 		}
 		return FString::Printf(TEXT("Injecting IA_%s"), Name);
 	}
@@ -4366,6 +4368,7 @@ public:
 		case ENavInputAction::PreviousOption: Action = Player->GetPreviousOptionAction(); break;
 		case ENavInputAction::NavigateLeft:   Action = Player->GetNavigateLeftAction(); break;
 		case ENavInputAction::NavigateRight:  Action = Player->GetNavigateRightAction(); break;
+		case ENavInputAction::Back:           Action = Player->GetBackAction(); break;
 		}
 		if (!Action) { Test->AddError(TEXT("FTD_SimulateNavAction: action accessor returned null")); return true; }
 

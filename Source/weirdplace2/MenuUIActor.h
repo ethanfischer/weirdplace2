@@ -11,13 +11,15 @@ class UTextRenderComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UWeirdplaceGameUserSettings;
+class IConsoleVariable;
 
 UENUM(BlueprintType)
 enum class EMenuPage : uint8
 {
 	Pause,
 	Settings,
-	Graphics
+	Graphics,
+	Tunables
 };
 
 UENUM(BlueprintType)
@@ -26,6 +28,7 @@ enum class EPauseMenuItem : uint8
 	Resume,
 	Settings,
 	Graphics,
+	Tunables, // dev-only; hidden and skipped in Shipping builds
 	Quit,
 	Count UMETA(Hidden)
 };
@@ -85,6 +88,13 @@ public:
 	// Read current sg.* cvar values into the Graphics page (call when entering it).
 	void SyncGraphicsFromCVars();
 
+	// Re-enumerate weird.* cvars and refresh the Tunables page (call when entering it).
+	void RebuildTunablesPage();
+
+	// True when the Tunables page selection sits on its Back row.
+	// Selection layout: 0 = tab bar, 1..Num = cvar rows, Num+1 = Back.
+	bool IsTunablesBackFocused() const { return SelectedTunableIndex > TunableCVars.Num(); }
+
 	// Re-apply the active DeviceProfile's cvars (the baked defaults) and refresh
 	// the Graphics page display.
 	void ResetGraphicsToDefaults();
@@ -109,6 +119,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* GraphicsPageRoot;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
+	USceneComponent* TunablesPageRoot;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Layout")
 	float BackgroundPadding = 4.0f;
@@ -137,10 +150,20 @@ private:
 		int32 SelectedIndex = 0;
 	};
 
+	// One entry per weird.* console variable, rebuilt on page entry. Raw
+	// IConsoleVariable* is safe: cvars are registered statically and never
+	// unregistered at runtime.
+	struct FTunableCVar
+	{
+		FString Name;
+		IConsoleVariable* Var = nullptr;
+	};
+
 	static constexpr int32 SettingsRowCount = static_cast<int32>(ESettingsRow::Count);
 	static constexpr int32 PauseItemCount = static_cast<int32>(EPauseMenuItem::Count);
 	static constexpr int32 GraphicsRowCount = static_cast<int32>(EGraphicsRow::Count);
 	static constexpr int32 GraphicsQualityLevels = 4; // 0=Low, 1=Medium, 2=High, 3=Epic
+	static constexpr int32 MaxVisibleTunableRows = 7;
 
 	FSettingsRowVisuals SettingsRows[SettingsRowCount];
 	FGraphicsRowVisuals GraphicsRows[GraphicsRowCount];
@@ -149,6 +172,13 @@ private:
 	EPauseMenuItem PauseSelection = EPauseMenuItem::Resume;
 	ESettingsRow SettingsSelection = ESettingsRow::GamepadSensitivity;
 	EGraphicsRow GraphicsSelection = EGraphicsRow::GlobalIllumination;
+
+	TArray<FTunableCVar> AllTunableCVars;      // every weird.* cvar
+	TArray<FTunableCVar> TunableCVars;         // the active tab's cvars
+	TArray<FString> TunableSystems;            // tab names ("CarRide", "Storm", ...)
+	int32 ActiveTunableSystem = 0;
+	int32 SelectedTunableIndex = 0; // 0 = tab bar, 1..Num = cvars, Num+1 = Back
+	int32 TunableScrollOffset = 0;
 
 	UPROPERTY()
 	UStaticMesh* PlaneMesh;
@@ -191,6 +221,34 @@ private:
 	UPROPERTY()
 	UTextRenderComponent* PauseQuitText;
 
+	// Pause page Tunables item (dev-only; hidden in Shipping)
+	UPROPERTY()
+	UTextRenderComponent* PauseTunablesText;
+
+	// Tunables page items
+	UPROPERTY()
+	UTextRenderComponent* TunablesHeaderText;
+
+	UPROPERTY()
+	UTextRenderComponent* TunablesBackText;
+
+	UPROPERTY()
+	UTextRenderComponent* TunablesHelpText;
+
+	UPROPERTY()
+	UTextRenderComponent* TunablesMoreUpText;
+
+	UPROPERTY()
+	UTextRenderComponent* TunablesMoreDownText;
+
+	// Fixed window of row texts; contents refresh as the list scrolls.
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> TunableRowTexts;
+
+	// One text per system tab, laid out horizontally under the header.
+	UPROPERTY()
+	TArray<TObjectPtr<UTextRenderComponent>> TunableTabTexts;
+
 	// Graphics page items
 	UPROPERTY()
 	UTextRenderComponent* GraphicsHeaderText;
@@ -208,6 +266,11 @@ private:
 	void BuildSettingsRow(ESettingsRow Row, float LabelZ, float ValueZ, const FString& Label);
 	void BuildGraphicsPage();
 	void BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString& Label);
+	void BuildTunablesPage();
+	void RefreshTunablesTabs();    // recreate tab texts from TunableSystems
+	void RefreshTunablesRows();    // fill TunableCVars from the active tab
+	void RefreshTunablesDisplay();
+	void AdjustTunable(int32 Dir);
 
 	// sg.* cvar name + label for a graphics row.
 	static const TCHAR* GetGraphicsCVarName(EGraphicsRow Row);

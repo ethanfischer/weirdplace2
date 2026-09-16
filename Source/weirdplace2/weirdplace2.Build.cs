@@ -8,6 +8,10 @@ public class weirdplace2 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// Flat module layout (no Public/Private split): export the module root
+		// so weirdplace2Editor can include gameplay headers.
+		PublicIncludePaths.Add(ModuleDirectory);
+
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
 			"Core",

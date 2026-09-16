@@ -23,13 +23,14 @@ static constexpr float kMouseKBValueZ     = -16.0f;
 static constexpr float kSettingsBackZ     = -24.0f;
 
 // ---------------------------------------------------------------------------
-// Pause page layout (now four items: Resume, Settings, Graphics, Quit)
+// Pause page layout (Resume, Settings, Graphics, Tunables [dev], Quit)
 // ---------------------------------------------------------------------------
 static constexpr float kPausedHeaderZ   =  18.0f;
 static constexpr float kPauseResumeZ    =   8.0f;
 static constexpr float kPauseSettingsZ  =   2.0f;
 static constexpr float kPauseGraphicsZ  =  -4.0f;
-static constexpr float kPauseQuitZ      = -10.0f;
+static constexpr float kPauseTunablesZ  = -10.0f;
+static constexpr float kPauseQuitZ      = -16.0f;
 
 // ---------------------------------------------------------------------------
 // Graphics page layout (one centered row per setting)
@@ -41,6 +42,20 @@ static constexpr float kGraphicsShadowZ =  -2.0f;
 static constexpr float kGraphicsVDZ     =  -8.0f;
 static constexpr float kGraphicsResetZ  = -16.0f;
 static constexpr float kGraphicsBackZ   = -22.0f;
+
+// ---------------------------------------------------------------------------
+// Tunables page layout (system tab bar + 7-row scrolling window of that
+// system's weird.* cvars)
+// ---------------------------------------------------------------------------
+static constexpr float kTunablesHeaderZ   =  18.0f;
+static constexpr float kTunablesTabZ      =  13.5f;
+static constexpr float kTunablesMoreUpZ   =  10.8f;
+static constexpr float kTunablesRowTopZ   =   9.0f;
+static constexpr float kTunablesRowStepZ  =   4.0f;
+static constexpr float kTunablesMoreDownZ = -16.5f;
+static constexpr float kTunablesHelpZ     = -20.5f;
+static constexpr float kTunablesBackZ     = -24.0f;
+static constexpr float kTunablesTabSpan   =  46.0f; // panel width available for tabs
 
 AMenuUIActor::AMenuUIActor()
 {
@@ -73,6 +88,9 @@ AMenuUIActor::AMenuUIActor()
 
 	GraphicsPageRoot = CreateDefaultSubobject<USceneComponent>(TEXT("GraphicsPageRoot"));
 	GraphicsPageRoot->SetupAttachment(RootSceneComponent);
+
+	TunablesPageRoot = CreateDefaultSubobject<USceneComponent>(TEXT("TunablesPageRoot"));
+	TunablesPageRoot->SetupAttachment(RootSceneComponent);
 
 	// --- Pause page items (constructor-created so they're tracked properly) ---
 	PausedHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PausedHeaderText"));
@@ -107,6 +125,17 @@ AMenuUIActor::AMenuUIActor()
 	PauseGraphicsText->SetHorizontalAlignment(EHTA_Center);
 	PauseGraphicsText->SetVerticalAlignment(EVRTA_TextCenter);
 	PauseGraphicsText->SetText(FText::FromString(TEXT("Graphics")));
+
+	PauseTunablesText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PauseTunablesText"));
+	PauseTunablesText->SetupAttachment(PausePageRoot);
+	PauseTunablesText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	PauseTunablesText->SetWorldSize(3.0f);
+	PauseTunablesText->SetHorizontalAlignment(EHTA_Center);
+	PauseTunablesText->SetVerticalAlignment(EVRTA_TextCenter);
+	PauseTunablesText->SetText(FText::FromString(TEXT("Tunables")));
+#if UE_BUILD_SHIPPING
+	PauseTunablesText->SetVisibility(false);
+#endif
 
 	PauseQuitText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("PauseQuitText"));
 	PauseQuitText->SetupAttachment(PausePageRoot);
@@ -178,6 +207,50 @@ AMenuUIActor::AMenuUIActor()
 	GraphicsBackText->SetHorizontalAlignment(EHTA_Center);
 	GraphicsBackText->SetVerticalAlignment(EVRTA_TextCenter);
 	GraphicsBackText->SetText(FText::FromString(TEXT("Back")));
+
+	// --- Tunables page fixed items ---
+	TunablesHeaderText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesHeaderText"));
+	TunablesHeaderText->SetupAttachment(TunablesPageRoot);
+	TunablesHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesHeaderText->SetWorldSize(3.5f);
+	TunablesHeaderText->SetTextRenderColor(FColor::White);
+	TunablesHeaderText->SetHorizontalAlignment(EHTA_Center);
+	TunablesHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
+	TunablesHeaderText->SetText(FText::FromString(TEXT("TUNABLES")));
+
+	TunablesBackText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesBackText"));
+	TunablesBackText->SetupAttachment(TunablesPageRoot);
+	TunablesBackText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesBackText->SetWorldSize(3.0f);
+	TunablesBackText->SetHorizontalAlignment(EHTA_Center);
+	TunablesBackText->SetVerticalAlignment(EVRTA_TextCenter);
+	TunablesBackText->SetText(FText::FromString(TEXT("Back")));
+
+	TunablesHelpText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesHelpText"));
+	TunablesHelpText->SetupAttachment(TunablesPageRoot);
+	TunablesHelpText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesHelpText->SetWorldSize(1.4f);
+	TunablesHelpText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesHelpText->SetHorizontalAlignment(EHTA_Center);
+	TunablesHelpText->SetVerticalAlignment(EVRTA_TextCenter);
+
+	TunablesMoreUpText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesMoreUpText"));
+	TunablesMoreUpText->SetupAttachment(TunablesPageRoot);
+	TunablesMoreUpText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesMoreUpText->SetWorldSize(1.6f);
+	TunablesMoreUpText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesMoreUpText->SetHorizontalAlignment(EHTA_Center);
+	TunablesMoreUpText->SetVerticalAlignment(EVRTA_TextCenter);
+	TunablesMoreUpText->SetText(FText::FromString(TEXT("^ more")));
+
+	TunablesMoreDownText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesMoreDownText"));
+	TunablesMoreDownText->SetupAttachment(TunablesPageRoot);
+	TunablesMoreDownText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesMoreDownText->SetWorldSize(1.6f);
+	TunablesMoreDownText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesMoreDownText->SetHorizontalAlignment(EHTA_Center);
+	TunablesMoreDownText->SetVerticalAlignment(EVRTA_TextCenter);
+	TunablesMoreDownText->SetText(FText::FromString(TEXT("v more")));
 }
 
 void AMenuUIActor::BeginPlay()
@@ -206,6 +279,7 @@ void AMenuUIActor::BeginPlay()
 	BuildPausePage();
 	BuildSettingsPage();
 	BuildGraphicsPage();
+	BuildTunablesPage();
 	UpdateBackgroundSize();
 	ApplyPageVisibility();
 	UpdateFocusColors();
@@ -238,7 +312,13 @@ void AMenuUIActor::BuildPausePage()
 	if (PauseResumeText)    PauseResumeText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseResumeZ));
 	if (PauseSettingsText)  PauseSettingsText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseSettingsZ));
 	if (PauseGraphicsText)  PauseGraphicsText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseGraphicsZ));
+	if (PauseTunablesText)  PauseTunablesText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseTunablesZ));
+#if UE_BUILD_SHIPPING
+	// No Tunables row: Quit takes its slot so there's no gap.
+	if (PauseQuitText)      PauseQuitText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseTunablesZ));
+#else
 	if (PauseQuitText)      PauseQuitText->SetRelativeLocation(FVector(0.0f, 0.0f, kPauseQuitZ));
+#endif
 }
 
 void AMenuUIActor::BuildGraphicsPage()
@@ -272,6 +352,238 @@ void AMenuUIActor::BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString&
 	R.SelectedIndex = CurrentValue;
 	R.RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
 		*Label, *GetGraphicsQualityLabel(CurrentValue))));
+}
+
+void AMenuUIActor::BuildTunablesPage()
+{
+	if (TunablesHeaderText)   TunablesHeaderText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesHeaderZ));
+	if (TunablesMoreUpText)   TunablesMoreUpText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesMoreUpZ));
+	if (TunablesMoreDownText) TunablesMoreDownText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesMoreDownZ));
+	if (TunablesHelpText)     TunablesHelpText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesHelpZ));
+	if (TunablesBackText)     TunablesBackText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesBackZ));
+
+	TunableRowTexts.Empty(MaxVisibleTunableRows);
+	for (int32 i = 0; i < MaxVisibleTunableRows; i++)
+	{
+		UTextRenderComponent* RowText = NewObject<UTextRenderComponent>(this);
+		RowText->SetupAttachment(TunablesPageRoot);
+		RowText->RegisterComponent();
+		RowText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+		RowText->SetWorldSize(2.0f);
+		RowText->SetTextRenderColor(FColor(200, 200, 200));
+		RowText->SetHorizontalAlignment(EHTA_Center);
+		RowText->SetVerticalAlignment(EVRTA_TextCenter);
+		RowText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesRowTopZ - i * kTunablesRowStepZ));
+		TunableRowTexts.Add(RowText);
+	}
+}
+
+// The system prefix of a tunable name: "weird.Storm.DimMultiplier" -> "Storm".
+// Names without a system segment group under "Misc".
+static FString TunableSystemOf(const FString& Name)
+{
+	FString Rest = Name;
+	Rest.RemoveFromStart(TEXT("weird."));
+	int32 DotIdx;
+	return Rest.FindChar(TEXT('.'), DotIdx) ? Rest.Left(DotIdx) : FString(TEXT("Misc"));
+}
+
+void AMenuUIActor::RebuildTunablesPage()
+{
+	AllTunableCVars.Reset();
+	IConsoleManager::Get().ForEachConsoleObjectThatStartsWith(
+		FConsoleObjectVisitor::CreateLambda([this](const TCHAR* Name, IConsoleObject* Obj)
+		{
+			IConsoleVariable* Var = Obj->AsVariable();
+			// String cvars can't be stepped and blow out the row layout — the
+			// menu is bool/int/float only; strings stay console/uq-tunable.
+			if (Var && (Var->IsVariableBool() || Var->IsVariableInt() || Var->IsVariableFloat()))
+			{
+				AllTunableCVars.Add({ Name, Var });
+			}
+		}),
+		TEXT("weird."));
+
+	if (AllTunableCVars.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor::RebuildTunablesPage - no weird.* console variables found"));
+	}
+
+	AllTunableCVars.Sort([](const FTunableCVar& A, const FTunableCVar& B) { return A.Name < B.Name; });
+
+	TunableSystems.Reset();
+	for (const FTunableCVar& T : AllTunableCVars)
+	{
+		TunableSystems.AddUnique(TunableSystemOf(T.Name));
+	}
+	ActiveTunableSystem = FMath::Clamp(ActiveTunableSystem, 0, FMath::Max(TunableSystems.Num() - 1, 0));
+
+	RefreshTunablesTabs();
+	SelectedTunableIndex = 0;
+	RefreshTunablesRows();
+}
+
+void AMenuUIActor::RefreshTunablesTabs()
+{
+	// Grow the tab text pool if a new system appeared; reuse existing comps.
+	// These are created after BeginPlay's unlit-material pass, so apply
+	// M_UnlitText here or the tabs render lit (dark) instead of white.
+	UMaterialInterface* TextMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_UnlitText.M_UnlitText"));
+	while (TunableTabTexts.Num() < TunableSystems.Num())
+	{
+		UTextRenderComponent* TabText = NewObject<UTextRenderComponent>(this);
+		TabText->SetupAttachment(TunablesPageRoot);
+		TabText->RegisterComponent();
+		TabText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+		TabText->SetWorldSize(1.8f);
+		TabText->SetHorizontalAlignment(EHTA_Center);
+		TabText->SetVerticalAlignment(EVRTA_TextCenter);
+		if (TextMat)
+		{
+			TabText->SetTextMaterial(TextMat);
+		}
+		TunableTabTexts.Add(TabText);
+	}
+
+	const int32 NumTabs = TunableSystems.Num();
+	const float Spacing = NumTabs > 0 ? kTunablesTabSpan / NumTabs : kTunablesTabSpan;
+	for (int32 i = 0; i < TunableTabTexts.Num(); i++)
+	{
+		UTextRenderComponent* TabText = TunableTabTexts[i];
+		if (!TabText)
+		{
+			continue;
+		}
+		if (i < NumTabs)
+		{
+			const float Y = (i - (NumTabs - 1) * 0.5f) * Spacing;
+			TabText->SetRelativeLocation(FVector(0.0f, Y, kTunablesTabZ));
+			TabText->SetText(FText::FromString(TunableSystems[i]));
+			TabText->SetVisibility(CurrentPage == EMenuPage::Tunables);
+		}
+		else
+		{
+			TabText->SetVisibility(false);
+		}
+	}
+}
+
+void AMenuUIActor::RefreshTunablesRows()
+{
+	TunableCVars.Reset();
+	if (TunableSystems.IsValidIndex(ActiveTunableSystem))
+	{
+		const FString& System = TunableSystems[ActiveTunableSystem];
+		for (const FTunableCVar& T : AllTunableCVars)
+		{
+			if (TunableSystemOf(T.Name) == System)
+			{
+				TunableCVars.Add(T);
+			}
+		}
+	}
+	TunableScrollOffset = 0;
+	SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex, 0, TunableCVars.Num() + 1);
+	RefreshTunablesDisplay();
+}
+
+void AMenuUIActor::RefreshTunablesDisplay()
+{
+	for (int32 i = 0; i < TunableRowTexts.Num(); i++)
+	{
+		UTextRenderComponent* RowText = TunableRowTexts[i];
+		if (!RowText)
+		{
+			continue;
+		}
+		const int32 Idx = TunableScrollOffset + i;
+		if (TunableCVars.IsValidIndex(Idx))
+		{
+			const FTunableCVar& T = TunableCVars[Idx];
+			// Leaf name only — the active tab already names the system.
+			FString DisplayName = T.Name;
+			DisplayName.RemoveFromStart(TEXT("weird."));
+			int32 DotIdx;
+			if (DisplayName.FindChar(TEXT('.'), DotIdx))
+			{
+				DisplayName.RightChopInline(DotIdx + 1);
+			}
+			RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
+				*DisplayName, *T.Var->GetString())));
+			RowText->SetVisibility(CurrentPage == EMenuPage::Tunables);
+		}
+		else
+		{
+			RowText->SetVisibility(false);
+		}
+	}
+
+	const bool bOnPage = (CurrentPage == EMenuPage::Tunables);
+	if (TunablesMoreUpText)
+	{
+		TunablesMoreUpText->SetVisibility(bOnPage && TunableScrollOffset > 0);
+	}
+	if (TunablesMoreDownText)
+	{
+		TunablesMoreDownText->SetVisibility(bOnPage && TunableScrollOffset + MaxVisibleTunableRows < TunableCVars.Num());
+	}
+
+	if (TunablesHelpText)
+	{
+		FString Help;
+		if (TunableCVars.IsValidIndex(SelectedTunableIndex - 1))
+		{
+			Help = TunableCVars[SelectedTunableIndex - 1].Var->GetHelp();
+			int32 NewlineIdx;
+			if (Help.FindChar(TEXT('\n'), NewlineIdx))
+			{
+				Help.LeftInline(NewlineIdx);
+			}
+		}
+		TunablesHelpText->SetText(FText::FromString(Help));
+	}
+
+	UpdateFocusColors();
+}
+
+void AMenuUIActor::AdjustTunable(int32 Dir)
+{
+	if (SelectedTunableIndex == 0)
+	{
+		// Tab bar focused: left/right switches system instead of adjusting.
+		if (TunableSystems.Num() > 0)
+		{
+			ActiveTunableSystem = (ActiveTunableSystem + Dir + TunableSystems.Num()) % TunableSystems.Num();
+			RefreshTunablesRows();
+		}
+		return;
+	}
+	if (!TunableCVars.IsValidIndex(SelectedTunableIndex - 1))
+	{
+		return; // Back row focused
+	}
+	IConsoleVariable* Var = TunableCVars[SelectedTunableIndex - 1].Var;
+	if (Var->IsVariableBool())
+	{
+		Var->Set(!Var->GetBool(), ECVF_SetByConsole);
+	}
+	else if (Var->IsVariableInt())
+	{
+		Var->Set(Var->GetInt() + Dir, ECVF_SetByConsole);
+	}
+	else if (Var->IsVariableFloat())
+	{
+		const float V = Var->GetFloat();
+		const float Step = FMath::Max(FMath::Abs(V) * 0.1f, 0.01f);
+		Var->Set(V + Dir * Step, ECVF_SetByConsole);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("AMenuUIActor::AdjustTunable - %s has unsupported type"),
+			*TunableCVars[SelectedTunableIndex - 1].Name);
+		return;
+	}
+	RefreshTunablesDisplay();
 }
 
 void AMenuUIActor::BuildSettingsPage()
@@ -358,6 +670,10 @@ void AMenuUIActor::ApplyPageVisibility()
 	{
 		GraphicsPageRoot->SetVisibility(CurrentPage == EMenuPage::Graphics, true);
 	}
+	if (TunablesPageRoot)
+	{
+		TunablesPageRoot->SetVisibility(CurrentPage == EMenuPage::Tunables, true);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -385,6 +701,10 @@ void AMenuUIActor::UpdateFocusColors()
 	if (PauseGraphicsText)
 	{
 		PauseGraphicsText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Graphics ? Focused : Unfocused);
+	}
+	if (PauseTunablesText)
+	{
+		PauseTunablesText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Tunables ? Focused : Unfocused);
 	}
 	if (PauseQuitText)
 	{
@@ -437,6 +757,31 @@ void AMenuUIActor::UpdateFocusColors()
 	{
 		GraphicsBackText->SetTextRenderColor(GraphicsSelection == EGraphicsRow::Back ? Focused : Unfocused);
 	}
+
+	// Tunables page: tab bar, cvar rows, Back.
+	// Active tab: yellow while the tab bar row is focused, white otherwise;
+	// inactive tabs gray.
+	FColor ActiveTab = FColor::White;
+	ActiveTab.A = Alpha;
+	for (int32 i = 0; i < TunableTabTexts.Num(); i++)
+	{
+		if (UTextRenderComponent* TabText = TunableTabTexts[i])
+		{
+			const bool bActive = (i == ActiveTunableSystem);
+			TabText->SetTextRenderColor(bActive ? (SelectedTunableIndex == 0 ? Focused : ActiveTab) : Unfocused);
+		}
+	}
+	for (int32 i = 0; i < TunableRowTexts.Num(); i++)
+	{
+		if (UTextRenderComponent* RowText = TunableRowTexts[i])
+		{
+			RowText->SetTextRenderColor(TunableScrollOffset + i == SelectedTunableIndex - 1 ? Focused : Unfocused);
+		}
+	}
+	if (TunablesBackText)
+	{
+		TunablesBackText->SetTextRenderColor(SelectedTunableIndex > TunableCVars.Num() ? Focused : Unfocused);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -457,8 +802,16 @@ void AMenuUIActor::SetPage(EMenuPage NewPage)
 	case EMenuPage::Graphics:
 		GraphicsSelection = EGraphicsRow::GlobalIllumination;
 		break;
+	case EMenuPage::Tunables:
+		SelectedTunableIndex = 0;
+		TunableScrollOffset = 0;
+		break;
 	}
 	ApplyPageVisibility();
+	if (NewPage == EMenuPage::Tunables)
+	{
+		RebuildTunablesPage(); // also fixes row visibility after the propagate above
+	}
 	UpdateFocusColors();
 }
 
@@ -469,6 +822,7 @@ int32 AMenuUIActor::GetSelectedIndex() const
 	case EMenuPage::Pause:    return static_cast<int32>(PauseSelection);
 	case EMenuPage::Settings: return static_cast<int32>(SettingsSelection);
 	case EMenuPage::Graphics: return static_cast<int32>(GraphicsSelection);
+	case EMenuPage::Tunables: return SelectedTunableIndex;
 	}
 	return 0;
 }
@@ -479,7 +833,14 @@ void AMenuUIActor::StepSelection(int32 Delta)
 	{
 	case EMenuPage::Pause:
 	{
-		const int32 NewIdx = FMath::Clamp(static_cast<int32>(PauseSelection) + Delta, 0, PauseItemCount - 1);
+		int32 NewIdx = FMath::Clamp(static_cast<int32>(PauseSelection) + Delta, 0, PauseItemCount - 1);
+#if UE_BUILD_SHIPPING
+		// Tunables is dev-only: step over it (it's never at either end of the list).
+		if (static_cast<EPauseMenuItem>(NewIdx) == EPauseMenuItem::Tunables)
+		{
+			NewIdx = FMath::Clamp(NewIdx + (Delta >= 0 ? 1 : -1), 0, PauseItemCount - 1);
+		}
+#endif
 		PauseSelection = static_cast<EPauseMenuItem>(NewIdx);
 		break;
 	}
@@ -495,12 +856,37 @@ void AMenuUIActor::StepSelection(int32 Delta)
 		GraphicsSelection = static_cast<EGraphicsRow>(NewIdx);
 		break;
 	}
+	case EMenuPage::Tunables:
+	{
+		// 0 = tab bar, 1..Num = cvar rows, Num+1 = Back.
+		SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex + Delta, 0, TunableCVars.Num() + 1);
+		const int32 Row = SelectedTunableIndex - 1;
+		if (Row >= 0 && Row < TunableCVars.Num())
+		{
+			if (Row < TunableScrollOffset)
+			{
+				TunableScrollOffset = Row;
+			}
+			else if (Row >= TunableScrollOffset + MaxVisibleTunableRows)
+			{
+				TunableScrollOffset = Row - MaxVisibleTunableRows + 1;
+			}
+		}
+		RefreshTunablesDisplay();
+		break;
+	}
 	}
 	UpdateFocusColors();
 }
 
 void AMenuUIActor::StepLeftRight(int32 Delta, UWeirdplaceGameUserSettings* Settings)
 {
+	if (CurrentPage == EMenuPage::Tunables)
+	{
+		AdjustTunable(Delta);
+		return;
+	}
+
 	if (CurrentPage == EMenuPage::Graphics)
 	{
 		if (GraphicsSelection == EGraphicsRow::Back || GraphicsSelection == EGraphicsRow::ResetToDefault)
