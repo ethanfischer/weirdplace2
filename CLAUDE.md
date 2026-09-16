@@ -13,7 +13,7 @@ powershell -ExecutionPolicy Bypass -File livecode.ps1
 ```
 
 **Full Restart Required** — header changes (UPROPERTY/UFUNCTION), new classes, changed signatures, `.Build.cs`:
-1. `taskkill //F //IM UnrealEditor.exe` (Note: `//F //IM` is Windows CMD syntax; run from a CMD terminal if Git Bash rejects the flags.)
+1. Kill the editor: `Stop-Process -Name UnrealEditor -Force` (PowerShell) or `taskkill //F //IM UnrealEditor.exe` (Bash tool; the doubled slashes are MSYS escaping).
 2. Build with `Build.bat` (see "Build commands" below; ~15s incremental)
 3. Relaunch the editor via `scripts/launch_editor.ps1` (see "Launching the editor" below) — NOT raw `UnrealEditor.exe`, which silently hangs the agent.
 
@@ -64,17 +64,16 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 - Forward declarations in headers; heavy includes only in .cpp
 - **Tunable gameplay constants**: don't hardcode magic numbers you (or the user) will want to dial in — declare them with `WP_TUNABLE_FLOAT/INT/BOOL` from `Tunable.h` (cvar prefix `weird.<System>.<Name>`), then tune live via the unreal-mcp cvar tools (EditorToolset; `uq cvar` as fallback) and bake the final value back into the default. New tunables need a full editor restart to register (Live Coding won't); tweaking existing ones is always live. See docs/dev-tooling.md.
 
-## Dev tooling — use these before writing one-off scripts
+## Dev tooling — read docs/dev-tooling.md before writing a one-off script
 
-Full reference: **docs/dev-tooling.md**. TL;DR:
-
-- **unreal-mcp (default for live-editor work)** — the Epic MCP server (`.mcp.json`, port 8000) is 8-180x faster per call than uq (persistent session vs ~780ms interpreter+discovery per CLI call; A/B'd 2026-08-07). Use it for finding/inspecting/modifying actors, properties, cvars, screenshots, PIE control. Discovery: `list_toolsets` → `describe_toolset` → `call_tool` (tool_name WITHOUT the toolset prefix, toolset_name separate; schema-"optional" params must still be passed, as null). Beyond actor/property basics it also has: **LogsToolset** (read the live editor log + set category verbosity), **AutomationTestToolset** (run automation tests in the live editor — handy for quick single-test iteration; `run_e2e.ps1` remains the gate since it's a fresh process loading the on-disk DLL), **SemanticSearchToolset** (hybrid vector+BM25 asset search), and **SlateInspectorToolset** (drive/inspect editor UI, Playwright-style).
-- **TestDriverToolset (drive the game live in PIE)** — project toolset (`Source/weirdplace2Editor/TestDriverToolset.h`, registered as `weirdplace2Editor.TestDriverToolset`) wrapping `UTestDriverSubsystem` for interactive feature-driving without writing an E2E test. **Batch, don't per-keypress**: `PressInputSequence(["Settings","NextOption","NextOption","NextOption","Interact"], 0.3)` plays a whole navigation in one async call; `WaitForActivityState`/`WaitForMenuPage` are completion-based waits (use them instead of sleeps — they error on timeout with the current state). Singles: `PressInputAction` (Interact/Inventory/Settings/NextOption/PreviousOption/NavigateLeft/NavigateRight/Back), `SetInputActionPressed` (holds), `PressKey`. Queries/movement: `GetPlayerStatus` (activity state + menu page + inventory + location; enum names match the Wait tools), `TeleportToWaypoint`, `TeleportNearActor`, `LookAtActor`. **PIE-view screenshot**: `CapturePlayerView(maxDimension)` — captures the first-person game view (diegetic UI in, editor chrome out), writes a PNG, and returns its path (overwrites `Saved/Screenshots/PlayerView.png`); Read that path. Returns a path, NOT inline base64: this MCP server serializes images as base64 in a JSON text field, which blows the tool-result token cap (~60K chars even at 320px — measured), so inline images are unusable; the engine's own `CaptureViewport`/`CaptureEditorImage` hit the same wall (and `CaptureViewport` shows the EDITOR camera, not the PIE view). Call via MCP `call_tool` (PIE start/stop: `EditorToolset.EditorAppToolset` StartPIE/StopPIE), or when MCP is down via remote exec reflection: `unreal.TestDriverToolset.get_default_object().call_method('PressInputAction', ('Settings',))` (read structs with `.export_text()`). Dial in a flow live first, then transcribe it into an E2E test — the latent commands map 1:1.
-- **`python scripts/uq.py <verb>`** — fallback when the editor/MCP is down, and still the only path for `mat-params`, `refs`, `save`, and arbitrary editor Python (`py`/`pyfile`). **Do NOT write a new `scripts/local/*.py` inspection script until you've checked MCP and uq can't do it** — and if you extend uq with a new verb instead, every future session benefits.
-- **`python scripts/logq.py`** — error/warning triage for `weirdplace2.log` (auto-scoped to the latest PIE session) and `--e2e` for `E2ETest.log`. Prefer this over hand-rolled grep.
-- **`python scripts/dq.py`** — dialogue lint (`lint`, exit 1 on error) + HTML previewer with runtime typewriter timing (`preview`). Dialogue is one sectioned file per NPC in `Content/Dialogue/` (`== Section ==`, optional `Speaker:` prefix, `[Tag]` action cues, `#` comments), parsed by the shared `FDialogueScript`. Run `dq.py lint` after any dialogue edit; format spec + rules in docs/dev-tooling.md.
-- **`python scripts/sfx.py`** — FTUS "All In One Bundle" SFX catalog: `search`/`sets` (local metadata CSV), `fetch` (browser-assisted Gumroad set download + extract), `locate`, `import` (into UE + auto-credit in CREDITS.md). When asked to add a sound, search here first. Workflow details: `.claude/skills/ftus-sfx/SKILL.md`.
-- **`python scripts/e2e_report.py`** — diff headed E2E screenshots against `Tests/E2EGoldens/`, HTML gallery in `Saved/E2EReport/report.html`; `--bless` to accept new baselines; `run_e2e.ps1 ... -Report` runs it after a suite.
+- **unreal-mcp** — default for live-editor work (actors, properties, cvars, screenshots, PIE). If it shows as failed to connect, launch the editor then run `/mcp`; don't silently fall back to uq.
+- **TestDriverToolset** (MCP) — drive the game live in PIE: batched input sequences, completion-based waits, teleports, `CapturePlayerView` for a first-person screenshot. Dial a flow in live, then transcribe it to an E2E test.
+- **`scripts/uq.py`** — fallback when the editor/MCP is down; only path for `mat-params`, `refs`, `save`, arbitrary editor Python. Extend uq with a verb rather than adding a `scripts/local/*.py` one-off.
+- **`scripts/ue_remote_exec.py --code <ABSOLUTE path> --mode ExecuteFile`** — arbitrary live-editor Python. Never `--file` (silently no-ops).
+- **`scripts/logq.py`** — log triage (`--e2e` for the test log). Prefer over hand-rolled grep.
+- **`scripts/dq.py lint`** — run after any dialogue edit (`Content/Dialogue/`).
+- **`scripts/sfx.py`** — search here first when asked to add a sound (`/ftus-sfx`).
+- **`scripts/e2e_report.py`** — screenshot goldens diff + gallery; `--bless` to accept.
 
 ## Hiding Actors at Runtime
 
@@ -108,9 +107,7 @@ grep -n "MyKeyword\|OtherKeyword" "C:/Users/ethan/repos/weirdplace2/Saved/Logs/w
 
 ## E2E Testing
 
-When implementing a new feature or modifying an existing one, ask me if you should write a new E2E test in E2E_Level1Test.cpp to verify your work. Make use of screenshots in the test so you can check your work visually in addition to logs and test passing/failing.
-
-**You are responsible for running the test yourself and verifying screenshots after writing it. Don't hand the run-and-verify step back to the user.**
+Tests live in `E2E_Level1Test.cpp`. Use screenshots in tests so you can check visually as well as via logs and pass/fail. **Run tests yourself and verify the screenshots. Don't hand the run-and-verify step back to the user.**
 
 Run E2E tests with `run_e2e.ps1` (uses a separate log file so it works while the editor is open):
 ```bash
@@ -145,34 +142,16 @@ powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Heade
 ```
 Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
 
-# Misc
-- This is gonna be a VR game. Implement features diagetically (no screenspace UI)
-- If you add 3rd party assets, make sure to give them credit in credits.md
-
-## Running Python in UE
-
-Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". You are capable of running python scripts for me.
-
-Two paths depending on what you need. (For standard live-editor operations — actors, properties, cvars, screenshots — prefer the unreal-mcp tools over Python; see Dev tooling above. The paths below are for *arbitrary* Python.)
-
-**Live editor (sees in-memory state, current viewport, selected actors, etc.)** — use Python Remote Execution. Already enabled in Project Settings → Plugins → Python. Wrapper script:
-```bash
-# File (must be an ABSOLUTE path — MODE_EXEC_FILE resolves it directly):
-python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Content/Python/your_script.py" --mode ExecuteFile
-
-# Inline:
-python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
-```
-Do not use `--file <path>` — the wrapper ships file contents, but MODE_EXEC_FILE expects a path and the run silently fails with empty output (verified on 5.7; unchanged in 5.8). Always pass the absolute path through `--code`.
-`scripts/ue_remote_exec.py` discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed. Use this for: querying the level, listing actors, deleting/moving actors, modifying selected actors. Live state — no save required.
-
-**Headless / asset-modification scripts (modify .uasset files without the user's session)** — invoke `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. Use this for: bulk asset edits, generating thumbnails, batch processing. Does NOT see the user's live editor state.
+## Misc
+- This is gonna be a VR game. Implement features diegetically (no screenspace UI)
+- If you add 3rd party assets, credit them in `CREDITS.md`
+- Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". Run them yourself (see Dev tooling).
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues are tracked on the Trello board "weirdplace" (https://trello.com/b/apYW69HZ/weirdplace) via the Trello MCP tools. Green label = agent queue. `todo.md` is deprecated. See `docs/agents/issue-tracker.md` for IDs and conventions.
+Issues are tracked on the Trello board "weirdplace" (https://trello.com/b/apYW69HZ/weirdplace) via the Trello MCP tools. Green label = agent queue. See `docs/agents/issue-tracker.md` for IDs and conventions.
 
 ### Domain docs
 
