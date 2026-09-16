@@ -508,8 +508,11 @@ void AMenuUIActor::RefreshTunablesDisplay()
 			{
 				DisplayName.RightChopInline(DotIdx + 1);
 			}
-			RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"),
-				*DisplayName, *T.Var->GetString())));
+			// Floats: trim %f noise ("0.900000" -> "0.9"); everything else verbatim.
+			const FString ValueStr = T.Var->IsVariableFloat()
+				? FString::SanitizeFloat(FMath::RoundToFloat(T.Var->GetFloat() * 1000.0f) / 1000.0f)
+				: T.Var->GetString();
+			RowText->SetText(FText::FromString(FString::Printf(TEXT("%s: %s"), *DisplayName, *ValueStr)));
 			RowText->SetVisibility(CurrentPage == EMenuPage::Tunables);
 		}
 		else
@@ -573,9 +576,14 @@ void AMenuUIActor::AdjustTunable(int32 Dir)
 	}
 	else if (Var->IsVariableFloat())
 	{
+		// Fixed step per decade (0.1 for |V| < 10, 1 for |V| < 100, ...), and the
+		// result snapped to that grid. A step relative to the current value drifts
+		// (-1 -> -0.9 -> -0.99 ...) because down/up aren't inverses.
 		const float V = Var->GetFloat();
-		const float Step = FMath::Max(FMath::Abs(V) * 0.1f, 0.01f);
-		Var->Set(V + Dir * Step, ECVF_SetByConsole);
+		const float Decade = FMath::Pow(10.0f, FMath::FloorToFloat(FMath::LogX(10.0f, FMath::Max(FMath::Abs(V), 1.0f))));
+		const float Step = Decade * 0.1f;
+		const float Snapped = FMath::RoundToFloat((V + Dir * Step) / Step) * Step;
+		Var->Set(Snapped, ECVF_SetByConsole);
 	}
 	else
 	{
