@@ -109,3 +109,4 @@ hs_err_pid*.log
 
 # Stray logs anywhere (UE logs already ignored via Saved/*)
 *.log
+.idea/.idea.weirdplace2/.idea
