@@ -269,7 +269,11 @@ void UMenuUIComponent::HandleConfirm()
 		break;
 
 	case EMenuPage::Tunables:
-		if (MenuActor->IsTunablesBackFocused())
+		if (MenuActor->IsTunablesResetFocused())
+		{
+			MenuActor->ResetActiveTunablesToDefaults();
+		}
+		else if (MenuActor->IsTunablesBackFocused())
 		{
 			MenuActor->SetPage(EMenuPage::Pause);
 		}

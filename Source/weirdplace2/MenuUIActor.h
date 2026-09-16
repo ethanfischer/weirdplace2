@@ -91,9 +91,13 @@ public:
 	// Re-enumerate weird.* cvars and refresh the Tunables page (call when entering it).
 	void RebuildTunablesPage();
 
-	// True when the Tunables page selection sits on its Back row.
-	// Selection layout: 0 = tab bar, 1..Num = cvar rows, Num+1 = Back.
-	bool IsTunablesBackFocused() const { return SelectedTunableIndex > TunableCVars.Num(); }
+	// Tunables page selection layout: 0 = tab bar, 1..Num = cvar rows,
+	// Num+1 = Reset to Default, Num+2 = Back.
+	bool IsTunablesResetFocused() const { return SelectedTunableIndex == TunableCVars.Num() + 1; }
+	bool IsTunablesBackFocused() const { return SelectedTunableIndex == TunableCVars.Num() + 2; }
+
+	// Set every cvar on the active Tunables tab back to its WP_TUNABLE default.
+	void ResetActiveTunablesToDefaults();
 
 	// Re-apply the active DeviceProfile's cvars (the baked defaults) and refresh
 	// the Graphics page display.
@@ -177,7 +181,7 @@ private:
 	TArray<FTunableCVar> TunableCVars;         // the active tab's cvars
 	TArray<FString> TunableSystems;            // tab names ("CarRide", "Storm", ...)
 	int32 ActiveTunableSystem = 0;
-	int32 SelectedTunableIndex = 0; // 0 = tab bar, 1..Num = cvars, Num+1 = Back
+	int32 SelectedTunableIndex = 0; // 0 = tab bar, 1..Num = cvars, Num+1 = Reset, Num+2 = Back
 	int32 TunableScrollOffset = 0;
 
 	UPROPERTY()
@@ -228,6 +232,9 @@ private:
 	// Tunables page items
 	UPROPERTY()
 	UTextRenderComponent* TunablesHeaderText;
+
+	UPROPERTY()
+	UTextRenderComponent* TunablesResetText;
 
 	UPROPERTY()
 	UTextRenderComponent* TunablesBackText;

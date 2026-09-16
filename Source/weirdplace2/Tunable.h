@@ -19,14 +19,25 @@
 // NOTE: cvar registration happens in static initializers — a NEW tunable needs a
 // full editor restart, not Live Coding. Tweaks to existing ones are always live.
 
+// Baked defaults by cvar name, so the in-game Tunables page can reset a system
+// back to code values. IConsoleVariable doesn't remember its initial value.
+struct FTunableDefaults
+{
+	static bool Register(const TCHAR* Name, const FString& Default);
+	static const FString* Find(const FString& Name);
+};
+
 #define WP_TUNABLE_FLOAT(Var, Name, Default, Help) \
 	static float Var = Default; \
-	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help));
+	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help)); \
+	static const bool TunableDefault_##Var = FTunableDefaults::Register(TEXT(Name), LexToString(Var));
 
 #define WP_TUNABLE_INT(Var, Name, Default, Help) \
 	static int32 Var = Default; \
-	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help));
+	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help)); \
+	static const bool TunableDefault_##Var = FTunableDefaults::Register(TEXT(Name), LexToString(Var));
 
 #define WP_TUNABLE_BOOL(Var, Name, Default, Help) \
 	static bool Var = Default; \
-	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help));
+	static FAutoConsoleVariableRef CVarRef_##Var(TEXT(Name), Var, TEXT(Help)); \
+	static const bool TunableDefault_##Var = FTunableDefaults::Register(TEXT(Name), LexToString(Var));

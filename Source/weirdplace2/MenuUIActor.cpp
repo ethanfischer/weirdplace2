@@ -1,4 +1,5 @@
 #include "MenuUIActor.h"
+#include "Tunable.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
@@ -53,8 +54,9 @@ static constexpr float kTunablesMoreUpZ   =  10.8f;
 static constexpr float kTunablesRowTopZ   =   9.0f;
 static constexpr float kTunablesRowStepZ  =   4.0f;
 static constexpr float kTunablesMoreDownZ = -16.5f;
-static constexpr float kTunablesHelpZ     = -20.5f;
-static constexpr float kTunablesBackZ     = -24.0f;
+static constexpr float kTunablesHelpZ     = -19.5f;
+static constexpr float kTunablesResetZ    = -23.0f;
+static constexpr float kTunablesBackZ     = -27.0f;
 static constexpr float kTunablesTabSpan   =  46.0f; // panel width available for tabs
 
 AMenuUIActor::AMenuUIActor()
@@ -218,6 +220,14 @@ AMenuUIActor::AMenuUIActor()
 	TunablesHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	TunablesHeaderText->SetText(FText::FromString(TEXT("TUNABLES")));
 
+	TunablesResetText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesResetText"));
+	TunablesResetText->SetupAttachment(TunablesPageRoot);
+	TunablesResetText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
+	TunablesResetText->SetWorldSize(2.5f);
+	TunablesResetText->SetHorizontalAlignment(EHTA_Center);
+	TunablesResetText->SetVerticalAlignment(EVRTA_TextCenter);
+	TunablesResetText->SetText(FText::FromString(TEXT("Reset to Default")));
+
 	TunablesBackText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("TunablesBackText"));
 	TunablesBackText->SetupAttachment(TunablesPageRoot);
 	TunablesBackText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
@@ -360,6 +370,7 @@ void AMenuUIActor::BuildTunablesPage()
 	if (TunablesMoreUpText)   TunablesMoreUpText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesMoreUpZ));
 	if (TunablesMoreDownText) TunablesMoreDownText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesMoreDownZ));
 	if (TunablesHelpText)     TunablesHelpText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesHelpZ));
+	if (TunablesResetText)    TunablesResetText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesResetZ));
 	if (TunablesBackText)     TunablesBackText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesBackZ));
 
 	TunableRowTexts.Empty(MaxVisibleTunableRows);
@@ -483,7 +494,7 @@ void AMenuUIActor::RefreshTunablesRows()
 		}
 	}
 	TunableScrollOffset = 0;
-	SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex, 0, TunableCVars.Num() + 1);
+	SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex, 0, TunableCVars.Num() + 2);
 	RefreshTunablesDisplay();
 }
 
@@ -563,7 +574,7 @@ void AMenuUIActor::AdjustTunable(int32 Dir)
 	}
 	if (!TunableCVars.IsValidIndex(SelectedTunableIndex - 1))
 	{
-		return; // Back row focused
+		return; // Reset or Back row focused
 	}
 	IConsoleVariable* Var = TunableCVars[SelectedTunableIndex - 1].Var;
 	if (Var->IsVariableBool())
@@ -786,10 +797,29 @@ void AMenuUIActor::UpdateFocusColors()
 			RowText->SetTextRenderColor(TunableScrollOffset + i == SelectedTunableIndex - 1 ? Focused : Unfocused);
 		}
 	}
+	if (TunablesResetText)
+	{
+		TunablesResetText->SetTextRenderColor(IsTunablesResetFocused() ? Focused : Unfocused);
+	}
 	if (TunablesBackText)
 	{
-		TunablesBackText->SetTextRenderColor(SelectedTunableIndex > TunableCVars.Num() ? Focused : Unfocused);
+		TunablesBackText->SetTextRenderColor(IsTunablesBackFocused() ? Focused : Unfocused);
 	}
+}
+
+void AMenuUIActor::ResetActiveTunablesToDefaults()
+{
+	for (const FTunableCVar& T : TunableCVars)
+	{
+		const FString* Default = FTunableDefaults::Find(T.Name);
+		if (!Default)
+		{
+			UE_LOG(LogTemp, Error, TEXT("AMenuUIActor::ResetActiveTunablesToDefaults - no registered default for %s"), *T.Name);
+			continue;
+		}
+		T.Var->Set(**Default, ECVF_SetByConsole);
+	}
+	RefreshTunablesDisplay();
 }
 
 // ---------------------------------------------------------------------------
@@ -867,7 +897,7 @@ void AMenuUIActor::StepSelection(int32 Delta)
 	case EMenuPage::Tunables:
 	{
 		// 0 = tab bar, 1..Num = cvar rows, Num+1 = Back.
-		SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex + Delta, 0, TunableCVars.Num() + 1);
+		SelectedTunableIndex = FMath::Clamp(SelectedTunableIndex + Delta, 0, TunableCVars.Num() + 2);
 		const int32 Row = SelectedTunableIndex - 1;
 		if (Row >= 0 && Row < TunableCVars.Num())
 		{
