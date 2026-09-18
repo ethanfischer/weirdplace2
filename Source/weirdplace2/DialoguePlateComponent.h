@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "UI_Dialogue.h"
 #include "DialoguePlateComponent.generated.h"
 
 class UWidgetComponent;
@@ -22,7 +23,14 @@ public:
 
 	UWidgetComponent* GetWidgetComponent() const { return WidgetComponent; }
 
+	// BesideHead (default): this component places the plate beside the head
+	// every tick. Centered: whoever moved the widget actor owns its position
+	// (the car ride parks it on the windshield); only the billboard runs.
+	void SetLayout(EDialoguePlateLayout InLayout);
+
 private:
 	UPROPERTY()
 	TObjectPtr<UWidgetComponent> WidgetComponent;
+
+	EDialoguePlateLayout Layout = EDialoguePlateLayout::BesideHead;
 };

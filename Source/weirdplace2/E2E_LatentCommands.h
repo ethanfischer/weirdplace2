@@ -2109,34 +2109,34 @@ private:
 // block must be wrapped in the backing plate (structure always present once
 // the widget constructs), and the dialogue widget open-state must match
 // bExpectOpen. Errors if the actor isn't a dialogue provider / has no widget.
-class FTD_AssertDialogueBacking : public FTD_Base
+class FTD_AssertDialogueTextOutline : public FTD_Base
 {
 public:
-	FTD_AssertDialogueBacking(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
+	FTD_AssertDialogueTextOutline(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
 		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), bExpectOpen(bInExpectOpen) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting %s dialogue backing (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
+		return FString::Printf(TEXT("Asserting %s dialogue text outline (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueBacking: no driver")); return true; }
-		bool bHasBacking = false, bDialogueOpen = false;
-		if (!Driver->GetDialogueBackingState(ActorLabel, bHasBacking, bDialogueOpen))
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueTextOutline: no driver")); return true; }
+		bool bHasOutline = false, bDialogueOpen = false;
+		if (!Driver->GetDialogueTextState(ActorLabel, bHasOutline, bDialogueOpen))
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s is not a dialogue provider or has no widget"), *ActorLabel));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s is not a dialogue provider or has no widget"), *ActorLabel));
 			return true;
 		}
-		if (!bHasBacking)
+		if (!bHasOutline)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue text is not wrapped in the backing plate"), *ActorLabel));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s dialogue text has no outline"), *ActorLabel));
 		}
 		if (bDialogueOpen != bExpectOpen)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue is %s, expected %s"),
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s dialogue is %s, expected %s"),
 				*ActorLabel, bDialogueOpen ? TEXT("open") : TEXT("closed"), bExpectOpen ? TEXT("open") : TEXT("closed")));
 		}
 		return true;

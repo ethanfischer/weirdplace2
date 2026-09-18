@@ -3,6 +3,7 @@
 #include "Rick.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
+#include "DialoguePlateComponent.h"
 #include "FirstPersonCharacter.h"
 #include "BladderUrgencyComponent.h"
 #include "MovieBox.h"
@@ -408,6 +409,9 @@ void UCarRideComponent::StartDialogue()
 
 	// Move dialogue widget to windshield target so player can see it from passenger seat.
 	// Cache the original relative transform so we can restore it after the ride ends.
+	// Centered layout: the plate component stops steering the widget beside
+	// Rick's head and the text reads centered on the windshield.
+	Rick->DialoguePlate->SetLayout(EDialoguePlateLayout::Centered);
 	if (DialogueWidgetTarget && Rick->DialogueWidgetComponent)
 	{
 		AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();
@@ -749,6 +753,7 @@ void UCarRideComponent::OnFadeOutComplete()
 	if (Rick)
 	{
 		// Restore widget to its original relative position and ensure it's closed
+		Rick->DialoguePlate->SetLayout(EDialoguePlateLayout::BesideHead);
 		if (Rick->DialogueWidgetComponent)
 		{
 			AActor* WidgetActor = Rick->DialogueWidgetComponent->GetOwner();

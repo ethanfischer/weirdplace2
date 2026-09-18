@@ -75,13 +75,38 @@ frame), `FTD_AssertDistanceToActor`, `FTD_AssertPendingDialogueResume`;
 driver `GetDistance2DToActor` / `AddWalkInput` / `HasPendingDialogueResume`.
 The DialoguePlateInView test, its primitives and goldens are removed.
 
+## Round 3 (2026-09-18) — car ride fixed, backing plate replaced by outline
+
+- **Car ride restored.** `UDialoguePlateComponent::SetLayout` has two modes.
+  `BesideHead` (default) steers the plate beside the head each tick with a
+  (0, 0.5) pivot. `Centered` (the ride) leaves the widget where the ride parks
+  it, pivot (0.5, 0.5), text top-center anchored at the authored offset with the
+  original 700px wrap, centered justification, and no brightness tint (the ride
+  authored its own dark text colour). `CarRideComponent` switches modes at ride
+  start/end. Two engine gotchas bit here: `SetPivot` only writes the field, so
+  the proxy needs `MarkRenderStateDirty`; and the authored top offset must be
+  scaled by the render-scale factor.
+  `Diagnostic.CarRideDialogue` screenshots the windshield line
+  (`E2E_CarRideDialogue_Line1.png`) — it waits out the section's `[Pause 85]`,
+  so it takes ~2.5 min.
+- **Backing rectangle gone.** `UI_Dialogue` no longer wraps Text in a UBorder;
+  the Text block gets a fresh auto-size canvas slot and a black font outline
+  (`weird.Dialogue.OutlineSize` 2 authored px). The Backing* UPROPERTYs and the
+  feather-material path are removed; `M_DialogueBackingFeather` is now unused
+  (asset left in place — delete when convenient).
+- **Less glow.** Rather than a new material asset, the widget's existing
+  `TintColorAndOpacity` material parameter is set from
+  `weird.DialoguePlate.Brightness` (0.45) — the engine pass-through material
+  already multiplies emissive by it, so a custom material would have added an
+  asset for no gain. Tune live if 0.45 reads too dim.
+- Test rename: `SenecaTextBacking` → `SenecaTextOutline`
+  (`FTD_AssertDialogueTextOutline`, driver `GetDialogueTextState`).
+- One flake seen: `SenecaTextOutline` missed its interact once on the first run
+  right after a build (state stayed FreeRoaming); passed on rerun and in the
+  full suite.
+
 ## Things to check / decide in the morning
 
-- **Car ride plate**: the ride moves the widget child actor to the windshield
-  target and restores its relative transform afterwards. The plate is now
-  left-anchored and shifted 20cm camera-right of that target, so the windshield
-  text sits slightly differently than before. HappyPath doesn't take the ride;
-  worth one manual ride.
 - **Personal-space radius vs level geometry**: Seneca behind the counter and
   Hudson weren't checked by eye. If a 100cm capsule pokes through a counter the
   player could get pinned; `weird.Npc.PersonalSpaceRadius` is live-tunable but

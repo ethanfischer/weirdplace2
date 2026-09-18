@@ -467,7 +467,7 @@ bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& Ou
 	return true;
 }
 
-bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const
+bool UTestDriverSubsystem::GetDialogueTextState(const FString& ActorLabel, bool& bOutHasOutline, bool& bOutDialogueOpen) const
 {
 	AActor* Actor = FindActorByLabel(ActorLabel);
 	IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(Actor);
@@ -480,7 +480,7 @@ bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bo
 	{
 		return false;
 	}
-	bOutHasBacking = Widget->HasTextBacking();
+	bOutHasOutline = Widget->HasTextOutline();
 	bOutDialogueOpen = Widget->IsDialogueOpen();
 	return true;
 }

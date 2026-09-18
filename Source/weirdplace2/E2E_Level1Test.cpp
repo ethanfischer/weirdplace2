@@ -1478,7 +1478,7 @@ bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(-1.f, 0.f), 3.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(this, RickLabel, 300.f, 5000.f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActivityState(this, EPlayerActivityState::FreeRoaming));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, RickLabel, /*bExpectOpen*/ false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, RickLabel, /*bExpectOpen*/ false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPendingDialogueResume(this, RickLabel, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Frozen")));
 
@@ -1974,25 +1974,24 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// SenecaTextBacking — a dark translucent plate sits behind the dialogue text
-// so it stays legible against bright backgrounds (the original complaint:
-// text washed out when a light sits behind Seneca). The plate now lives
-// INSIDE the shared UUI_Dialogue widget (a UBorder wrapping the Text block),
-// so it auto-hugs the text and covers Seneca, Rick and Hudson at once. The
-// widget itself is collapsed whenever no dialogue is open.
+// SenecaTextOutline — dialogue text carries a black outline so it stays
+// legible against bright backgrounds (the original complaint: text washed
+// out when a light sits behind Seneca). The style is applied inside the
+// shared UUI_Dialogue widget, so it covers Seneca, Rick and Hudson at once.
+// The widget itself is collapsed whenever no dialogue is open.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_SenecaTextBacking,
-	"Weirdplace2.E2E.Level1.Regression.SenecaTextBacking",
+	FE2E_Level1_SenecaTextOutline,
+	"Weirdplace2.E2E.Level1.Regression.SenecaTextOutline",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
+bool FE2E_Level1_SenecaTextOutline::RunTest(const FString& Parameters)
 {
-	E2E_TEST_PREAMBLE("SenecaTextBacking")
+	E2E_TEST_PREAMBLE("SenecaTextOutline")
 
-	// No dialogue: the backing plate exists (text wrapped) but the widget is closed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+	// No dialogue: the outline is set up but the widget is closed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), false));
 
 	// Start Seneca's dialogue.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
@@ -2002,14 +2001,14 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
-	// Dialogue open: text still wrapped in the plate, widget now visible.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), true));
+	// Dialogue open: outline still there, widget now visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_01_Dialogue")));
 
 	// Finish the dialogue; the widget collapses again.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -2225,6 +2224,59 @@ bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.CarRideDialogue — screenshot Rick's windshield dialogue plate
+// during the ride (Centered plate layout) for eyeballing placement/legibility.
+// =======================================================================
+
+// Log where Rick's plate actually is during the ride, relative to the camera.
+class FTD_LogRickPlate : public FTD_Base
+{
+public:
+	FTD_LogRickPlate(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Logging Rick plate transform"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		ARick* Rick = Driver ? Driver->FindRick() : nullptr;
+		UWidgetComponent* Widget = Rick ? Rick->DialogueWidgetComponent : nullptr;
+		APlayerController* PC = Driver ? Driver->GetWorld()->GetFirstPlayerController() : nullptr;
+		if (!Widget || !PC) { Test->AddError(TEXT("FTD_LogRickPlate: no widget/PC")); return true; }
+		FVector CamLoc; FRotator CamRot; PC->GetPlayerViewPoint(CamLoc, CamRot);
+		const FVector Local = CamRot.UnrotateVector(Widget->GetComponentLocation() - CamLoc);
+		UE_LOG(LogTemp, Warning, TEXT("RickPlate: world=%s parent=%s rel=%s pivot=%s draw=%s scale=%s cam=%s rot=%s camLocal(fwd,right,up)=%s"),
+			*Widget->GetComponentLocation().ToString(), *Widget->GetAttachParent()->GetComponentLocation().ToString(),
+			*Widget->GetRelativeLocation().ToString(), *Widget->GetPivot().ToString(), *Widget->GetDrawSize().ToString(),
+			*Widget->GetComponentScale().ToString(), *CamLoc.ToString(), *CamRot.ToString(), *Local.ToString());
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_CarRideDialogue,
+	"Weirdplace2.E2E.Level1.Diagnostic.CarRideDialogue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_CarRideDialogue::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideDialogue")
+
+	// The ride opens on a 3s black hold + 30s fade-in; shorten the fade so the
+	// shot isn't black.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("weird.CarRide.StartFadeIn 1")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue, 15.0));
+	// The CarRide section opens with [Pause 85]; wait it out plus the typewriter.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(92.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LogRickPlate(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDialogue_Line1")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

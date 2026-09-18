@@ -12,6 +12,10 @@ WP_TUNABLE_FLOAT(GDialoguePlateOffsetRight, "weird.DialoguePlate.OffsetRight", 2
 	"Sideways offset (cm, camera right) of the dialogue plate's left edge from the head anchor.");
 WP_TUNABLE_FLOAT(GDialoguePlateOffsetUp, "weird.DialoguePlate.OffsetUp", 170.f,
 	"Height (cm above the NPC root) of the dialogue plate's vertical center.");
+// Unlit white text at full emissive blooms into a glow; the widget material's
+// tint scales it down.
+WP_TUNABLE_FLOAT(GDialoguePlateBrightness, "weird.DialoguePlate.Brightness", 0.45f,
+	"Emissive multiplier (0..1) for the dialogue plate; lower = less bloom glow.");
 
 UDialoguePlateComponent::UDialoguePlateComponent()
 {
@@ -53,7 +57,7 @@ void UDialoguePlateComponent::BeginPlay()
 	}
 
 	// A semi-transparent dialogue backing plate (UUI_Dialogue) needs alpha
-	// blending. Force Transparent blend so BackingOpacity is a true gradient --
+	// blending. Force Transparent blend so text alpha is a true gradient --
 	// Masked blend clips it binary at the 0.333 mask threshold, which reads as
 	// a hard step near ~0.35.
 	WidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
@@ -65,7 +69,33 @@ void UDialoguePlateComponent::BeginPlay()
 	const float RS = UUI_Dialogue::GetRenderScale();
 	WidgetComponent->SetDrawSize(WidgetComponent->GetDrawSize() * RS);
 	WidgetComponent->SetRelativeScale3D(WidgetComponent->GetRelativeScale3D() / RS);
-	WidgetComponent->SetPivot(FVector2D(0.f, 0.5f));
+	SetLayout(EDialoguePlateLayout::BesideHead);
+}
+
+void UDialoguePlateComponent::SetLayout(EDialoguePlateLayout InLayout)
+{
+	Layout = InLayout;
+	if (!WidgetComponent)
+	{
+		return;
+	}
+	// SetPivot only writes the field; the scene proxy reads it on (re)creation.
+	WidgetComponent->SetPivot(Layout == EDialoguePlateLayout::BesideHead ? FVector2D(0.f, 0.5f) : FVector2D(0.5f, 0.5f));
+	WidgetComponent->MarkRenderStateDirty();
+	// The car ride authored its own text colour for its lighting; only the
+	// beside-head plate gets the anti-bloom tint.
+	const float Tint = Layout == EDialoguePlateLayout::BesideHead ? GDialoguePlateBrightness : 1.f;
+	WidgetComponent->SetTintColorAndOpacity(FLinearColor(Tint, Tint, Tint, 1.f));
+	if (Layout == EDialoguePlateLayout::Centered)
+	{
+		// Drop the beside-head side step so the plate sits exactly where its
+		// owner parks the child actor.
+		WidgetComponent->SetRelativeLocation(FVector::ZeroVector);
+	}
+	if (UUI_Dialogue* Dialogue = Cast<UUI_Dialogue>(WidgetComponent->GetUserWidgetObject()))
+	{
+		Dialogue->SetPlateLayout(Layout);
+	}
 }
 
 void UDialoguePlateComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -82,11 +112,16 @@ void UDialoguePlateComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	FRotator CamRotation;
 	PC->GetPlayerViewPoint(CamLocation, CamRotation);
 
-	// The attach parent (the child actor root) is the head anchor; step sideways
-	// in camera space so the plate's left edge clears the face from any angle.
-	const FVector CamRight = FRotationMatrix(CamRotation).GetUnitAxis(EAxis::Y);
-	const FVector WidgetLocation = WidgetComponent->GetAttachParent()->GetComponentLocation() + CamRight * GDialoguePlateOffsetRight;
-	WidgetComponent->SetWorldLocation(WidgetLocation);
+	// BesideHead: the attach parent (the child actor root) is the head anchor;
+	// step sideways in camera space so the plate's left edge clears the face
+	// from any angle. Centered: leave the widget where its owner parked it.
+	FVector WidgetLocation = WidgetComponent->GetComponentLocation();
+	if (Layout == EDialoguePlateLayout::BesideHead)
+	{
+		const FVector CamRight = FRotationMatrix(CamRotation).GetUnitAxis(EAxis::Y);
+		WidgetLocation = WidgetComponent->GetAttachParent()->GetComponentLocation() + CamRight * GDialoguePlateOffsetRight;
+		WidgetComponent->SetWorldLocation(WidgetLocation);
+	}
 
 	// Billboard toward the camera.
 	WidgetComponent->SetWorldRotation((CamLocation - WidgetLocation).Rotation());

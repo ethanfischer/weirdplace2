@@ -320,11 +320,11 @@ public:
 	// Fstop / focal distance. Returns false if no player camera exists.
 	bool GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const;
 
-	// Reads the in-widget dialogue text-backing state off the labeled actor's
-	// dialogue widget (any IDialogueWidgetProvider): whether the Text block is
-	// wrapped in the backing plate, and whether the dialogue widget is open.
-	// Returns false if the actor isn't a provider or has no widget yet.
-	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
+	// Reads the dialogue text style off the labeled actor's dialogue widget
+	// (any IDialogueWidgetProvider): whether the Text block carries its black
+	// outline, and whether the dialogue widget is open. Returns false if the
+	// actor isn't a provider or has no widget yet.
+	bool GetDialogueTextState(const FString& ActorLabel, bool& bOutHasOutline, bool& bOutDialogueOpen) const;
 
 	// Horizontal distance (cm) from the player to the labeled actor's root.
 	// Returns false if no such actor.
