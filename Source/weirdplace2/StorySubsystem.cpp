@@ -269,6 +269,11 @@ void UStorySubsystem::SetAutoSkipBeat(const FString& BeatName)
 void UStorySubsystem::ApplyAutoSkip()
 {
 	const FString Beat = GetAutoSkipBeat();
+	if (Beat.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
+	{
+		// Car-ride stages are applied by UCarRideComponent once the ride starts
+		return;
+	}
 	EStoryFlag Target;
 	if (!ResolveBeat(Beat, Target))
 	{

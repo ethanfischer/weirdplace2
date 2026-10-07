@@ -17,6 +17,7 @@
 #include "Components/AudioComponent.h"
 #include "EngineUtils.h"
 #include "Tunable.h"
+#include "StorySubsystem.h"
 #include "UObject/UObjectIterator.h"
 
 #if WITH_EDITOR
@@ -402,6 +403,18 @@ void UCarRideComponent::StartRide()
 		false
 	);
 
+	// Dev: a saved `AutoSkip Car<Stage>` applies now that the ride is running
+	// (story-beat AutoSkips are applied by UStorySubsystem instead).
+	const FString AutoSkip = UStorySubsystem::GetAutoSkipBeat();
+	if (!GIsAutomationTesting && AutoSkip.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
+	{
+		const FName Stage(*AutoSkip.Mid(3));
+		SkipTo(Stage);
+		const FString Msg = FString::Printf(TEXT("AutoSkip: skipped to 'Car%s' (type `AutoSkip clear` to disable)"), *Stage.ToString());
+		UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
+		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
+	}
+
 }
 
 void UCarRideComponent::RevealRideStart(float FadeSeconds)
@@ -422,6 +435,17 @@ void UCarRideComponent::RevealRideStart(float FadeSeconds)
 			SilencedAmbients[i]->FadeIn(FadeSeconds, 1.0f);
 		}
 	}
+}
+
+const TArray<FName>& UCarRideComponent::GetSkipStages()
+{
+	static const TArray<FName> Stages = { FName("Dialogue"), FName("LastLine"), FName("Drive") };
+	return Stages;
+}
+
+bool UCarRideComponent::IsSkipStage(FName Stage)
+{
+	return GetSkipStages().Contains(Stage);
 }
 
 void UCarRideComponent::SkipTo(FName Stage)

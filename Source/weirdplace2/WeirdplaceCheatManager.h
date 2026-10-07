@@ -29,7 +29,9 @@ public:
 
 	// Dev: persist a beat that auto-applies at the start of every play session
 	// (saved to the per-user GameUserSettings ini; automation runs ignore it).
-	//   `AutoSkip Telephone` — set (same beat names/aliases as SkipTo)
+	//   `AutoSkip Telephone` — set (same beat names/aliases as SkipTo, incl. Car<Stage>)
+	// RULE: every SkipTo target must also work through AutoSkip — they are one
+	// system. Adding a beat/stage means wiring both (and the no-arg listing).
 	//   `AutoSkip`           — show the current setting
 	//   `AutoSkip clear`     — remove it (also: off / none)
 	UFUNCTION(Exec) void AutoSkip(const FString& BeatName);

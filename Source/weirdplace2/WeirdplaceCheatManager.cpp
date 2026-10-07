@@ -39,9 +39,9 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
 			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
 		}
-		for (const TCHAR* Stage : { TEXT("CarDialogue"), TEXT("CarLastLine"), TEXT("CarDrive") })
+		for (const FName& Stage : UCarRideComponent::GetSkipStages())
 		{
-			const FString Line = FString::Printf(TEXT("  SkipTo %s"), Stage);
+			const FString Line = FString::Printf(TEXT("  SkipTo Car%s"), *Stage.ToString());
 			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
 			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
 		}
@@ -52,6 +52,11 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 	if (BeatName.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
 	{
 		const FName Stage(*BeatName.Mid(3));
+		if (!UCarRideComponent::IsSkipStage(Stage))
+		{
+			UE_LOG(LogTemp, Warning, TEXT("SkipTo - unknown car-ride stage '%s'. Try: CarDialogue | CarLastLine | CarDrive"), *BeatName);
+			return;
+		}
 		for (TActorIterator<AActor> It(World); It; ++It)
 		{
 			if (UCarRideComponent* Ride = It->FindComponentByClass<UCarRideComponent>())
@@ -102,10 +107,27 @@ void UWeirdplaceCheatManager::AutoSkip(const FString& BeatName)
 		return;
 	}
 
+	// Car-ride stages persist as "Car<Stage>" and are applied by the ride
+	// component when the ride starts.
+	if (BeatName.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
+	{
+		const FName Stage(*BeatName.Mid(3));
+		const int32 Index = UCarRideComponent::GetSkipStages().IndexOfByKey(Stage);
+		if (Index == INDEX_NONE)
+		{
+			Show(FString::Printf(TEXT("AutoSkip - unknown car-ride stage '%s'. Try: CarDialogue | CarLastLine | CarDrive"), *BeatName), FColor::Yellow);
+			return;
+		}
+		const FString Canonical = TEXT("Car") + UCarRideComponent::GetSkipStages()[Index].ToString();
+		UStorySubsystem::SetAutoSkipBeat(Canonical);
+		Show(FString::Printf(TEXT("AutoSkip: every car ride will now skip to '%s'. `AutoSkip clear` to disable."), *Canonical));
+		return;
+	}
+
 	EStoryFlag Target;
 	if (!UStorySubsystem::ResolveBeat(BeatName, Target))
 	{
-		Show(FString::Printf(TEXT("AutoSkip - unknown beat '%s'. Try: KeyBroke | Tornado | Telephone"), *BeatName), FColor::Yellow);
+		Show(FString::Printf(TEXT("AutoSkip - unknown beat '%s'. Try: KeyBroke | Tornado | Telephone | Car<Stage>"), *BeatName), FColor::Yellow);
 		return;
 	}
 
