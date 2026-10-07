@@ -1034,7 +1034,7 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 
 // --- Car ride ---
 
-static UCarRideComponent* FindCarRideComponent(UWorld* World)
+static UCarRideComponent* FindCarRideComponentInWorld(UWorld* World)
 {
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -1048,7 +1048,7 @@ static UCarRideComponent* FindCarRideComponent(UWorld* World)
 
 bool UTestDriverSubsystem::ForceStartCarRide()
 {
-	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	UCarRideComponent* Comp = FindCarRideComponentInWorld(GetWorld());
 	if (!Comp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceStartCarRide - no CarRideComponent in world"));
@@ -1060,7 +1060,7 @@ bool UTestDriverSubsystem::ForceStartCarRide()
 
 bool UTestDriverSubsystem::EndCarRideNow()
 {
-	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	UCarRideComponent* Comp = FindCarRideComponentInWorld(GetWorld());
 	if (!Comp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::EndCarRideNow - no CarRideComponent in world"));
@@ -1068,6 +1068,11 @@ bool UTestDriverSubsystem::EndCarRideNow()
 	}
 	Comp->ForceEndRide();
 	return true;
+}
+
+UCarRideComponent* UTestDriverSubsystem::FindCarRideComponent() const
+{
+	return FindCarRideComponentInWorld(GetWorld());
 }
 
 AActor* UTestDriverSubsystem::FindCarRideConveyor() const

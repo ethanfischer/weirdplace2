@@ -42,6 +42,10 @@ public:
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
 
+	// Where AppearOutside parks the car (OutsidePositionTarget + CarActorOffset,
+	// facing OutsidePositionTarget). Returns false if the target is unassigned.
+	bool GetCarParkingTransform(FTransform& OutTransform) const;
+
 	// Storm beat: remove Rick from the world until a much-later beat brings him
 	// back. MetaHuman grooms break if root visibility is toggled, so this
 	// teleports him far below the level and disables collision instead.

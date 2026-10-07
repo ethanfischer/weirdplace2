@@ -200,6 +200,16 @@ void ARick::ReturnFromStorm()
 	UE_LOG(LogTemp, Log, TEXT("Rick: returned from the storm stash"));
 }
 
+bool ARick::GetCarParkingTransform(FTransform& OutTransform) const
+{
+	if (!OutsidePositionTarget)
+	{
+		return false;
+	}
+	OutTransform = FTransform(OutsidePositionTarget->GetActorRotation(), OutsidePositionTarget->GetActorLocation() + CarActorOffset);
+	return true;
+}
+
 void ARick::AppearOutside()
 {
 	if (!OutsidePositionTarget)

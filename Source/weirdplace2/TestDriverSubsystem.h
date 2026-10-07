@@ -405,6 +405,9 @@ public:
 	// or null if not spawned.
 	AActor* FindCarRideConveyor() const;
 
+	// Returns the level's CarRideComponent (the car actor's), or null.
+	class UCarRideComponent* FindCarRideComponent() const;
+
 	// --- Sensitivity / look diagnostics ---
 
 	// Directly write the gamepad look sensitivity (clamps + snaps internally).

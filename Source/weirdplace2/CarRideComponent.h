@@ -49,15 +49,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float DialogueStartDelay = 3.0f;
 
-	// Ride end: fade to black, hold black (teleport happens under it), fade back in
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float RideEndFadeOutDuration = 3.0f;
+	// --- Ride end: the car really drives to the gas station and pulls over ---
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float RideEndBlackHoldDuration = 2.0f;
+	// Radius of the quarter-turn into Rick's parking spot (cm). The approach
+	// lane is laid out so a straight run + this turn lands exactly on the spot.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float DriveTurnRadius = 1500.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float RideEndFadeInDuration = 3.0f;
+	// Constant-deceleration braking starts this far (cm) before the turn begins
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float DriveBrakingDistance = 3000.0f;
+
+	// Floor on the braking speed so the last metres don't crawl forever (cm/s)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float DriveMinSpeed = 150.0f;
+
+	// Gas-station lights ramp from 0 to authored intensity over this long after
+	// the station is unhidden at drive start (it's ~400m out in the fog then)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float StationLightRampDuration = 6.0f;
+
+	// Sit in the parked car this long before getting out
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float ParkedHoldDuration = 1.2f;
+
+	// Getting out of the car is a quick dip to black (not the old long fade)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float ExitDipOutDuration = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float ExitDipInDuration = 0.8f;
+
+	// Level actors with this tag (e.g. the headlight beam meshes) ride along
+	// with the car; Rick always does.
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Drive")
+	FName RiderActorTag = FName("CarRideAttached");
 
 	// Fade in from black when the ride starts
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
@@ -180,7 +206,54 @@ public:
 private:
 	void SpawnScenery();
 	void DestroyScenery();
-	void TickScenery(float DeltaTime);
+	// Advance the conveyor by Step cm (props slide backward, recycle forward)
+	void TickScenery(float Step);
+	// Hand the props over to the world (they stop recycling and stay put) —
+	// done when the car starts its turn so they don't swing with it
+	void FreezeSceneryProps();
+
+	// --- Drive (ride end) ---
+	void BeginDrive();
+	void TickDrive(float DeltaTime);
+	// Position + unit tangent (XY) at distance S along the approach path
+	void EvaluateDrivePath(float S, FVector& OutLocation, FVector2D& OutTangent) const;
+	// Place the car and re-pose everything riding in it
+	void PlaceCar(const FTransform& CarTransform);
+	void OnCarParked();
+	void ExitCar();
+	void OnExitDipComplete();
+
+	bool bDriving = false;
+	float DriveS = 0.0f;              // distance travelled along the path (cm)
+	float DriveStraightLength = 0.0f; // Start -> P0
+	float DriveCurveLength = 0.0f;    // P0 -> P2 (quadratic bezier via P1)
+	FVector2D DriveStart = FVector2D::ZeroVector;
+	FVector2D DriveDir = FVector2D::ZeroVector; // approach direction (unit)
+	FVector2D DriveP0 = FVector2D::ZeroVector;
+	FVector2D DriveP1 = FVector2D::ZeroVector;
+	FVector2D DriveP2 = FVector2D::ZeroVector;
+	float DriveStartZ = 0.0f;
+	float DriveEndZ = 0.0f;
+	float CarYawFromTangent = 0.0f;   // car yaw minus travel-direction yaw
+	TArray<float> DriveCurveArcTable;  // cumulative length at uniform t samples
+	// Recycled props that would land past this path distance are hidden —
+	// they'd otherwise stand in the gas station forecourt
+	float DriveSceneryEndS = 0.0f;
+	bool bSceneryFrozen = false;
+
+	// Actors riding in the car (Rick + RiderActorTag), posed relative to it
+	UPROPERTY()
+	TArray<AActor*> Riders;
+	TArray<FTransform> RiderRelativeTransforms;
+	FTransform PlayerRelativeTransform;
+	bool bPlayerRiding = false;
+
+	// Gas-station lights ramping in over StationLightRampDuration
+	UPROPERTY()
+	TArray<class ULightComponent*> StationLights;
+	TArray<float> StationLightIntensities;
+	float LightRampElapsed = 0.0f;
+	bool bLightRampActive = false;
 
 	UPROPERTY()
 	AActor* SceneryConveyor = nullptr;
@@ -202,7 +275,6 @@ private:
 	void SkipRide();
 	void StartDialogue();
 	void EndRide();
-	void OnFadeOutComplete();
 
 	UFUNCTION()
 	void OnDialogueEnded();
@@ -228,7 +300,8 @@ private:
 
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;
-	FTimerHandle FadeOutTimerHandle;
+	FTimerHandle ParkedHoldTimerHandle;
+	FTimerHandle ExitDipTimerHandle;
 	FTimerHandle BladderPulseTimerHandle;
 	FTimerHandle GlanceTimerHandle;
 	FTimerHandle RideStartFadeTimerHandle;

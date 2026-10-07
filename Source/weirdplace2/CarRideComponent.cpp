@@ -8,6 +8,7 @@
 #include "BladderUrgencyComponent.h"
 #include "MovieBox.h"
 #include "Camera/CameraComponent.h"
+#include "Components/LightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -31,7 +32,7 @@ WP_TUNABLE_FLOAT(GCarRideSpeedOverride, "weird.CarRide.Speed", 0.0f,
 	"Override car-ride scenery speed in cm/s (0 = use component RideSpeed).");
 
 WP_TUNABLE_FLOAT(GCarRidePostDialogueRideTime, "weird.CarRide.PostDialogueRideTime", 3.0f,
-	"Seconds between Rick's last car line and the fade-out to the gas station.");
+	"Seconds between Rick's last car line and the car starting its drive to the gas station.");
 
 WP_TUNABLE_FLOAT(GCarRideStartBlackHoldOverride, "weird.CarRide.StartBlackHold", 0.0f,
 	"Override ride-start pure-black hold in seconds (0 = use component RideStartBlackHoldDuration). Takes effect on next PIE.");
@@ -45,14 +46,11 @@ WP_TUNABLE_FLOAT(GCarRideMusicFadeDelayOverride, "weird.CarRide.MusicFadeDelay",
 WP_TUNABLE_FLOAT(GCarRideMusicFadeInOverride, "weird.CarRide.MusicFadeIn", 0.0f,
 	"Override music fade-in duration in seconds (0 = use component MusicFadeInDuration). Takes effect on next PIE.");
 
-WP_TUNABLE_FLOAT(GCarRideEndFadeOutOverride, "weird.CarRide.EndFadeOut", 0.0f,
-	"Override ride-end fade-to-black duration in seconds (0 = use component RideEndFadeOutDuration).");
+WP_TUNABLE_FLOAT(GCarRideExitDipOutOverride, "weird.CarRide.ExitDipOut", 0.0f,
+	"Override the dip-to-black when getting out of the parked car, in seconds (0 = use component ExitDipOutDuration).");
 
-WP_TUNABLE_FLOAT(GCarRideEndBlackHoldOverride, "weird.CarRide.EndBlackHold", -1.0f,
-	"Override ride-end pure-black hold in seconds (<0 = use component RideEndBlackHoldDuration).");
-
-WP_TUNABLE_FLOAT(GCarRideEndFadeInOverride, "weird.CarRide.EndFadeIn", 0.0f,
-	"Override ride-end fade-in at the gas station in seconds (0 = use component RideEndFadeInDuration).");
+WP_TUNABLE_FLOAT(GCarRideExitDipInOverride, "weird.CarRide.ExitDipIn", 0.0f,
+	"Override the fade-back-in after getting out of the car, in seconds (0 = use component ExitDipInDuration).");
 
 static FAutoConsoleCommandWithWorld GCarRideRebuildSceneryCmd(
 	TEXT("weird.CarRide.RebuildScenery"),
@@ -84,6 +82,28 @@ void UCarRideComponent::BeginPlay()
 	Super::BeginPlay();
 
 	InitialCarTransform = GetOwner()->GetActorTransform();
+
+	// Capture everything riding in the car (Rick + tagged props) relative to
+	// it now, before SkipRide/AppearOutside can move any of them. The drive
+	// re-poses them from these transforms every frame.
+	Riders.Reset();
+	RiderRelativeTransforms.Reset();
+	if (Rick)
+	{
+		Riders.Add(Rick);
+	}
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(RiderActorTag) && *It != GetOwner())
+		{
+			Riders.Add(*It);
+		}
+	}
+	for (AActor* Rider : Riders)
+	{
+		RiderRelativeTransforms.Add(Rider->GetActorTransform().GetRelativeTransform(InitialCarTransform));
+	}
+	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: %d riders captured"), Riders.Num());
 
 	bool bSkipRide = false;
 #if WITH_EDITOR
@@ -227,6 +247,29 @@ void UCarRideComponent::StartRide()
 	{
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent: Player is not AFirstPersonCharacter"));
 		return;
+	}
+
+	// Aim the staged car so its travel direction runs straight to the turn-in
+	// point of the parking approach — the drive then needs no steering until
+	// the pull-over. Riders (Rick, headlight beams) are re-posed with it.
+	FTransform Parking;
+	if (Rick && Rick->GetCarParkingTransform(Parking) && PassengerSeatTarget)
+	{
+		FTransform Staged = InitialCarTransform;
+		const float SeatYawFromCar = PassengerSeatTarget->GetActorRotation().Yaw - GetOwner()->GetActorRotation().Yaw;
+		const float ParkedTravelYaw = Parking.Rotator().Yaw + SeatYawFromCar;
+		const FVector2D EndDir(FMath::Cos(FMath::DegreesToRadians(ParkedTravelYaw)), FMath::Sin(FMath::DegreesToRadians(ParkedTravelYaw)));
+		const FVector2D P2(Parking.GetLocation());
+		const FVector2D P1 = P2 - EndDir * DriveTurnRadius;
+		const FVector2D ToP1 = (P1 - FVector2D(Staged.GetLocation())).GetSafeNormal();
+		const float TravelYaw = FMath::RadiansToDegrees(FMath::Atan2(ToP1.Y, ToP1.X));
+		Staged.SetRotation(FRotator(0.0f, TravelYaw - SeatYawFromCar, 0.0f).Quaternion());
+		PlaceCar(Staged);
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::StartRide - staged car aimed at turn-in (travel yaw %.1f)"), TravelYaw);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::StartRide - Rick/OutsidePositionTarget/PassengerSeatTarget unassigned; car not aimed at the station"));
 	}
 
 	// Hide the gas station during the ride (must iterate children; SetActorHiddenInGame doesn't propagate)
@@ -377,9 +420,14 @@ void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (bSceneryMoving && SceneryConveyor)
+	if (bDriving)
 	{
-		TickScenery(DeltaTime);
+		TickDrive(DeltaTime);
+	}
+	else if (bSceneryMoving && SceneryConveyor)
+	{
+		const float Speed = GCarRideSpeedOverride > 0.0f ? GCarRideSpeedOverride : RideSpeed;
+		TickScenery(Speed * DeltaTime);
 	}
 }
 
@@ -622,36 +670,305 @@ void UCarRideComponent::OnBladderPulseFinished()
 
 void UCarRideComponent::EndRide()
 {
-	// Fade camera to black, then hold black before the teleport + fade-in
-	const float FadeOut = GCarRideEndFadeOutOverride > 0.0f ? GCarRideEndFadeOutOverride : RideEndFadeOutDuration;
-	const float BlackHold = GCarRideEndBlackHoldOverride >= 0.0f ? GCarRideEndBlackHoldOverride : RideEndBlackHoldDuration;
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC && PC->PlayerCameraManager)
+	BeginDrive();
+}
+
+// The approach path: a straight run from the staged car to P0, then a
+// quadratic bezier P0 -> P1 -> P2 that turns the car into Rick's parking
+// spot. P2 is the spot, P1 sits DriveTurnRadius behind it along the parked
+// travel direction, and P0 sits DriveTurnRadius back from P1 along the
+// approach direction, so the tangent is continuous at both ends.
+void UCarRideComponent::BeginDrive()
+{
+	if (bDriving)
 	{
-		PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, FadeOut, FLinearColor::Black, false, true);
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - already driving"));
+		return;
+	}
+	FTransform Parking;
+	if (!Rick || !Rick->GetCarParkingTransform(Parking) || !PassengerSeatTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - Rick/OutsidePositionTarget/PassengerSeatTarget unassigned; cannot drive"));
+		return;
 	}
 
-	// Teleport + fade-in after the fade-out and black hold complete
+	const FTransform CarT = GetOwner()->GetActorTransform();
+	const float SeatYawFromCar = PassengerSeatTarget->GetActorRotation().Yaw - CarT.Rotator().Yaw;
+	const float ParkedTravelYaw = Parking.Rotator().Yaw + SeatYawFromCar;
+	const FVector2D EndDir(FMath::Cos(FMath::DegreesToRadians(ParkedTravelYaw)), FMath::Sin(FMath::DegreesToRadians(ParkedTravelYaw)));
+
+	DriveStart = FVector2D(CarT.GetLocation());
+	DriveStartZ = CarT.GetLocation().Z;
+	DriveEndZ = Parking.GetLocation().Z;
+	DriveP2 = FVector2D(Parking.GetLocation());
+	DriveP1 = DriveP2 - EndDir * DriveTurnRadius;
+	DriveDir = (DriveP1 - DriveStart).GetSafeNormal();
+	DriveP0 = DriveP1 - DriveDir * DriveTurnRadius;
+	DriveStraightLength = FVector2D::DotProduct(DriveP0 - DriveStart, DriveDir);
+	if (DriveStraightLength < 0.0f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - staged car is inside the turn zone (straight run %.0f cm)"), DriveStraightLength);
+	}
+	CarYawFromTangent = CarT.Rotator().Yaw - FMath::RadiansToDegrees(FMath::Atan2(DriveDir.Y, DriveDir.X));
+
+	// Arc-length table for the bezier so speed along the curve is uniform
+	constexpr int32 Samples = 48;
+	DriveCurveArcTable.Reset(Samples + 1);
+	DriveCurveArcTable.Add(0.0f);
+	FVector2D Prev = DriveP0;
+	for (int32 i = 1; i <= Samples; ++i)
+	{
+		const float T = float(i) / Samples;
+		const FVector2D B = FMath::Square(1.0f - T) * DriveP0 + 2.0f * (1.0f - T) * T * DriveP1 + T * T * DriveP2;
+		DriveCurveArcTable.Add(DriveCurveArcTable.Last() + FVector2D::Distance(Prev, B));
+		Prev = B;
+	}
+	DriveCurveLength = DriveCurveArcTable.Last();
+	DriveS = 0.0f;
+	DriveSceneryEndS = DriveStraightLength - DriveTurnRadius;
+	bSceneryFrozen = false;
+
+	// The player rides along: pose relative to the car, like Rick
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	bPlayerRiding = Player != nullptr;
+	if (Player)
+	{
+		PlayerRelativeTransform = Player->GetActorTransform().GetRelativeTransform(CarT);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - no player to carry"));
+	}
+
+	// The conveyor rides along too; its props then slide back by the distance
+	// actually driven each frame, which leaves them standing still in the world.
+	if (SceneryConveyor)
+	{
+		SceneryConveyor->AttachToActor(GetOwner(), FAttachmentTransformRules::KeepWorldTransform);
+	}
+
+	// Reveal the station now — it's ~400 m out in the fog — with its lights
+	// at zero, ramping up over StationLightRampDuration so nothing pops.
+	StationLights.Reset();
+	StationLightIntensities.Reset();
+	if (GasStationRoot)
+	{
+		TArray<AActor*> GasStationActors;
+		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
+		for (AActor* Actor : GasStationActors)
+		{
+			TArray<ULightComponent*> Lights;
+			Actor->GetComponents<ULightComponent>(Lights);
+			for (ULightComponent* Light : Lights)
+			{
+				if (Light->Mobility == EComponentMobility::Static)
+				{
+					continue; // baked; neither hideable nor rampable
+				}
+				StationLights.Add(Light);
+				StationLightIntensities.Add(Light->Intensity);
+				Light->SetIntensity(0.0f);
+			}
+			Actor->SetActorHiddenInGame(false);
+			Actor->SetActorEnableCollision(true);
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - GasStationRoot is null"));
+	}
+	{
+		TArray<AActor*> MovieBoxes;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
+		for (AActor* Actor : MovieBoxes)
+		{
+			Actor->SetActorHiddenInGame(false);
+			Actor->SetActorEnableCollision(true);
+		}
+	}
+	LightRampElapsed = 0.0f;
+	bLightRampActive = StationLights.Num() > 0;
+
+	bDriving = true;
+	SetComponentTickEnabled(true);
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::BeginDrive - straight %.0f cm + turn %.0f cm to parking %s; %d station lights ramping"),
+		DriveStraightLength, DriveCurveLength, *Parking.GetLocation().ToString(), StationLights.Num());
+}
+
+void UCarRideComponent::EvaluateDrivePath(float S, FVector& OutLocation, FVector2D& OutTangent) const
+{
+	FVector2D Pos;
+	if (S <= DriveStraightLength)
+	{
+		Pos = DriveStart + DriveDir * S;
+		OutTangent = DriveDir;
+	}
+	else
+	{
+		const float U = FMath::Clamp(S - DriveStraightLength, 0.0f, DriveCurveLength);
+		// Arc length -> t via the table (uniform t samples)
+		int32 Hi = 1;
+		while (Hi < DriveCurveArcTable.Num() - 1 && DriveCurveArcTable[Hi] < U)
+		{
+			++Hi;
+		}
+		const float SegLen = DriveCurveArcTable[Hi] - DriveCurveArcTable[Hi - 1];
+		const float Frac = SegLen > KINDA_SMALL_NUMBER ? (U - DriveCurveArcTable[Hi - 1]) / SegLen : 0.0f;
+		const float T = (float(Hi - 1) + Frac) / float(DriveCurveArcTable.Num() - 1);
+		Pos = FMath::Square(1.0f - T) * DriveP0 + 2.0f * (1.0f - T) * T * DriveP1 + T * T * DriveP2;
+		OutTangent = (2.0f * (1.0f - T) * (DriveP1 - DriveP0) + 2.0f * T * (DriveP2 - DriveP1)).GetSafeNormal();
+	}
+	const float Total = DriveStraightLength + DriveCurveLength;
+	const float Z = FMath::Lerp(DriveStartZ, DriveEndZ, Total > KINDA_SMALL_NUMBER ? FMath::Clamp(S / Total, 0.0f, 1.0f) : 1.0f);
+	OutLocation = FVector(Pos.X, Pos.Y, Z);
+}
+
+void UCarRideComponent::PlaceCar(const FTransform& CarTransform)
+{
+	const float OldYaw = GetOwner()->GetActorRotation().Yaw;
+	GetOwner()->SetActorTransform(CarTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	for (int32 i = 0; i < Riders.Num(); ++i)
+	{
+		if (Riders[i])
+		{
+			Riders[i]->SetActorTransform(RiderRelativeTransforms[i] * CarTransform, false, nullptr, ETeleportType::TeleportPhysics);
+		}
+	}
+	if (bPlayerRiding)
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+		if (Player)
+		{
+			const FTransform PlayerT = PlayerRelativeTransform * CarTransform;
+			Player->SetActorLocation(PlayerT.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+			// Turn the player's view with the car so they keep looking where they were looking
+			FRotator Control = PC->GetControlRotation();
+			Control.Yaw += FMath::FindDeltaAngleDegrees(OldYaw, CarTransform.Rotator().Yaw);
+			PC->SetControlRotation(Control);
+		}
+	}
+}
+
+void UCarRideComponent::TickDrive(float DeltaTime)
+{
+	const float Cruise = GCarRideSpeedOverride > 0.0f ? GCarRideSpeedOverride : RideSpeed;
+	const float Total = DriveStraightLength + DriveCurveLength;
+	const float Remaining = Total - DriveS;
+
+	// Constant deceleration from the braking point to a stop at the spot
+	const float BrakeZone = DriveCurveLength + DriveBrakingDistance;
+	float Speed = Cruise;
+	if (Remaining < BrakeZone)
+	{
+		Speed = FMath::Max(DriveMinSpeed, Cruise * FMath::Sqrt(FMath::Max(Remaining, 0.0f) / BrakeZone));
+	}
+	const float Step = FMath::Min(Speed * DeltaTime, Remaining);
+	DriveS += Step;
+
+	FVector Location;
+	FVector2D Tangent;
+	EvaluateDrivePath(DriveS, Location, Tangent);
+	const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Tangent.Y, Tangent.X)) + CarYawFromTangent;
+	PlaceCar(FTransform(FRotator(0.0f, Yaw, 0.0f), Location));
+
+	// Scenery: props stand still in the world while the car is on the straight;
+	// hand them to the world outright once the car starts turning.
+	if (SceneryConveyor)
+	{
+		if (!bSceneryFrozen && DriveS >= DriveStraightLength)
+		{
+			FreezeSceneryProps();
+		}
+		TickScenery(Step);
+	}
+
+	if (bLightRampActive)
+	{
+		LightRampElapsed += DeltaTime;
+		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LightRampElapsed / FMath::Max(StationLightRampDuration, KINDA_SMALL_NUMBER), 0.0f, 1.0f));
+		for (int32 i = 0; i < StationLights.Num(); ++i)
+		{
+			if (StationLights[i])
+			{
+				StationLights[i]->SetIntensity(StationLightIntensities[i] * Alpha);
+			}
+		}
+		bLightRampActive = Alpha < 1.0f;
+	}
+
+	if (Remaining - Step <= KINDA_SMALL_NUMBER)
+	{
+		OnCarParked();
+	}
+}
+
+void UCarRideComponent::FreezeSceneryProps()
+{
+	bSceneryFrozen = true;
+	for (USceneComponent* Item : ConveyorItems)
+	{
+		if (Item)
+		{
+			Item->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		}
+	}
+}
+
+void UCarRideComponent::OnCarParked()
+{
+	bDriving = false;
+	bSceneryMoving = false;
+	// Snap any light still mid-ramp to its authored value
+	for (int32 i = 0; i < StationLights.Num(); ++i)
+	{
+		if (StationLights[i])
+		{
+			StationLights[i]->SetIntensity(StationLightIntensities[i]);
+		}
+	}
+	bLightRampActive = false;
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnCarParked - at %s"), *GetOwner()->GetActorLocation().ToString());
+
 	GetWorld()->GetTimerManager().SetTimer(
-		FadeOutTimerHandle,
+		ParkedHoldTimerHandle,
 		this,
-		&UCarRideComponent::OnFadeOutComplete,
-		FadeOut + BlackHold,
+		&UCarRideComponent::ExitCar,
+		ParkedHoldDuration,
 		false
 	);
 }
 
-void UCarRideComponent::OnFadeOutComplete()
+void UCarRideComponent::ExitCar()
+{
+	// Getting out is a quick dip to black; the teleport happens under it
+	const float DipOut = GCarRideExitDipOutOverride > 0.0f ? GCarRideExitDipOutOverride : ExitDipOutDuration;
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (PC && PC->PlayerCameraManager)
+	{
+		PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, DipOut, FLinearColor::Black, false, true);
+	}
+	GetWorld()->GetTimerManager().SetTimer(
+		ExitDipTimerHandle,
+		this,
+		&UCarRideComponent::OnExitDipComplete,
+		DipOut,
+		false
+	);
+}
+
+void UCarRideComponent::OnExitDipComplete()
 {
 	// End the glance cycle (suppression is lifted after the teleport below,
 	// once the player is out of Rick's look-at sphere)
 	GetWorld()->GetTimerManager().ClearTimer(GlanceTimerHandle);
 	bGlanceCycleStarted = false;
 
-	// Stop scenery movement and tear the conveyor down while the screen is black
-	bSceneryMoving = false;
+	// Tear the conveyor down while the screen is dark
 	SetComponentTickEnabled(false);
 	DestroyScenery();
+	bPlayerRiding = false;
 
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC)
@@ -684,12 +1001,12 @@ void UCarRideComponent::OnFadeOutComplete()
 		const FRotator TargetRotation = ArrivalTarget->GetActorRotation();
 		Player->SetActorLocationAndRotation(ActorLocation, TargetRotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
 		PC->SetControlRotation(TargetRotation);
-		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnFadeOutComplete - Teleport: EyeTarget=%s ActorLoc=%s CamOffset=%s Rot=%s"),
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnExitDipComplete - Teleport: EyeTarget=%s ActorLoc=%s CamOffset=%s Rot=%s"),
 			*TargetEye.ToString(), *ActorLocation.ToString(), *CameraOffset.ToString(), *TargetRotation.ToString());
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnFadeOutComplete - ArrivalTarget is null!"));
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnExitDipComplete - ArrivalTarget is null!"));
 	}
 
 	// Player is now at the gas station, outside Rick's look-at sphere —
@@ -698,29 +1015,6 @@ void UCarRideComponent::OnFadeOutComplete()
 	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
 	{
 		LookAt->SetSuppressed(false);
-	}
-
-	// Show the gas station now that the ride is over
-	if (GasStationRoot)
-	{
-		TArray<AActor*> GasStationActors;
-		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
-		for (AActor* Actor : GasStationActors)
-		{
-			Actor->SetActorHiddenInGame(false);
-			Actor->SetActorEnableCollision(true);
-		}
-	}
-
-	// Restore all spawned movie boxes
-	{
-		TArray<AActor*> MovieBoxes;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
-		for (AActor* Actor : MovieBoxes)
-		{
-			Actor->SetActorHiddenInGame(false);
-			Actor->SetActorEnableCollision(true);
-		}
 	}
 
 	// Safety: gate is normally cleared in OnDialogueEnded, but clear again in
@@ -746,8 +1040,8 @@ void UCarRideComponent::OnFadeOutComplete()
 	// Fade camera back in
 	if (PC->PlayerCameraManager)
 	{
-		const float FadeIn = GCarRideEndFadeInOverride > 0.0f ? GCarRideEndFadeInOverride : RideEndFadeInDuration;
-		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeIn, FLinearColor::Black, false, false);
+		const float DipIn = GCarRideExitDipInOverride > 0.0f ? GCarRideExitDipInOverride : ExitDipInDuration;
+		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, DipIn, FLinearColor::Black, false, false);
 	}
 
 	if (Rick)
@@ -767,6 +1061,8 @@ void UCarRideComponent::OnFadeOutComplete()
 				DialogueWidget->Close();
 			}
 		}
+		// Rick steps out onto his outside mark; the car is already parked where
+		// this puts it, so it doesn't move.
 		Rick->AppearOutside();
 	}
 }
@@ -784,7 +1080,8 @@ void UCarRideComponent::ForceStartRide()
 	// SkipRide may have already parked the car at the gas station via
 	// Rick->AppearOutside(); put it (and its attached targets) back so the
 	// forced ride runs at the staging spot, not in front of the pumps.
-	GetOwner()->SetActorTransform(InitialCarTransform, false, nullptr, ETeleportType::TeleportPhysics);
+	bPlayerRiding = false;
+	PlaceCar(InitialCarTransform);
 	StartRide();
 }
 
@@ -930,17 +1227,24 @@ void UCarRideComponent::DestroyScenery()
 	}
 }
 
-void UCarRideComponent::TickScenery(float DeltaTime)
+void UCarRideComponent::TickScenery(float Step)
 {
-	const float Speed = GCarRideSpeedOverride > 0.0f ? GCarRideSpeedOverride : RideSpeed;
-	const float Step = Speed * DeltaTime;
-	for (USceneComponent* Item : ConveyorItems)
+	// Once the props are handed to the world (bSceneryFrozen) only the motes keep cycling
+	for (int32 i = 0; i < (bSceneryFrozen ? 0 : ConveyorItems.Num()); ++i)
 	{
+		USceneComponent* Item = ConveyorItems[i];
 		FVector Rel = Item->GetRelativeLocation();
 		Rel.X -= Step;
 		if (Rel.X < -BehindDistance)
 		{
 			Rel.X += LoopLength;
+			// During the drive, a prop recycled to a spot past the turn-in would
+			// stand in the gas station forecourt — it's behind the player as it
+			// wraps, so just leave it hidden.
+			if (bDriving && DriveS + Rel.X > DriveSceneryEndS)
+			{
+				Item->SetVisibility(false, true);
+			}
 		}
 		Item->SetRelativeLocation(Rel);
 
