@@ -328,6 +328,14 @@ public:
 	void StartDialogue(const TArray<FSimpleDialogueLine>& Lines, UObject* NPC);
 	void AdvanceDialogue();
 	void AdvanceDialogueInternal();
+	// Dev/test: end the current full dialogue immediately as if its last
+	// line had been advanced (NPC gets OnDialogueEnded). No-op if not InDialogue.
+	void SkipDialogue();
+	// Dev/test: jump the current full dialogue to its last line and show it,
+	// so the next advance ends it normally. No-op if not InDialogue.
+	void SkipToLastDialogueLine();
+	// The "dialogue exhausted" path shared by AdvanceDialogueInternal and SkipDialogue
+	void FinishDialogue();
 
 	// Fires whenever a dialogue line is displayed, carrying the line index
 	UPROPERTY(BlueprintAssignable, Category = "Dialogue")

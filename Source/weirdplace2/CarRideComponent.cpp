@@ -52,6 +52,39 @@ WP_TUNABLE_FLOAT(GCarRideExitDipOutOverride, "weird.CarRide.ExitDipOut", 0.0f,
 WP_TUNABLE_FLOAT(GCarRideExitDipInOverride, "weird.CarRide.ExitDipIn", 0.0f,
 	"Override the fade-back-in after getting out of the car, in seconds (0 = use component ExitDipInDuration).");
 
+static FAutoConsoleCommandWithWorldAndArgs GCarRideSkipToCmd(
+	TEXT("weird.CarRide.SkipTo"),
+	TEXT("Jump the running car ride to a stage: Dialogue (first line, screen clear), LastLine (Rick's final line showing) or Drive (dialogue done, car pulling away)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogTemp, Error, TEXT("weird.CarRide.SkipTo <Dialogue|LastLine|Drive>"));
+			return;
+		}
+		for (TObjectIterator<UCarRideComponent> It; It; ++It)
+		{
+			if (It->GetWorld() == World)
+			{
+				It->SkipTo(FName(*Args[0]));
+			}
+		}
+	}));
+
+static FAutoConsoleCommandWithWorld GCarRideForceStartCmd(
+	TEXT("weird.CarRide.ForceStart"),
+	TEXT("Start the car ride even if PIE began from the camera location (SkipRide path)."),
+	FConsoleCommandWithWorldDelegate::CreateLambda([](UWorld* World)
+	{
+		for (TObjectIterator<UCarRideComponent> It; It; ++It)
+		{
+			if (It->GetWorld() == World)
+			{
+				It->ForceStartRide();
+			}
+		}
+	}));
+
 static FAutoConsoleCommandWithWorld GCarRideRebuildSceneryCmd(
 	TEXT("weird.CarRide.RebuildScenery"),
 	TEXT("Destroy and respawn the car-ride scenery conveyor with current property values."),
@@ -339,23 +372,7 @@ void UCarRideComponent::StartRide()
 			RideStartFadeTimerHandle,
 			FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
-				const float FadeIn = GCarRideStartFadeInOverride > 0.0f ? GCarRideStartFadeInOverride : RideStartFadeInDuration;
-				APlayerController* FadePC = GetWorld()->GetFirstPlayerController();
-				if (FadePC && FadePC->PlayerCameraManager)
-				{
-					FadePC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeIn, FLinearColor::Black, /*bShouldFadeAudio=*/false, false);
-				}
-				// VolumeMultiplier was zeroed at BeginPlay, which culls the
-				// active sounds entirely — so restart each one with FadeIn
-				// (it Plays internally) rather than ramping a dead sound.
-				for (int32 i = 0; i < SilencedAmbients.Num(); ++i)
-				{
-					if (SilencedAmbients[i])
-					{
-						SilencedAmbients[i]->SetVolumeMultiplier(SilencedAmbientVolumes[i]);
-						SilencedAmbients[i]->FadeIn(FadeIn, 1.0f);
-					}
-				}
+				RevealRideStart(GCarRideStartFadeInOverride > 0.0f ? GCarRideStartFadeInOverride : RideStartFadeInDuration);
 			}),
 			GCarRideStartBlackHoldOverride > 0.0f ? GCarRideStartBlackHoldOverride : RideStartBlackHoldDuration,
 			false
@@ -385,6 +402,85 @@ void UCarRideComponent::StartRide()
 		false
 	);
 
+}
+
+void UCarRideComponent::RevealRideStart(float FadeSeconds)
+{
+	APlayerController* FadePC = GetWorld()->GetFirstPlayerController();
+	if (FadePC && FadePC->PlayerCameraManager)
+	{
+		FadePC->PlayerCameraManager->StartCameraFade(1.f, 0.f, FadeSeconds, FLinearColor::Black, /*bShouldFadeAudio=*/false, false);
+	}
+	// VolumeMultiplier was zeroed at BeginPlay, which culls the active sounds
+	// entirely — so restart each one with FadeIn (it Plays internally) rather
+	// than ramping a dead sound.
+	for (int32 i = 0; i < SilencedAmbients.Num(); ++i)
+	{
+		if (SilencedAmbients[i])
+		{
+			SilencedAmbients[i]->SetVolumeMultiplier(SilencedAmbientVolumes[i]);
+			SilencedAmbients[i]->FadeIn(FadeSeconds, 1.0f);
+		}
+	}
+}
+
+void UCarRideComponent::SkipTo(FName Stage)
+{
+	if (!SceneryConveyor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipTo - ride is not running (PIE from the car-ride start, or run weird.CarRide.ForceStart)"));
+		return;
+	}
+	if (bDriving)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipTo - already driving"));
+		return;
+	}
+	const bool bToDialogue = Stage == FName("Dialogue");
+	const bool bToLastLine = Stage == FName("LastLine");
+	const bool bToDrive = Stage == FName("Drive");
+	if (!bToDialogue && !bToLastLine && !bToDrive)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipTo - unknown stage '%s' (Dialogue | LastLine | Drive)"), *Stage.ToString());
+		return;
+	}
+
+	// The ride-start black hold / fade-in and the audio fades are left alone;
+	// only the dialogue is skipped.
+	FTimerManager& Timers = GetWorld()->GetTimerManager();
+	if (!bDialogueStarted)
+	{
+		Timers.ClearTimer(DialogueStartTimerHandle);
+		StartDialogue();
+	}
+	if (bToDialogue)
+	{
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SkipTo Dialogue"));
+		return;
+	}
+
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SkipTo - no player"));
+		return;
+	}
+	// LastLine: show Rick's final line; advancing it ends the dialogue and
+	// the post-dialogue timer starts the drive as in normal play.
+	if (bToLastLine)
+	{
+		Player->SkipToLastDialogueLine();
+		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SkipTo LastLine"));
+		return;
+	}
+
+	// Drive: end the dialogue (Rick's OnDialogueEnded -> our OnDialogueEnded
+	// arms the post-dialogue timer), then start the drive right away.
+	Player->SkipDialogue();
+	Timers.ClearTimer(PostDialogueTimerHandle);
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::SkipTo Drive"));
+	EndRide();
 }
 
 void UCarRideComponent::SkipRide()
@@ -501,6 +597,7 @@ void UCarRideComponent::StartDialogue()
 		}
 	}
 
+	bDialogueStarted = true;
 	Rick->StartDialogue();
 }
 

@@ -199,6 +199,12 @@ public:
 
 	// Test/iteration hooks
 	void ForceStartRide();
+	// Dev: jump the running ride to a stage, dropping the start fade and any
+	// dialogue in progress. Stages: "Dialogue" (Rick's first line, screen
+	// clear), "LastLine" (Rick's final line showing; advance it yourself)
+	// or "Drive" (dialogue done, car pulling away). Console:
+	// weird.CarRide.SkipTo <Stage>
+	void SkipTo(FName Stage);
 	void RebuildScenery();
 	AActor* GetSceneryConveyor() const { return SceneryConveyor; }
 	void ForceEndRide() { EndRide(); }
@@ -293,6 +299,11 @@ private:
 	bool bSceneryMoving = false;
 	bool bBladderPulseArmed = false;
 	bool bGlanceCycleStarted = false;
+	bool bDialogueStarted = false;
+
+	// Lift the ride-start black (camera fade + ambient fade-in). Runs on the
+	// black-hold timer, or at once from SkipTo.
+	void RevealRideStart(float FadeSeconds);
 
 	// Cached widget actor relative transform before car-ride overwrites it
 	FVector CachedWidgetRelativeLocation = FVector::ZeroVector;

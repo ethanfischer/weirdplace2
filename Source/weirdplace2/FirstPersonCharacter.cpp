@@ -1423,32 +1423,73 @@ void AFirstPersonCharacter::AdvanceDialogueInternal()
 	}
 	else
 	{
-		// Dialogue exhausted
-		SetActivityState(EPlayerActivityState::FreeRoaming);
-		DialogueLines.Empty();
-		DialogueLineIndex = 0;
-
-		if (UI_Dialogue)
-		{
-			UI_Dialogue->Close();
-			UI_Dialogue = nullptr;
-		}
-
-		UObject* EndedNPC = CurrentDialogueNPC;
-		CurrentDialogueNPC = nullptr;
-		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
-		{
-			Seneca->OnDialogueEnded();
-		}
-		else if (ARick* Rick = Cast<ARick>(EndedNPC))
-		{
-			Rick->OnDialogueEnded();
-		}
-		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
-		{
-			Hudson->OnDialogueEnded();
-		}
+		FinishDialogue();
 	}
+}
+
+void AFirstPersonCharacter::FinishDialogue()
+{
+	// Dialogue exhausted
+	SetActivityState(EPlayerActivityState::FreeRoaming);
+	DialogueLines.Empty();
+	DialogueLineIndex = 0;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->Close();
+		UI_Dialogue = nullptr;
+	}
+
+	UObject* EndedNPC = CurrentDialogueNPC;
+	CurrentDialogueNPC = nullptr;
+	if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
+	{
+		Seneca->OnDialogueEnded();
+	}
+	else if (ARick* Rick = Cast<ARick>(EndedNPC))
+	{
+		Rick->OnDialogueEnded();
+	}
+	else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+	{
+		Hudson->OnDialogueEnded();
+	}
+}
+
+void AFirstPersonCharacter::SkipToLastDialogueLine()
+{
+	if (ActivityState != EPlayerActivityState::InDialogue || DialogueLines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToLastDialogueLine - not in a full dialogue (state %d)"), (int32)ActivityState);
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+	bDialoguePauseIsBefore = false;
+	bBlockNextDialogueAdvance = false;
+	DialogueLineIndex = DialogueLines.Num() - 1;
+	if (UI_Dialogue)
+	{
+		const FSimpleDialogueLine& Line = DialogueLines[DialogueLineIndex];
+		UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
+	}
+	UE_LOG(LogTemp, Log, TEXT("SkipToLastDialogueLine - showing line %d"), DialogueLineIndex);
+	OnDialogueLineShown.Broadcast(DialogueLineIndex);
+}
+
+void AFirstPersonCharacter::SkipDialogue()
+{
+	if (ActivityState != EPlayerActivityState::InDialogue)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipDialogue - not in a full dialogue (state %d)"), (int32)ActivityState);
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+	bDialoguePauseIsBefore = false;
+	bBlockNextDialogueAdvance = false;
+	UE_LOG(LogTemp, Log, TEXT("SkipDialogue - skipping %d remaining line(s)"), DialogueLines.Num() - DialogueLineIndex);
+	FinishDialogue();
 }
 
 void AFirstPersonCharacter::TickDialogueWalkAway()

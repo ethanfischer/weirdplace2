@@ -2562,6 +2562,56 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// Diagnostic.CarRideSkipTo — the dev console command weird.CarRide.SkipTo
+// Drive must take a freshly started ride (black hold, dialogue pending)
+// straight into the drive and park the car.
+// =======================================================================
+
+class FTD_ConsoleExec : public FTD_Base
+{
+public:
+	FTD_ConsoleExec(FAutomationTestBase* InTest, const FString& InCmd) : FTD_Base(InTest), Cmd(InCmd) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Exec '%s'"), *Cmd); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !GEngine->Exec(Driver->GetWorld(), *Cmd))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_ConsoleExec: '%s' not handled"), *Cmd));
+		}
+		return true;
+	}
+private:
+	FString Cmd;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideSkipTo,
+	"Weirdplace2.E2E.Level1.Diagnostic.CarRideSkipTo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideSkipTo")
+
+	// SkipTo leaves the ride-start fade alone; the fast-start cvars make it
+	// ~0.6s, so wait it out before sampling.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConsoleExec(this, TEXT("weird.CarRide.SkipTo Drive")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_01_driving")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_02_parked")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(4.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // Diagnostic.CarRideDialogue — screenshot Rick's windshield dialogue plate
 // during the ride (Centered plate layout) for eyeballing placement/legibility.
 // =======================================================================
