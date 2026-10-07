@@ -1,4 +1,6 @@
 #include "WeirdplaceCheatManager.h"
+#include "CarRideComponent.h"
+#include "EngineUtils.h"
 
 #include "StorySubsystem.h"
 #include "FirstPersonCharacter.h"
@@ -37,6 +39,28 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
 			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
 		}
+		for (const TCHAR* Stage : { TEXT("CarDialogue"), TEXT("CarLastLine"), TEXT("CarDrive") })
+		{
+			const FString Line = FString::Printf(TEXT("  SkipTo %s"), Stage);
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
+			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
+		}
+		return;
+	}
+
+	// Car-ride stages: handled by the ride component, not the story flags.
+	if (BeatName.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
+	{
+		const FName Stage(*BeatName.Mid(3));
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (UCarRideComponent* Ride = It->FindComponentByClass<UCarRideComponent>())
+			{
+				Ride->SkipTo(Stage);
+				return;
+			}
+		}
+		UE_LOG(LogTemp, Warning, TEXT("SkipTo - no CarRideComponent in world"));
 		return;
 	}
 

@@ -20,7 +20,11 @@ public:
 	//   `SkipTo KeyBroke` (or `Key`)
 	//   `SkipTo TornadoWarning` (or `TornadoWarningDisplayed` / `TV`)  -> both store TVs flip
 	//   `SkipTo Telephone` (or `SeenTornadoWarning` / `PayPhone`)      -> pole + pay phone reveal
-	// With no argument, lists one command per story beat.
+	// Car-ride stages (need the ride to be running):
+	//   `SkipTo CarDialogue` -> Rick's first line
+	//   `SkipTo CarLastLine` -> Rick's final line showing; advance it yourself
+	//   `SkipTo CarDrive`    -> dialogue done, car pulling away
+	// With no argument, lists one command per story beat / car-ride stage.
 	UFUNCTION(Exec) void SkipTo(const FString& BeatName);
 
 	// Dev: persist a beat that auto-applies at the start of every play session
