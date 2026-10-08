@@ -121,7 +121,8 @@ void UCarRideComponent::BeginPlay()
 	// it now, before SkipRide/AppearOutside can move any of them. The drive
 	// re-poses them from these transforms every frame.
 	Riders.Reset();
-	RiderRelativeTransforms.Reset();
+	RiderLocalLocations.Reset();
+	RiderLocalRotations.Reset();
 	if (Rick)
 	{
 		Riders.Add(Rick);
@@ -135,7 +136,8 @@ void UCarRideComponent::BeginPlay()
 	}
 	for (AActor* Rider : Riders)
 	{
-		RiderRelativeTransforms.Add(Rider->GetActorTransform().GetRelativeTransform(InitialCarTransform));
+		RiderLocalLocations.Add(InitialCarTransform.InverseTransformPosition(Rider->GetActorLocation()));
+		RiderLocalRotations.Add(InitialCarTransform.GetRotation().Inverse() * Rider->GetActorQuat());
 	}
 	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: %d riders captured"), Riders.Num());
 
@@ -874,7 +876,7 @@ void UCarRideComponent::BeginDrive()
 	bPlayerRiding = Player != nullptr;
 	if (Player)
 	{
-		PlayerRelativeTransform = Player->GetActorTransform().GetRelativeTransform(CarT);
+		PlayerLocalLocation = CarT.InverseTransformPosition(Player->GetActorLocation());
 	}
 	else
 	{
@@ -935,7 +937,10 @@ void UCarRideComponent::PlaceCar(const FTransform& CarTransform)
 	{
 		if (Riders[i])
 		{
-			Riders[i]->SetActorTransform(RiderRelativeTransforms[i] * CarTransform, false, nullptr, ETeleportType::TeleportPhysics);
+			Riders[i]->SetActorLocationAndRotation(
+				CarTransform.TransformPosition(RiderLocalLocations[i]),
+				CarTransform.GetRotation() * RiderLocalRotations[i],
+				false, nullptr, ETeleportType::TeleportPhysics);
 		}
 	}
 	if (bPlayerRiding)
@@ -944,8 +949,7 @@ void UCarRideComponent::PlaceCar(const FTransform& CarTransform)
 		AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
 		if (Player)
 		{
-			const FTransform PlayerT = PlayerRelativeTransform * CarTransform;
-			Player->SetActorLocation(PlayerT.GetLocation(), false, nullptr, ETeleportType::TeleportPhysics);
+			Player->SetActorLocation(CarTransform.TransformPosition(PlayerLocalLocation), false, nullptr, ETeleportType::TeleportPhysics);
 			// Turn the player's view with the car so they keep looking where they were looking
 			FRotator Control = PC->GetControlRotation();
 			Control.Yaw += FMath::FindDeltaAngleDegrees(OldYaw, CarTransform.Rotator().Yaw);

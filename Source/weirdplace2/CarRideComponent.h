@@ -251,11 +251,15 @@ private:
 	float DriveSceneryEndS = 0.0f;
 	bool bSceneryFrozen = false;
 
-	// Actors riding in the car (Rick + RiderActorTag), posed relative to it
+	// Actors riding in the car (Rick + RiderActorTag). Posed from a car-local
+	// position + rotation delta, never through FTransform relative math — that
+	// is lossy for riders with non-uniform scale (the headlight beams are
+	// (5,1,1) with a 90° roll and came back smeared across the road).
 	UPROPERTY()
 	TArray<AActor*> Riders;
-	TArray<FTransform> RiderRelativeTransforms;
-	FTransform PlayerRelativeTransform;
+	TArray<FVector> RiderLocalLocations;
+	TArray<FQuat> RiderLocalRotations;
+	FVector PlayerLocalLocation = FVector::ZeroVector;
 	bool bPlayerRiding = false;
 
 	// Gas-station lights ramping in over StationLightRampDuration

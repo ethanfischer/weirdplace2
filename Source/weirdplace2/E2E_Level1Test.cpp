@@ -16,6 +16,10 @@
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Containers/Ticker.h"
+#include "ImageUtils.h"
+#include "Misc/FileHelper.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "HAL/IConsoleManager.h"
 #include "Sound/AmbientSound.h"
 #include "UObject/UnrealType.h"
@@ -2610,6 +2614,60 @@ private:
 	FString Cmd;
 };
 
+// Every-frame viewport readback (downscaled) for N seconds, saved as PNGs, so a
+// one-frame glitch can't slip between screenshot requests. Optionally execs a
+// console command on a given frame so the capture brackets it.
+class FTD_FrameDump : public FTD_Base
+{
+public:
+	FTD_FrameDump(FAutomationTestBase* InTest, const FString& InName, float InSeconds, const FString& InExecOnFrame10 = FString(), int32 InDownscale = 4)
+		: FTD_Base(InTest), Name(InName), Seconds(InSeconds), ExecCmd(InExecOnFrame10), Downscale(InDownscale) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Frame-dumping '%s'"), *Name); }
+	virtual bool UpdateStep() override
+	{
+		FViewport* Viewport = GEngine && GEngine->GameViewport ? GEngine->GameViewport->Viewport : nullptr;
+		if (!Viewport)
+		{
+			Test->AddError(TEXT("FTD_FrameDump: no game viewport"));
+			return true;
+		}
+		if (Frame == 10 && !ExecCmd.IsEmpty())
+		{
+			GEngine->Exec(GetDriver()->GetWorld(), *ExecCmd);
+		}
+		TArray<FColor> Pixels;
+		if (Viewport->ReadPixels(Pixels))
+		{
+			const FIntPoint Size = Viewport->GetSizeXY();
+			// Downscaled nearest-neighbour to keep the dump small
+			const int32 W = Size.X / Downscale, H = Size.Y / Downscale;
+			TArray<FColor> Small;
+			Small.Reserve(W * H);
+			for (int32 y = 0; y < H; ++y)
+			{
+				for (int32 x = 0; x < W; ++x)
+				{
+					FColor C = Pixels[(y * Downscale) * Size.X + x * Downscale];
+					C.A = 255;
+					Small.Add(C);
+				}
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(W, H, Small, Png);
+			const FString Path = FPaths::ScreenShotDir() / FString::Printf(TEXT("%s_f%03d.png"), *Name, Frame);
+			FFileHelper::SaveArrayToFile(Png, *Path);
+		}
+		++Frame;
+		return GetElapsedSinceFirstTick() >= Seconds;
+	}
+private:
+	FString Name;
+	float Seconds;
+	FString ExecCmd;
+	int32 Downscale;
+	int32 Frame = 0;
+};
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_CarRideSkipTo,
 	"Weirdplace2.E2E.Level1.Diagnostic.CarRideSkipTo",
@@ -2625,8 +2683,21 @@ bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ConsoleExec(this, TEXT("weird.CarRide.SkipTo Drive")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	// Dev knob: WP_E2E_PRE="cmd1;cmd2" runs console commands before the dump,
+	// so rendering suspects can be toggled without a rebuild.
+	{
+		const FString Pre = FPlatformMisc::GetEnvironmentVariable(TEXT("WP_E2E_PRE"));
+		TArray<FString> Cmds;
+		Pre.ParseIntoArray(Cmds, TEXT(";"), true);
+		for (const FString& Cmd : Cmds)
+		{
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_ConsoleExec(this, Cmd));
+		}
+	}
+	// Every-frame dump bracketing the drive start (the skip fires on frame 10):
+	// a one-frame glitch can't hide between screenshot requests. This is how the
+	// windshield-SSR smear at drive start was found; diff the frames with PIL.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_FrameDump(this, TEXT("E2E_CarRideSkipTo_dump"), 2.5f, TEXT("weird.CarRide.SkipTo Drive")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_01_driving")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_02_parked")));

@@ -1032,6 +1032,33 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	InjectInputAction(Player->GetSettingsAction(), false);
 }
 
+// Diagnostic: hide a level actor by label (mesh visibility off, propagated) so a
+// rendering suspect can be removed from a headed run without touching the level.
+static FAutoConsoleCommandWithWorldAndArgs GE2EHideActorCmd(
+	TEXT("weird.E2E.HideActor"),
+	TEXT("Hide the actor with this label (visibility off, propagated to children)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogTemp, Error, TEXT("weird.E2E.HideActor <label>"));
+			return;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->GetActorNameOrLabel() == Args[0])
+			{
+				if (USceneComponent* Root = It->GetRootComponent())
+				{
+					Root->SetVisibility(false, true);
+				}
+				UE_LOG(LogTemp, Display, TEXT("weird.E2E.HideActor - hid %s"), *Args[0]);
+				return;
+			}
+		}
+		UE_LOG(LogTemp, Error, TEXT("weird.E2E.HideActor - no actor labelled '%s'"), *Args[0]);
+	}));
+
 // --- Car ride ---
 
 static UCarRideComponent* FindCarRideComponentInWorld(UWorld* World)
