@@ -403,14 +403,14 @@ void UCarRideComponent::StartRide()
 		false
 	);
 
-	// Dev: a saved `AutoSkip Car<Stage>` applies now that the ride is running
-	// (story-beat AutoSkips are applied by UStorySubsystem instead).
+	// Dev: a persisted `SkipTo Car<Stage>` applies now that the ride is running
+	// (persisted story beats are applied by UStorySubsystem instead).
 	const FString AutoSkip = UStorySubsystem::GetAutoSkipBeat();
 	if (!GIsAutomationTesting && AutoSkip.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
 	{
 		const FName Stage(*AutoSkip.Mid(3));
 		SkipTo(Stage);
-		const FString Msg = FString::Printf(TEXT("AutoSkip: skipped to 'Car%s' (type `AutoSkip clear` to disable)"), *Stage.ToString());
+		const FString Msg = FString::Printf(TEXT("SkipTo: skipped to 'Car%s' (type `SkipTo clear` to stop)"), *Stage.ToString());
 		UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
 		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
 	}

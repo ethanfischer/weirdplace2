@@ -205,7 +205,7 @@ public:
 	// or "Drive" (dialogue done, car pulling away). Console:
 	// weird.CarRide.SkipTo <Stage>
 	void SkipTo(FName Stage);
-	// SkipTo stages, in ride order. Shared by the SkipTo/AutoSkip cheats
+	// SkipTo stages, in ride order. Shared by the SkipTo cheat
 	// (they're spelled "Car<Stage>" there).
 	static const TArray<FName>& GetSkipStages();
 	static bool IsSkipStage(FName Stage);

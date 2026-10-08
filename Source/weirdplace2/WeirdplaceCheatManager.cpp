@@ -19,6 +19,12 @@
 
 void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 {
+	auto Show = [](const FString& Msg, FColor Color = FColor::Yellow)
+	{
+		UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
+		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, Color, Msg); }
+	};
+
 	APlayerController* PC = GetOuterAPlayerController();
 	UWorld* World = PC ? PC->GetWorld() : nullptr;
 	UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
@@ -28,74 +34,21 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 		return;
 	}
 
-	// No beat given: list one command per story beat (enum-driven, stays in sync).
-	if (BeatName.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipTo <beat> - story beats:"));
-		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, TEXT("SkipTo <beat>:")); }
-		for (const FString& Name : UStorySubsystem::GetBeatDisplayNames())
-		{
-			const FString Line = FString::Printf(TEXT("  SkipTo %s"), *Name);
-			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
-			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
-		}
-		for (const FName& Stage : UCarRideComponent::GetSkipStages())
-		{
-			const FString Line = FString::Printf(TEXT("  SkipTo Car%s"), *Stage.ToString());
-			UE_LOG(LogTemp, Warning, TEXT("%s"), *Line);
-			if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 10.f, FColor::Yellow, Line); }
-		}
-		return;
-	}
-
-	// Car-ride stages: handled by the ride component, not the story flags.
-	if (BeatName.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
-	{
-		const FName Stage(*BeatName.Mid(3));
-		if (!UCarRideComponent::IsSkipStage(Stage))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("SkipTo - unknown car-ride stage '%s'. Try: CarDialogue | CarLastLine | CarDrive"), *BeatName);
-			return;
-		}
-		for (TActorIterator<AActor> It(World); It; ++It)
-		{
-			if (UCarRideComponent* Ride = It->FindComponentByClass<UCarRideComponent>())
-			{
-				Ride->SkipTo(Stage);
-				return;
-			}
-		}
-		UE_LOG(LogTemp, Warning, TEXT("SkipTo - no CarRideComponent in world"));
-		return;
-	}
-
-	EStoryFlag Target;
-	if (!UStorySubsystem::ResolveBeat(BeatName, Target))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone"), *BeatName);
-		return;
-	}
-
-	Story->SkipToBeat(Target);
-
-	UE_LOG(LogTemp, Warning, TEXT("SkipTo '%s' done"), *BeatName);
-}
-
-void UWeirdplaceCheatManager::AutoSkip(const FString& BeatName)
-{
-	auto Show = [](const FString& Msg, FColor Color = FColor::Cyan)
-	{
-		UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
-		if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, Color, Msg); }
-	};
-
-	// No argument: report the current setting.
+	// No beat given: list every beat/stage and the persisted one.
 	if (BeatName.IsEmpty())
 	{
 		const FString Current = UStorySubsystem::GetAutoSkipBeat();
 		Show(Current.IsEmpty()
-			? TEXT("AutoSkip: not set. Usage: AutoSkip <beat> | AutoSkip clear")
-			: FString::Printf(TEXT("AutoSkip: set to '%s'. `AutoSkip clear` to disable."), *Current));
+			? TEXT("SkipTo <beat> (persists until `SkipTo clear`):")
+			: FString::Printf(TEXT("SkipTo <beat> (currently '%s'; `SkipTo clear` to stop):"), *Current));
+		for (const FString& Name : UStorySubsystem::GetBeatDisplayNames())
+		{
+			Show(FString::Printf(TEXT("  SkipTo %s"), *Name));
+		}
+		for (const FName& Stage : UCarRideComponent::GetSkipStages())
+		{
+			Show(FString::Printf(TEXT("  SkipTo Car%s"), *Stage.ToString()));
+		}
 		return;
 	}
 
@@ -103,38 +56,51 @@ void UWeirdplaceCheatManager::AutoSkip(const FString& BeatName)
 	if (Lower == TEXT("clear") || Lower == TEXT("off") || Lower == TEXT("none"))
 	{
 		UStorySubsystem::SetAutoSkipBeat(FString());
-		Show(TEXT("AutoSkip: cleared."));
+		Show(TEXT("SkipTo: cleared; future plays start from the beginning."), FColor::Cyan);
 		return;
 	}
 
-	// Car-ride stages persist as "Car<Stage>" and are applied by the ride
-	// component when the ride starts.
+	// Resolve to a canonical name (story beat or car-ride stage), persist it,
+	// then apply it to this play.
+	FString Canonical;
 	if (BeatName.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
 	{
 		const FName Stage(*BeatName.Mid(3));
 		const int32 Index = UCarRideComponent::GetSkipStages().IndexOfByKey(Stage);
 		if (Index == INDEX_NONE)
 		{
-			Show(FString::Printf(TEXT("AutoSkip - unknown car-ride stage '%s'. Try: CarDialogue | CarLastLine | CarDrive"), *BeatName), FColor::Yellow);
+			Show(FString::Printf(TEXT("SkipTo - unknown car-ride stage '%s'. Try: CarDialogue | CarLastLine | CarDrive"), *BeatName));
 			return;
 		}
-		const FString Canonical = TEXT("Car") + UCarRideComponent::GetSkipStages()[Index].ToString();
+		Canonical = TEXT("Car") + UCarRideComponent::GetSkipStages()[Index].ToString();
 		UStorySubsystem::SetAutoSkipBeat(Canonical);
-		Show(FString::Printf(TEXT("AutoSkip: every car ride will now skip to '%s'. `AutoSkip clear` to disable."), *Canonical));
-		return;
-	}
 
-	EStoryFlag Target;
-	if (!UStorySubsystem::ResolveBeat(BeatName, Target))
+		UCarRideComponent* Ride = nullptr;
+		for (TActorIterator<AActor> It(World); It && !Ride; ++It)
+		{
+			Ride = It->FindComponentByClass<UCarRideComponent>();
+		}
+		if (!Ride)
+		{
+			Show(TEXT("SkipTo - no CarRideComponent in world"));
+			return;
+		}
+		Ride->SkipTo(UCarRideComponent::GetSkipStages()[Index]);
+	}
+	else
 	{
-		Show(FString::Printf(TEXT("AutoSkip - unknown beat '%s'. Try: KeyBroke | Tornado | Telephone | Car<Stage>"), *BeatName), FColor::Yellow);
-		return;
+		EStoryFlag Target;
+		if (!UStorySubsystem::ResolveBeat(BeatName, Target))
+		{
+			Show(FString::Printf(TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone | Car<Stage>"), *BeatName));
+			return;
+		}
+		Canonical = UStorySubsystem::GetBeatDisplayName(Target);
+		UStorySubsystem::SetAutoSkipBeat(Canonical);
+		Story->SkipToBeat(Target);
 	}
 
-	// Store the canonical display name so the saved value stays readable.
-	const FString Canonical = UStorySubsystem::GetBeatDisplayName(Target);
-	UStorySubsystem::SetAutoSkipBeat(Canonical);
-	Show(FString::Printf(TEXT("AutoSkip: every play will now skip to '%s'. `AutoSkip clear` to disable."), *Canonical));
+	Show(FString::Printf(TEXT("SkipTo '%s' done; every play will now skip here (`SkipTo clear` to stop)."), *Canonical), FColor::Cyan);
 }
 
 void UWeirdplaceCheatManager::SkipToSmoking()
