@@ -9,6 +9,7 @@
 #include "MovieBox.h"
 #include "Camera/CameraComponent.h"
 #include "Components/LightComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -314,6 +315,9 @@ void UCarRideComponent::StartRide()
 	// its lights go dark here; BeginDrive ramps them back up.
 	StationLights.Reset();
 	StationLightIntensities.Reset();
+	StationEmissiveMIDs.Reset();
+	StationEmissiveParamNames.Reset();
+	StationEmissiveValues.Reset();
 	if (GasStationRoot)
 	{
 		TArray<AActor*> GasStationActors;
@@ -330,7 +334,35 @@ void UCarRideComponent::StartRide()
 				}
 				StationLights.Add(Light);
 				StationLightIntensities.Add(Light->Intensity);
-				Light->SetIntensity(0.0f);
+			}
+			TArray<UStaticMeshComponent*> Meshes;
+			Actor->GetComponents<UStaticMeshComponent>(Meshes);
+			for (UStaticMeshComponent* Mesh : Meshes)
+			{
+				for (int32 Slot = 0; Slot < Mesh->GetNumMaterials(); ++Slot)
+				{
+					UMaterialInterface* Material = Mesh->GetMaterial(Slot);
+					if (!Material)
+					{
+						continue;
+					}
+					UMaterialInstanceDynamic* MID = nullptr;
+					for (const FName& Param : StationEmissiveParams)
+					{
+						float Value = 0.0f;
+						if (!Material->GetScalarParameterValue(Param, Value))
+						{
+							continue;
+						}
+						if (!MID)
+						{
+							MID = Mesh->CreateAndSetMaterialInstanceDynamic(Slot);
+						}
+						StationEmissiveMIDs.Add(MID);
+						StationEmissiveParamNames.Add(Param);
+						StationEmissiveValues.Add(Value);
+					}
+				}
 			}
 		}
 	}
@@ -338,6 +370,8 @@ void UCarRideComponent::StartRide()
 	{
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::StartRide - GasStationRoot is null"));
 	}
+	SetStationGlow(0.0f);
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::StartRide - station dark: %d lights, %d emissive params"), StationLights.Num(), StationEmissiveMIDs.Num());
 
 	// Hide all spawned movie boxes during the ride
 	{
@@ -893,7 +927,7 @@ void UCarRideComponent::BeginDrive()
 	// The station has been visible (and dark) since StartRide, ~400 m out in
 	// the fog; bring its lights up over StationLightRampDuration so nothing pops.
 	LightRampElapsed = 0.0f;
-	bLightRampActive = StationLights.Num() > 0;
+	bLightRampActive = StationLights.Num() > 0 || StationEmissiveMIDs.Num() > 0;
 
 	bDriving = true;
 	SetComponentTickEnabled(true);
@@ -995,19 +1029,31 @@ void UCarRideComponent::TickDrive(float DeltaTime)
 	{
 		LightRampElapsed += DeltaTime;
 		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(LightRampElapsed / FMath::Max(StationLightRampDuration, KINDA_SMALL_NUMBER), 0.0f, 1.0f));
-		for (int32 i = 0; i < StationLights.Num(); ++i)
-		{
-			if (StationLights[i])
-			{
-				StationLights[i]->SetIntensity(StationLightIntensities[i] * Alpha);
-			}
-		}
+		SetStationGlow(Alpha);
 		bLightRampActive = Alpha < 1.0f;
 	}
 
 	if (Remaining - Step <= KINDA_SMALL_NUMBER)
 	{
 		OnCarParked();
+	}
+}
+
+void UCarRideComponent::SetStationGlow(float Alpha)
+{
+	for (int32 i = 0; i < StationLights.Num(); ++i)
+	{
+		if (StationLights[i])
+		{
+			StationLights[i]->SetIntensity(StationLightIntensities[i] * Alpha);
+		}
+	}
+	for (int32 i = 0; i < StationEmissiveMIDs.Num(); ++i)
+	{
+		if (StationEmissiveMIDs[i])
+		{
+			StationEmissiveMIDs[i]->SetScalarParameterValue(StationEmissiveParamNames[i], StationEmissiveValues[i] * Alpha);
+		}
 	}
 }
 
@@ -1027,14 +1073,8 @@ void UCarRideComponent::OnCarParked()
 {
 	bDriving = false;
 	bSceneryMoving = false;
-	// Snap any light still mid-ramp to its authored value
-	for (int32 i = 0; i < StationLights.Num(); ++i)
-	{
-		if (StationLights[i])
-		{
-			StationLights[i]->SetIntensity(StationLightIntensities[i]);
-		}
-	}
+	// Snap anything still mid-ramp to its authored value
+	SetStationGlow(1.0f);
 	bLightRampActive = false;
 	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnCarParked - at %s"), *GetOwner()->GetActorLocation().ToString());
 

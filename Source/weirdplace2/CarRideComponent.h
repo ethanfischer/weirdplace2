@@ -80,6 +80,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
 	float ExitDipInDuration = 0.8f;
 
+	// Station glow meshes: any material scalar with one of these names is
+	// treated as an emissive brightness, zeroed at ride start and ramped back up
+	// with the lights (the fixtures are emissive meshes, not lights — they'd
+	// otherwise show as dots on the horizon while the car sits 400 m out).
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Drive")
+	TArray<FName> StationEmissiveParams = { FName("amount"), FName("baselineBrightness"), FName("flickerAmount") };
+
 	// Level actors with this tag (e.g. the headlight beam meshes) ride along
 	// with the car; Rick always does.
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Drive")
@@ -268,6 +275,15 @@ private:
 	TArray<float> StationLightIntensities;
 	float LightRampElapsed = 0.0f;
 	bool bLightRampActive = false;
+
+	// Station emissive scalars ramping with the lights (parallel arrays)
+	UPROPERTY()
+	TArray<class UMaterialInstanceDynamic*> StationEmissiveMIDs;
+	TArray<FName> StationEmissiveParamNames;
+	TArray<float> StationEmissiveValues;
+
+	// Lights + emissives at Alpha (0 = dark, 1 = authored)
+	void SetStationGlow(float Alpha);
 
 	UPROPERTY()
 	AActor* SceneryConveyor = nullptr;

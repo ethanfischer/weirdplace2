@@ -16,6 +16,8 @@
 #include "Camera/PlayerCameraManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Containers/Ticker.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Components/ExponentialHeightFogComponent.h"
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
 #include "Engine/GameViewportClient.h"
@@ -2704,6 +2706,96 @@ bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(4.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
 
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.StationVisibilityByDistance — how far out the lit gas station
+// stops being visible through the night fog along the car's approach lane.
+// Decides where the ride can stage/unhide the station without a pop.
+// =======================================================================
+
+class FTD_TeleportEye : public FTD_Base
+{
+public:
+	FTD_TeleportEye(FAutomationTestBase* InTest, const FVector& InEye, const FRotator& InRot) : FTD_Base(InTest), Eye(InEye), Rot(InRot) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Teleport eye to %s"), *Eye.ToString()); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		APlayerController* PC = Player ? Cast<APlayerController>(Player->GetController()) : nullptr;
+		if (!Player || !PC) { Test->AddError(TEXT("FTD_TeleportEye: no player/controller")); return true; }
+		if (UCharacterMovementComponent* Move = Player->GetCharacterMovement())
+		{
+			Move->StopMovementImmediately();
+			Move->SetMovementMode(MOVE_None);
+		}
+		const FVector CamOffset = Player->GetFirstPersonCamera() ? Player->GetFirstPersonCamera()->GetRelativeLocation() : FVector::ZeroVector;
+		Player->SetActorLocationAndRotation(Eye - CamOffset, Rot, false, nullptr, ETeleportType::TeleportPhysics);
+		PC->SetControlRotation(Rot);
+		return true;
+	}
+private:
+	FVector Eye;
+	FRotator Rot;
+};
+
+class FTD_SetHeightFogDensity : public FTD_Base
+{
+public:
+	FTD_SetHeightFogDensity(FAutomationTestBase* InTest, float InDensity) : FTD_Base(InTest), Density(InDensity) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Height fog density -> %.3f"), Density); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		for (TActorIterator<AExponentialHeightFog> It(Driver->GetWorld()); It; ++It)
+		{
+			UExponentialHeightFogComponent* Fog = It->GetComponent();
+			UE_LOG(LogTemp, Log, TEXT("FTD_SetHeightFogDensity: %s density %.4f -> %.4f"), *It->GetActorNameOrLabel(), Fog->FogDensity, Density);
+			Fog->SetFogDensity(Density);
+			return true;
+		}
+		Test->AddError(TEXT("FTD_SetHeightFogDensity: no ExponentialHeightFog"));
+		return true;
+	}
+private:
+	float Density;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StationVisibilityByDistance,
+	"Weirdplace2.E2E.Level1.Diagnostic.StationVisibilityByDistance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StationVisibilityByDistance::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StationVisibilityByDistance")
+	// Approach lane: x of the staged car, looking -Y at the station (parking y ~3406)
+	for (int32 Metres : { 200, 300, 430, 600, 800, 1000 })
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportEye(this, FVector(9305.0f, 3406.0f + Metres * 100.0f, 108.0f), FRotator(0.0f, -90.0f, 0.0f)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_StationDist_%04dm"), Metres)));
+	}
+	// Same spot as the staged car, thicker height fog: does the station vanish, and
+	// does anything (UDS) fight the value back?
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportEye(this, FVector(9305.0f, 3406.0f + 43000.0f, 108.0f), FRotator(0.0f, -90.0f, 0.0f)));
+	for (float Density : { 0.04f, 0.08f, 0.15f })
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogDensity(this, Density));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_StationFog_%03d"), int32(Density * 1000))));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogDensity(this, 0.02f));
+	// The real thing: parked in the car at the staging spot, long enough for eye
+	// adaptation to settle like it does during Rick's dialogue. Station must read
+	// as nothing but a faint outline — no lit dots, no glow.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(12.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_StationFromParkedCar")));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }
