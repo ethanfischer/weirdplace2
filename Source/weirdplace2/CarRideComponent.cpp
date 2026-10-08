@@ -306,16 +306,35 @@ void UCarRideComponent::StartRide()
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::StartRide - Rick/OutsidePositionTarget/PassengerSeatTarget unassigned; car not aimed at the station"));
 	}
 
-	// Hide the gas station during the ride (must iterate children; SetActorHiddenInGame doesn't propagate)
+	// The gas station stays visible all ride (it's ~400 m out in the fog and
+	// unlit, so it can't be seen) — toggling 60-odd actors' visibility would
+	// cost a frame of shader/shadow work exactly when the drive starts. Only
+	// its lights go dark here; BeginDrive ramps them back up.
+	StationLights.Reset();
+	StationLightIntensities.Reset();
 	if (GasStationRoot)
 	{
 		TArray<AActor*> GasStationActors;
 		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
 		for (AActor* Actor : GasStationActors)
 		{
-			Actor->SetActorHiddenInGame(true);
-			Actor->SetActorEnableCollision(false);
+			TArray<ULightComponent*> Lights;
+			Actor->GetComponents<ULightComponent>(Lights);
+			for (ULightComponent* Light : Lights)
+			{
+				if (Light->Mobility == EComponentMobility::Static)
+				{
+					continue; // baked; can't be ramped
+				}
+				StationLights.Add(Light);
+				StationLightIntensities.Add(Light->Intensity);
+				Light->SetIntensity(0.0f);
+			}
 		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::StartRide - GasStationRoot is null"));
 	}
 
 	// Hide all spawned movie boxes during the ride
@@ -869,45 +888,8 @@ void UCarRideComponent::BeginDrive()
 		SceneryConveyor->AttachToActor(GetOwner(), FAttachmentTransformRules::KeepWorldTransform);
 	}
 
-	// Reveal the station now — it's ~400 m out in the fog — with its lights
-	// at zero, ramping up over StationLightRampDuration so nothing pops.
-	StationLights.Reset();
-	StationLightIntensities.Reset();
-	if (GasStationRoot)
-	{
-		TArray<AActor*> GasStationActors;
-		GasStationRoot->GetAttachedActors(GasStationActors, /*bResetArray=*/true, /*bRecursively=*/true);
-		for (AActor* Actor : GasStationActors)
-		{
-			TArray<ULightComponent*> Lights;
-			Actor->GetComponents<ULightComponent>(Lights);
-			for (ULightComponent* Light : Lights)
-			{
-				if (Light->Mobility == EComponentMobility::Static)
-				{
-					continue; // baked; neither hideable nor rampable
-				}
-				StationLights.Add(Light);
-				StationLightIntensities.Add(Light->Intensity);
-				Light->SetIntensity(0.0f);
-			}
-			Actor->SetActorHiddenInGame(false);
-			Actor->SetActorEnableCollision(true);
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::BeginDrive - GasStationRoot is null"));
-	}
-	{
-		TArray<AActor*> MovieBoxes;
-		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
-		for (AActor* Actor : MovieBoxes)
-		{
-			Actor->SetActorHiddenInGame(false);
-			Actor->SetActorEnableCollision(true);
-		}
-	}
+	// The station has been visible (and dark) since StartRide, ~400 m out in
+	// the fog; bring its lights up over StationLightRampDuration so nothing pops.
 	LightRampElapsed = 0.0f;
 	bLightRampActive = StationLights.Num() > 0;
 
@@ -1086,10 +1068,19 @@ void UCarRideComponent::OnExitDipComplete()
 	GetWorld()->GetTimerManager().ClearTimer(GlanceTimerHandle);
 	bGlanceCycleStarted = false;
 
-	// Tear the conveyor down while the screen is dark
+	// Tear the conveyor down and restore the movie boxes while the screen is dark
 	SetComponentTickEnabled(false);
 	DestroyScenery();
 	bPlayerRiding = false;
+	{
+		TArray<AActor*> MovieBoxes;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AMovieBox::StaticClass(), MovieBoxes);
+		for (AActor* Actor : MovieBoxes)
+		{
+			Actor->SetActorHiddenInGame(false);
+			Actor->SetActorEnableCollision(true);
+		}
+	}
 
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
 	if (!PC)

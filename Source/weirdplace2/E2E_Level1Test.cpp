@@ -2280,7 +2280,49 @@ namespace CarRideDriveTest
 	}
 }
 
-// Install the per-frame sampler. One-shot.
+// Record the gas-station lights and their authored intensities. Must run
+// BEFORE the ride starts (StartRide zeroes them for the ramp).
+class FTD_CaptureStationLights : public FTD_Base
+{
+public:
+	FTD_CaptureStationLights(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Capturing gas-station light intensities"); }
+	virtual bool UpdateStep() override
+	{
+		using namespace CarRideDriveTest;
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		if (!Ride || !Ride->GasStationRoot)
+		{
+			Test->AddError(TEXT("FTD_CaptureStationLights: no CarRideComponent / GasStationRoot"));
+			return true;
+		}
+		Lights.Reset();
+		AuthoredIntensities.Reset();
+		TArray<AActor*> StationActors;
+		Ride->GasStationRoot->GetAttachedActors(StationActors, true, true);
+		for (AActor* A : StationActors)
+		{
+			TArray<ULightComponent*> Comps;
+			A->GetComponents<ULightComponent>(Comps);
+			for (ULightComponent* L : Comps)
+			{
+				// Static lights are baked: they can't pop and can't be ramped.
+				if (L->Mobility == EComponentMobility::Static) { continue; }
+				Lights.Add(L);
+				AuthoredIntensities.Add(L->Intensity);
+			}
+		}
+		if (Lights.Num() == 0)
+		{
+			Test->AddError(TEXT("FTD_CaptureStationLights: no movable/stationary light components under GasStationRoot"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureStationLights: %d gas-station lights"), Lights.Num());
+		return true;
+	}
+};
+
+// Install the per-frame sampler. One-shot. Needs FTD_CaptureStationLights first.
 class FTD_BeginCarDriveSampling : public FTD_Base
 {
 public:
@@ -2299,32 +2341,13 @@ public:
 			return true;
 		}
 		Frames.Reset();
-		Lights.Reset();
-		AuthoredIntensities.Reset();
 		LastCarLoc = Ride->GetOwner()->GetActorLocation();
 		LastTime = FPlatformTime::Seconds();
-
-		TArray<AActor*> StationActors;
-		Ride->GasStationRoot->GetAttachedActors(StationActors, true, true);
-		for (AActor* A : StationActors)
-		{
-			TArray<ULightComponent*> Comps;
-			A->GetComponents<ULightComponent>(Comps);
-			for (ULightComponent* L : Comps)
-			{
-				// Static lights are baked: hiding/showing them changes nothing, so
-				// they can't pop and their intensity can't be ramped.
-				if (L->Mobility == EComponentMobility::Static) { continue; }
-				Lights.Add(L);
-				AuthoredIntensities.Add(L->Intensity);
-			}
-		}
 		if (Lights.Num() == 0)
 		{
-			Test->AddError(TEXT("FTD_BeginCarDriveSampling: no light components under GasStationRoot"));
+			Test->AddError(TEXT("FTD_BeginCarDriveSampling: run FTD_CaptureStationLights before the ride starts"));
 			return true;
 		}
-		UE_LOG(LogTemp, Log, TEXT("FTD_BeginCarDriveSampling: tracking %d gas-station lights"), Lights.Num());
 
 		TWeakObjectPtr<UCarRideComponent> RideWeak = Ride;
 		TWeakObjectPtr<ARick> RickWeak = Rick;
@@ -2445,7 +2468,8 @@ public:
 			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: player eye drifted %.0f cm from the passenger seat while moving"), MaxEyeToSeat));
 		}
 
-		// (5) Lights ramp: <=10% authored on the first visible frame, >=95% by the end.
+		// (5) Lights ramp: the station is never hidden, so "first visible" is the
+		//     first sample — it must be dark (<=10%) and reach >=95% by the end.
 		int32 FirstVisible = INDEX_NONE;
 		float FinalRatio = 0.0f;
 		for (int32 i = 0; i < Frames.Num(); ++i)
@@ -2538,6 +2562,7 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 	E2E_TEST_PREAMBLE("CarRideDrive")
 
 	// 8000 cm/s ride speed: ~430 m to the pumps in well under the 20s window.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_00_riding")));
@@ -2596,6 +2621,7 @@ bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
 
 	// SkipTo leaves the ride-start fade alone; the fast-start cvars make it
 	// ~0.6s, so wait it out before sampling.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
