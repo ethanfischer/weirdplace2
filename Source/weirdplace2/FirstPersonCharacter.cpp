@@ -1122,6 +1122,8 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		if (!HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			// Non-interactable solid geometry (wall, furniture) — stop searching.
+			UE_LOG(LogTemp, Verbose, TEXT("RaycastInteractableCheck - blocked by %s (%s) at %s"),
+				*HitActor->GetName(), HitResult.GetComponent() ? *HitResult.GetComponent()->GetName() : TEXT("?"), *HitResult.ImpactPoint.ToString());
 			return;
 		}
 

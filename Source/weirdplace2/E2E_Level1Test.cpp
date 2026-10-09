@@ -2058,6 +2058,57 @@ namespace CarRideTest
 	static TArray<float> SnapshotXs;
 }
 
+// Poll until the car sits on Rick's parking spot (the ParkedHold window).
+class FTD_WaitForCarParked : public FTD_Base
+{
+public:
+	FTD_WaitForCarParked(FAutomationTestBase* InTest, double InTimeoutSeconds = 25.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+	virtual FString GetStatusText() const override { return TEXT("Waiting for the car to park"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		FTransform Parking;
+		if (!Ride || !Ride->Rick || !Ride->Rick->GetCarParkingTransform(Parking))
+		{
+			Test->AddError(TEXT("FTD_WaitForCarParked: no ride / Rick parking transform"));
+			return true;
+		}
+		if (FVector::Dist2D(Ride->GetOwner()->GetActorLocation(), Parking.GetLocation()) < 1.0f)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForCarParked: car never reached the parking spot"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// Parked -> open the door -> click the ground -> on foot outside. The car ride
+// doesn't finish by itself any more; every ride test that needs the conveyor
+// torn down or the player out runs these.
+#define E2E_CAR_EXIT_STEPS(Prefix) \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_parked"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.6f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("PassengerDoor"), TEXT("AimPoint"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_lookingAtDoor"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("CarExitSpot"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_doorOpenLookingAtGround"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.9f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_steppingOut"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_outside")));
+
 // Crank the scenery speed (fast recycle -> short test) and force the ride to
 // start regardless of the editor play-location setting.
 class FTD_StartCarRideFast : public FTD_Base
@@ -2241,11 +2292,10 @@ bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorMovedAndRecycled(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T2")));
 
-	// End the ride and verify the conveyor is torn down once the player is out
-	// (fast drive ~10s + door/step-out ~5s).
+	// End the ride, get out, and verify the conveyor is torn down behind the player.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 20.0));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideScenery_T3")
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 5.0));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -2528,38 +2578,6 @@ public:
 	}
 };
 
-// Poll until the car sits on Rick's parking spot (the ParkedHold window).
-class FTD_WaitForCarParked : public FTD_Base
-{
-public:
-	FTD_WaitForCarParked(FAutomationTestBase* InTest, double InTimeoutSeconds = 25.0)
-		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
-	virtual FString GetStatusText() const override { return TEXT("Waiting for the car to park"); }
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
-		FTransform Parking;
-		if (!Ride || !Ride->Rick || !Ride->Rick->GetCarParkingTransform(Parking))
-		{
-			Test->AddError(TEXT("FTD_WaitForCarParked: no ride / Rick parking transform"));
-			return true;
-		}
-		if (FVector::Dist2D(Ride->GetOwner()->GetActorLocation(), Parking.GetLocation()) < 1.0f)
-		{
-			return true;
-		}
-		if (GetElapsedSinceFirstTick() > Timeout)
-		{
-			Test->AddError(TEXT("FTD_WaitForCarParked: car never reached the parking spot"));
-			return true;
-		}
-		return false;
-	}
-private:
-	double Timeout;
-};
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 	FE2E_Level1_CarRideDrive,
 	"Weirdplace2.E2E.Level1.Regression.CarRideDrive",
@@ -2583,14 +2601,7 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_02_midDrive")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_03_pullOver")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_04_parked")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_05_doorOpen")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_06_steppingOut")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_07_outside")));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideDrive_04")
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 8.0));
 
@@ -2707,9 +2718,7 @@ bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
 	// windshield-SSR smear at drive start was found; diff the frames with PIL.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_FrameDump(this, TEXT("E2E_CarRideSkipTo_dump"), 2.5f, TEXT("weird.CarRide.SkipTo Drive")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_01_driving")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_02_parked")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(6.0f));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideSkipTo_02")
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

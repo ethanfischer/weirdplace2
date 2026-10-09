@@ -11,6 +11,8 @@
 #include "Components/LightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Components/CapsuleComponent.h"
+#include "CarDoor.h"
+#include "Components/BoxComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -436,10 +438,16 @@ void UCarRideComponent::StartRide()
 
 	// Rick stares at the road until his first line of dialogue — the seat
 	// teleport puts the player inside his LookAtPlayerComponent sphere, which
-	// would otherwise lock his gaze onto the player for the whole ride.
+	// would otherwise lock his gaze onto the player for the whole ride. He's
+	// also not an interact target from the passenger seat (the player sits
+	// inside his interaction box, so every ray would hit him before the door).
 	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
 	{
 		LookAt->SetSuppressed(true);
+	}
+	if (Rick)
+	{
+		Rick->SetInteractionEnabled(false);
 	}
 
 	// Spawn the silhouette conveyor and start scenery movement
@@ -1114,20 +1122,29 @@ void UCarRideComponent::SpawnPassengerDoor()
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnPassengerDoor - car has no root component"));
 		return;
 	}
-	PassengerDoor = NewObject<UStaticMeshComponent>(GetOwner(), TEXT("PassengerDoor"));
-	PassengerDoor->SetMobility(EComponentMobility::Movable);
-	PassengerDoor->SetStaticMesh(DoorMesh);
-	PassengerDoor->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	PassengerDoor->AttachToComponent(CarRoot, FAttachmentTransformRules::KeepRelativeTransform);
-	PassengerDoor->SetRelativeLocation(DoorHingeLocal);
-	PassengerDoor->RegisterComponent();
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	Params.Owner = GetOwner();
+	PassengerDoor = GetWorld()->SpawnActor<ACarDoor>(ACarDoor::StaticClass(), GetOwner()->GetActorTransform(), Params);
+	if (!PassengerDoor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnPassengerDoor - spawn failed"));
+		return;
+	}
+#if WITH_EDITOR
+	PassengerDoor->SetActorLabel(TEXT("PassengerDoor"));
+#endif
+	PassengerDoor->SetMesh(DoorMesh);
+	PassengerDoor->AttachToComponent(CarRoot, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	PassengerDoor->SetActorRelativeLocation(DoorHingeLocal);
+	PassengerDoor->OnInteract.AddUObject(this, &UCarRideComponent::OnDoorInteract);
 }
 
 void UCarRideComponent::SetDoorAngle(float Yaw)
 {
 	if (PassengerDoor)
 	{
-		PassengerDoor->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
+		PassengerDoor->SetOpenYaw(Yaw);
 	}
 }
 
@@ -1149,7 +1166,57 @@ void UCarRideComponent::ExitCar()
 		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::ExitCar - no passenger door; cannot get out"));
 		return;
 	}
+	// Hand interaction back while the body stays seated: the player has to
+	// look at the door and open it themselves.
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	if (AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr)
+	{
+		Player->SetCanInteract(true);
+	}
+	PassengerDoor->SetArmed(true);
+	ExitPhase = EExitPhase::AwaitDoor;
+	ExitElapsed = 0.0f;
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::ExitCar - door armed, waiting for the player to open it"));
+}
+
+void UCarRideComponent::OnDoorInteract()
+{
+	if (ExitPhase != EExitPhase::AwaitDoor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnDoorInteract - door used outside the AwaitDoor phase"));
+		return;
+	}
 	ExitPhase = EExitPhase::DoorOpening;
+	ExitElapsed = 0.0f;
+	SetComponentTickEnabled(true);
+}
+
+void UCarRideComponent::OnExitSpotInteract()
+{
+	if (ExitPhase != EExitPhase::AwaitStep)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnExitSpotInteract - used outside the AwaitStep phase"));
+		return;
+	}
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnExitSpotInteract - no player to step out"));
+		return;
+	}
+	if (ExitSpot)
+	{
+		ExitSpot->Destroy();
+		ExitSpot = nullptr;
+	}
+	// Seat -> standing beside the door: XY glides out through the opening,
+	// Z rises to standing height (capsule on the car's ground)
+	const FTransform CarT = GetOwner()->GetActorTransform();
+	const float HalfHeight = Player->GetCapsuleComponent() ? Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
+	ExitStartLocation = Player->GetActorLocation();
+	ExitEndLocation = CarT.TransformPosition(FVector(ExitStandLocal.X, ExitStandLocal.Y, 0.0f)) + FVector(0.0f, 0.0f, HalfHeight + 2.0f);
+	ExitPhase = EExitPhase::Stepping;
 	ExitElapsed = 0.0f;
 	SetComponentTickEnabled(true);
 }
@@ -1168,20 +1235,26 @@ void UCarRideComponent::TickExit(float DeltaTime)
 		SetDoorAngle(DoorOpenAngle * Alpha);
 		if (Alpha >= 1.0f)
 		{
-			if (!Player)
+			// Door's open: offer the ground outside as the thing to click
+			const FTransform CarT = GetOwner()->GetActorTransform();
+			const FVector SpotLocation = CarT.TransformPosition(FVector(ExitStandLocal.X, ExitStandLocal.Y, 0.0f)) + FVector(0.0f, 0.0f, ExitSpotHeight);
+			FActorSpawnParameters Params;
+			Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+			ExitSpot = GetWorld()->SpawnActor<ACarExitSpot>(ACarExitSpot::StaticClass(), SpotLocation, CarT.Rotator(), Params);
+			if (!ExitSpot)
 			{
-				UE_LOG(LogTemp, Error, TEXT("CarRideComponent::TickExit - no player to step out"));
+				UE_LOG(LogTemp, Error, TEXT("CarRideComponent::TickExit - failed to spawn the exit spot"));
 				ExitPhase = EExitPhase::None;
 				return;
 			}
-			// Seat -> standing beside the door: XY glides out through the
-			// opening, Z rises to standing height (capsule on the car's ground)
-			const FTransform CarT = GetOwner()->GetActorTransform();
-			const float HalfHeight = Player->GetCapsuleComponent() ? Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
-			ExitStartLocation = Player->GetActorLocation();
-			ExitEndLocation = CarT.TransformPosition(FVector(ExitStandLocal.X, ExitStandLocal.Y, 0.0f)) + FVector(0.0f, 0.0f, HalfHeight + 2.0f);
-			ExitPhase = EExitPhase::Stepping;
-			ExitElapsed = 0.0f;
+#if WITH_EDITOR
+			ExitSpot->SetActorLabel(TEXT("CarExitSpot"));
+#endif
+			ExitSpot->OnInteract.AddUObject(this, &UCarRideComponent::OnExitSpotInteract);
+			ExitSpot->SetArmed(true);
+			ExitPhase = EExitPhase::AwaitStep;
+			SetComponentTickEnabled(false);
+			UE_LOG(LogTemp, Display, TEXT("CarRideComponent::TickExit - door open, exit spot armed at %s"), *SpotLocation.ToString());
 		}
 		break;
 	}
@@ -1250,11 +1323,6 @@ void UCarRideComponent::FinishExit()
 		return;
 	}
 
-	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
-	{
-		LookAt->SetSuppressed(false);
-	}
-
 	// Safety: gate is normally cleared in OnDialogueEnded, but clear again in
 	// case the ride was force-ended mid-dialogue
 	Player->ClearDialogueGazeGate();
@@ -1291,11 +1359,26 @@ void UCarRideComponent::FinishExit()
 				DialogueWidget->Close();
 			}
 		}
-		// Rick steps out onto his outside mark; the car is already parked where
-		// this puts it, so it doesn't move.
-		Rick->AppearOutside();
+		// Rick stays behind the wheel (his look-at stays suppressed so he keeps
+		// staring at the road) and can't be talked to from here.
+		Rick->SetInteractionEnabled(false);
 	}
 	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::FinishExit - player out at %s"), *Player->GetActorLocation().ToString());
+}
+
+void UCarRideComponent::ForceEndRide()
+{
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+	if (Player && Player->GetActivityState() == EPlayerActivityState::InDialogue)
+	{
+		// Rick's OnDialogueEnded -> our OnDialogueEnded arms the post-dialogue
+		// timer; we're starting the drive right now instead.
+		Player->SkipDialogue();
+		GetWorld()->GetTimerManager().ClearTimer(PostDialogueTimerHandle);
+	}
+	GetWorld()->GetTimerManager().ClearTimer(DialogueStartTimerHandle);
+	EndRide();
 }
 
 void UCarRideComponent::ForceStartRide()

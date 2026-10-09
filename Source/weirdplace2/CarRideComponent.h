@@ -93,7 +93,7 @@ public:
 
 	// Yaw the door swings to when open (negative = outward on this car)
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	float DoorOpenAngle = -65.0f;
+	float DoorOpenAngle = -80.0f;
 
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
 	float DoorOpenDuration = 0.9f;
@@ -108,11 +108,15 @@ public:
 	// Where the player ends up standing (car space, feet; Z is ignored —
 	// capsule sits on the car's ground). Clear of the open door's swing.
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	FVector ExitStandLocal = FVector(-150.0f, -20.0f, 0.0f);
+	FVector ExitStandLocal = FVector(-150.0f, 35.0f, 0.0f);
 
 	// Pause between the player being out and the door closing behind them
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
 	float ExitDoorCloseDelay = 0.3f;
+
+	// Height of the invisible "step out here" volume's centre above the ground
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float ExitSpotHeight = 40.0f;
 
 	// World-space spot the player stands at after getting out (for tests)
 	bool GetExitStandLocation(FVector& OutLocation) const;
@@ -255,7 +259,8 @@ public:
 	static bool IsSkipStage(FName Stage);
 	void RebuildScenery();
 	AActor* GetSceneryConveyor() const { return SceneryConveyor; }
-	void ForceEndRide() { EndRide(); }
+	// Test hook: end any dialogue in progress and start the drive now
+	void ForceEndRide();
 
 private:
 	void SpawnScenery();
@@ -281,14 +286,21 @@ private:
 	void SpawnPassengerDoor();
 	void SetDoorAngle(float Yaw);
 
-	enum class EExitPhase : uint8 { None, DoorOpening, Stepping, CloseDelay, DoorClosing };
+	// Parked -> (player opens door) -> door swings -> (player clicks the ground)
+	// -> steps out -> door closes
+	enum class EExitPhase : uint8 { None, AwaitDoor, DoorOpening, AwaitStep, Stepping, CloseDelay, DoorClosing };
+	void OnDoorInteract();
+	void OnExitSpotInteract();
 	EExitPhase ExitPhase = EExitPhase::None;
 	float ExitElapsed = 0.0f;
 	FVector ExitStartLocation = FVector::ZeroVector;
 	FVector ExitEndLocation = FVector::ZeroVector;
 
 	UPROPERTY()
-	class UStaticMeshComponent* PassengerDoor = nullptr;
+	class ACarDoor* PassengerDoor = nullptr;
+
+	UPROPERTY()
+	class ACarExitSpot* ExitSpot = nullptr;
 
 	bool bDriving = false;
 	float DriveS = 0.0f;              // distance travelled along the path (cm)

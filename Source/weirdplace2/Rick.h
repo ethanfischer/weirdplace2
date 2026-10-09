@@ -35,6 +35,10 @@ public:
 
 	// IInteractable
 	virtual void Interact_Implementation() override;
+	virtual bool CanInteract() override { return bInteractionEnabled; }
+
+	// Car ride end: Rick stays in the driver's seat and can't be talked to
+	void SetInteractionEnabled(bool bEnabled) { bInteractionEnabled = bEnabled; }
 
 	// IDialogueWidgetProvider
 	virtual UUI_Dialogue* GetDialogueWidget() const override;
@@ -54,6 +58,11 @@ public:
 	// Restore Rick to where he stood before the storm stash. (No caller yet —
 	// the "much later" return beat will use this.)
 	void ReturnFromStorm();
+
+private:
+	bool bInteractionEnabled = true;
+
+public:
 
 	// Delegate fired when dialogue ends (CarRideComponent binds to this)
 	UPROPERTY(BlueprintAssignable, Category = "Rick|Dialogue")
