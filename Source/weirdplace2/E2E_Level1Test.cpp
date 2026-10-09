@@ -2241,10 +2241,11 @@ bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorMovedAndRecycled(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T2")));
 
-	// End the ride and verify the conveyor is torn down after the fade.
+	// End the ride and verify the conveyor is torn down once the player is out
+	// (fast drive ~10s + door/step-out ~5s).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 20.0));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -2505,18 +2506,19 @@ public:
 				Frames[FirstVisible].Time - Frames[0].Time, FirstRatio, FinalRatio);
 		}
 
-		// (6) Ride-end state: player on foot at the arrival target, interaction back on.
+		// (6) Ride-end state: player on foot beside the passenger door, interaction back on.
 		APlayerController* PC = Ride->GetWorld()->GetFirstPlayerController();
 		AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
-		if (!Player || !Ride->ArrivalTarget)
+		FVector Stand;
+		if (!Player || !Ride->GetExitStandLocation(Stand))
 		{
-			Test->AddError(TEXT("FTD_AssertCarDrove: no player / ArrivalTarget"));
+			Test->AddError(TEXT("FTD_AssertCarDrove: no player / exit stand location"));
 			return true;
 		}
-		const float ArriveDist = FVector::Dist(Player->GetFirstPersonCamera()->GetComponentLocation(), Ride->ArrivalTarget->GetActorLocation());
+		const float ArriveDist = FVector::Dist2D(Player->GetActorLocation(), Stand);
 		if (ArriveDist > 60.0f)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: player eye %.0f cm from GasArrivalTarget after the ride"), ArriveDist));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: player %.0f cm from the exit stand spot after the ride"), ArriveDist));
 		}
 		if (Player->GetCharacterMovement()->MovementMode != MOVE_Walking || !Player->GetCanInteract())
 		{
@@ -2583,10 +2585,14 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_03_pullOver")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_04_parked")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(4.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_05_outside")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_05_doorOpen")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_06_steppingOut")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_07_outside")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 5.0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 8.0));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -2703,7 +2709,7 @@ bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_01_driving")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_02_parked")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(4.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(6.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

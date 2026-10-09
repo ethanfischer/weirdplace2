@@ -35,10 +35,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
 	AActor* PassengerSeatTarget;
 
-	// Empty actor at store entrance (player teleports here when ride ends)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
-	AActor* ArrivalTarget;
-
 	// GasStation folder actor — hidden during ride, shown when ride ends
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride")
 	AActor* GasStationRoot;
@@ -85,12 +81,41 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
 	float ParkedHoldDuration = 1.2f;
 
-	// Getting out of the car is a quick dip to black (not the old long fade)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
-	float ExitDipOutDuration = 0.4f;
+	// --- Getting out: the passenger door opens and the player steps out. No cut. ---
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
-	float ExitDipInDuration = 0.8f;
+	// The front passenger door, carved off the car mesh (pivot = hinge line)
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	FString PassengerDoorMeshPath = TEXT("/Game/Vehicles/Generated/SM_Car_19c_PassengerDoor.SM_Car_19c_PassengerDoor");
+
+	// Hinge location in car space (where the door mesh's origin sits)
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	FVector DoorHingeLocal = FVector(-101.4159f, 90.936f, 0.0f);
+
+	// Yaw the door swings to when open (negative = outward on this car)
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float DoorOpenAngle = -65.0f;
+
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float DoorOpenDuration = 0.9f;
+
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float DoorCloseDuration = 0.7f;
+
+	// Seat -> standing outside takes this long
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float ExitDuration = 1.6f;
+
+	// Where the player ends up standing (car space, feet; Z is ignored —
+	// capsule sits on the car's ground). Clear of the open door's swing.
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	FVector ExitStandLocal = FVector(-150.0f, -20.0f, 0.0f);
+
+	// Pause between the player being out and the door closing behind them
+	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
+	float ExitDoorCloseDelay = 0.3f;
+
+	// World-space spot the player stands at after getting out (for tests)
+	bool GetExitStandLocation(FVector& OutLocation) const;
 
 	// Station glow meshes: any material scalar with one of these names is
 	// treated as an emissive brightness, zeroed at ride start and ramped back up
@@ -250,7 +275,20 @@ private:
 	void PlaceCar(const FTransform& CarTransform);
 	void OnCarParked();
 	void ExitCar();
-	void OnExitDipComplete();
+	void TickExit(float DeltaTime);
+	// Player is out: hand control back, Rick steps out, scene cleanup
+	void FinishExit();
+	void SpawnPassengerDoor();
+	void SetDoorAngle(float Yaw);
+
+	enum class EExitPhase : uint8 { None, DoorOpening, Stepping, CloseDelay, DoorClosing };
+	EExitPhase ExitPhase = EExitPhase::None;
+	float ExitElapsed = 0.0f;
+	FVector ExitStartLocation = FVector::ZeroVector;
+	FVector ExitEndLocation = FVector::ZeroVector;
+
+	UPROPERTY()
+	class UStaticMeshComponent* PassengerDoor = nullptr;
 
 	bool bDriving = false;
 	float DriveS = 0.0f;              // distance travelled along the path (cm)
@@ -348,7 +386,6 @@ private:
 	FTimerHandle DialogueStartTimerHandle;
 	FTimerHandle PostDialogueTimerHandle;
 	FTimerHandle ParkedHoldTimerHandle;
-	FTimerHandle ExitDipTimerHandle;
 	FTimerHandle BladderPulseTimerHandle;
 	FTimerHandle GlanceTimerHandle;
 	FTimerHandle RideStartFadeTimerHandle;

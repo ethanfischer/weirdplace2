@@ -10,6 +10,7 @@
 #include "Camera/CameraComponent.h"
 #include "Components/LightComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -48,11 +49,6 @@ WP_TUNABLE_FLOAT(GCarRideMusicFadeDelayOverride, "weird.CarRide.MusicFadeDelay",
 WP_TUNABLE_FLOAT(GCarRideMusicFadeInOverride, "weird.CarRide.MusicFadeIn", 0.0f,
 	"Override music fade-in duration in seconds (0 = use component MusicFadeInDuration). Takes effect on next PIE.");
 
-WP_TUNABLE_FLOAT(GCarRideExitDipOutOverride, "weird.CarRide.ExitDipOut", 0.0f,
-	"Override the dip-to-black when getting out of the parked car, in seconds (0 = use component ExitDipOutDuration).");
-
-WP_TUNABLE_FLOAT(GCarRideExitDipInOverride, "weird.CarRide.ExitDipIn", 0.0f,
-	"Override the fade-back-in after getting out of the car, in seconds (0 = use component ExitDipInDuration).");
 
 static FAutoConsoleCommandWithWorldAndArgs GCarRideSkipToCmd(
 	TEXT("weird.CarRide.SkipTo"),
@@ -141,6 +137,8 @@ void UCarRideComponent::BeginPlay()
 		RiderLocalRotations.Add(InitialCarTransform.GetRotation().Inverse() * Rider->GetActorQuat());
 	}
 	UE_LOG(LogTemp, Log, TEXT("CarRideComponent: %d riders captured"), Riders.Num());
+
+	SpawnPassengerDoor();
 
 	bool bSkipRide = false;
 #if WITH_EDITOR
@@ -598,6 +596,10 @@ void UCarRideComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	if (bDriving)
 	{
 		TickDrive(DeltaTime);
+	}
+	else if (ExitPhase != EExitPhase::None)
+	{
+		TickExit(DeltaTime);
 	}
 	else if (bSceneryMoving && SceneryConveyor)
 	{
@@ -1098,34 +1100,137 @@ void UCarRideComponent::OnCarParked()
 	);
 }
 
-void UCarRideComponent::ExitCar()
+void UCarRideComponent::SpawnPassengerDoor()
 {
-	// Getting out is a quick dip to black; the teleport happens under it
-	const float DipOut = GCarRideExitDipOutOverride > 0.0f ? GCarRideExitDipOutOverride : ExitDipOutDuration;
-	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (PC && PC->PlayerCameraManager)
+	UStaticMesh* DoorMesh = LoadObject<UStaticMesh>(nullptr, *PassengerDoorMeshPath);
+	if (!DoorMesh)
 	{
-		PC->PlayerCameraManager->StartCameraFade(0.f, 1.f, DipOut, FLinearColor::Black, false, true);
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnPassengerDoor - failed to load %s"), *PassengerDoorMeshPath);
+		return;
 	}
-	GetWorld()->GetTimerManager().SetTimer(
-		ExitDipTimerHandle,
-		this,
-		&UCarRideComponent::OnExitDipComplete,
-		DipOut,
-		false
-	);
+	USceneComponent* CarRoot = GetOwner()->GetRootComponent();
+	if (!CarRoot)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::SpawnPassengerDoor - car has no root component"));
+		return;
+	}
+	PassengerDoor = NewObject<UStaticMeshComponent>(GetOwner(), TEXT("PassengerDoor"));
+	PassengerDoor->SetMobility(EComponentMobility::Movable);
+	PassengerDoor->SetStaticMesh(DoorMesh);
+	PassengerDoor->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PassengerDoor->AttachToComponent(CarRoot, FAttachmentTransformRules::KeepRelativeTransform);
+	PassengerDoor->SetRelativeLocation(DoorHingeLocal);
+	PassengerDoor->RegisterComponent();
 }
 
-void UCarRideComponent::OnExitDipComplete()
+void UCarRideComponent::SetDoorAngle(float Yaw)
 {
-	// End the glance cycle (suppression is lifted after the teleport below,
-	// once the player is out of Rick's look-at sphere)
+	if (PassengerDoor)
+	{
+		PassengerDoor->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
+	}
+}
+
+bool UCarRideComponent::GetExitStandLocation(FVector& OutLocation) const
+{
+	FTransform Parking;
+	if (!Rick || !Rick->GetCarParkingTransform(Parking))
+	{
+		return false;
+	}
+	OutLocation = Parking.TransformPosition(FVector(ExitStandLocal.X, ExitStandLocal.Y, 0.0f));
+	return true;
+}
+
+void UCarRideComponent::ExitCar()
+{
+	if (!PassengerDoor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::ExitCar - no passenger door; cannot get out"));
+		return;
+	}
+	ExitPhase = EExitPhase::DoorOpening;
+	ExitElapsed = 0.0f;
+	SetComponentTickEnabled(true);
+}
+
+void UCarRideComponent::TickExit(float DeltaTime)
+{
+	ExitElapsed += DeltaTime;
+	APlayerController* PC = GetWorld()->GetFirstPlayerController();
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+
+	switch (ExitPhase)
+	{
+	case EExitPhase::DoorOpening:
+	{
+		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(ExitElapsed / DoorOpenDuration, 0.0f, 1.0f));
+		SetDoorAngle(DoorOpenAngle * Alpha);
+		if (Alpha >= 1.0f)
+		{
+			if (!Player)
+			{
+				UE_LOG(LogTemp, Error, TEXT("CarRideComponent::TickExit - no player to step out"));
+				ExitPhase = EExitPhase::None;
+				return;
+			}
+			// Seat -> standing beside the door: XY glides out through the
+			// opening, Z rises to standing height (capsule on the car's ground)
+			const FTransform CarT = GetOwner()->GetActorTransform();
+			const float HalfHeight = Player->GetCapsuleComponent() ? Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() : 88.0f;
+			ExitStartLocation = Player->GetActorLocation();
+			ExitEndLocation = CarT.TransformPosition(FVector(ExitStandLocal.X, ExitStandLocal.Y, 0.0f)) + FVector(0.0f, 0.0f, HalfHeight + 2.0f);
+			ExitPhase = EExitPhase::Stepping;
+			ExitElapsed = 0.0f;
+		}
+		break;
+	}
+	case EExitPhase::Stepping:
+	{
+		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(ExitElapsed / ExitDuration, 0.0f, 1.0f));
+		if (Player)
+		{
+			Player->SetActorLocation(FMath::Lerp(ExitStartLocation, ExitEndLocation, Alpha), false, nullptr, ETeleportType::TeleportPhysics);
+		}
+		if (Alpha >= 1.0f)
+		{
+			FinishExit();
+			ExitPhase = EExitPhase::CloseDelay;
+			ExitElapsed = 0.0f;
+		}
+		break;
+	}
+	case EExitPhase::CloseDelay:
+		if (ExitElapsed >= ExitDoorCloseDelay)
+		{
+			ExitPhase = EExitPhase::DoorClosing;
+			ExitElapsed = 0.0f;
+		}
+		break;
+	case EExitPhase::DoorClosing:
+	{
+		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(ExitElapsed / DoorCloseDuration, 0.0f, 1.0f));
+		SetDoorAngle(DoorOpenAngle * (1.0f - Alpha));
+		if (Alpha >= 1.0f)
+		{
+			ExitPhase = EExitPhase::None;
+			SetComponentTickEnabled(false);
+			DestroyScenery();
+			UE_LOG(LogTemp, Display, TEXT("CarRideComponent::TickExit - door closed; ride over"));
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+void UCarRideComponent::FinishExit()
+{
+	// End the glance cycle (suppression is lifted below, once the player is
+	// out of Rick's look-at sphere)
 	GetWorld()->GetTimerManager().ClearTimer(GlanceTimerHandle);
 	bGlanceCycleStarted = false;
-
-	// Tear the conveyor down and restore the movie boxes while the screen is dark
-	SetComponentTickEnabled(false);
-	DestroyScenery();
 	bPlayerRiding = false;
 	{
 		TArray<AActor*> MovieBoxes;
@@ -1138,47 +1243,13 @@ void UCarRideComponent::OnExitDipComplete()
 	}
 
 	APlayerController* PC = GetWorld()->GetFirstPlayerController();
-	if (!PC)
-	{
-		return;
-	}
-
-	AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(PC->GetPawn());
+	AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
 	if (!Player)
 	{
+		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::FinishExit - no player"));
 		return;
 	}
 
-	// Teleport player to arrival target (offset by camera height, same as seat teleport).
-	// MOVE_None + StopMovementImmediately first so the post-teleport tick doesn't floor-snap.
-	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
-	{
-		MoveComp->StopMovementImmediately();
-		MoveComp->SetMovementMode(MOVE_None);
-	}
-	if (ArrivalTarget)
-	{
-		FVector CameraOffset = FVector::ZeroVector;
-		if (UCameraComponent* Camera = Player->GetFirstPersonCamera())
-		{
-			CameraOffset = Camera->GetRelativeLocation();
-		}
-		const FVector TargetEye = ArrivalTarget->GetActorLocation();
-		const FVector ActorLocation = TargetEye - CameraOffset;
-		const FRotator TargetRotation = ArrivalTarget->GetActorRotation();
-		Player->SetActorLocationAndRotation(ActorLocation, TargetRotation, /*bSweep=*/false, nullptr, ETeleportType::TeleportPhysics);
-		PC->SetControlRotation(TargetRotation);
-		UE_LOG(LogTemp, Display, TEXT("CarRideComponent::OnExitDipComplete - Teleport: EyeTarget=%s ActorLoc=%s CamOffset=%s Rot=%s"),
-			*TargetEye.ToString(), *ActorLocation.ToString(), *CameraOffset.ToString(), *TargetRotation.ToString());
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("CarRideComponent::OnExitDipComplete - ArrivalTarget is null!"));
-	}
-
-	// Player is now at the gas station, outside Rick's look-at sphere —
-	// unsuppressing resolves the look to false and normal proximity behavior
-	// resumes for the outside-store beats.
 	if (ULookAtPlayerComponent* LookAt = GetRickLookAtComponent())
 	{
 		LookAt->SetSuppressed(false);
@@ -1188,7 +1259,7 @@ void UCarRideComponent::OnExitDipComplete()
 	// case the ride was force-ended mid-dialogue
 	Player->ClearDialogueGazeGate();
 
-	// Re-enable movement and gravity (StartRide set MOVE_None to suppress floor-snap)
+	// Hand the body back: walking, gravity, jump, interaction
 	PC->SetIgnoreMoveInput(false);
 	if (UCharacterMovementComponent* MoveComp = Player->GetCharacterMovement())
 	{
@@ -1198,17 +1269,9 @@ void UCarRideComponent::OnExitDipComplete()
 	}
 	Player->SetCanInteract(true);
 
-	// Start bladder urgency if it has delayed start
 	if (UBladderUrgencyComponent* BladderComp = Player->FindComponentByClass<UBladderUrgencyComponent>())
 	{
 		BladderComp->StartUrgency();
-	}
-
-	// Fade camera back in
-	if (PC->PlayerCameraManager)
-	{
-		const float DipIn = GCarRideExitDipInOverride > 0.0f ? GCarRideExitDipInOverride : ExitDipInDuration;
-		PC->PlayerCameraManager->StartCameraFade(1.f, 0.f, DipIn, FLinearColor::Black, false, false);
 	}
 
 	if (Rick)
@@ -1232,6 +1295,7 @@ void UCarRideComponent::OnExitDipComplete()
 		// this puts it, so it doesn't move.
 		Rick->AppearOutside();
 	}
+	UE_LOG(LogTemp, Display, TEXT("CarRideComponent::FinishExit - player out at %s"), *Player->GetActorLocation().ToString());
 }
 
 void UCarRideComponent::ForceStartRide()
