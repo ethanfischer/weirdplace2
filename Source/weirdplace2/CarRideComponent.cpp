@@ -998,12 +998,23 @@ void UCarRideComponent::TickDrive(float DeltaTime)
 	const float Total = DriveStraightLength + DriveCurveLength;
 	const float Remaining = Total - DriveS;
 
-	// Constant deceleration from the braking point to a stop at the spot
-	const float BrakeZone = DriveCurveLength + DriveBrakingDistance;
+	// Driver-style profile: cruise -> ease off to the approach speed by the
+	// turn-in -> hold it through the turn -> creep to a stop over the last metres
+	const float Approach = Cruise * DriveApproachSpeedFraction;
 	float Speed = Cruise;
-	if (Remaining < BrakeZone)
+	if (Remaining <= DriveStopDistance)
 	{
-		Speed = FMath::Max(DriveMinSpeed, Cruise * FMath::Sqrt(FMath::Max(Remaining, 0.0f) / BrakeZone));
+		Speed = FMath::Max(DriveMinSpeed, Approach * FMath::Sqrt(FMath::Max(Remaining, 0.0f) / DriveStopDistance));
+	}
+	else if (Remaining <= DriveCurveLength)
+	{
+		Speed = Approach;
+	}
+	else if (Remaining <= DriveCurveLength + DriveBrakingDistance)
+	{
+		// Constant deceleration from cruise to approach across the braking zone
+		const float T = (Remaining - DriveCurveLength) / DriveBrakingDistance; // 1 at brake point -> 0 at turn-in
+		Speed = FMath::Sqrt(FMath::Lerp(Approach * Approach, Cruise * Cruise, T));
 	}
 	const float Step = FMath::Min(Speed * DeltaTime, Remaining);
 	DriveS += Step;

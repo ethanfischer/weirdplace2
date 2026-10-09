@@ -56,13 +56,25 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
 	float DriveTurnRadius = 1500.0f;
 
-	// Constant-deceleration braking starts this far (cm) before the turn begins
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
-	float DriveBrakingDistance = 3000.0f;
+	// Speed profile, driver-style: cruise, ease off to the approach speed
+	// before the turn, take the turn at approach speed, creep to a stop.
 
-	// Floor on the braking speed so the last metres don't crawl forever (cm/s)
+	// Ease from cruise down to approach speed over this distance (cm), ending
+	// where the turn begins
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
-	float DriveMinSpeed = 150.0f;
+	float DriveBrakingDistance = 10000.0f;
+
+	// Turn-in speed as a fraction of cruise (RideSpeed)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive", meta = (ClampMin = "0.05", ClampMax = "1.0"))
+	float DriveApproachSpeedFraction = 0.3f;
+
+	// The final creep: approach speed eases to a stop over the last this-many cm
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float DriveStopDistance = 500.0f;
+
+	// Floor on the creeping speed so the last metres don't crawl forever (cm/s)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Drive")
+	float DriveMinSpeed = 60.0f;
 
 	// Gas-station lights ramp from 0 to authored intensity over this long after
 	// the station is unhidden at drive start (it's ~400m out in the fog then)
