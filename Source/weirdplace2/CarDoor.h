@@ -24,9 +24,11 @@ public:
 	ACarDoor();
 
 	void SetMesh(UStaticMesh* Mesh);
-	// Armed = interact target; it only has collision while armed so the open
-	// door never pushes the stepping-out player around
+	// Armed = interact target. Collision is on while armed (so the interact
+	// trace finds it) and off while the player steps past it; SetSolid turns it
+	// back on once they're out so the open door is something you walk around.
 	void SetArmed(bool bInArmed);
+	void SetSolid(bool bSolid);
 	void SetOpenYaw(float Yaw);
 
 	// IInteractable

@@ -38,6 +38,11 @@ void ACarDoor::SetArmed(bool bInArmed)
 	Mesh->SetCollisionEnabled(bInArmed ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
 }
 
+void ACarDoor::SetSolid(bool bSolid)
+{
+	Mesh->SetCollisionEnabled(bSolid ? ECollisionEnabled::QueryOnly : ECollisionEnabled::NoCollision);
+}
+
 void ACarDoor::SetOpenYaw(float Yaw)
 {
 	SetActorRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
@@ -59,7 +64,7 @@ ACarExitSpot::ACarExitSpot()
 
 	Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
 	Box->SetMobility(EComponentMobility::Movable);
-	Box->SetBoxExtent(FVector(60.0f, 60.0f, 40.0f));
+	Box->SetBoxExtent(FVector(60.0f, 60.0f, 60.0f));
 	Box->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	Box->SetCollisionObjectType(ECC_WorldDynamic);
 	Box->SetCollisionResponseToAllChannels(ECR_Block);

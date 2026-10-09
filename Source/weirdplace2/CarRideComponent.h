@@ -98,9 +98,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
 	float DoorOpenDuration = 0.9f;
 
-	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	float DoorCloseDuration = 0.7f;
-
 	// Seat -> standing outside takes this long
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
 	float ExitDuration = 1.6f;
@@ -108,15 +105,11 @@ public:
 	// Where the player ends up standing (car space, feet; Z is ignored —
 	// capsule sits on the car's ground). Clear of the open door's swing.
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	FVector ExitStandLocal = FVector(-150.0f, 35.0f, 0.0f);
-
-	// Pause between the player being out and the door closing behind them
-	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	float ExitDoorCloseDelay = 0.3f;
+	FVector ExitStandLocal = FVector(-195.0f, 25.0f, 0.0f);
 
 	// Height of the invisible "step out here" volume's centre above the ground
 	UPROPERTY(EditAnywhere, Category = "Car Ride|Door")
-	float ExitSpotHeight = 40.0f;
+	float ExitSpotHeight = 70.0f;
 
 	// World-space spot the player stands at after getting out (for tests)
 	bool GetExitStandLocation(FVector& OutLocation) const;
@@ -287,8 +280,8 @@ private:
 	void SetDoorAngle(float Yaw);
 
 	// Parked -> (player opens door) -> door swings -> (player clicks the ground)
-	// -> steps out -> door closes
-	enum class EExitPhase : uint8 { None, AwaitDoor, DoorOpening, AwaitStep, Stepping, CloseDelay, DoorClosing };
+	// -> steps out. The door stays open.
+	enum class EExitPhase : uint8 { None, AwaitDoor, DoorOpening, AwaitStep, Stepping };
 	void OnDoorInteract();
 	void OnExitSpotInteract();
 	EExitPhase ExitPhase = EExitPhase::None;

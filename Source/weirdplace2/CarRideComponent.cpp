@@ -1268,28 +1268,12 @@ void UCarRideComponent::TickExit(float DeltaTime)
 		if (Alpha >= 1.0f)
 		{
 			FinishExit();
-			ExitPhase = EExitPhase::CloseDelay;
-			ExitElapsed = 0.0f;
-		}
-		break;
-	}
-	case EExitPhase::CloseDelay:
-		if (ExitElapsed >= ExitDoorCloseDelay)
-		{
-			ExitPhase = EExitPhase::DoorClosing;
-			ExitElapsed = 0.0f;
-		}
-		break;
-	case EExitPhase::DoorClosing:
-	{
-		const float Alpha = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp(ExitElapsed / DoorCloseDuration, 0.0f, 1.0f));
-		SetDoorAngle(DoorOpenAngle * (1.0f - Alpha));
-		if (Alpha >= 1.0f)
-		{
+			// The door stays open; now that the player is clear it's solid again
+			PassengerDoor->SetSolid(true);
 			ExitPhase = EExitPhase::None;
 			SetComponentTickEnabled(false);
 			DestroyScenery();
-			UE_LOG(LogTemp, Display, TEXT("CarRideComponent::TickExit - door closed; ride over"));
+			UE_LOG(LogTemp, Display, TEXT("CarRideComponent::TickExit - player out; ride over"));
 		}
 		break;
 	}
