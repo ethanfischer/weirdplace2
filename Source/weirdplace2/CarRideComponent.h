@@ -128,14 +128,18 @@ public:
 
 	// Fade in from black when the ride starts
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
-	float RideStartFadeInDuration = 30.0f;
+	float RideStartFadeInDuration = 15.0f;
 
 	// Hold pure black for this long before the ride-start fade-in begins
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float RideStartBlackHoldDuration = 3.0f;
 
 	// Music (actor tagged MusicActorTag) fades in on its own timeline,
-	// independent of the black hold / visual+ambient fade
+	// independent of the black hold / visual+ambient fade. Off = the music
+	// actor is silenced with the other ambients and never brought back.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
+	bool bPlayMusic = false;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Car Ride|Settings")
 	float MusicFadeInDelay = 0.0f;
 

@@ -249,7 +249,7 @@ void UCarRideComponent::SilenceWorldAudioForRideStart()
 	// Music fade-in starts immediately (plus optional MusicFadeInDelay),
 	// independent of the black hold / visual fade. FadeIn restarts the sound
 	// (VolumeMultiplier 0 culled it), so no is-playing dance is needed.
-	if (MusicComponent)
+	if (MusicComponent && bPlayMusic)
 	{
 		const float MusicDelay = GCarRideMusicFadeDelayOverride >= 0.0f ? GCarRideMusicFadeDelayOverride : MusicFadeInDelay;
 		GetWorld()->GetTimerManager().SetTimer(
