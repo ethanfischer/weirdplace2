@@ -14,93 +14,42 @@ WP_TUNABLE_FLOAT(GFootstepInterval, "weird.Footstep.Interval", 0.6f,
 WP_TUNABLE_FLOAT(GFootstepVolume, "weird.Footstep.Volume", 3.0f,
 	"Footstep sound volume multiplier.");
 WP_TUNABLE_FLOAT(GFootstepPitchJitter, "weird.Footstep.PitchJitter", 0.08f,
-	"Random pitch variance (+/-) applied per step for variety (default for sets without an override).");
+	"Random pitch variance (+/-) applied per step for variety (default for sets without a per-surface override).");
 
-// Per-set overrides: "Set:pitch=<base>,jitter=<var>,vol=<mult>,interval=<sec>;Set2:..."
-// — any key may be omitted. E.g. "Carpet:pitch=0.9,vol=1.25". Live-tunable.
-static TAutoConsoleVariable<FString> CVarFootstepSetTuning(
-	TEXT("weird.Footstep.SetTuning"), TEXT("Carpet:pitch=0.9,jitter=0.08,vol=1.5;Tar:vol=0.5,pitch=0.8"),
-	TEXT("Per-set footstep overrides: \"Set:pitch=1.0,jitter=0.08,vol=1.0,interval=0.6;Set2:...\""));
+// Per-surface overrides. One block per sound set (subfolder of
+// /Game/Sounds/Footsteps); a set with no block uses the global defaults above
+// (pitch 1.0, the global jitter, volume 1.0). Add a block when you add a set.
+WP_TUNABLE_FLOAT(GFootstepCarpetPitch,  "weird.Footstep.Carpet.Pitch",  0.9f,  "Carpet base pitch multiplier.");
+WP_TUNABLE_FLOAT(GFootstepCarpetJitter, "weird.Footstep.Carpet.Jitter", 0.08f, "Carpet random pitch variance (+/-).");
+WP_TUNABLE_FLOAT(GFootstepCarpetVolume, "weird.Footstep.Carpet.Volume", 1.5f,  "Carpet volume multiplier.");
+WP_TUNABLE_FLOAT(GFootstepTarPitch,     "weird.Footstep.Tar.Pitch",     0.8f,  "Tar base pitch multiplier.");
+WP_TUNABLE_FLOAT(GFootstepTarJitter,    "weird.Footstep.Tar.Jitter",    0.08f, "Tar random pitch variance (+/-).");
+WP_TUNABLE_FLOAT(GFootstepTarVolume,    "weird.Footstep.Tar.Volume",    0.5f,  "Tar volume multiplier.");
 
-// Parse this set's entry out of weird.Footstep.SetTuning.
-static void GetSetTuning(const FString& SetName, float& OutBasePitch, float& OutJitter, float& OutVolume, float& OutInterval)
+// This set's base pitch / jitter / volume, falling back to the globals for a
+// set with no per-surface block above.
+static void GetSetTuning(const FString& SetName, float& OutBasePitch, float& OutJitter, float& OutVolume)
 {
 	OutBasePitch = 1.f;
 	OutJitter = GFootstepPitchJitter;
 	OutVolume = 1.f;
-	OutInterval = GFootstepInterval;
-	TArray<FString> Entries;
-	CVarFootstepSetTuning.GetValueOnGameThread().ParseIntoArray(Entries, TEXT(";"));
-	for (const FString& Entry : Entries)
+	if (SetName.Equals(TEXT("Carpet"), ESearchCase::IgnoreCase))
 	{
-		FString Name, Params;
-		if (!Entry.Split(TEXT(":"), &Name, &Params) || !Name.TrimStartAndEnd().Equals(SetName, ESearchCase::IgnoreCase))
-		{
-			continue;
-		}
-		TArray<FString> Pairs;
-		Params.ParseIntoArray(Pairs, TEXT(","));
-		for (const FString& Pair : Pairs)
-		{
-			FString Key, Value;
-			if (Pair.Split(TEXT("="), &Key, &Value))
-			{
-				Key = Key.TrimStartAndEnd();
-				if (Key == TEXT("pitch")) { OutBasePitch = FCString::Atof(*Value); }
-				else if (Key == TEXT("jitter")) { OutJitter = FCString::Atof(*Value); }
-				else if (Key == TEXT("vol")) { OutVolume = FCString::Atof(*Value); }
-				else if (Key == TEXT("interval")) { OutInterval = FCString::Atof(*Value); }
-			}
-		}
-		return;
+		OutBasePitch = GFootstepCarpetPitch;
+		OutJitter = GFootstepCarpetJitter;
+		OutVolume = GFootstepCarpetVolume;
+	}
+	else if (SetName.Equals(TEXT("Tar"), ESearchCase::IgnoreCase))
+	{
+		OutBasePitch = GFootstepTarPitch;
+		OutJitter = GFootstepTarJitter;
+		OutVolume = GFootstepTarVolume;
 	}
 }
 WP_TUNABLE_INT(GFootstepSet, "weird.Footstep.Set", 1,
 	"Fallback footstep set index (subfolders of /Game/Sounds/Footsteps, sorted) for floors without a Footstep.<SetName> actor tag.");
 
 static const FString FootstepTagPrefix = TEXT("Footstep.");
-
-void UFootstepComponent::UpdateSetTuning(const FString& SetName, const FString& Key, float Value)
-{
-	TArray<FString> Entries;
-	CVarFootstepSetTuning.GetValueOnGameThread().ParseIntoArray(Entries, TEXT(";"));
-
-	bool bFoundSet = false;
-	for (FString& Entry : Entries)
-	{
-		FString Name, Params;
-		if (!Entry.Split(TEXT(":"), &Name, &Params) || !Name.TrimStartAndEnd().Equals(SetName, ESearchCase::IgnoreCase))
-		{
-			continue;
-		}
-		bFoundSet = true;
-		TArray<FString> Pairs;
-		Params.ParseIntoArray(Pairs, TEXT(","));
-		bool bFoundKey = false;
-		for (FString& Pair : Pairs)
-		{
-			FString K, V;
-			if (Pair.Split(TEXT("="), &K, &V) && K.TrimStartAndEnd().Equals(Key, ESearchCase::IgnoreCase))
-			{
-				Pair = FString::Printf(TEXT("%s=%g"), *Key, Value);
-				bFoundKey = true;
-			}
-		}
-		if (!bFoundKey)
-		{
-			Pairs.Add(FString::Printf(TEXT("%s=%g"), *Key, Value));
-		}
-		Entry = Name + TEXT(":") + FString::Join(Pairs, TEXT(","));
-	}
-	if (!bFoundSet)
-	{
-		Entries.Add(FString::Printf(TEXT("%s:%s=%g"), *SetName, *Key, Value));
-	}
-
-	const FString NewValue = FString::Join(Entries, TEXT(";"));
-	CVarFootstepSetTuning->Set(*NewValue, ECVF_SetByConsole);
-	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: SetTuning = %s"), *NewValue);
-}
 
 UFootstepComponent::UFootstepComponent()
 {
@@ -181,13 +130,8 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	// immediately on starting to walk.
 	if (bWalking)
 	{
-		// Resolving the set costs a line trace plus a volume sweep, so only pay
-		// for it on the frames that can actually fire a step.
-		float BasePitch, Jitter, SetVolume, Interval;
-		GetSetTuning(Sets[ResolveSetIndex()].Name, BasePitch, Jitter, SetVolume, Interval);
-
 		TimeSinceLastStep += DeltaTime;
-		if (!bWasWalking || TimeSinceLastStep >= Interval)
+		if (!bWasWalking || TimeSinceLastStep >= GFootstepInterval)
 		{
 			TimeSinceLastStep = 0.f;
 			PlayFootstep();
@@ -274,8 +218,8 @@ void UFootstepComponent::PlayFootstep()
 
 	const FVector FootLocation = Character->GetActorLocation()
 		- FVector(0.f, 0.f, Character->GetSimpleCollisionHalfHeight());
-	float BasePitch, Jitter, SetVolume, Interval;
-	GetSetTuning(Set.Name, BasePitch, Jitter, SetVolume, Interval);
+	float BasePitch, Jitter, SetVolume;
+	GetSetTuning(Set.Name, BasePitch, Jitter, SetVolume);
 	const float Pitch = BasePitch * (1.f + FMath::FRandRange(-Jitter, Jitter));
 	UGameplayStatics::PlaySoundAtLocation(this, Set.Sounds[Index], FootLocation, GFootstepVolume * SetVolume, Pitch);
 	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s/%s (floor: %s)"),

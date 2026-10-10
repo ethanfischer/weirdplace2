@@ -1,7 +1,7 @@
 # Issue Tracker
 
 Issues live on the **Trello board "weirdplace"**: https://trello.com/b/apYW69HZ/weirdplace
-(`todo.md` is deprecated — do not add to it. There is no GitHub Issues usage either.)
+(There is no GitHub Issues usage.)
 
 The user designs and ideates cards in Claude chat / the Trello app; agents pull work from the board via the Trello MCP tools (`trelloReadCard`, `trelloWriteCard`, ...).
 
@@ -34,4 +34,3 @@ An unlabeled card is unrouted — triage it (attach the right label) when touchi
 ## Known gaps
 
 - MCP cannot create/rename labels or comment on cards — desc edits stand in for comments.
-- The `overnight-todos` skill still reads todo.md's `# Claude Friendly` section; until it's updated, treat green **Todo** cards as its queue.

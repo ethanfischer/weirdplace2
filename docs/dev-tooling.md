@@ -1,7 +1,80 @@
 # Dev tooling
 
-Four tools that replace the old one-off-script workflow. All Python scripts run with
+Tools that replace the old one-off-script workflow. All Python scripts run with
 the system `python` (3.13); `e2e_report.py` needs Pillow + numpy (`pip install --user pillow numpy`).
+
+## unreal-mcp — default for live-editor work
+
+The Epic `UnrealMCP` plugin hosts an MCP server inside the editor (`.mcp.json`,
+`http://127.0.0.1:8000/mcp`). It is 8-180x faster per call than uq (persistent session
+vs ~780ms interpreter+discovery per CLI call; A/B'd 2026-08-07 with
+`scripts/local/ab_mcp_vs_uq.py`). Use it for finding/inspecting/modifying actors,
+properties, cvars, screenshots, PIE control.
+
+**If the server shows as failed to connect**, it's because no editor was running when
+the session started. Launch via `scripts/launch_editor.ps1`, then run `/mcp` to
+reconnect. Don't silently fall back to uq.
+
+Discovery: `list_toolsets` → `describe_toolset` → `call_tool` (tool_name WITHOUT the
+toolset prefix, toolset_name separate; schema-"optional" params must still be passed,
+as null). Beyond actor/property basics:
+
+- **LogsToolset** — read the live editor log, set category verbosity.
+- **AutomationTestToolset** — run automation tests in the live editor; handy for quick
+  single-test iteration. `run_e2e.ps1` remains the gate since it's a fresh process
+  loading the on-disk DLL.
+- **SemanticSearchToolset** — hybrid vector+BM25 asset search.
+- **SlateInspectorToolset** — drive/inspect editor UI, Playwright-style.
+- **EditorToolset.EditorAppToolset** — StartPIE/StopPIE.
+
+### TestDriverToolset — drive the game live in PIE
+
+Project toolset (`Source/weirdplace2Editor/TestDriverToolset.h`, registered as
+`weirdplace2Editor.TestDriverToolset`) wrapping `UTestDriverSubsystem` for interactive
+feature-driving without writing an E2E test. Dial in a flow live first, then transcribe
+it into an E2E test — the latent commands map 1:1.
+
+- **Batch, don't per-keypress**: `PressInputSequence(["Settings","NextOption","NextOption","NextOption","Interact"], 0.3)`
+  plays a whole navigation in one async call.
+- **Completion-based waits**: `WaitForActivityState` / `WaitForMenuPage` — use instead
+  of sleeps; they error on timeout with the current state.
+- Singles: `PressInputAction` (Interact/Inventory/Settings/NextOption/PreviousOption/NavigateLeft/NavigateRight/Back),
+  `SetInputActionPressed` (holds), `PressKey`.
+- Queries/movement: `GetPlayerStatus` (activity state + menu page + inventory + location;
+  enum names match the Wait tools), `TeleportToWaypoint`, `TeleportNearActor`, `LookAtActor`.
+- **PIE-view screenshot**: `CapturePlayerView(maxDimension)` captures the first-person
+  game view (diegetic UI in, editor chrome out), writes `Saved/Screenshots/PlayerView.png`
+  and returns the path; Read that path. It deliberately returns a path, NOT inline
+  base64: this MCP server serializes images as base64 in a JSON text field, which blows
+  the tool-result token cap (~60K chars even at 320px, measured). The engine's own
+  `CaptureViewport`/`CaptureEditorImage` hit the same wall, and `CaptureViewport` shows
+  the EDITOR camera, not the PIE view.
+- When MCP is down, the same methods are reachable via remote-exec reflection:
+  `unreal.TestDriverToolset.get_default_object().call_method('PressInputAction', ('Settings',))`
+  (read returned structs with `.export_text()`).
+
+## Arbitrary editor Python
+
+For standard live-editor operations prefer unreal-mcp (above). Two paths for arbitrary Python:
+
+**Live editor** (in-memory state, current viewport, selection) — Python Remote Execution,
+already enabled in Project Settings → Plugins → Python. `scripts/ue_remote_exec.py`
+discovers the editor via UDP multicast (239.0.0.1:6766) and prints whatever the script printed.
+
+```bash
+# File: must be an ABSOLUTE path — MODE_EXEC_FILE resolves it directly
+python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Content/Python/your_script.py" --mode ExecuteFile
+
+# Inline
+python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
+```
+
+Do not use `--file <path>`: the wrapper ships file contents, but MODE_EXEC_FILE expects
+a path and the run silently fails with empty output (verified on 5.7; unchanged in 5.8).
+
+**Headless / asset modification** (edit `.uasset` files without the user's session) —
+`UnrealEditor-Cmd.exe -ExecutePythonScript=...`. For bulk asset edits, thumbnails,
+batch processing. Does NOT see live editor state.
 
 ## uq — query/command the live editor (`scripts/uq.py`)
 

@@ -61,4 +61,4 @@ Ethan owns the "ALL IN ONE SOUND LIBRARY BUNDLE" (Gumroad, giant SFX pack) under
 
 ## How to use this project from your phone
 
-Ideas dropped here will later be handed to Claude Code on the PC. When responding to an idea, useful outputs are: how it fits the story beats above, which existing system it hooks into, rough scope (Claude-friendly vs needs-human art/sound), and a crisp task description Ethan can paste into `todo.md` or a Claude Code session.
+Ideas dropped here will later be handed to Claude Code on the PC. When responding to an idea, useful outputs are: how it fits the story beats above, which existing system it hooks into, rough scope (Claude-friendly vs needs-human art/sound), and a crisp task description Ethan can paste into a Trello card or a Claude Code session.

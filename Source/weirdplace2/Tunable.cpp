@@ -1,5 +1,24 @@
 #include "Tunable.h"
 
+// Function-local static so registration from other TUs' static initializers is
+// safe regardless of init order.
+static TMap<FString, FString>& TunableDefaultsMap()
+{
+	static TMap<FString, FString> Map;
+	return Map;
+}
+
+bool FTunableDefaults::Register(const TCHAR* Name, const FString& Default)
+{
+	TunableDefaultsMap().Add(Name, Default);
+	return true;
+}
+
+const FString* FTunableDefaults::Find(const FString& Name)
+{
+	return TunableDefaultsMap().Find(Name);
+}
+
 // weird.Tunables — dump every weird.* console variable with its current value.
 // '*' prefix marks variables changed via console this session: the list of values
 // to bake back into their WP_TUNABLE defaults after a tuning session.

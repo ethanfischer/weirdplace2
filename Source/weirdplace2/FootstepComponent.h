@@ -22,11 +22,6 @@ class WEIRDPLACE2_API UFootstepComponent : public UActorComponent
 public:
 	UFootstepComponent();
 
-	// Update one key ("pitch"/"jitter"/"vol") for one set inside the
-	// weird.Footstep.SetTuning cvar string. Backs the FootstepVol/Pitch/Jitter
-	// console commands on AFirstPersonCharacter.
-	static void UpdateSetTuning(const FString& SetName, const FString& Key, float Value);
-
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
