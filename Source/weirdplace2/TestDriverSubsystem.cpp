@@ -467,7 +467,7 @@ bool UTestDriverSubsystem::GetCameraDofState(bool& bOutOverrideActive, float& Ou
 	return true;
 }
 
-bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const
+bool UTestDriverSubsystem::GetDialogueTextState(const FString& ActorLabel, bool& bOutHasOutline, bool& bOutDialogueOpen) const
 {
 	AActor* Actor = FindActorByLabel(ActorLabel);
 	IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(Actor);
@@ -480,9 +480,47 @@ bool UTestDriverSubsystem::GetDialogueBackingState(const FString& ActorLabel, bo
 	{
 		return false;
 	}
-	bOutHasBacking = Widget->HasTextBacking();
+	bOutHasOutline = Widget->HasTextOutline();
 	bOutDialogueOpen = Widget->IsDialogueOpen();
 	return true;
+}
+
+bool UTestDriverSubsystem::GetDistance2DToActor(const FString& Label, float& OutDistance) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Actor || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetDistance2DToActor - no actor '%s' or no player"), *Label);
+		return false;
+	}
+	OutDistance = FVector::Dist2D(Player->GetActorLocation(), Actor->GetActorLocation());
+	return true;
+}
+
+void UTestDriverSubsystem::AddWalkInput(const FVector2D& LocalDir)
+{
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::AddWalkInput - no player"));
+		return;
+	}
+	const FRotator YawRot(0.f, Player->GetControlRotation().Yaw, 0.f);
+	const FVector WorldDir = YawRot.RotateVector(FVector(LocalDir.X, LocalDir.Y, 0.f)).GetSafeNormal();
+	Player->AddMovementInput(WorldDir, 1.f);
+}
+
+bool UTestDriverSubsystem::HasPendingDialogueResume(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	AFirstPersonCharacter* Player = GetPlayer();
+	if (!Actor || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::HasPendingDialogueResume - no actor '%s' or no player"), *Label);
+		return false;
+	}
+	return Player->HasPendingDialogueResume(Actor);
 }
 
 bool UTestDriverSubsystem::TeleportToWorldPoint(const FVector& GroundPoint)
@@ -994,9 +1032,36 @@ void UTestDriverSubsystem::SimulateSettingsRelease()
 	InjectInputAction(Player->GetSettingsAction(), false);
 }
 
+// Diagnostic: hide a level actor by label (mesh visibility off, propagated) so a
+// rendering suspect can be removed from a headed run without touching the level.
+static FAutoConsoleCommandWithWorldAndArgs GE2EHideActorCmd(
+	TEXT("weird.E2E.HideActor"),
+	TEXT("Hide the actor with this label (visibility off, propagated to children)."),
+	FConsoleCommandWithWorldAndArgsDelegate::CreateLambda([](const TArray<FString>& Args, UWorld* World)
+	{
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogTemp, Error, TEXT("weird.E2E.HideActor <label>"));
+			return;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			if (It->GetActorNameOrLabel() == Args[0])
+			{
+				if (USceneComponent* Root = It->GetRootComponent())
+				{
+					Root->SetVisibility(false, true);
+				}
+				UE_LOG(LogTemp, Display, TEXT("weird.E2E.HideActor - hid %s"), *Args[0]);
+				return;
+			}
+		}
+		UE_LOG(LogTemp, Error, TEXT("weird.E2E.HideActor - no actor labelled '%s'"), *Args[0]);
+	}));
+
 // --- Car ride ---
 
-static UCarRideComponent* FindCarRideComponent(UWorld* World)
+static UCarRideComponent* FindCarRideComponentInWorld(UWorld* World)
 {
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
@@ -1010,7 +1075,7 @@ static UCarRideComponent* FindCarRideComponent(UWorld* World)
 
 bool UTestDriverSubsystem::ForceStartCarRide()
 {
-	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	UCarRideComponent* Comp = FindCarRideComponentInWorld(GetWorld());
 	if (!Comp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceStartCarRide - no CarRideComponent in world"));
@@ -1022,7 +1087,7 @@ bool UTestDriverSubsystem::ForceStartCarRide()
 
 bool UTestDriverSubsystem::EndCarRideNow()
 {
-	UCarRideComponent* Comp = FindCarRideComponent(GetWorld());
+	UCarRideComponent* Comp = FindCarRideComponentInWorld(GetWorld());
 	if (!Comp)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TestDriver::EndCarRideNow - no CarRideComponent in world"));
@@ -1030,6 +1095,11 @@ bool UTestDriverSubsystem::EndCarRideNow()
 	}
 	Comp->ForceEndRide();
 	return true;
+}
+
+UCarRideComponent* UTestDriverSubsystem::FindCarRideComponent() const
+{
+	return FindCarRideComponentInWorld(GetWorld());
 }
 
 AActor* UTestDriverSubsystem::FindCarRideConveyor() const

@@ -25,7 +25,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 
 public:
 	// Start the car ride dialogue on the player character
@@ -36,12 +35,20 @@ public:
 
 	// IInteractable
 	virtual void Interact_Implementation() override;
+	virtual bool CanInteract() override { return bInteractionEnabled; }
+
+	// Car ride end: Rick stays in the driver's seat and can't be talked to
+	void SetInteractionEnabled(bool bEnabled) { bInteractionEnabled = bEnabled; }
 
 	// IDialogueWidgetProvider
 	virtual UUI_Dialogue* GetDialogueWidget() const override;
 
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
+
+	// Where AppearOutside parks the car (OutsidePositionTarget + CarActorOffset,
+	// facing OutsidePositionTarget). Returns false if the target is unassigned.
+	bool GetCarParkingTransform(FTransform& OutTransform) const;
 
 	// Storm beat: remove Rick from the world until a much-later beat brings him
 	// back. MetaHuman grooms break if root visibility is toggled, so this
@@ -52,6 +59,11 @@ public:
 	// the "much later" return beat will use this.)
 	void ReturnFromStorm();
 
+private:
+	bool bInteractionEnabled = true;
+
+public:
+
 	// Delegate fired when dialogue ends (CarRideComponent binds to this)
 	UPROPERTY(BlueprintAssignable, Category = "Rick|Dialogue")
 	FOnRickDialogueEnded OnRickDialogueEnded;
@@ -59,6 +71,14 @@ public:
 	// Widget component hosting the dialogue UI - auto-found by name in BeginPlay
 	UPROPERTY(BlueprintReadOnly, Category = "Rick|Dialogue")
 	UWidgetComponent* DialogueWidgetComponent;
+
+	// Finds, positions and billboards the plate; DialogueWidgetComponent mirrors its widget.
+	UPROPERTY(VisibleAnywhere, Category = "Rick|Dialogue")
+	class UDialoguePlateComponent* DialoguePlate;
+
+	// Player-only blocking capsule so the player can't walk into the NPC.
+	UPROPERTY(VisibleAnywhere, Category = "Rick|Dialogue")
+	class UNpcPersonalSpaceComponent* PersonalSpace;
 
 	// Line index parsed from [Bladder] tag in dialogue file (-1 if absent)
 	int32 BladderPulseLineIndex = INDEX_NONE;

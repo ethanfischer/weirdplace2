@@ -28,6 +28,8 @@
 #include "MenuUIActor.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
 #include "Tests/AutomationCommon.h"
@@ -583,9 +585,9 @@ private:
 class FTD_TeleportNearRick : public FTD_Base
 {
 public:
-	FTD_TeleportNearRick(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	FTD_TeleportNearRick(FAutomationTestBase* InTest, float InDistance = 200.f) : FTD_Base(InTest), Distance(InDistance) {}
 
-	virtual FString GetStatusText() const override { return TEXT("Teleporting near Rick"); }
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Teleporting near Rick (%.0fcm)"), Distance); }
 
 	virtual bool UpdateStep() override
 	{
@@ -593,12 +595,14 @@ public:
 		if (!Driver) { Test->AddError(TEXT("FTD_TeleportNearRick: no driver")); return true; }
 		ARick* Rick = Driver->FindRick();
 		if (!Rick) { Test->AddError(TEXT("FTD_TeleportNearRick: no Rick")); return true; }
-		if (!Driver->TeleportNearActor(Rick, 200.f))
+		if (!Driver->TeleportNearActor(Rick, Distance))
 		{
 			Test->AddError(TEXT("FTD_TeleportNearRick: teleport failed"));
 		}
 		return true;
 	}
+private:
+	float Distance;
 };
 
 class FTD_LookAtRick : public FTD_Base
@@ -2105,34 +2109,34 @@ private:
 // block must be wrapped in the backing plate (structure always present once
 // the widget constructs), and the dialogue widget open-state must match
 // bExpectOpen. Errors if the actor isn't a dialogue provider / has no widget.
-class FTD_AssertDialogueBacking : public FTD_Base
+class FTD_AssertDialogueTextOutline : public FTD_Base
 {
 public:
-	FTD_AssertDialogueBacking(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
+	FTD_AssertDialogueTextOutline(FAutomationTestBase* InTest, FString InActorLabel, bool bInExpectOpen)
 		: FTD_Base(InTest), ActorLabel(MoveTemp(InActorLabel)), bExpectOpen(bInExpectOpen) {}
 
 	virtual FString GetStatusText() const override
 	{
-		return FString::Printf(TEXT("Asserting %s dialogue backing (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
+		return FString::Printf(TEXT("Asserting %s dialogue text outline (%s)"), *ActorLabel, bExpectOpen ? TEXT("open") : TEXT("closed"));
 	}
 
 	virtual bool UpdateStep() override
 	{
 		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueBacking: no driver")); return true; }
-		bool bHasBacking = false, bDialogueOpen = false;
-		if (!Driver->GetDialogueBackingState(ActorLabel, bHasBacking, bDialogueOpen))
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDialogueTextOutline: no driver")); return true; }
+		bool bHasOutline = false, bDialogueOpen = false;
+		if (!Driver->GetDialogueTextState(ActorLabel, bHasOutline, bDialogueOpen))
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s is not a dialogue provider or has no widget"), *ActorLabel));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s is not a dialogue provider or has no widget"), *ActorLabel));
 			return true;
 		}
-		if (!bHasBacking)
+		if (!bHasOutline)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue text is not wrapped in the backing plate"), *ActorLabel));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s dialogue text has no outline"), *ActorLabel));
 		}
 		if (bDialogueOpen != bExpectOpen)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueBacking: %s dialogue is %s, expected %s"),
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDialogueTextOutline: %s dialogue is %s, expected %s"),
 				*ActorLabel, bDialogueOpen ? TEXT("open") : TEXT("closed"), bExpectOpen ? TEXT("open") : TEXT("closed")));
 		}
 		return true;
@@ -4071,6 +4075,98 @@ private:
 	float TotalDegrees;
 	bool bInitialized;
 	float StartYaw;
+};
+
+// =======================================================================
+// Walking + NPC personal space + walk-away dialogue
+// =======================================================================
+
+// Feed movement input every tick for Seconds. LocalDir is in the control-yaw
+// frame: (1,0) forward, (-1,0) backward, (0,1) right.
+class FTD_WalkForDuration : public FTD_Base
+{
+public:
+	FTD_WalkForDuration(FAutomationTestBase* InTest, FVector2D InLocalDir, float InSeconds)
+		: FTD_Base(InTest), LocalDir(InLocalDir), Seconds(InSeconds) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Walking (%.0f, %.0f) for %.1fs"), LocalDir.X, LocalDir.Y, Seconds);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_WalkForDuration: no driver")); return true; }
+		Driver->AddWalkInput(LocalDir);
+		return GetElapsedSinceFirstTick() >= Seconds;
+	}
+private:
+	FVector2D LocalDir;
+	float Seconds;
+};
+
+// Assert the player's horizontal distance to the labeled actor is in [Min, Max].
+class FTD_AssertDistanceToActor : public FTD_Base
+{
+public:
+	FTD_AssertDistanceToActor(FAutomationTestBase* InTest, FString InLabel, float InMin, float InMax)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Min(InMin), Max(InMax) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting distance to %s in [%.0f, %.0f]"), *Label, Min, Max);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertDistanceToActor: no driver")); return true; }
+		float Dist = 0.f;
+		if (!Driver->GetDistance2DToActor(Label, Dist))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDistanceToActor: no actor '%s'"), *Label));
+			return true;
+		}
+		UE_LOG(LogTemp, Warning, TEXT("AssertDistanceToActor[%s]: dist=%.1fcm range=[%.0f, %.0f]"), *Label, Dist, Min, Max);
+		if (Dist < Min || Dist > Max)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertDistanceToActor: '%s' is %.1fcm away, expected [%.0f, %.0f]"), *Label, Dist, Min, Max));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	float Min;
+	float Max;
+};
+
+// Assert whether a walked-away dialogue with the labeled NPC is frozen for resume.
+class FTD_AssertPendingDialogueResume : public FTD_Base
+{
+public:
+	FTD_AssertPendingDialogueResume(FAutomationTestBase* InTest, FString InLabel, bool bInExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), bExpected(bInExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s dialogue resume pending=%d"), *Label, bExpected ? 1 : 0);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertPendingDialogueResume: no driver")); return true; }
+		const bool bPending = Driver->HasPendingDialogueResume(Label);
+		if (bPending != bExpected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertPendingDialogueResume: '%s' pending=%d, expected %d"), *Label, bPending ? 1 : 0, bExpected ? 1 : 0));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool bExpected;
 };
 
 // =======================================================================

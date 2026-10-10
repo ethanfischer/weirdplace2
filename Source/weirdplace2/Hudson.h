@@ -37,12 +37,19 @@ public:
 	UPROPERTY(BlueprintReadOnly, Category = "Hudson")
 	UWidgetComponent* DialogueWidgetComponent;
 
+	// Finds, positions and billboards the plate; DialogueWidgetComponent mirrors its widget.
+	UPROPERTY(VisibleAnywhere, Category = "Hudson")
+	class UDialoguePlateComponent* DialoguePlate;
+
+	// Player-only blocking capsule so the player can't walk into the NPC.
+	UPROPERTY(VisibleAnywhere, Category = "Hudson")
+	class UNpcPersonalSpaceComponent* PersonalSpace;
+
 	UPROPERTY(BlueprintReadWrite, VisibleAnywhere, Category = "Hudson")
 	EHudsonState CurrentState = EHudsonState::Idle;
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 
 	// Sectioned dialogue file (relative to Content/), parsed by FDialogueScript
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")

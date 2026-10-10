@@ -5,7 +5,8 @@
 #include "ItemDefinition.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
-#include "Components/ChildActorComponent.h"
+#include "DialoguePlateComponent.h"
+#include "NpcPersonalSpaceComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
@@ -13,68 +14,30 @@
 
 ARick::ARick()
 {
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
+	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
+	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 }
 
 UUI_Dialogue* ARick::GetDialogueWidget() const
 {
-	if (!DialogueWidgetComponent)
+	UWidgetComponent* Widget = DialoguePlate->GetWidgetComponent();
+	if (!Widget)
 	{
 		return nullptr;
 	}
-	return Cast<UUI_Dialogue>(DialogueWidgetComponent->GetUserWidgetObject());
+	return Cast<UUI_Dialogue>(Widget->GetUserWidgetObject());
 }
 
 void ARick::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Find the dialogue widget component inside a Child Actor Component (same pattern as Seneca)
-	TArray<UChildActorComponent*> ChildActorComponents;
-	GetComponents<UChildActorComponent>(ChildActorComponents);
-	for (UChildActorComponent* ChildActorComp : ChildActorComponents)
-	{
-		if (ChildActorComp->GetName().Contains(TEXT("WorldSpace_UI_Dialogue")))
-		{
-			if (AActor* ChildActor = ChildActorComp->GetChildActor())
-			{
-				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
-				if (DialogueWidgetComponent)
-				{
-					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
-					// alpha blending. Force Transparent blend so BackingOpacity is a
-					// true gradient -- Masked blend clips it binary at the 0.333 mask
-					// threshold, which reads as a hard step near ~0.35.
-					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
-				}
-			}
-			break;
-		}
-	}
+	DialogueWidgetComponent = DialoguePlate->GetWidgetComponent();
 
 	DialogueScript.Load(DialogueFilePath);
 	LoadDialogueFile();
 	LoadOutsideDialogue();
-}
-
-void ARick::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	// Billboard dialogue widget toward player camera
-	if (DialogueWidgetComponent)
-	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
-		{
-			FVector CamLocation;
-			FRotator CamRotation;
-			PC->GetPlayerViewPoint(CamLocation, CamRotation);
-			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
-			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
-			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
-		}
-	}
 }
 
 void ARick::LoadDialogueFile()
@@ -235,6 +198,16 @@ void ARick::ReturnFromStorm()
 	SetActorTransform(PreStormTransform);
 	SetActorEnableCollision(true);
 	UE_LOG(LogTemp, Log, TEXT("Rick: returned from the storm stash"));
+}
+
+bool ARick::GetCarParkingTransform(FTransform& OutTransform) const
+{
+	if (!OutsidePositionTarget)
+	{
+		return false;
+	}
+	OutTransform = FTransform(OutsidePositionTarget->GetActorRotation(), OutsidePositionTarget->GetActorLocation() + CarActorOffset);
+	return true;
 }
 
 void ARick::AppearOutside()

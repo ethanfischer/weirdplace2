@@ -1,109 +1,133 @@
 #include "UI_Dialogue.h"
 #include "Components/TextBlock.h"
 #include "Components/AudioComponent.h"
-#include "Components/Border.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Blueprint/WidgetTree.h"
 #include "Styling/CoreStyle.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
+#include "Components/CanvasPanel.h"
 #include "Kismet/GameplayStatics.h"
-#include "Materials/MaterialInterface.h"
-#include "Materials/MaterialInstanceDynamic.h"
 #include "Tunable.h"
 
 WP_TUNABLE_FLOAT(GDialoguePitchShift, "weird.Dialogue.PitchShift", 0.55f,
 	"Pitch multiplier applied on top of the random pitch for dialogue voice and blip sounds.");
 WP_TUNABLE_FLOAT(GDialogueLowPassFreq, "weird.Dialogue.LowPassFreq", 300.f,
 	"Low-pass filter cutoff frequency (Hz) for dialogue voice and blip sounds.");
+// Dialogue text size in the widget's authored 1000x500 px space (the plate is
+// 200cm wide in the world, so 1 px = 0.2cm). Sized to read beside the NPC's
+// head from weird.Npc.PersonalSpaceRadius.
+WP_TUNABLE_FLOAT(GDialogueTextSize, "weird.Dialogue.TextSize", 26.f,
+	"Dialogue line font size (authored px). Speaker name is 1.5x this.");
+// Wrap column for the line (authored px). BesideHead: ~28 characters at the
+// default size, so a sentence reads as a short block beside the head instead of
+// a banner across the screen. Centered (car windshield): the original width.
+WP_TUNABLE_FLOAT(GDialogueWrapWidth, "weird.Dialogue.WrapWidth", 420.f,
+	"Dialogue text wrap width (authored px) beside the head.");
+WP_TUNABLE_FLOAT(GDialogueWrapWidthCentered, "weird.Dialogue.WrapWidthCentered", 700.f,
+	"Dialogue text wrap width (authored px) for the centered (car ride) layout.");
+// Black outline replaces the old dark backing plate for legibility.
+WP_TUNABLE_FLOAT(GDialogueOutlineSize, "weird.Dialogue.OutlineSize", 2.f,
+	"Black outline width (authored px) on dialogue text.");
+// Supersampling for the world-space plate: the render target, fonts, wrap width
+// and padding are all multiplied by this, and the widget component is scaled
+// down by the same factor, so the plate keeps its world size but renders at
+// higher resolution (kills the pixelated look up close / at 4K).
+WP_TUNABLE_FLOAT(GDialogueRenderScale, "weird.Dialogue.RenderScale", 2.f,
+	"Resolution multiplier for the world-space dialogue plate render target.");
+
+float UUI_Dialogue::GetRenderScale()
+{
+	return GDialogueRenderScale;
+}
+
 void UUI_Dialogue::NativeConstruct()
 {
 	Super::NativeConstruct();
 	SetVisibility(ESlateVisibility::Collapsed);
-	SetupTextBacking();
+	SetupTextStyle();
 }
 
-void UUI_Dialogue::SetupTextBacking()
+void UUI_Dialogue::SetupTextStyle()
 {
 	if (!Text || !WidgetTree)
 	{
 		return;
 	}
-	// Idempotent: NativeConstruct can run more than once for a reused widget.
-	if (Cast<UBorder>(Text->GetParent()))
-	{
-		return;
-	}
-
-	UPanelWidget* Parent = Text->GetParent();
+	UCanvasPanel* Parent = Cast<UCanvasPanel>(Text->GetParent());
 	UCanvasPanelSlot* TextSlot = Cast<UCanvasPanelSlot>(Text->Slot);
 	if (!Parent || !TextSlot)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("UUI_Dialogue::SetupTextBacking - Text not in a CanvasPanel slot; no backing plate added"));
+		UE_LOG(LogTemp, Error, TEXT("UUI_Dialogue::SetupTextStyle - Text is not in a CanvasPanel slot"));
 		return;
 	}
+	CenteredTopOffset = TextSlot->GetOffsets().Top;
 
-	// The Text block fills the lower canvas (top-anchored at this Y, centered).
-	// Reuse that vertical anchor so the plate lands where the text already reads.
-	const float TopOffset = TextSlot->GetOffsets().Top;
+	// Everything in px space scales with the plate's supersampling factor so
+	// the world-space result is resolution-independent.
+	const float RS = GDialogueRenderScale;
+	FSlateFontInfo TextFont = Text->GetFont();
+	TextFont.Size = GDialogueTextSize * RS;
+	TextFont.OutlineSettings.OutlineSize = FMath::RoundToInt(GDialogueOutlineSize * RS);
+	TextFont.OutlineSettings.OutlineColor = FLinearColor::Black;
+	Text->SetFont(TextFont);
+	if (SpeakerName)
+	{
+		FSlateFontInfo SpeakerFont = SpeakerName->GetFont();
+		SpeakerFont.Size = GDialogueTextSize * 1.5f * RS;
+		SpeakerFont.OutlineSettings = TextFont.OutlineSettings;
+		SpeakerName->SetFont(SpeakerFont);
+	}
 
-	// Bound the text to a fixed-width wrapping column so the plate crops to the
-	// words. AutoWrapText MUST be off here: auto-wrap sizes to the allotted
-	// width, which in an auto-size slot is driven by the text's own desired
-	// width — a circular dependency that collapses the block to zero. A fixed
-	// WrapTextAt gives a bounded, non-zero desired size.
+	// AutoWrapText MUST be off: auto-wrap sizes to the allotted width, which in
+	// an auto-size slot is driven by the text's own desired width — a circular
+	// dependency that collapses the block to zero. A fixed WrapTextAt gives a
+	// bounded, non-zero desired size.
 	Text->SetAutoWrapText(false);
-	Text->SetWrapTextAt(BackingTextWrapWidth);
 
-	TextBacking = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass());
-
-	// The default UBorder brush has no draw type, so SetBrushColor alone renders
-	// nothing; procedural RoundedBox fills don't render through the world-space
-	// WidgetComponent path either. The engine "WhiteBrush" (a white-texture Box
-	// brush) renders reliably there — copy it and tint it for a solid plate.
-	FSlateBrush Brush = *FCoreStyle::Get().GetBrush("WhiteBrush");
-	// Feathered backing: a UI material fades the plate from its centre opacity out
-	// to transparent within BackingEdgeFeather (UV) of each edge. Computing the fade
-	// in the material (rather than baking it into a 9-slice texture) keeps the centre
-	// always fully opaque and makes the feather slider intuitive — low = crisp edge,
-	// high = soft/wide fade — with no setting that can blank out the backdrop.
-	UMaterialInterface* FeatherMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_DialogueBackingFeather.M_DialogueBackingFeather"));
-	if (!FeatherMat)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UUI_Dialogue: M_DialogueBackingFeather missing; backing plate will not render correctly"));
-	}
-	else
-	{
-		UMaterialInstanceDynamic* Mid = UMaterialInstanceDynamic::Create(FeatherMat, this);
-		Mid->SetVectorParameterValue(FName("PlateColor"), BackingColor);
-		Mid->SetScalarParameterValue(FName("PlateOpacity"), BackingOpacity);
-		Mid->SetScalarParameterValue(FName("FeatherPixels"), BackingEdgeFeather);
-		Brush.SetResourceObject(Mid);
-		Brush.DrawAs = ESlateBrushDrawType::Image;
-	}
-	TextBacking->SetBrush(Brush);
-	TextBacking->SetPadding(BackingPadding);
-	TextBacking->SetHorizontalAlignment(HAlign_Fill);
-	TextBacking->SetVerticalAlignment(VAlign_Fill);
-
-	// Detach Text and wrap it in the border, then add the border to the canvas
-	// as a FRESH slot. Mutating Text's existing (live) slot to auto-size didn't
-	// take — the slot kept its offset-based 0x0 size. A freshly-added slot
-	// applies auto-size cleanly, so the plate sizes to the wrapped text.
+	// Re-add Text so it gets a FRESH slot: mutating the live slot to auto-size
+	// doesn't take (it keeps its offset-based 0x0 size).
 	Parent->RemoveChild(Text);
-	TextBacking->SetContent(Text);
-	UCanvasPanelSlot* BorderSlot = Cast<UCanvasPanelSlot>(Parent->AddChild(TextBacking));
-	if (BorderSlot)
+	Parent->AddChild(Text);
+	ApplyLayout();
+}
+
+void UUI_Dialogue::SetPlateLayout(EDialoguePlateLayout InLayout)
+{
+	Layout = InLayout;
+	ApplyLayout();
+}
+
+void UUI_Dialogue::ApplyLayout()
+{
+	UCanvasPanelSlot* TextSlot = Text ? Cast<UCanvasPanelSlot>(Text->Slot) : nullptr;
+	if (!TextSlot)
 	{
-		BorderSlot->SetAnchors(FAnchors(0.5f, 0.f));
-		BorderSlot->SetAlignment(FVector2D(0.5f, 0.f));
-		BorderSlot->SetAutoSize(true);
-		BorderSlot->SetPosition(FVector2D(0.f, TopOffset));
+		return;
+	}
+	const float RS = GDialogueRenderScale;
+	TextSlot->SetAutoSize(true);
+	switch (Layout)
+	{
+	case EDialoguePlateLayout::BesideHead:
+		TextSlot->SetAnchors(FAnchors(0.f, 0.5f));
+		TextSlot->SetAlignment(FVector2D(0.f, 0.5f));
+		TextSlot->SetPosition(FVector2D::ZeroVector);
+		Text->SetWrapTextAt(GDialogueWrapWidth * RS);
+		Text->SetJustification(ETextJustify::Left);
+		break;
+	case EDialoguePlateLayout::Centered:
+		TextSlot->SetAnchors(FAnchors(0.5f, 0.f));
+		TextSlot->SetAlignment(FVector2D(0.5f, 0.f));
+		TextSlot->SetPosition(FVector2D(0.f, CenteredTopOffset * RS));
+		Text->SetWrapTextAt(GDialogueWrapWidthCentered * RS);
+		Text->SetJustification(ETextJustify::Center);
+		break;
 	}
 }
 
-bool UUI_Dialogue::HasTextBacking() const
+bool UUI_Dialogue::HasTextOutline() const
 {
-	return TextBacking != nullptr && Text != nullptr && Text->GetParent() == TextBacking;
+	return Text != nullptr && Text->GetFont().OutlineSettings.OutlineSize > 0;
 }
 
 void UUI_Dialogue::Close()

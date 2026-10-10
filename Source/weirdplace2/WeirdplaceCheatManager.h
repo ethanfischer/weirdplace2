@@ -14,21 +14,23 @@ class WEIRDPLACE2_API UWeirdplaceCheatManager : public UCheatManager
 	GENERATED_BODY()
 
 public:
-	// Dev: jump the tornado/telephone story to a beat and teleport to look at it.
-	// Sets every UStorySubsystem flag up to that beat (running its side effects),
-	// then frames the relevant actor. Beats (case-insensitive, with aliases):
-	//   `SkipTo KeyBroke` (or `Key`)
-	//   `SkipTo TornadoWarning` (or `TornadoWarningDisplayed` / `TV`)  -> both store TVs flip
-	//   `SkipTo Telephone` (or `SeenTornadoWarning` / `PayPhone`)      -> pole + pay phone reveal
-	// With no argument, lists one command per story beat.
+	// Dev: jump to a story beat or car-ride stage, for this play AND every
+	// later play (saved to the per-user GameUserSettings ini; automation runs
+	// ignore it) until `SkipTo clear`.
+	//   `SkipTo`             — list beats/stages and the current persisted one
+	//   `SkipTo <beat>`      — apply now + persist
+	//   `SkipTo clear`       — stop persisting (also: off / none)
+	// Story beats set every UStorySubsystem flag up to that beat (running its
+	// side effects) and frame the relevant actor. Case-insensitive, aliases:
+	//   KeyBroke (Key) · TornadoWarning (TornadoWarningDisplayed / TV) ·
+	//   Telephone (SeenTornadoWarning / PayPhone)
+	// Car-ride stages need the ride to be running (applied automatically when
+	// it starts if persisted):
+	//   CarDialogue -> Rick's first line · CarLastLine -> his final line showing,
+	//   advance it yourself · CarDrive -> dialogue done, car pulling away
+	// RULE: there is one skip system. A new beat/stage must resolve here, persist,
+	// and appear in the bare listing.
 	UFUNCTION(Exec) void SkipTo(const FString& BeatName);
-
-	// Dev: persist a beat that auto-applies at the start of every play session
-	// (saved to the per-user GameUserSettings ini; automation runs ignore it).
-	//   `AutoSkip Telephone` — set (same beat names/aliases as SkipTo)
-	//   `AutoSkip`           — show the current setting
-	//   `AutoSkip clear`     — remove it (also: off / none)
-	UFUNCTION(Exec) void AutoSkip(const FString& BeatName);
 
 	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
 	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.

@@ -143,6 +143,7 @@ powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Heade
 Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
 
 ## Misc
+- **One dev skip command**: `SkipTo <beat>` in `WeirdplaceCheatManager` applies now *and* persists across PIE until `SkipTo clear`; bare `SkipTo` lists beats. A new beat/stage must resolve there, persist, and appear in the listing (story beats via `UStorySubsystem`, car-ride stages via `UCarRideComponent::GetSkipStages`).
 - This is gonna be a VR game. Implement features diegetically (no screenspace UI)
 - If you add 3rd party assets, credit them in `CREDITS.md`
 - Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". Run them yourself (see Dev tooling).

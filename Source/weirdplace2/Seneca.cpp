@@ -11,6 +11,8 @@
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
+#include "DialoguePlateComponent.h"
+#include "NpcPersonalSpaceComponent.h"
 #include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
@@ -25,17 +27,20 @@
 ASeneca::ASeneca()
 {
 	PrimaryActorTick.bCanEverTick = true;
+	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
+	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 	PrimaryActorTick.bStartWithTickEnabled = true;
 	// Components are created in Blueprint to preserve MetaHuman setup
 }
 
 UUI_Dialogue* ASeneca::GetDialogueWidget() const
 {
-	if (!DialogueWidgetComponent)
+	UWidgetComponent* Widget = DialoguePlate->GetWidgetComponent();
+	if (!Widget)
 	{
 		return nullptr;
 	}
-	return Cast<UUI_Dialogue>(DialogueWidgetComponent->GetUserWidgetObject());
+	return Cast<UUI_Dialogue>(Widget->GetUserWidgetObject());
 }
 
 void ASeneca::BeginPlay()
@@ -44,28 +49,7 @@ void ASeneca::BeginPlay()
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::BeginPlay"));
 
-	// Find the dialogue widget component - it's inside a Child Actor Component
-	TArray<UChildActorComponent*> ChildActorComponents;
-	GetComponents<UChildActorComponent>(ChildActorComponents);
-	for (UChildActorComponent* ChildActorComp : ChildActorComponents)
-	{
-		if (ChildActorComp->GetName().Contains(TEXT("WorldSpace_UI_Dialogue")))
-		{
-			if (AActor* ChildActor = ChildActorComp->GetChildActor())
-			{
-				DialogueWidgetComponent = ChildActor->FindComponentByClass<UWidgetComponent>();
-				if (DialogueWidgetComponent)
-				{
-					// A semi-transparent dialogue backing plate (UUI_Dialogue) needs
-					// alpha blending. Force Transparent blend so BackingOpacity is a
-					// true gradient -- Masked blend clips it binary at the 0.333 mask
-					// threshold, which reads as a hard step near ~0.35.
-					DialogueWidgetComponent->SetBlendMode(EWidgetBlendMode::Transparent);
-				}
-			}
-			break;
-		}
-	}
+	DialogueWidgetComponent = DialoguePlate->GetWidgetComponent();
 
 	// The dark plate behind the dialogue text now lives inside the shared
 	// UUI_Dialogue widget (a UBorder that auto-hugs the text), so it covers
@@ -507,20 +491,6 @@ void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Billboard dialogue widget toward player camera
-	if (DialogueWidgetComponent)
-	{
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (PC)
-		{
-			FVector CamLocation;
-			FRotator CamRotation;
-			PC->GetPlayerViewPoint(CamLocation, CamRotation);
-			FVector WidgetLocation = DialogueWidgetComponent->GetComponentLocation();
-			FRotator LookAtRot = (CamLocation - WidgetLocation).Rotation();
-			DialogueWidgetComponent->SetWorldRotation(LookAtRot);
-		}
-	}
 
 	// Waiting to appear at smoking position — teleport when player isn't looking at
 	// that spot, but only once the player has used the payphone at least once.

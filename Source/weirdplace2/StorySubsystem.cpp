@@ -46,7 +46,7 @@ namespace StorySubsystemConst
 	static constexpr float GazeBoxExpand = 10.f;
 	static constexpr float GazeMaxDistance = 4000.f;
 
-	// Persistent AutoSkip storage (per-user GameUserSettings ini).
+	// Persistent SkipTo storage (per-user GameUserSettings ini).
 	static const TCHAR* AutoSkipSection = TEXT("Weirdplace.Dev");
 	static const TCHAR* AutoSkipKey = TEXT("AutoSkipTo");
 	// Delay before applying, so actors that subscribe to OnStoryFlagChanged in
@@ -61,7 +61,7 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	OnStoryFlagChanged.AddUObject(this, &UStorySubsystem::OnStoryFlagSet);
 
 #if !UE_BUILD_SHIPPING
-	// Dev convenience: a saved `AutoSkip <beat>` applies on every play. Skipped
+	// Dev convenience: a persisted `SkipTo <beat>` applies on every play. Skipped
 	// during automation so a leftover setting can't skew E2E runs.
 	if (!GIsAutomationTesting && InWorld.IsGameWorld() && !GetAutoSkipBeat().IsEmpty())
 	{
@@ -269,16 +269,21 @@ void UStorySubsystem::SetAutoSkipBeat(const FString& BeatName)
 void UStorySubsystem::ApplyAutoSkip()
 {
 	const FString Beat = GetAutoSkipBeat();
+	if (Beat.StartsWith(TEXT("Car"), ESearchCase::IgnoreCase))
+	{
+		// Car-ride stages are applied by UCarRideComponent once the ride starts
+		return;
+	}
 	EStoryFlag Target;
 	if (!ResolveBeat(Beat, Target))
 	{
-		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: AutoSkip beat '%s' no longer resolves - run `AutoSkip clear`"), *Beat);
+		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: persisted SkipTo beat '%s' no longer resolves - run `SkipTo clear`"), *Beat);
 		return;
 	}
 
 	SkipToBeat(Target);
 
-	const FString Msg = FString::Printf(TEXT("AutoSkip: skipped to '%s' (type `AutoSkip clear` to disable)"), *GetBeatDisplayName(Target));
+	const FString Msg = FString::Printf(TEXT("SkipTo: skipped to '%s' (type `SkipTo clear` to stop)"), *GetBeatDisplayName(Target));
 	UE_LOG(LogTemp, Display, TEXT("%s"), *Msg);
 	if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
 }

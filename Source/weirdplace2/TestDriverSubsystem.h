@@ -320,11 +320,23 @@ public:
 	// Fstop / focal distance. Returns false if no player camera exists.
 	bool GetCameraDofState(bool& bOutOverrideActive, float& OutFstop, float& OutFocalDistance) const;
 
-	// Reads the in-widget dialogue text-backing state off the labeled actor's
-	// dialogue widget (any IDialogueWidgetProvider): whether the Text block is
-	// wrapped in the backing plate, and whether the dialogue widget is open.
-	// Returns false if the actor isn't a provider or has no widget yet.
-	bool GetDialogueBackingState(const FString& ActorLabel, bool& bOutHasBacking, bool& bOutDialogueOpen) const;
+	// Reads the dialogue text style off the labeled actor's dialogue widget
+	// (any IDialogueWidgetProvider): whether the Text block carries its black
+	// outline, and whether the dialogue widget is open. Returns false if the
+	// actor isn't a provider or has no widget yet.
+	bool GetDialogueTextState(const FString& ActorLabel, bool& bOutHasOutline, bool& bOutDialogueOpen) const;
+
+	// Horizontal distance (cm) from the player to the labeled actor's root.
+	// Returns false if no such actor.
+	bool GetDistance2DToActor(const FString& Label, float& OutDistance) const;
+
+	// Feeds one tick of movement input in the player's control-yaw frame
+	// (X forward, Y right). Drives AddMovementInput directly, bypassing input
+	// bindings, so it exercises movement gating rather than key mapping.
+	void AddWalkInput(const FVector2D& LocalDir);
+
+	// True if walking away left a dialogue with the labeled NPC frozen for resume.
+	bool HasPendingDialogueResume(const FString& Label) const;
 
 	// Reads the gaze-reward hum state off the level's actor tagged "GazeReward"
 	// (its first UAudioComponent). Returns false if no such actor/component
@@ -392,6 +404,9 @@ public:
 	// Returns the runtime-spawned scenery conveyor actor (tag CarRideScenery),
 	// or null if not spawned.
 	AActor* FindCarRideConveyor() const;
+
+	// Returns the level's CarRideComponent (the car actor's), or null.
+	class UCarRideComponent* FindCarRideComponent() const;
 
 	// --- Sensitivity / look diagnostics ---
 

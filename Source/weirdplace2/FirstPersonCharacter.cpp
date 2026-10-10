@@ -33,6 +33,8 @@
 #include "MenuUIComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Framework/Application/SlateApplication.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Tunable.h"
 #include "Framework/Application/IInputProcessor.h"
 #include "Widgets/SWidget.h"
 #if PLATFORM_LINUX
@@ -90,6 +92,12 @@ private:
 		}
 	}
 };
+
+// Horizontal distance (cm) from the NPC root past which an open dialogue
+// freezes for later resume. Must exceed weird.Npc.PersonalSpaceRadius plus the
+// player capsule radius, or dialogue could never be held.
+WP_TUNABLE_FLOAT(GDialogueWalkAwayDistance, "weird.Dialogue.WalkAwayDistance", 300.f,
+	"Distance (cm) from the NPC at which walking away freezes the dialogue.");
 
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
@@ -341,6 +349,8 @@ void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
 void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	TickDialogueWalkAway();
 
 	// Diagnostic: trace Slate keyboard focus. On Steam Deck the OS keyboard
 	// pops up when SDL/Slate enters text-input mode, which happens when a
@@ -782,6 +792,11 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 
 	if (bDidHitInteractable && HitActor)
 	{
+		if (PendingDialogueResumes.Contains(HitActor))
+		{
+			ResumeDialogue(HitActor);
+			return;
+		}
 		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			IInteractable::Execute_Interact(HitActor);
@@ -1087,6 +1102,8 @@ void AFirstPersonCharacter::RaycastInteractableCheck(AActor*& OutHitActor, bool&
 		if (!HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			// Non-interactable solid geometry (wall, furniture) — stop searching.
+			UE_LOG(LogTemp, Verbose, TEXT("RaycastInteractableCheck - blocked by %s (%s) at %s"),
+				*HitActor->GetName(), HitResult.GetComponent() ? *HitResult.GetComponent()->GetName() : TEXT("?"), *HitResult.ImpactPoint.ToString());
 			return;
 		}
 
@@ -1262,11 +1279,13 @@ void AFirstPersonCharacter::StartDialogue(const TArray<FSimpleDialogueLine>& Lin
 	if (DialogueLines[0].PauseBefore > 0.f)
 	{
 		bDialoguePauseActive = true;
+		bDialoguePauseIsBefore = true;
 		GetWorldTimerManager().SetTimer(
 			DialoguePauseTimerHandle,
 			FTimerDelegate::CreateWeakLambda(this, [this]()
 			{
 				bDialoguePauseActive = false;
+				bDialoguePauseIsBefore = false;
 				if (UI_Dialogue)
 				{
 					UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
@@ -1327,6 +1346,7 @@ void AFirstPersonCharacter::AdvanceDialogue()
 		!bBlockNextDialogueAdvance)
 	{
 		bDialoguePauseActive = true;
+		bDialoguePauseIsBefore = false;
 		if (UI_Dialogue)
 		{
 			UI_Dialogue->Close();
@@ -1385,32 +1405,202 @@ void AFirstPersonCharacter::AdvanceDialogueInternal()
 	}
 	else
 	{
-		// Dialogue exhausted
-		SetActivityState(EPlayerActivityState::FreeRoaming);
-		DialogueLines.Empty();
-		DialogueLineIndex = 0;
-
-		if (UI_Dialogue)
-		{
-			UI_Dialogue->Close();
-			UI_Dialogue = nullptr;
-		}
-
-		UObject* EndedNPC = CurrentDialogueNPC;
-		CurrentDialogueNPC = nullptr;
-		if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
-		{
-			Seneca->OnDialogueEnded();
-		}
-		else if (ARick* Rick = Cast<ARick>(EndedNPC))
-		{
-			Rick->OnDialogueEnded();
-		}
-		else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
-		{
-			Hudson->OnDialogueEnded();
-		}
+		FinishDialogue();
 	}
+}
+
+void AFirstPersonCharacter::FinishDialogue()
+{
+	// Dialogue exhausted
+	SetActivityState(EPlayerActivityState::FreeRoaming);
+	DialogueLines.Empty();
+	DialogueLineIndex = 0;
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->Close();
+		UI_Dialogue = nullptr;
+	}
+
+	UObject* EndedNPC = CurrentDialogueNPC;
+	CurrentDialogueNPC = nullptr;
+	if (ASeneca* Seneca = Cast<ASeneca>(EndedNPC))
+	{
+		Seneca->OnDialogueEnded();
+	}
+	else if (ARick* Rick = Cast<ARick>(EndedNPC))
+	{
+		Rick->OnDialogueEnded();
+	}
+	else if (AHudson* Hudson = Cast<AHudson>(EndedNPC))
+	{
+		Hudson->OnDialogueEnded();
+	}
+}
+
+void AFirstPersonCharacter::SkipToLastDialogueLine()
+{
+	if (ActivityState != EPlayerActivityState::InDialogue || DialogueLines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipToLastDialogueLine - not in a full dialogue (state %d)"), (int32)ActivityState);
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+	bDialoguePauseIsBefore = false;
+	bBlockNextDialogueAdvance = false;
+	DialogueLineIndex = DialogueLines.Num() - 1;
+	if (UI_Dialogue)
+	{
+		const FSimpleDialogueLine& Line = DialogueLines[DialogueLineIndex];
+		UI_Dialogue->OpenWithText(Line.Speaker, Line.Text);
+	}
+	UE_LOG(LogTemp, Log, TEXT("SkipToLastDialogueLine - showing line %d"), DialogueLineIndex);
+	OnDialogueLineShown.Broadcast(DialogueLineIndex);
+}
+
+void AFirstPersonCharacter::SkipDialogue()
+{
+	if (ActivityState != EPlayerActivityState::InDialogue)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("SkipDialogue - not in a full dialogue (state %d)"), (int32)ActivityState);
+		return;
+	}
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+	bDialoguePauseIsBefore = false;
+	bBlockNextDialogueAdvance = false;
+	UE_LOG(LogTemp, Log, TEXT("SkipDialogue - skipping %d remaining line(s)"), DialogueLines.Num() - DialogueLineIndex);
+	FinishDialogue();
+}
+
+void AFirstPersonCharacter::TickDialogueWalkAway()
+{
+	if (!IsInAnyDialogue())
+	{
+		return;
+	}
+	AActor* NPC = Cast<AActor>(CurrentDialogueNPC);
+	if (!NPC)
+	{
+		return;
+	}
+	// Only a player who can actually walk can walk away (the car ride parks
+	// movement in MOVE_None and drives its own dialogue).
+	if (GetCharacterMovement()->MovementMode == MOVE_None)
+	{
+		return;
+	}
+	if (FVector::Dist2D(GetActorLocation(), NPC->GetActorLocation()) <= GDialogueWalkAwayDistance)
+	{
+		return;
+	}
+	CancelDialogueForWalkAway();
+}
+
+void AFirstPersonCharacter::CancelDialogueForWalkAway()
+{
+	FDialogueResumeState State;
+	State.bSimple = ActivityState == EPlayerActivityState::InSimpleDialogue;
+	if (State.bSimple)
+	{
+		State.SimpleLines = SimpleDialogueLines;
+		State.Speaker = SimpleDialogueSpeaker;
+		State.Index = SimpleDialogueLineIndex;
+		State.Action = EDialogueResumeAction::Reshow;
+	}
+	else
+	{
+		State.Lines = DialogueLines;
+		State.Index = DialogueLineIndex;
+		State.bBlockNextAdvance = bBlockNextDialogueAdvance;
+		// A pending [Pause N] timer is dropped; its continuation runs on resume.
+		State.Action = !bDialoguePauseActive ? EDialogueResumeAction::Reshow
+			: bDialoguePauseIsBefore ? EDialogueResumeAction::ShowFirst
+			: EDialogueResumeAction::AdvanceInternal;
+	}
+
+	GetWorldTimerManager().ClearTimer(DialoguePauseTimerHandle);
+	bDialoguePauseActive = false;
+	bDialoguePauseIsBefore = false;
+	bBlockNextDialogueAdvance = false;
+
+	if (ItemNotificationMesh)
+	{
+		ItemNotificationMesh->SetVisibility(false);
+		GetWorldTimerManager().ClearTimer(ItemNotificationTimerHandle);
+	}
+	ClearItemNotificationStack();
+
+	if (UI_Dialogue)
+	{
+		UI_Dialogue->Close();
+		UI_Dialogue = nullptr;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Dialogue - walked away from %s at line %d (%s); frozen for resume"),
+		*GetNameSafe(CurrentDialogueNPC), State.Index, State.bSimple ? TEXT("simple") : TEXT("scripted"));
+	PendingDialogueResumes.Add(CurrentDialogueNPC, MoveTemp(State));
+
+	SetActivityState(EPlayerActivityState::FreeRoaming);
+	SimpleDialogueLines.Empty();
+	SimpleDialogueLineIndex = 0;
+	DialogueLines.Empty();
+	DialogueLineIndex = 0;
+	CurrentDialogueNPC = nullptr;
+}
+
+bool AFirstPersonCharacter::ResumeDialogue(UObject* NPC)
+{
+	FDialogueResumeState State;
+	if (!PendingDialogueResumes.RemoveAndCopyValue(NPC, State))
+	{
+		return false;
+	}
+
+	UI_Dialogue = nullptr;
+	if (IDialogueWidgetProvider* Provider = Cast<IDialogueWidgetProvider>(NPC))
+	{
+		UI_Dialogue = Provider->GetDialogueWidget();
+	}
+	if (!UI_Dialogue)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ResumeDialogue - %s does not provide a dialogue widget"), *GetNameSafe(NPC));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Dialogue - resuming %s at line %d"), *GetNameSafe(NPC), State.Index);
+	CurrentDialogueNPC = NPC;
+
+	if (State.bSimple)
+	{
+		SimpleDialogueLines = State.SimpleLines;
+		SimpleDialogueSpeaker = State.Speaker;
+		SimpleDialogueLineIndex = State.Index;
+		SetActivityState(EPlayerActivityState::InSimpleDialogue);
+		UI_Dialogue->OpenWithText(SimpleDialogueSpeaker, SimpleDialogueLines[SimpleDialogueLineIndex]);
+		return true;
+	}
+
+	DialogueLines = State.Lines;
+	DialogueLineIndex = State.Index;
+	bBlockNextDialogueAdvance = State.bBlockNextAdvance;
+	SetActivityState(EPlayerActivityState::InDialogue);
+	switch (State.Action)
+	{
+	case EDialogueResumeAction::Reshow:
+		// The line was already shown (and its beat broadcast) before the walk-away.
+		UI_Dialogue->OpenWithText(DialogueLines[DialogueLineIndex].Speaker, DialogueLines[DialogueLineIndex].Text);
+		break;
+	case EDialogueResumeAction::ShowFirst:
+		UI_Dialogue->OpenWithText(DialogueLines[0].Speaker, DialogueLines[0].Text);
+		OnDialogueLineShown.Broadcast(0);
+		break;
+	case EDialogueResumeAction::AdvanceInternal:
+		AdvanceDialogueInternal();
+		break;
+	}
+	return true;
 }
 
 // --- Merged from AMyCharacter ---
@@ -1487,15 +1677,6 @@ bool AFirstPersonCharacter::IsInAnyDialogue() const
 {
 	return ActivityState == EPlayerActivityState::InSimpleDialogue
 		|| ActivityState == EPlayerActivityState::InDialogue;
-}
-
-void AFirstPersonCharacter::AddMovementInput(FVector WorldDirection, float ScaleValue, bool bForce)
-{
-	if (!bForce && IsInAnyDialogue())
-	{
-		return;
-	}
-	Super::AddMovementInput(WorldDirection, ScaleValue, bForce);
 }
 
 // --- End merged from AMyCharacter ---

@@ -73,7 +73,7 @@ public:
 	// declared in story order. Used by the `SkipTo` dev console command.
 	void SkipToBeat(EStoryFlag Target);
 
-	// Persistent auto-skip (dev): the beat name saved by the `AutoSkip` cheat,
+	// Persistent skip (dev): the beat name saved by the `SkipTo` cheat,
 	// applied automatically shortly after every play session begins. Empty when
 	// unset. Stored in the per-user GameUserSettings ini.
 	static FString GetAutoSkipBeat();
@@ -108,7 +108,7 @@ private:
 	void Relight();
 	void TickFlicker();
 
-	// Fires once, shortly after begin-play, when an AutoSkip beat is saved.
+	// Fires once, shortly after begin-play, when a SkipTo beat is persisted.
 	void ApplyAutoSkip();
 
 	// Polls whether the player is gazing at a warning TV; sets SeenTornadoWarning

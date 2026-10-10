@@ -1,110 +1,53 @@
-# Nightly Report — 2026-07-01
+# Nightly Report — 2026-10-06
 
-**Home branch:** `July1`
-**Overnight branch:** `overnight/2026-07-01`
-**Scope agreed:** posters → inspection blur → seneca text → clock blur → first-play investigation
-**Result:** 4 done · 1 investigated + partial fix (needs your fresh-launch verify) · 0 skipped
-**Final tip certified:** full `Regression` suite green — **23/23 tests, 429 steps** (3 new regression tests + 20 pre-existing, all passing together).
+**Home branch:** overnight/2026-09-15
+**Overnight branch:** `overnight/2026-10-06`
+**Scope agreed:** (1) Car ride ends with a real drive + pull-over instead of a black fade; gas-station lights must not pop. (2) Reset player walk speed to the UE first-person default.
+**Result:** 2 done · 0 blocked · 0 skipped · HappyPath regression gate green
 
-> The previous 2026-06-19 nightly report is preserved in git history; this file was
-> overwritten for tonight's run.
+> Kickoff note: you went to bed in the same message that handed this off, so the
+> acceptance-criteria interview below was written by me, not ratified by you.
+> Treat anything marked *(assumed)* as my call.
 
 ## Agreed acceptance criteria — locked at kickoff (written before going autonomous)
+### 1. Car ride: real drive + pull-over (`Weirdplace2.E2E.Level1.Regression.CarRideDrive`)
+- [x] After the ride-end trigger, BP_Car's world location changes over time and its distance to Rick's parking spot (OutsidePositionTarget + CarActorOffset) strictly decreases across ≥3 samples — proven by a new `FTD_SampleCarDrive` latent command  *(RED-defining)*
+- [x] The car comes to rest within 50 cm / 5° of the parking spot (same place `Rick::AppearOutside` would put it) — `FTD_AssertCarParked`
+- [x] While the car is moving, the camera fade amount is 0 (no black) — sampled in `FTD_SampleCarDrive`
+- [x] While the car is moving, the player's eye stays on PassengerSeatTarget (<30 cm) — sampled in `FTD_SampleCarDrive`
+- [x] Gas-station lights do not pop: at the frame they are unhidden their intensity is ≤10% of authored, and it reaches authored by the end of the ramp — `FTD_AssertGasStationLightsRamp`
+- [x] Ride end state unchanged: player at GasArrivalTarget, MOVE_Walking, can interact — existing asserts
+- [x] Screenshots: before unhide, right after unhide, mid-drive, pull-over, parked, after exit — eyeballed for no visible pop
+- *(assumed)* Getting out of the car is a short dip to black (~0.4 s) rather than a hard cut; the long 3s/2s/3s fade is gone.
+- *(assumed)* The car turns 90° into the pumps (parked yaw is perpendicular to the approach road), with a constant-deceleration stop.
 
-### 1. Collected movies appear as posters (telephone pole + bathroom)
-Ratified: source = movies the player **collected**; update **live on collection**; the two
-locations show **different** movies; **new poster meshes** placed by Claude; posters
-**hidden until collection**. Mapping (Claude's call): first collected → pole, second → bathroom.
-- [ ] Before any collection, both posters are not visible — poster visibility assert
-- [ ] After collecting movie A, the pole poster becomes visible with A's cover texture — new `FTD_` assert *(RED-defining)*
-- [ ] After collecting movie B, the bathroom poster shows B; pole still shows A; textures differ
-- [ ] Headed screenshots of both posters post-collection show real cover art (not blank/checkerboard)
-- [ ] `HappyPath` still green (touches collect path)
-
-### 2. Blur background during item inspection
-Ratified: **flatscreen only** — gate on `GEngine->XRSystem->IsHeadTrackingAllowed()`.
-- [ ] During MovieBox inspection (`Interacting`), blur post-process active on player camera (blendable weight > 0) *(RED-defining)*
-- [ ] Weight is 0 before inspection and after exit
-- [ ] Headed screenshot mid-inspection: background blurred, inspected item sharp
-- [ ] VR gate present in code (verified by review; E2E runs flatscreen)
-- [ ] `HappyPath` still green (touches inspection flow)
-
-### 3. Seneca dialogue text legible against bright light
-Ratified: **dark backing panel** (subtle translucent plate behind the text).
-- [ ] During Seneca dialogue, backing panel visible behind the text *(RED-defining)*
-- [ ] Panel hidden when no dialogue active
-- [ ] Headed screenshot framing text against the bright light — text legible (Claude judges the frame)
-
-### 4. Clock blurred out
-Ratified: **fully illegible** — reads as a clock, time unreadable. Screenshot-only item
-(no hollow runtime test).
-- [ ] Clock face blurred so hands/numbers are unreadable in a headed close-up screenshot
-- [ ] Object still recognizably a clock
-
-### 5. Fog wall + bladder indicator invisible on first play after editor launch
-Ratified: symptom = **invisible/missing** on first PIE, fine on second; **warmup at load
-is an acceptable fix** if root cause is first-use shader/PSO/Niagara compilation.
-- [ ] Root cause identified with evidence (logs/trace, not vibes)
-- [ ] If confirmed: load-time warmup implemented so first play renders both effects
-- [ ] Best-effort repro documented; if un-reproducible in the harness, evidence-backed writeup + fix, user verifies with a fresh editor launch in the morning
+### 2. Walk speed reset
+- [x] BP_FirstPersonCharacter CharacterMovement MaxWalkSpeed == 600 (UCharacterMovementComponent default; was 300) — asset edit, verified by reading the CDO back  *(RED-defining: was 300)*
 
 ## Done — needs your eyes before merge
-- ✅ **Collected movies appear as posters** — `Weirdplace2.E2E.Level1.Regression.MoviePosters` green (24 steps).
-  Criteria: ✅ hidden before collection · ✅ pole shows first collected cover (RED-defining; was a genuine red first) · ✅ bathroom shows second, pole unchanged, textures differ · ✅ screenshots show real cover art · ✅ HappyPath green (124 steps).
-  Screenshots: `E2E_Poster_01_Pole.png` (cover framed on the pole flyer sheet, readable at night), `E2E_Poster_02_Bathroom.png` (portrait cover above the employee-bathroom sinks).
-  **Verify in-game:** gaze the tornado TV to reveal the phone scene, collect one movie → the pole's flyer sheet by the payphone shows its cover; collect a second → the employee-bathroom west wall shows that one.
-  **How it works:** new `UMoviePosterSubsystem` — records distinct movies in collection order, drives two tagged surfaces (`MoviePoster0` = the phone scene's existing `PosterSheet` component, `MoviePoster1` = a new plane placed on the bathroom wall) with `M_VHSCoverFront` MIDs over `/Game/VHSCovers/<ItemID>` (the MI_VHSCover_* materials are full box wraps — wrong on flat surfaces; same crop pipeline as inventory thumbnails).
-  **Decisions made solo:**
-  - *Discovery:* the pole already had a designed "missing poster" (white flyer + `missingposter_Mat` photo region) — the interview's "nothing exists at either spot" premise was wrong for the pole. Per the locked criteria the sheet is now **hidden until a movie is collected**, so the missing-poster art never shows. If you'd rather keep it as the pre-collection state (flyer gets pasted over by your first pick — arguably better), it's a two-line change in `ApplyPosterStates`; say the word.
-  - Pole poster also gates on the phone scene's `SeenTornadoWarning` reveal (no poster floating next to an invisible pole).
-  - Posters persist after giving tapes to Seneca (the world remembers your picks).
-  - Mapping: first collected → pole, second → bathroom (employee bathroom, west wall).
-
-- ✅ **Blur background during item inspection** — `Weirdplace2.E2E.Level1.Regression.InspectionBlur` green (11 steps).
-  Criteria: ✅ DoF blur active on the player camera during inspection (RED-defining; genuine red first — "DoF overrides not active") · ✅ inactive before and fully cleared after · ✅ screenshot mid-inspection shows sharp held box, blurred shelf behind · ✅ VR gate in code (`XRSystem->IsHeadTrackingAllowed()`, component self-disables in VR) · ✅ HappyPath green (124 steps).
-  Screenshots: `E2E_InspectBlur_01_During.png` (inspected tape sharp, shelf soft), `E2E_InspectBlur_02_After.png` (world crisp again).
-  **Verify in-game:** inspect any shelf movie — the store behind it melts into bokeh; put it back or collect and focus returns.
-  **How it works:** new `UInspectionBlurComponent` on `AFirstPersonCharacter` — ramps cinematic DoF overrides (focal 45cm, f/22→f/1.0 over ~0.33s) on the first-person camera while activity state is `Interacting`. Note: asserts read the camera's DoF override state directly (the observable form of the ratified "blendable weight > 0") so the test compiles without any feature dependency.
-
-- ✅ **Seneca dialogue text legible against bright light** — `Weirdplace2.E2E.Level1.Regression.SenecaTextBacking` green (11 steps).
-  Criteria: ✅ backing panel visible behind the text during dialogue (RED-defining; genuine red — "no component DialogueBackingPanel") · ✅ hidden when no dialogue · ✅ screenshot shows the plate dimming the ceiling lights behind the text, text crisp · ✅ HappyPath green (124 steps).
-  Screenshots: `E2E_SenecaText_01_Dialogue.png` (text on the dark plate, lights dimmed behind it), `E2E_SenecaText_02_Closed.png` (plate gone, same lights full-bright — proves the plate is doing the work).
-  **Verify in-game:** talk to Seneca and put a ceiling light behind him — the text now sits on a translucent dark plate.
-  **How it works:** `ASeneca` floats an engine plane with new unlit-translucent `M_DialogueBacking` (black, opacity 0.55, generator script `scripts/local/create_dialogue_backing_material.py`) 1cm behind the dialogue `WidgetComponent`, inheriting its camera billboard; visibility syncs to the widget's Slate open state each tick.
-  Note: Rick and Hudson share the same dialogue-widget pattern and the same illegibility risk — same fix applies if you want it there too (kept to Seneca per the locked scope).
-
-- ✅ **Clock blurred out (fully illegible)** — screenshot-only item, per the locked criteria (no runtime logic to assert; verified via `Diagnostic.ClockClose` close-up, which stays as an on-demand diagnostic, not a Regression gate).
-  Criteria: ✅ hands/numbers unreadable in a deliberate close-up · ✅ still recognizably a wall clock.
-  Screenshots: `E2E_ClockClose.png` (final: smooth unreadable face in the rim) · `E2E_ClockHunt_Store_7.png` (where it lives).
-  **Verify in-game:** the clock is `SM_Wall_Decor_Set_NN_02c` on the store's south wall at ~(3519, −569, 240) — walk up; you'll see a clock whose face is a smudge.
-  **How it works:** the clock is a Fab "Suburban Household VOL12" decor prop; its numerals AND hands are painted into the pack's shared atlas textures. I replaced `TX_Wall_Decor_Set_NN_02a_ALB` and `_NRM` **in place** with 32px-downscale blurred versions (originals recoverable from git history; only this one prop in the level uses the atlas). The pack's `MI` has a trailing-space `'Albedo '` param that UE's material-instance API silently drops on update — hence the texture-swap approach instead of a material variant.
-  Note: it took three blur iterations (albedo → +normal → strength) because hands ghosted through the normal map; the RMA was left original after a full-blur pass made the face too dark.
-
-- 🟡 **First-play fog wall — INVESTIGATED, NOT FIXED (dev-only; called it after ~2h live debugging 2026-07-02).**
-  - **The fog wall = `ExponentialHeightFog`** (its black horizon band, which darkens the distant sky/clouds to black). On the session's first PIE it renders nothing; the second PIE is fine.
-  - **Scope, confirmed by you: PIE-only, never in packaged builds; stays broken the whole first play (never self-heals).** So it's a dev-environment cosmetic quirk, not a shippable bug.
-  - **Mechanism, proven live:** `ShowFlag.Fog 0` changed the broken frame *not at all* → the height fog contributes nothing on play 1; its render state is dead/absent, not merely mis-valued (every game-thread value reads healthy). It's a scene-creation-time render resource that comes up cold on the first PIE and is only rebuilt correctly by creating a **new world**.
-  - **No runtime rebuild heals it** — tested live on a broken play, each screenshotted: `r.VolumetricFog` toggle, `r.SkyAtmosphere` toggle, forced sky-light `recapture_sky()`, `ShowFlag.Fog` cycle, a genuine two-frame fog visibility teardown+rebuild, and `r.VolumetricRenderTarget` toggle. None restored the fog. Only a 2nd PIE does. So a clean BeginPlay/runtime fix almost certainly doesn't exist; the only remaining code avenue is a C++ "recreate the whole scene render state" hammer, which is risky (`MarkRenderStateDirty` on the fog *killed* healthy fog — see landmine) and not worth it for a dev-only cosmetic issue.
-  - **Recommendation: accept as a known dev quirk** — on a fresh editor, hit Play, stop, Play again. Costs one extra click per session; never ships.
-  - ⚠️ **Landmine (pre-existing):** recreating the fog's render state *mid-play* (visibility cycle / `MarkRenderStateDirty`) kills it for the rest of the play. Nothing in game code does this today; if a future weather beat drives the fog component's setters mid-play and the fog wall dies, this is why. (An overnight guard `bfe47a34` that did this at world-start regressed play 2 and was reverted.)
-  - **Bad "fix" reverted:** `r.PSOPrecache.ProxyCreationWhenPSOReady=0` (committed in `0b095688`) was a wrong guess — removed from config; report corrected here.
-- ✅ **Bladder indicator vignette — FIXED (real, verified live).** Its post-process material's first-ever render drew a corrupt border while compiling (you confirmed it live: garbage on the 1st pulse, clean from the 2nd). The overnight 0.002 warmup was below the renderer's ~1/255 weight-culling threshold so it never compiled; `BladderUrgencyComponent::BeginPlay` now holds the blendable at 0.05 for the first second (imperceptible, actually compiles). `HappyPath` green.
-  - `Diagnostic.FirstPlayEffects` (bookmark-3 vantage) is kept as a repro tool for whoever revisits the fog quirk later.
+- ✅ **Car ride: real drive + pull-over** — `Weirdplace2.E2E.Level1.Regression.CarRideDrive` green, `CarRideScenery` still green.
+  Criteria: ✅ car moves & distance to parking decreases (42852 → 1126 → 0 cm over 11.6 s at test speed) · ✅ parked within 50 cm/5° of Rick's spot (exact) · ✅ fade 0 while moving · ✅ player eye locked to seat · ✅ 12 movable station lights at 0% on first visible frame, 100% after ramp · ✅ player at GasArrivalTarget, walking, can interact.
+  Screenshots: `Saved/Screenshots/WindowsEditor/E2E_CarRideDrive_0{1..5}_*.png` — 01 right after the unhide shows no glow at all (station is 430 m out in the fog); 02/03 the canopy resolves out of the fog and grows; 04 parked beside the pumps from inside the car; 05 outside on foot.
+  **Verify in-game:** play from the car-ride start, finish Rick's dialogue, and watch: the car should keep rolling, the station should fade up out of the fog ahead, the car brakes and turns in beside the pumps, short blink, you're standing outside. Watch for (a) any light pop when the station appears, (b) silhouette bushes/poles ending up in the forecourt, (c) Rick/headlight beams not riding along.
+  Decisions made solo (you were asleep): getting out of the car is a 0.4 s dip to black + 0.8 s fade-in rather than a hard cut (tunables `weird.CarRide.ExitDipOut/ExitDipIn`, component `ExitDipOutDuration/ExitDipInDuration`). The car approaches straight and takes a 1500 cm-radius quarter-turn into the spot (`DriveTurnRadius`), braking over the last `DriveBrakingDistance`+turn. At the real 2000 cm/s ride speed the drive is ~25 s — tune `RideSpeed` or `PostDialogueRideTime` if that's too long. Emissive sign meshes (not lights) are unhidden at 430 m in fog; I saw no pop in the frames but a baked-emissive pop is theoretically possible — check (a) above. The old `RideEndFadeOut/BlackHold/FadeIn` properties and their cvars are gone.
+  Level changes: `S_EV_SimpleLightBeam_03/_4` got the actor tag `CarRideAttached` so they ride along (map saved). At ride start the staged car is re-aimed ~1° so its lane points at the turn-in point.
+- ✅ **Walk speed reset** — `BP_FirstPersonCharacter` CharacterMovement MaxWalkSpeed 300 → 600 (UCharacterMovementComponent default). Read back from the CDO after save. Crouch speed left at 300 (already the default). No E2E; asset-only.
+  **Verify in-game:** walking should feel like a stock first-person template.
 
 ## Blocked / WIP
-(nothing yet)
 
 ## Skipped
-(nothing yet)
-
-→ **Next:** all 5 MVP Claude-Friendly items landed except the first-play fog quirk, which is investigated and judged not-worth-fixing (dev-only cosmetic). The bladder half of that item is genuinely fixed. Nothing outstanding blocks merge review.
 
 ## How to review this run
-- `git log --oneline July1..overnight/2026-07-01` — the per-item commits
-- `git diff July1..overnight/2026-07-01` — the full change
-- Screenshots: `Saved/Screenshots/Windows/E2E_*.png`
-- Parked attempts: `git branch --list 'wip/*'`
+- `git log --oneline overnight/2026-09-15..overnight/2026-10-06`
+- `git diff overnight/2026-09-15..overnight/2026-10-06`
+- Screenshots: `Saved/Screenshots/Windows/E2E_CarRideDrive_*.png`
+- Parked attempts: none (`git branch --list 'wip/*'` is empty)
+
+→ **Next:** play the ride at real speed (2000 cm/s ≈ 25 s drive) and decide if `RideSpeed`/`PostDialogueRideTime`/`DriveBrakingDistance` need dialing; everything is a live cvar/property.
 
 ---
-**Not merged — waiting on your verification.** Nothing lands on `July1` until you play it
-and confirm.
+**Not merged — waiting on your verification.** Green tests and my screenshots got
+each item this far, but nothing lands on `overnight/2026-09-15` until *you* play it and
+confirm. Walk the **Verify in-game** steps above, then tell me to squash-merge
+`overnight/2026-10-06` into `overnight/2026-09-15` (or straight into `master`).

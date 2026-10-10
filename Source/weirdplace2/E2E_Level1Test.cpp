@@ -9,6 +9,19 @@
 #include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "EngineUtils.h"
+#include "CarRideComponent.h"
+#include "Rick.h"
+#include "Components/LightComponent.h"
+#include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Containers/Ticker.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "ImageUtils.h"
+#include "Misc/FileHelper.h"
+#include "Engine/GameViewportClient.h"
+#include "UnrealClient.h"
 #include "HAL/IConsoleManager.h"
 #include "Sound/AmbientSound.h"
 #include "UObject/UnrealType.h"
@@ -1477,6 +1490,98 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// NpcPersonalSpace — the player can't walk into an NPC: a player-only capsule
+// holds them at PersonalSpaceRadius. The dialogue plate is sized to read
+// from that closest range, so the screenshot doubles as the text-size check.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_NpcPersonalSpace,
+	"Weirdplace2.E2E.Level1.Regression.NpcPersonalSpace",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_NpcPersonalSpace::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("NpcPersonalSpace")
+
+	const TCHAR* RickLabel = TEXT("BP_Rick");
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	// Walk straight at him; the capsule (100cm) + player capsule stops us ~135cm
+	// out. Keep the walk short: character movement slides around a round
+	// blocker, so a long push would carry the player around and past him.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(1.f, 0.f), 0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(this, RickLabel, 120.f, 160.f));
+
+	// Dialogue still opens from the closest range, and the plate reads there.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	// Let the typewriter finish so the shot isn't mid-reveal.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_NpcPersonalSpace_DialogueClosest")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// DialogueWalkAway — dialogue no longer locks movement. Walking past
+// WalkAwayDistance freezes the dialogue (plate closes, player is free);
+// interacting with the same NPC again resumes it at the frozen line.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_DialogueWalkAway,
+	"Weirdplace2.E2E.Level1.Regression.DialogueWalkAway",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("DialogueWalkAway")
+
+	const TCHAR* RickLabel = TEXT("BP_Rick");
+	const TCHAR* RickLine = TEXT("I'll meet you inside once I'm done here");
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), RickLine));
+
+	// Back away while the plate is open. Movement must not be blocked, and past
+	// WalkAwayDistance the dialogue freezes.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(-1.f, 0.f), 3.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(this, RickLabel, 300.f, 5000.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, RickLabel, /*bExpectOpen*/ false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPendingDialogueResume(this, RickLabel, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Frozen")));
+
+	// Walk back and interact: the frozen line resumes instead of restarting
+	// through Rick's Interact.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPendingDialogueResume(this, RickLabel, false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), RickLine));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Resumed")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // MoviePutBackPrompt — while inspecting a movie, a world-space prompt
 // names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
 // facing the player even as the box is rotated. Pressing the prompted key
@@ -1950,25 +2055,24 @@ bool FE2E_Level1_PayPhoneDialtone::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// SenecaTextBacking — a dark translucent plate sits behind the dialogue text
-// so it stays legible against bright backgrounds (the original complaint:
-// text washed out when a light sits behind Seneca). The plate now lives
-// INSIDE the shared UUI_Dialogue widget (a UBorder wrapping the Text block),
-// so it auto-hugs the text and covers Seneca, Rick and Hudson at once. The
-// widget itself is collapsed whenever no dialogue is open.
+// SenecaTextOutline — dialogue text carries a black outline so it stays
+// legible against bright backgrounds (the original complaint: text washed
+// out when a light sits behind Seneca). The style is applied inside the
+// shared UUI_Dialogue widget, so it covers Seneca, Rick and Hudson at once.
+// The widget itself is collapsed whenever no dialogue is open.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_SenecaTextBacking,
-	"Weirdplace2.E2E.Level1.Regression.SenecaTextBacking",
+	FE2E_Level1_SenecaTextOutline,
+	"Weirdplace2.E2E.Level1.Regression.SenecaTextOutline",
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 
-bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
+bool FE2E_Level1_SenecaTextOutline::RunTest(const FString& Parameters)
 {
-	E2E_TEST_PREAMBLE("SenecaTextBacking")
+	E2E_TEST_PREAMBLE("SenecaTextOutline")
 
-	// No dialogue: the backing plate exists (text wrapped) but the widget is closed.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+	// No dialogue: the outline is set up but the widget is closed.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), false));
 
 	// Start Seneca's dialogue.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaApproach")));
@@ -1978,14 +2082,14 @@ bool FE2E_Level1_SenecaTextBacking::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
-	// Dialogue open: text still wrapped in the plate, widget now visible.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), true));
+	// Dialogue open: outline still there, widget now visible.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_01_Dialogue")));
 
 	// Finish the dialogue; the widget collapses again.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueBacking(this, TEXT("BP_Seneca"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueTextOutline(this, TEXT("BP_Seneca"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaText_02_Closed")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -2022,6 +2126,57 @@ namespace CarRideTest
 	static TArray<float> SnapshotXs;
 }
 
+// Poll until the car sits on Rick's parking spot (the ParkedHold window).
+class FTD_WaitForCarParked : public FTD_Base
+{
+public:
+	FTD_WaitForCarParked(FAutomationTestBase* InTest, double InTimeoutSeconds = 25.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+	virtual FString GetStatusText() const override { return TEXT("Waiting for the car to park"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		FTransform Parking;
+		if (!Ride || !Ride->Rick || !Ride->Rick->GetCarParkingTransform(Parking))
+		{
+			Test->AddError(TEXT("FTD_WaitForCarParked: no ride / Rick parking transform"));
+			return true;
+		}
+		if (FVector::Dist2D(Ride->GetOwner()->GetActorLocation(), Parking.GetLocation()) < 1.0f)
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(TEXT("FTD_WaitForCarParked: car never reached the parking spot"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// Parked -> open the door -> click the ground -> on foot outside. The car ride
+// doesn't finish by itself any more; every ride test that needs the conveyor
+// torn down or the player out runs these.
+#define E2E_CAR_EXIT_STEPS(Prefix) \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCarParked(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_parked"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.6f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("PassengerDoor"), TEXT("AimPoint"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_lookingAtDoor"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("CarExitSpot"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_doorOpenLookingAtGround"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.9f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_steppingOut"))); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.0f)); \
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT(Prefix "_outside")));
+
 // Crank the scenery speed (fast recycle -> short test) and force the ride to
 // start regardless of the editor play-location setting.
 class FTD_StartCarRideFast : public FTD_Base
@@ -2033,14 +2188,22 @@ public:
 
 	virtual bool UpdateStep() override
 	{
-		if (IConsoleVariable* SpeedVar = IConsoleManager::Get().FindConsoleVariable(TEXT("weird.CarRide.Speed")))
+		// Fast scenery, and collapse the 3s black hold + 30s fade-in that open
+		// the ride so the camera is clear within the test window.
+		const TPair<const TCHAR*, float> Overrides[] = {
+			{ TEXT("weird.CarRide.Speed"), 8000.0f },
+			{ TEXT("weird.CarRide.StartBlackHold"), 0.1f },
+			{ TEXT("weird.CarRide.StartFadeIn"), 0.5f },
+		};
+		for (const auto& Override : Overrides)
 		{
-			SpeedVar->Set(8000.0f);
-		}
-		else
-		{
-			Test->AddError(TEXT("FTD_StartCarRideFast: weird.CarRide.Speed cvar not found"));
-			return true;
+			IConsoleVariable* Var = IConsoleManager::Get().FindConsoleVariable(Override.Key);
+			if (!Var)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_StartCarRideFast: cvar %s not found"), Override.Key));
+				return true;
+			}
+			Var->Set(Override.Value);
 		}
 		UTestDriverSubsystem* Driver = GetDriver();
 		if (!Driver || !Driver->ForceStartCarRide())
@@ -2197,10 +2360,577 @@ bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorMovedAndRecycled(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRide_T2")));
 
-	// End the ride and verify the conveyor is torn down after the fade.
+	// End the ride, get out, and verify the conveyor is torn down behind the player.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideScenery_T3")
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 5.0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// CarRideDrive — the ride ends by actually driving to the gas station and
+// pulling over (no black fade). A per-frame sampler (core ticker, so it runs
+// alongside the screenshot commands) records the car's approach, the camera
+// fade, the player's seat lock and the gas-station light ramp; the assert
+// command evaluates the recording once the car has parked and the exit is done.
+// =======================================================================
+
+namespace CarRideDriveTest
+{
+	struct FDriveSample
+	{
+		double Time = 0.0;
+		float DistToParking = 0.0f;
+		float CarSpeed = 0.0f;       // cm/s, from location delta
+		float FadeAmount = 0.0f;
+		float EyeToSeat = 0.0f;      // cm
+		bool bLightsVisible = false;
+		float LightRatio = 0.0f;     // current / authored intensity (max over lights)
+	};
+
+	static TArray<FDriveSample> Frames;
+	static FTSTicker::FDelegateHandle TickerHandle;
+	static TArray<TWeakObjectPtr<ULightComponent>> Lights;
+	static TArray<float> AuthoredIntensities;
+	static FVector LastCarLoc = FVector::ZeroVector;
+	static double LastTime = 0.0;
+
+	inline FTransform ParkingTransform(ARick* Rick)
+	{
+		FTransform T;
+		Rick->GetCarParkingTransform(T);
+		return T;
+	}
+}
+
+// Record the gas-station lights and their authored intensities. Must run
+// BEFORE the ride starts (StartRide zeroes them for the ramp).
+class FTD_CaptureStationLights : public FTD_Base
+{
+public:
+	FTD_CaptureStationLights(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Capturing gas-station light intensities"); }
+	virtual bool UpdateStep() override
+	{
+		using namespace CarRideDriveTest;
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		if (!Ride || !Ride->GasStationRoot)
+		{
+			Test->AddError(TEXT("FTD_CaptureStationLights: no CarRideComponent / GasStationRoot"));
+			return true;
+		}
+		Lights.Reset();
+		AuthoredIntensities.Reset();
+		TArray<AActor*> StationActors;
+		Ride->GasStationRoot->GetAttachedActors(StationActors, true, true);
+		for (AActor* A : StationActors)
+		{
+			TArray<ULightComponent*> Comps;
+			A->GetComponents<ULightComponent>(Comps);
+			for (ULightComponent* L : Comps)
+			{
+				// Static lights are baked: they can't pop and can't be ramped.
+				if (L->Mobility == EComponentMobility::Static) { continue; }
+				Lights.Add(L);
+				AuthoredIntensities.Add(L->Intensity);
+			}
+		}
+		if (Lights.Num() == 0)
+		{
+			Test->AddError(TEXT("FTD_CaptureStationLights: no movable/stationary light components under GasStationRoot"));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_CaptureStationLights: %d gas-station lights"), Lights.Num());
+		return true;
+	}
+};
+
+// Install the per-frame sampler. One-shot. Needs FTD_CaptureStationLights first.
+class FTD_BeginCarDriveSampling : public FTD_Base
+{
+public:
+	FTD_BeginCarDriveSampling(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Installing car-drive sampler"); }
+	virtual bool UpdateStep() override
+	{
+		using namespace CarRideDriveTest;
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		ARick* Rick = Ride ? Ride->Rick : nullptr;
+		FTransform ParkingCheck;
+		if (!Ride || !Rick || !Rick->GetCarParkingTransform(ParkingCheck) || !Ride->PassengerSeatTarget || !Ride->GasStationRoot)
+		{
+			Test->AddError(TEXT("FTD_BeginCarDriveSampling: car ride wiring incomplete (component/Rick/OutsidePositionTarget/PassengerSeatTarget/GasStationRoot)"));
+			return true;
+		}
+		Frames.Reset();
+		LastCarLoc = Ride->GetOwner()->GetActorLocation();
+		LastTime = FPlatformTime::Seconds();
+		if (Lights.Num() == 0)
+		{
+			Test->AddError(TEXT("FTD_BeginCarDriveSampling: run FTD_CaptureStationLights before the ride starts"));
+			return true;
+		}
+
+		TWeakObjectPtr<UCarRideComponent> RideWeak = Ride;
+		TWeakObjectPtr<ARick> RickWeak = Rick;
+		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([RideWeak, RickWeak](float) -> bool
+		{
+			UCarRideComponent* R = RideWeak.Get();
+			ARick* Rk = RickWeak.Get();
+			if (!R || !Rk || !R->GetOwner()) { return true; }
+			UWorld* W = R->GetWorld();
+			APlayerController* PC = W->GetFirstPlayerController();
+			AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+			if (!PC || !PC->PlayerCameraManager || !Player || !Player->GetFirstPersonCamera()) { return true; }
+
+			const double Now = FPlatformTime::Seconds();
+			const FVector CarLoc = R->GetOwner()->GetActorLocation();
+			FDriveSample F;
+			F.Time = Now;
+			F.DistToParking = FVector::Dist2D(CarLoc, ParkingTransform(Rk).GetLocation());
+			F.CarSpeed = (Now > LastTime) ? FVector::Dist(CarLoc, LastCarLoc) / float(Now - LastTime) : 0.0f;
+			F.FadeAmount = PC->PlayerCameraManager->FadeAmount;
+			F.EyeToSeat = FVector::Dist(Player->GetFirstPersonCamera()->GetComponentLocation(), R->PassengerSeatTarget->GetActorLocation());
+			for (int32 i = 0; i < Lights.Num(); ++i)
+			{
+				ULightComponent* L = Lights[i].Get();
+				if (!L || !L->GetOwner()) { continue; }
+				const bool bVisible = !L->GetOwner()->IsHidden() && L->IsVisible();
+				F.bLightsVisible |= bVisible;
+				if (bVisible && AuthoredIntensities[i] > 0.0f)
+				{
+					F.LightRatio = FMath::Max(F.LightRatio, L->Intensity / AuthoredIntensities[i]);
+				}
+			}
+			Frames.Add(F);
+			LastCarLoc = CarLoc;
+			LastTime = Now;
+			return true;
+		}));
+		return true;
+	}
+};
+
+// Evaluate the recording against the locked criteria and uninstall the sampler.
+class FTD_AssertCarDrove : public FTD_Base
+{
+public:
+	FTD_AssertCarDrove(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Asserting the car drove to the pumps"); }
+	virtual bool UpdateStep() override
+	{
+		using namespace CarRideDriveTest;
+		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+
+		UTestDriverSubsystem* Driver = GetDriver();
+		UCarRideComponent* Ride = Driver ? Driver->FindCarRideComponent() : nullptr;
+		ARick* Rick = Ride ? Ride->Rick : nullptr;
+		if (!Ride || !Rick || Frames.Num() < 10)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: no ride/Rick or too few samples (%d)"), Frames.Num()));
+			return true;
+		}
+
+		// (1) The car moved, and its distance to the parking spot decreased monotonically
+		//     (sampled at 3 evenly spaced points across the moving window).
+		int32 FirstMoving = INDEX_NONE, LastMoving = INDEX_NONE;
+		for (int32 i = 0; i < Frames.Num(); ++i)
+		{
+			if (Frames[i].CarSpeed > 20.0f)
+			{
+				if (FirstMoving == INDEX_NONE) { FirstMoving = i; }
+				LastMoving = i;
+			}
+		}
+		if (FirstMoving == INDEX_NONE)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: the car never moved after the ride ended (start dist to parking %.0f cm, end %.0f cm)"),
+				Frames[0].DistToParking, Frames.Last().DistToParking));
+			return true;
+		}
+		const double MovingSeconds = Frames[LastMoving].Time - Frames[FirstMoving].Time;
+		if (LastMoving - FirstMoving < 10 || MovingSeconds < 1.0)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: the car jumped rather than drove (%d moving frames over %.2fs)"),
+				LastMoving - FirstMoving + 1, MovingSeconds));
+			return true;
+		}
+		const int32 Mid = (FirstMoving + LastMoving) / 2;
+		const float D0 = Frames[FirstMoving].DistToParking, D1 = Frames[Mid].DistToParking, D2 = Frames[LastMoving].DistToParking;
+		if (!(D0 > D1 && D1 > D2))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: distance to parking not decreasing: %.0f -> %.0f -> %.0f"), D0, D1, D2));
+		}
+		UE_LOG(LogTemp, Log, TEXT("FTD_AssertCarDrove: moved for %.1fs, dist %.0f -> %.0f -> %.0f"),
+			Frames[LastMoving].Time - Frames[FirstMoving].Time, D0, D1, D2);
+
+		// (2) Parked within 50 cm / 5 deg of Rick's parking spot.
+		const FTransform Parking = ParkingTransform(Rick);
+		const FVector CarLoc = Ride->GetOwner()->GetActorLocation();
+		const float ParkDist = FVector::Dist2D(CarLoc, Parking.GetLocation());
+		const float YawErr = FMath::Abs(FMath::FindDeltaAngleDegrees(Ride->GetOwner()->GetActorRotation().Yaw, Parking.Rotator().Yaw));
+		if (ParkDist > 50.0f || YawErr > 5.0f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: not parked at Rick's spot (dist %.0f cm, yaw err %.1f deg)"), ParkDist, YawErr));
+		}
+
+		// (3) No black while moving. (4) Player eye locked to the seat while moving.
+		float MaxFadeWhileMoving = 0.0f, MaxEyeToSeat = 0.0f;
+		for (int32 i = FirstMoving; i <= LastMoving; ++i)
+		{
+			MaxFadeWhileMoving = FMath::Max(MaxFadeWhileMoving, Frames[i].FadeAmount);
+			MaxEyeToSeat = FMath::Max(MaxEyeToSeat, Frames[i].EyeToSeat);
+		}
+		if (MaxFadeWhileMoving > 0.01f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: camera faded (%.2f) while the car was moving"), MaxFadeWhileMoving));
+		}
+		if (MaxEyeToSeat > 30.0f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: player eye drifted %.0f cm from the passenger seat while moving"), MaxEyeToSeat));
+		}
+
+		// (5) Lights ramp: the station is never hidden, so "first visible" is the
+		//     first sample — it must be dark (<=10%) and reach >=95% by the end.
+		int32 FirstVisible = INDEX_NONE;
+		float FinalRatio = 0.0f;
+		for (int32 i = 0; i < Frames.Num(); ++i)
+		{
+			if (Frames[i].bLightsVisible)
+			{
+				if (FirstVisible == INDEX_NONE) { FirstVisible = i; }
+				FinalRatio = Frames[i].LightRatio;
+			}
+		}
+		if (FirstVisible == INDEX_NONE)
+		{
+			Test->AddError(TEXT("FTD_AssertCarDrove: gas-station lights never became visible"));
+		}
+		else
+		{
+			const float FirstRatio = Frames[FirstVisible].LightRatio;
+			if (FirstRatio > 0.10f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: lights popped in at %.0f%% intensity on their first visible frame"), FirstRatio * 100.0f));
+			}
+			if (FinalRatio < 0.95f)
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: lights only reached %.0f%% of authored intensity"), FinalRatio * 100.0f));
+			}
+			UE_LOG(LogTemp, Log, TEXT("FTD_AssertCarDrove: lights visible at t+%.2fs, first ratio %.3f, final %.3f"),
+				Frames[FirstVisible].Time - Frames[0].Time, FirstRatio, FinalRatio);
+		}
+
+		// (6) Ride-end state: player on foot beside the passenger door, interaction back on.
+		APlayerController* PC = Ride->GetWorld()->GetFirstPlayerController();
+		AFirstPersonCharacter* Player = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr;
+		FVector Stand;
+		if (!Player || !Ride->GetExitStandLocation(Stand))
+		{
+			Test->AddError(TEXT("FTD_AssertCarDrove: no player / exit stand location"));
+			return true;
+		}
+		const float ArriveDist = FVector::Dist2D(Player->GetActorLocation(), Stand);
+		if (ArriveDist > 60.0f)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: player %.0f cm from the exit stand spot after the ride"), ArriveDist));
+		}
+		if (Player->GetCharacterMovement()->MovementMode != MOVE_Walking || !Player->GetCanInteract())
+		{
+			Test->AddError(TEXT("FTD_AssertCarDrove: player not walking / cannot interact after the ride"));
+		}
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideDrive,
+	"Weirdplace2.E2E.Level1.Regression.CarRideDrive",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideDrive")
+
+	// 8000 cm/s ride speed: ~430 m to the pumps in well under the 20s window.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_00_riding")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.25f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_01_stationUnhidden")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_02_midDrive")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_03_pullOver")));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideDrive_04")
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this, 8.0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.CarRideSkipTo — the dev console command weird.CarRide.SkipTo
+// Drive must take a freshly started ride (black hold, dialogue pending)
+// straight into the drive and park the car.
+// =======================================================================
+
+class FTD_ConsoleExec : public FTD_Base
+{
+public:
+	FTD_ConsoleExec(FAutomationTestBase* InTest, const FString& InCmd) : FTD_Base(InTest), Cmd(InCmd) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Exec '%s'"), *Cmd); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver || !GEngine->Exec(Driver->GetWorld(), *Cmd))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_ConsoleExec: '%s' not handled"), *Cmd));
+		}
+		return true;
+	}
+private:
+	FString Cmd;
+};
+
+// Every-frame viewport readback (downscaled) for N seconds, saved as PNGs, so a
+// one-frame glitch can't slip between screenshot requests. Optionally execs a
+// console command on a given frame so the capture brackets it.
+class FTD_FrameDump : public FTD_Base
+{
+public:
+	FTD_FrameDump(FAutomationTestBase* InTest, const FString& InName, float InSeconds, const FString& InExecOnFrame10 = FString(), int32 InDownscale = 4)
+		: FTD_Base(InTest), Name(InName), Seconds(InSeconds), ExecCmd(InExecOnFrame10), Downscale(InDownscale) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Frame-dumping '%s'"), *Name); }
+	virtual bool UpdateStep() override
+	{
+		FViewport* Viewport = GEngine && GEngine->GameViewport ? GEngine->GameViewport->Viewport : nullptr;
+		if (!Viewport)
+		{
+			Test->AddError(TEXT("FTD_FrameDump: no game viewport"));
+			return true;
+		}
+		if (Frame == 10 && !ExecCmd.IsEmpty())
+		{
+			GEngine->Exec(GetDriver()->GetWorld(), *ExecCmd);
+		}
+		TArray<FColor> Pixels;
+		if (Viewport->ReadPixels(Pixels))
+		{
+			const FIntPoint Size = Viewport->GetSizeXY();
+			// Downscaled nearest-neighbour to keep the dump small
+			const int32 W = Size.X / Downscale, H = Size.Y / Downscale;
+			TArray<FColor> Small;
+			Small.Reserve(W * H);
+			for (int32 y = 0; y < H; ++y)
+			{
+				for (int32 x = 0; x < W; ++x)
+				{
+					FColor C = Pixels[(y * Downscale) * Size.X + x * Downscale];
+					C.A = 255;
+					Small.Add(C);
+				}
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(W, H, Small, Png);
+			const FString Path = FPaths::ScreenShotDir() / FString::Printf(TEXT("%s_f%03d.png"), *Name, Frame);
+			FFileHelper::SaveArrayToFile(Png, *Path);
+		}
+		++Frame;
+		return GetElapsedSinceFirstTick() >= Seconds;
+	}
+private:
+	FString Name;
+	float Seconds;
+	FString ExecCmd;
+	int32 Downscale;
+	int32 Frame = 0;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideSkipTo,
+	"Weirdplace2.E2E.Level1.Diagnostic.CarRideSkipTo",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideSkipTo::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideSkipTo")
+
+	// SkipTo leaves the ride-start fade alone; the fast-start cvars make it
+	// ~0.6s, so wait it out before sampling.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
+	// Dev knob: WP_E2E_PRE="cmd1;cmd2" runs console commands before the dump,
+	// so rendering suspects can be toggled without a rebuild.
+	{
+		const FString Pre = FPlatformMisc::GetEnvironmentVariable(TEXT("WP_E2E_PRE"));
+		TArray<FString> Cmds;
+		Pre.ParseIntoArray(Cmds, TEXT(";"), true);
+		for (const FString& Cmd : Cmds)
+		{
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_ConsoleExec(this, Cmd));
+		}
+	}
+	// Every-frame dump bracketing the drive start (the skip fires on frame 10):
+	// a one-frame glitch can't hide between screenshot requests. This is how the
+	// windshield-SSR smear at drive start was found; diff the frames with PIL.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_FrameDump(this, TEXT("E2E_CarRideSkipTo_dump"), 2.5f, TEXT("weird.CarRide.SkipTo Drive")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideSkipTo_01_driving")));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideSkipTo_02")
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertCarDrove(this));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.StationVisibilityByDistance — how far out the lit gas station
+// stops being visible through the night fog along the car's approach lane.
+// Decides where the ride can stage/unhide the station without a pop.
+// =======================================================================
+
+class FTD_TeleportEye : public FTD_Base
+{
+public:
+	FTD_TeleportEye(FAutomationTestBase* InTest, const FVector& InEye, const FRotator& InRot) : FTD_Base(InTest), Eye(InEye), Rot(InRot) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Teleport eye to %s"), *Eye.ToString()); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		APlayerController* PC = Player ? Cast<APlayerController>(Player->GetController()) : nullptr;
+		if (!Player || !PC) { Test->AddError(TEXT("FTD_TeleportEye: no player/controller")); return true; }
+		if (UCharacterMovementComponent* Move = Player->GetCharacterMovement())
+		{
+			Move->StopMovementImmediately();
+			Move->SetMovementMode(MOVE_None);
+		}
+		const FVector CamOffset = Player->GetFirstPersonCamera() ? Player->GetFirstPersonCamera()->GetRelativeLocation() : FVector::ZeroVector;
+		Player->SetActorLocationAndRotation(Eye - CamOffset, Rot, false, nullptr, ETeleportType::TeleportPhysics);
+		PC->SetControlRotation(Rot);
+		return true;
+	}
+private:
+	FVector Eye;
+	FRotator Rot;
+};
+
+class FTD_SetHeightFogDensity : public FTD_Base
+{
+public:
+	FTD_SetHeightFogDensity(FAutomationTestBase* InTest, float InDensity) : FTD_Base(InTest), Density(InDensity) {}
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Height fog density -> %.3f"), Density); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		for (TActorIterator<AExponentialHeightFog> It(Driver->GetWorld()); It; ++It)
+		{
+			UExponentialHeightFogComponent* Fog = It->GetComponent();
+			UE_LOG(LogTemp, Log, TEXT("FTD_SetHeightFogDensity: %s density %.4f -> %.4f"), *It->GetActorNameOrLabel(), Fog->FogDensity, Density);
+			Fog->SetFogDensity(Density);
+			return true;
+		}
+		Test->AddError(TEXT("FTD_SetHeightFogDensity: no ExponentialHeightFog"));
+		return true;
+	}
+private:
+	float Density;
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_StationVisibilityByDistance,
+	"Weirdplace2.E2E.Level1.Diagnostic.StationVisibilityByDistance",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_StationVisibilityByDistance::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("StationVisibilityByDistance")
+	// Approach lane: x of the staged car, looking -Y at the station (parking y ~3406)
+	for (int32 Metres : { 200, 300, 430, 600, 800, 1000 })
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportEye(this, FVector(9305.0f, 3406.0f + Metres * 100.0f, 108.0f), FRotator(0.0f, -90.0f, 0.0f)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_StationDist_%04dm"), Metres)));
+	}
+	// Same spot as the staged car, thicker height fog: does the station vanish, and
+	// does anything (UDS) fight the value back?
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportEye(this, FVector(9305.0f, 3406.0f + 43000.0f, 108.0f), FRotator(0.0f, -90.0f, 0.0f)));
+	for (float Density : { 0.04f, 0.08f, 0.15f })
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogDensity(this, Density));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(FString::Printf(TEXT("E2E_StationFog_%03d"), int32(Density * 1000))));
+	}
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetHeightFogDensity(this, 0.02f));
+	// The real thing: parked in the car at the staging spot, long enough for eye
+	// adaptation to settle like it does during Rick's dialogue. Station must read
+	// as nothing but a faint outline — no lit dots, no glow.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CaptureStationLights(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(12.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_StationFromParkedCar")));
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// Diagnostic.CarRideDialogue — screenshot Rick's windshield dialogue plate
+// during the ride (Centered plate layout) for eyeballing placement/legibility.
+// =======================================================================
+
+// Log where Rick's plate actually is during the ride, relative to the camera.
+class FTD_LogRickPlate : public FTD_Base
+{
+public:
+	FTD_LogRickPlate(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
+	virtual FString GetStatusText() const override { return TEXT("Logging Rick plate transform"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		ARick* Rick = Driver ? Driver->FindRick() : nullptr;
+		UWidgetComponent* Widget = Rick ? Rick->DialogueWidgetComponent : nullptr;
+		APlayerController* PC = Driver ? Driver->GetWorld()->GetFirstPlayerController() : nullptr;
+		if (!Widget || !PC) { Test->AddError(TEXT("FTD_LogRickPlate: no widget/PC")); return true; }
+		FVector CamLoc; FRotator CamRot; PC->GetPlayerViewPoint(CamLoc, CamRot);
+		const FVector Local = CamRot.UnrotateVector(Widget->GetComponentLocation() - CamLoc);
+		UE_LOG(LogTemp, Warning, TEXT("RickPlate: world=%s parent=%s rel=%s pivot=%s draw=%s scale=%s cam=%s rot=%s camLocal(fwd,right,up)=%s"),
+			*Widget->GetComponentLocation().ToString(), *Widget->GetAttachParent()->GetComponentLocation().ToString(),
+			*Widget->GetRelativeLocation().ToString(), *Widget->GetPivot().ToString(), *Widget->GetDrawSize().ToString(),
+			*Widget->GetComponentScale().ToString(), *CamLoc.ToString(), *CamRot.ToString(), *Local.ToString());
+		return true;
+	}
+};
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_Diag_CarRideDialogue,
+	"Weirdplace2.E2E.Level1.Diagnostic.CarRideDialogue",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_Diag_CarRideDialogue::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CarRideDialogue")
+
+	// The ride opens on a 3s black hold + 30s fade-in; shorten the fade so the
+	// shot isn't black.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("weird.CarRide.StartFadeIn 1")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue, 15.0));
+	// The CarRide section opens with [Pause 85]; wait it out plus the typewriter.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(92.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LogRickPlate(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDialogue_Line1")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertConveyorGone(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
