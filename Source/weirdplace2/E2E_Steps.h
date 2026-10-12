@@ -211,17 +211,47 @@ namespace E2ESteps
 
 	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
-		// The broken-key beat hides Seneca and schedules her to reappear at the
-		// smoking spot after a 30s delay. Skip that wait so the test isn't gated
-		// on real time (FTD_WaitForSenecaAppearedAtSmoking only allows a few
-		// seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
+		// The broken-key beat hides Seneca and schedules a reappearance at the
+		// smoking spot behind the telephone pole after a delay, gated on
+		// HungUpPhone (set by UseTelephone above). Skip the delay so the test
+		// isn't gated on real time (FTD_WaitForSenecaAppearedAtSmoking only allows
+		// a few seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// The [Fix key] cue swaps the carried BrokenKey for a fresh Key (item
+		// notification), then the rest of the lines play out.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17b_SenecaFixedKey")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(T, FName("Key")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("BrokenKey")));
+	}
+
+	void UseFixedKeyOnKeypadDoor(FAutomationTestBase* T)
+	{
+		// Seneca's "fixed" key snaps again in the hallway keypad door (a
+		// keypad door that also runs the key-break sequence). Same beat as
+		// UseKeyOnDoor: give the key, wait for the broken half to drop, collect it.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BathroomDoor"), TEXT("KeyLockSocket")));
+		// Seneca's dialogue just ended; outlast the 1s post-dialogue interact cooldown.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // door pops the inventory (give mode)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the key -> break sequence
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(T, 15.0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("Key")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_InsideKeyBroke")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::Interacting));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectInspectedPickup(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(T, FName("BrokenKey"), 5.0));
 	}
 	
 	void UseTelephone(FAutomationTestBase* T)

@@ -38,12 +38,13 @@ NPC_FILES = ["Seneca.txt", "Rick.txt", "Hudson.txt"]
 MOVIE_COMMENTS = "MovieComments.txt"
 KNOWN_SPEAKERS = {"Seneca", "Rick", "Hudson"}
 
-# Exact-match table of every valid [Tag] and the section it belongs to.
+# Exact-match table of every valid [Tag] and the section(s) it belongs to.
 # A tag anywhere else (typo'd or misplaced) is a lint error — tag typos
 # previously only failed at runtime.
 TAG_SECTIONS = {
     "Bladder": "CarRide",
     "Give key": "ReadyToGiveKey",
+    "Fix key": ("Smoking", "SmokingNoKey"),
     "Give combined tape": "ReadyToGiveCombinedTape",
     "Gives Cash": "RickGivesMoney",
 }
@@ -164,7 +165,7 @@ def lint_npc_file(path, findings):
                     findings.append(("error",
                         f"{rel}:{line.tag_lineno}: unknown tag '[{line.tag}]' "
                         f"(known: {', '.join(sorted(TAG_SECTIONS))})"))
-                elif expected != name:
+                elif name not in ((expected,) if isinstance(expected, str) else expected):
                     findings.append(("error",
                         f"{rel}:{line.tag_lineno}: tag '[{line.tag}]' belongs in "
                         f"section '{expected}', found in '{name}'"))

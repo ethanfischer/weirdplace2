@@ -24,6 +24,7 @@
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
+#include "GasPump.h"
 #include "MenuUIComponent.h"
 #include "MenuUIActor.h"
 #include "Engine/Engine.h"
@@ -4589,6 +4590,62 @@ public:
 	}
 private:
 	bool Expected;
+};
+
+// =======================================================================
+// FTD_AssertGasPumpError � the labelled AGasPump is (or isn't) showing its
+// card-reader "system error" screen.
+// =======================================================================
+class FTD_AssertGasPumpError : public FTD_Base
+{
+public:
+	FTD_AssertGasPumpError(FAutomationTestBase* InTest, FString InLabel, bool bInExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), bExpected(bInExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gas pump '%s' error=%d"), *Label, bExpected ? 1 : 0);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGasPumpError: no driver")); return true; }
+		AGasPump* Pump = Cast<AGasPump>(Driver->FindActorByLabel(Label));
+		if (!Pump)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: no AGasPump labelled '%s' (is BP_GasPump reparented?)"), *Label));
+			return true;
+		}
+		if (Pump->IsShowingError() != bExpected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: '%s' error=%d, expected %d"),
+				*Label, Pump->IsShowingError() ? 1 : 0, bExpected ? 1 : 0));
+			return true;
+		}
+		if (bExpected)
+		{
+			// The shown plate must be visible and on the player's side of the pump.
+			UStaticMeshComponent* Cover = Pump->GetShownCover();
+			AFirstPersonCharacter* Player = Driver->GetPlayer();
+			if (!Cover || !Player)
+			{
+				Test->AddError(TEXT("FTD_AssertGasPumpError: no shown cover / player pawn"));
+				return true;
+			}
+			const float CoverSide = Cover->GetComponentLocation().Y - Pump->GetActorLocation().Y;
+			const float PlayerSide = Player->GetActorLocation().Y - Pump->GetActorLocation().Y;
+			if (!Cover->IsVisible() || FMath::Sign(CoverSide) != FMath::Sign(PlayerSide))
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: '%s' cover visible=%d, cover side %.1f vs player side %.1f"),
+					*Label, Cover->IsVisible() ? 1 : 0, CoverSide, PlayerSide));
+			}
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool bExpected;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

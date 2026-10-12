@@ -24,7 +24,7 @@ WP_TUNABLE_FLOAT(GFootstepCarpetJitter, "weird.Footstep.Carpet.Jitter", 0.08f, "
 WP_TUNABLE_FLOAT(GFootstepCarpetVolume, "weird.Footstep.Carpet.Volume", 1.5f,  "Carpet volume multiplier.");
 WP_TUNABLE_FLOAT(GFootstepTarPitch,     "weird.Footstep.Tar.Pitch",     0.8f,  "Tar base pitch multiplier.");
 WP_TUNABLE_FLOAT(GFootstepTarJitter,    "weird.Footstep.Tar.Jitter",    0.08f, "Tar random pitch variance (+/-).");
-WP_TUNABLE_FLOAT(GFootstepTarVolume,    "weird.Footstep.Tar.Volume",    0.5f,  "Tar volume multiplier.");
+WP_TUNABLE_FLOAT(GFootstepTarVolume,    "weird.Footstep.Tar.Volume",    1.3f, "Tar volume multiplier.");
 
 // This set's base pitch / jitter / volume, falling back to the globals for a
 // set with no per-surface block above.

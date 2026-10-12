@@ -11,6 +11,7 @@ class APropActor;
 
 class UWidgetComponent;
 class UStaticMeshComponent;
+class UStaticMesh;
 class UUI_Dialogue;
 class UItemDefinition;
 class UTexture2D;
@@ -32,7 +33,7 @@ enum class ESenecaState : uint8
 	ReadyToGiveCombinedTape,    // External trigger fired; next interact hands tape over
 	ReadyToGiveKey,             // "Nice picks, here's the key"
 	GaveKey,                    // "Go use the bathroom outside"
-	Smoking,                    // Cosmetic smoking beat (no story effect)
+	Smoking,                    // Cosmetic smoking beat at the telephone pole, after the player hangs up (no story effect)
 	Done                        // No more dialogue
 };
 
@@ -122,6 +123,22 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
 	UChildActorComponent* CigaretteComp;
 
+	// Cell phone held during the smoking beat — Seneca is the voice on the
+	// payphone, so he's still holding it when the player finds him at the pole.
+	// Spawned at BeginPlay on CellPhoneSocket of the body mesh; shown with the
+	// cigarette. CellPhoneMeshAsset defaults to a placeholder cube — swap on BP_Seneca.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|CellPhone")
+	UStaticMeshComponent* CellPhoneMesh = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
+	UStaticMesh* CellPhoneMeshAsset;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
+	FName CellPhoneSocket = TEXT("hand_l");
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
+	FTransform CellPhoneOffset = FTransform(FRotator::ZeroRotator, FVector(10.0, 2.0, 0.0), FVector(0.06, 0.02, 0.11));
+
 	// --- Dialogue (sectioned file parsed by FDialogueScript; see scripts/dq.py) ---
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
@@ -163,6 +180,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString SmokingSection = TEXT("Smoking");
 
+	// Smoking variant used when the player isn't carrying the broken key.
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString SmokingNoKeySection = TEXT("SmokingNoKey");
+
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviesReminderSection = TEXT("WaitingForMoviesReminder");
 
@@ -187,6 +208,11 @@ protected:
 	// Pre-placed key actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;
+
+	// Inventory ID of the snapped half the player picks up outside. The [Fix key]
+	// cue in the Smoking dialogue swaps it for a fresh KeyDef key.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
+	FName BrokenKeyItemID = TEXT("BrokenKey");
 
 	// --- Quest Config ---
 
@@ -228,6 +254,9 @@ private:
 	// Gives the key to the player and shows the item notification on success.
 	// Skips the notification (logs + bails) on any failure path.
 	void GiveKey(class AFirstPersonCharacter* FPChar);
+
+	// Smoking beat: take the broken half (if carried) and hand over a fresh key.
+	void FixKey(class AFirstPersonCharacter* FPChar);
 
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);
@@ -290,14 +319,26 @@ private:
 	// Called when the smoking appear delay expires
 	void OnSmokingDelayComplete();
 
+	// Shared by the look-away appear and the forced (dev/test) appear: teleport
+	// to SmokingPositionTarget, show the cigarette + phone, play the anim.
+	void AppearAtSmokingSpot();
+
 	void StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar);
 
 	// --- Key Beat ---
 
 	void StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar);
 
+	// Smoking dialogue at the telephone pole, with the [Fix key] cue wired up.
+	void StartSmokingDialogue(AFirstPersonCharacter* FPChar);
+
+	// Shared line-cue handler for the ReadyToGiveKey ([Give key]) and Smoking
+	// ([Fix key]) dialogues: arms on the cue line, executes on the next press.
 	UFUNCTION()
 	void OnKeyDialogueLineShown(int32 LineIndex);
+
+	// Builds speaker-tagged lines and starts the dialogue with the cue handler bound.
+	void StartCuedDialogue(AFirstPersonCharacter* FPChar, const TArray<FText>& Lines);
 
 	bool bKeyBeatArmed = false;
 

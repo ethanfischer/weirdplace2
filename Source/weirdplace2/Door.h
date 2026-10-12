@@ -69,6 +69,11 @@ protected:
 	// must not be one of BlockedKeypadCodes. Length is already enforced by the pad.
 	bool IsKeypadCodeAccepted(const FString& Code) const;
 
+	// Extra per-door precondition for the keypad: while false every code is
+	// denied. The hallway keypad door uses it to refuse until the key has
+	// snapped in it.
+	virtual bool IsKeypadArmed() const { return true; }
+
 	// Auto-close timer management
 	void StartAutoCloseTracking();
 	void StopAutoCloseTracking();

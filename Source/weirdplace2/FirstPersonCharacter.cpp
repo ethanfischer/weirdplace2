@@ -99,6 +99,11 @@ private:
 WP_TUNABLE_FLOAT(GDialogueWalkAwayDistance, "weird.Dialogue.WalkAwayDistance", 300.f,
 	"Distance (cm) from the NPC at which walking away freezes the dialogue.");
 
+// Applied to CharacterMovement every tick, so it overrides whatever the pawn
+// Blueprint has in Max Walk Speed.
+WP_TUNABLE_FLOAT(GPlayerWalkSpeed, "weird.Player.WalkSpeed", 400.f,
+	"Player max walk speed (cm/s).");
+
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -349,6 +354,8 @@ void AFirstPersonCharacter::StopLinuxTextInputOnAllWindows()
 void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	GetCharacterMovement()->MaxWalkSpeed = GPlayerWalkSpeed;
 
 	TickDialogueWalkAway();
 

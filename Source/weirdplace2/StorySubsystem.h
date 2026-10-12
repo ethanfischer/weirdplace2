@@ -19,11 +19,12 @@ enum class EStoryFlag : uint8
 	TornadoWarningDisplayed,
 	// Player has actually gazed at a warning TV long enough to register it.
 	SeenTornadoWarning,
-	// Player has picked up the payphone at least once (gates Seneca's smoking
-	// appearance outside). Set by APayPhone on the first off-hook.
+	// Player has picked up the payphone at least once (unlocks the bathroom
+	// keypad). Set by APayPhone on the first off-hook.
 	UsedPayPhone,
-	// Player hung the payphone back up — the world is near-black and the
-	// station-relight countdown arms (Relight side effect below).
+	// Player hung the payphone back up — the world is near-black, the
+	// station-relight countdown arms (Relight side effect below), and Seneca
+	// may now appear at the telephone pole.
 	HungUpPhone,
 	// The gas-station lights flickered back on ("the generator kicked back in"),
 	// giving the lost player a glow to walk toward.

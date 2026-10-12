@@ -52,7 +52,19 @@ In the mean time, here's the key to the bathroom.
 Bathroom's outside around the corner.
 
 == Smoking ==
-We meet again.
-I haven't forgotten about the tape
-Like I said
-These things take time
+I take it you received the message.
+Give me that key.
+[Fix key]
+Good as new. Use the bathroom inside with it.
+I'll see you back inside.
+Let me have this moment to myself.
+
+# Variant when the player never picked the snapped half up off the ground.
+== SmokingNoKey ==
+I take it you received the message.
+You left the key out there, didn't you.
+Here. Spare.
+[Fix key]
+Use the bathroom inside with it.
+I'll see you back inside.
+Let me have this moment to myself.

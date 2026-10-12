@@ -479,6 +479,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::WatchTornadoWarningTV(this);
 	E2ESteps::UseTelephone(this);
 	E2ESteps::SenecaSmokingDialogue(this);
+	E2ESteps::UseFixedKeyOnKeypadDoor(this);
 	E2ESteps::OpenKeypadDoor(this);
 	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
@@ -759,8 +760,13 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("BathroomKeypadRules")
 
-	// The keypad only accepts anything once the player has used the payphone.
+	// The keypad only accepts anything once the player has used the payphone
+	// AND the (Seneca-fixed) key has snapped in this door. Give the player a key
+	// and run the break first; the keypad rules below are checked after that.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("UsedPayPhone"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f)); // first test in the suite: let cells stream in before interacting
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"), TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb")));
+	E2ESteps::UseFixedKeyOnKeypadDoor(this);
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
@@ -1742,10 +1748,56 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	// The Smoking beat is a cued (multi-line) dialogue now — [Fix key] — so it
+	// runs as InDialogue, not InSimpleDialogue.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
+	// No BrokenKey in inventory here, so the SmokingNoKey variant plays ("Spare").
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("Spare")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("shelter")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// GasPumpError � the forecourt pumps are flavor interactables: pressing one
+// puts a "system error" screen over the printed card reader for a few
+// seconds, then it clears on its own.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GasPumpError,
+	"Weirdplace2.E2E.Level1.Regression.GasPumpError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GasPumpError::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GasPumpError")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), false));
+	// Stand close in front of BP_GasPump's -Y face, looking at the lower
+	// card-reader screen, so the screenshot frames the error message.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -960.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -831.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_Idle")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_Error")));
+	// Default ErrorSeconds is 6; it must have cleared by itself after that.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(6.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), false));
+	// The pump is two-sided: pressing from the +Y face puts the error on that face.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -630.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -759.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_ErrorBack")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
