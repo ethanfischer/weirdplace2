@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -9,6 +9,12 @@ class UStaticMeshComponent;
 class UTextRenderComponent;
 class UMaterialInterface;
 
+// World-space inventory strip: a translucent violet pane holding one thumbnail
+// per carried item (a horizontally scrolling window of GridColumns items), the
+// selected item's name top-left, and a neon-green underline beneath the
+// selected thumbnail. Keyboard-driven: no scroll hints, no counters. The
+// panel only ever shows real items — the inventory is compact, so there are
+// no empty slots to draw; with nothing carried it just says "Empty".
 UCLASS()
 class WEIRDPLACE2_API AInventoryUIActor : public AActor
 {
@@ -20,13 +26,13 @@ public:
 	// Set the inventory component to display
 	void SetInventoryComponent(UInventoryComponent* InInventoryComponent);
 
-	// Set the currently selected index
+	// Set the currently selected VISIBLE slot (0 = leftmost shown item)
 	void SetSelectedIndex(int32 Index);
 
-	// Set number of grid columns
+	// Set number of columns in the visible window
 	void SetGridColumns(int32 Columns);
 
-	// Set number of grid rows
+	// Set number of rows (only 1 is laid out; kept for the component's config)
 	void SetGridRows(int32 Rows);
 
 	// Set the horizontal scroll offset (absolute index of the leftmost visible
@@ -34,94 +40,84 @@ public:
 	// Rebuilds the thumbnail window when the offset changes.
 	void SetScrollOffset(int32 Offset);
 
-	// Get total slot count (the fixed visible window: GridColumns x GridRows)
+	// Capacity of the visible window: GridColumns x GridRows
 	int32 GetTotalSlots() const { return GridColumns * GridRows; }
 
-	// Refresh the display
+	// Rebuild everything from the inventory contents
 	UFUNCTION(BlueprintCallable, Category = "Inventory UI")
 	void RefreshDisplay();
 
 	// Set opacity (for animation)
 	void SetOpacity(float Opacity);
 
-	// Set the active (confirmed) item to display at bottom and show border
-	void SetActiveItem(const FName& ItemID, int32 ItemIndex);
+	// Show/hide the whole strip. Hiding propagates to every child; showing
+	// re-applies the frame/hint visibility, which depends on inventory state.
+	void SetShown(bool bShown);
+
+	// Show ItemID's display name above the strip ("Empty" for NAME_None)
+	void SetItemName(const FName& ItemID);
 
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 
-	// Root component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* RootSceneComponent;
 
-	// Background panel mesh
+	// Dark backing panel, sized to the items currently shown
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	UStaticMeshComponent* BackgroundPanel;
 
-	// Text component for item name (top label)
+	// Selected item's name, centered above the thumbnails
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UTextRenderComponent* ItemNameTextTop;
+	UTextRenderComponent* ItemNameText;
 
-	// Size of each thumbnail
+	// Size of each thumbnail (world units)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	float ThumbnailSize = 8.0f;
 
-	// Spacing between thumbnails
+	// Gap between thumbnails
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	float ThumbnailSpacing = 2.0f;
 
-	// Padding around the grid inside the background
+	// Panel padding around the thumbnails (sides and bottom)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
 	float BackgroundPadding = 4.0f;
 
-	// Background panel color
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	FLinearColor BackgroundColor = FLinearColor(0.02f, 0.02f, 0.05f, 0.85f);
+	// Height of the name band above the thumbnails
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
+	float TitleBandHeight = 5.0f;
 
-	// Empty slot color
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	FLinearColor EmptySlotColor = FLinearColor(0.1f, 0.1f, 0.12f, 0.6f);
+	// Name text world size
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Layout")
+	float TitleTextSize = 1.5f;
 
-	// Empty slot border color
+	// Background panel color (alpha is multiplied by the open/close fade)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	FLinearColor EmptySlotBorderColor = FLinearColor(0.3f, 0.3f, 0.35f, 0.8f);
+	FLinearColor BackgroundColor = FLinearColor(0.05f, 0.02f, 0.11f, 0.55f);
 
-	// Material used by empty slots (separate from background material)
+	// Underline under the selected thumbnail (unlit emissive; the forecourt neon green)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	UMaterialInterface* SlotMaterial = nullptr;
+	FLinearColor SelectionColor = FLinearColor(0.35f, 1.0f, 0.25f, 1.0f);
 
-	// Selection highlight color (hover)
+	// Title text color (lavender, like the night sky)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	FLinearColor SelectionColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+	FLinearColor TitleColor = FLinearColor(0.9f, 0.86f, 1.0f, 1.0f);
 
-	// Material used by selection highlight (recommended: a solid-color MI)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	UMaterialInterface* SelectionHighlightMaterial = nullptr;
-
-	// Active item border color (confirmed selection)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	FLinearColor ActiveItemColor = FLinearColor(0.0f, 1.0f, 0.5f, 1.0f);
-
-	// Material used by active item border (recommended: a solid-color MI)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Materials")
-	UMaterialInterface* ActiveItemBorderMaterial = nullptr;
-
-	// Hover scale multiplier (how much larger the hovered slot becomes)
+	// How much larger the selected thumbnail grows
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
 	float HoverScaleMultiplier = 1.15f;
 
-	// Hover animation speed
+	// Speed of the grow animation on selection change
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
 	float HoverAnimationSpeed = 8.0f;
 
-	// Selection highlight pulse speed
+	// Underline thickness and its gap below the grown thumbnail (world units)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
-	float SelectionPulseSpeed = 3.0f;
+	float UnderlineThickness = 0.35f;
 
-	// Selection highlight pulse intensity (0-1)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Hover")
-	float SelectionPulseIntensity = 0.3f;
+	float UnderlineGap = 1.0f;
 
 private:
 	UPROPERTY()
@@ -133,76 +129,43 @@ private:
 	int32 GridRows = 1;
 	float CurrentOpacity = 1.0f;
 
-	// Hover animation progress (0 = not hovered, 1 = fully hovered)
+	// Absolute index of the leftmost visible item; visible slot p shows item (ScrollOffset + p).
+	int32 ScrollOffset = 0;
+
+	// Items currently drawn (<= GetTotalSlots()). The panel and the grid centering
+	// follow this, not the window capacity, so the panel hugs what's actually shown.
+	int32 VisibleCount = 0;
+
 	float HoverAnimationProgress = 0.0f;
 
-	// Time accumulator for pulse effect
-	float PulseTime = 0.0f;
-
-	// Empty slot meshes (always visible)
-	UPROPERTY()
-	TArray<UStaticMeshComponent*> SlotMeshes;
-
-	// Spawned item thumbnail meshes (on top of slots)
+	// One per visible slot; null where the window runs past the last item.
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> ThumbnailMeshes;
 
-	// Selection highlight mesh (hover)
+	// Green underline beneath the selected thumbnail
 	UPROPERTY()
 	UStaticMeshComponent* SelectionHighlight;
 
-	// Active item border mesh (confirmed selection)
-	UPROPERTY()
-	UStaticMeshComponent* ActiveItemBorder;
-
-	// Index of currently active item (-1 if none)
-	int32 ActiveItemIndex = -1;
-
-	// Absolute index of the leftmost visible item; the visible window maps slot p
-	// to inventory item (ScrollOffset + p).
-	int32 ScrollOffset = 0;
-
-	// Cached plane mesh
 	UPROPERTY()
 	UStaticMesh* PlaneMesh;
 
-	// Dynamic material for background
 	UPROPERTY()
 	UMaterialInstanceDynamic* BackgroundMaterial;
 
-	// Dynamic material for selection highlight (for pulsing)
+	// Unlit solid-color material for the selection frame (M_SolidColor)
 	UPROPERTY()
-	UMaterialInstanceDynamic* SelectionMaterial;
+	UMaterialInterface* SolidColorMaterial;
 
-	// Dynamic material for active item border
-	UPROPERTY()
-	UMaterialInstanceDynamic* ActiveItemMaterial;
-
-	// Create the grid slots (empty slot visuals)
-	void CreateSlots();
-
-	// Clear existing slots
-	void ClearSlots();
-
-	// Create thumbnail meshes for items
 	void CreateThumbnails();
-
-	// Clear existing thumbnails
 	void ClearThumbnails();
-
-	// Update selection highlight position
 	void UpdateSelectionHighlight();
-
-	// Update hover animation (scale, pulse)
 	void UpdateHoverAnimation(float DeltaTime);
-
-	// Update the background panel size
 	void UpdateBackgroundSize();
+	void SetThumbnailScale(UStaticMeshComponent* Mesh, float Scale) const;
 
-	// Calculate position for slot at index
+	// Center of visible slot Index, with the shown items centered on the panel
 	FVector CalculateSlotPosition(int32 Index) const;
 
-	// Calculate grid dimensions
+	// Width of the shown items (at least one slot wide)
 	float GetGridWidth() const;
-	float GetGridHeight() const;
 };

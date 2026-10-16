@@ -58,8 +58,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 
 		// Give-mode: interacting with Seneca pops the inventory; select the movie
-		// slot and press E to hand it over. Slots are persistent (OoT-style): movie
-		// i stays at slot i even after earlier movies are given.
+		// slot and press E to hand it over. The inventory compacts, so the next
+		// movie is always at slot 0.
 		for (int32 i = 0; i < 3; ++i)
 		{
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
@@ -68,7 +68,7 @@ namespace E2ESteps
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));                 // wait for open animation
 			if (i == 0)
 				ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));  // select movie slot
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // select movie slot
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E confirms the give
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 			// Wait out the 1-second dialogue cooldown before the next Seneca interaction.

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -59,20 +59,22 @@ protected:
 	float BackgroundPadding = 4.0f;
 
 	// --- Materials / Colors ---
+	// M_SolidColor is unlit + emissive and the hallway is dark, so eye adaptation
+	// lifts these a lot: 0.1 reads as white in-game. Keep them near black.
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor BackgroundColor = FLinearColor(0.02f, 0.02f, 0.05f, 0.85f);
+	FLinearColor BackgroundColor = FLinearColor(0.05f, 0.02f, 0.11f, 0.55f); // translucent violet pane (M_ShadowGlass)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor CellColor = FLinearColor(0.1f, 0.1f, 0.12f, 0.6f);
+	FLinearColor CellColor = FLinearColor(0.012f, 0.012f, 0.015f, 0.6f);
 
 	// Empty fill-slot color (no digit entered yet).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor EmptySlotColor = FLinearColor(0.08f, 0.08f, 0.10f, 0.6f);
+	FLinearColor EmptySlotColor = FLinearColor(0.012f, 0.012f, 0.015f, 0.6f);
 
 	// Filled fill-slot color (digit entered).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor FilledSlotColor = FLinearColor(0.15f, 0.35f, 0.45f, 0.9f);
+	FLinearColor FilledSlotColor = FLinearColor(0.04f, 0.14f, 0.03f, 0.9f); // dim neon green
 
 	// Material for cells + fill slots (recommended: a solid-color MI). Falls back to
 	// /Game/Materials/M_SolidColor like the inventory UI.
@@ -86,11 +88,11 @@ protected:
 
 	// Glow color of the active digit (pulses).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor SelectionColor = FLinearColor(1.0f, 1.0f, 1.0f, 1.0f);
+	FLinearColor SelectionColor = FLinearColor(0.35f, 1.0f, 0.25f, 1.0f); // forecourt neon green
 
 	// Color of the non-selected digits (kept dim so the active one stands out).
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Materials")
-	FLinearColor IdleDigitColor = FLinearColor(0.28f, 0.28f, 0.32f, 1.0f);
+	FLinearColor IdleDigitColor = FLinearColor(0.45f, 0.42f, 0.55f, 1.0f); // dim lavender
 
 	// --- Hover / selection feedback ---
 
@@ -100,11 +102,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Hover")
 	float HoverAnimationSpeed = 8.0f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Hover")
-	float SelectionPulseSpeed = 3.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Keypad|Hover")
-	float SelectionPulseIntensity = 0.3f;
 
 private:
 	static constexpr int32 GridColumns = 3;
@@ -116,7 +113,6 @@ private:
 	int32 CodeLength = 4;
 	float CurrentOpacity = 1.0f;
 	float HoverAnimationProgress = 0.0f;
-	float PulseTime = 0.0f;
 
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> CellMeshes;

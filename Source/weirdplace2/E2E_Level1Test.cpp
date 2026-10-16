@@ -777,6 +777,8 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 	// PIE start. The rules under test are the keypad's, not the input path's.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerKeypadDoorOpen(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Keypad_01_Open")));
 
 	// "4729" has no 8 -> rejected. Wait past WrongCodeClearDelay (0.5s) for the
 	// buzz + entry clear; the door stays locked and the pad stays up.
@@ -1259,6 +1261,9 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("InventoryThumbnails")
 
+	// Slot 0 is a long movie title on purpose: it exercises the title-case, wrap and fit-to-panel path.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BARBIE-SENSATIONS-ROCKIN-BACK-TO-EARTH"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
 		TEXT("/Game/Import/cash/money.money"), FVector(1.0f)));
@@ -1267,8 +1272,6 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 	// A movie item: its ItemID resolves to /Game/VHSCovers/<ItemID>, exercising
 	// the M_VHSCoverFront thumbnail material (the mesh path is irrelevant to the
 	// thumbnail). Verifies VHS covers self-illuminate without the inventory light.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BATMAN-THE-MOVIE"),
-		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
 
 	// Bright outdoor — open inventory + screenshot.
@@ -1675,6 +1678,14 @@ bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Open")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Reopen reuses the cached UI actor: the empty strip must still show no
+	// selection frame and no scroll hints (un-hiding the root used to re-show them).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Reopen")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

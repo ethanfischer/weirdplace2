@@ -297,8 +297,8 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
-	// Returns the ItemID at inventory slot SlotIndex, NAME_None if empty or out
-	// of range. Slots are sparse (OoT-style), so a given slot keeps its item.
+	// Returns the ItemID at inventory slot SlotIndex, NAME_None if out of range.
+	// The inventory is compact, so removing an item shifts later ones down.
 	FName GetInventoryItemAt(int32 SlotIndex) const;
 
 	// Fires a single bladder-urgency vignette pulse on the player (no timer
