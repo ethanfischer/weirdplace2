@@ -1,9 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "SpawnerActorComponent.h"
 
 #include "MovieBox.h"
+#include "InspectablePickup.h"
+#include "ItemDefinition.h"
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -135,13 +137,19 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 	TopShelfMovieBoxes.Reset();
 
 	int32 TopShelfIndex = 0;
+	int32 BottomShelfIndex = 0;
 	for (auto i = 1; i < ShelfLocations.Num(); i++)
 	{
 		if (ShelfLocations[i].Z > ShelfLocations[TopShelfIndex].Z)
 		{
 			TopShelfIndex = i;
 		}
+		if (ShelfLocations[i].Z < ShelfLocations[BottomShelfIndex].Z)
+		{
+			BottomShelfIndex = i;
+		}
 	}
+	AActor* StashBox = nullptr;
 
 	for (auto ShelfIndex = 0; ShelfIndex < ShelfLocations.Num(); ShelfIndex++)
 	{
@@ -159,10 +167,16 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 				{
 					TopShelfMovieBoxes.Add(Spawned);
 				}
+				if (Spawned && ShelfIndex == BottomShelfIndex && BookcaseIndex == StashBookcase && i == StashSlot)
+				{
+					StashBox = Spawned;
+				}
 				VideoNameIndex++;
 			}
 		}
 	}
+
+	SpawnStashBehind(StashBox);
 
 	// Silence the chord hum at level load — ActivateChosenTape() turns it on when Seneca asks for the blank tape.
 	if (ChordAmbientSound)
@@ -172,6 +186,37 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 			AudioComp->Stop();
 		}
 	}
+}
+
+void USpawnerActorComponent::SpawnStashBehind(AActor* Box)
+{
+	if (!StashItemDef)
+	{
+		return;
+	}
+	if (!Box)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: StashItemDef set but no box at bookcase %d slot %d on the bottom shelf"), StashBookcase, StashSlot);
+		return;
+	}
+
+	// Boxes face the aisle along their forward axis (ChosenForwardOffset pushes
+	// the chosen tape out that way), so "behind" is against it, at shelf height.
+	const FVector Location = Box->GetActorLocation() - Box->GetActorForwardVector() * StashBackOffset + FVector(0.0f, 0.0f, StashLift);
+	const FTransform Transform(Box->GetActorRotation(), Location);
+
+	AInspectablePickup* Pickup = World->SpawnActorDeferred<AInspectablePickup>(
+		AInspectablePickup::StaticClass(), Transform, Owner, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (!Pickup)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: failed to spawn stash pickup"));
+		return;
+	}
+	Pickup->SetItemDef(StashItemDef);
+	Pickup->SetIsStash(true);
+	UGameplayStatics::FinishSpawningActor(Pickup, Transform);
+	UE_LOG(LogTemp, Log, TEXT("SpawnerActorComponent: stashed %s behind %s at %s"),
+		*StashItemDef->ItemID.ToString(), *Box->GetName(), *Location.ToString());
 }
 
 void USpawnerActorComponent::ActivateChosenTape()

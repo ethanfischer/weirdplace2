@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -263,6 +263,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable);
 
+	// Inventory open (not give mode) + Interact: offer the selected item to the
+	// interactable under the crosshair via IInteractable::UseItem. Reacted ->
+	// close the inventory; otherwise play the item's UseFailSound at the target.
+	void UseSelectedItemOnGazeTarget();
+
+	// While an object is held up for inspection (movie box, pickup), Interact
+	// collects it. The inspected object installs its collect here and clears it
+	// when inspection ends, so collection follows IA_Interact's own key bindings.
+	void SetInspectionCollectHandler(TFunction<void()> Handler) { InspectionCollectHandler = MoveTemp(Handler); }
+	void ClearInspectionCollectHandler() { InspectionCollectHandler = nullptr; }
+
+	// Same for Back (IA_Back: put the inspected object down).
+	void SetInspectionBackHandler(TFunction<void()> Handler) { InspectionBackHandler = MoveTemp(Handler); }
+	void ClearInspectionBackHandler() { InspectionBackHandler = nullptr; }
+
+	// Short label for IA_Back's binding on the device in use ("Q", "RMB", "B"),
+	// for diegetic prompts. Empty (and an error log) if IA_Back has no mapping
+	// for that device.
+	FString GetBackKeyLabel() const;
+
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 
@@ -391,6 +411,9 @@ private:
 	FTimerHandle ItemNotificationTimerHandle;
 
 	// DoOnce state tracking
+	TFunction<void()> InspectionCollectHandler;
+	TFunction<void()> InspectionBackHandler;
+
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
 	bool bMenuDoOnceCompleted = false;

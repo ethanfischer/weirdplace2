@@ -27,4 +27,10 @@ public:
 	// payphone kiosk, not the telephone pole it shares an actor with).
 	// Default accepts any component.
 	virtual bool IsComponentInteractable(const UPrimitiveComponent* Component) { return true; }
+
+	// The player used an inventory item on this (inventory open, item selected,
+	// Interact while looking at it). Return true if this reacted — the inventory
+	// closes. False means nothing happened; the item's UseFailSound plays at
+	// the hit point instead. Most things react to nothing, so the default is false.
+	virtual bool UseItem(FName ItemID) { return false; }
 };

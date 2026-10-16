@@ -2317,6 +2317,47 @@ private:
 	int32 ExpectedMin;
 };
 
+// =======================================================================
+// FTD_AssertInspectablePickupExists — a pickup of ItemID is (or isn't) in
+// the world. Stash pickups count.
+// =======================================================================
+
+class FTD_AssertInspectablePickupExists : public FTD_Base
+{
+public:
+	FTD_AssertInspectablePickupExists(FAutomationTestBase* InTest, FName InItemID, bool bInExpected)
+		: FTD_Base(InTest), ItemID(InItemID), bExpected(bInExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pickup '%s' exists=%d"), *ItemID.ToString(), bExpected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		const bool bExists = Driver->FindInspectablePickup(ItemID) != nullptr;
+		if (bExists == bExpected)
+		{
+			return true;
+		}
+		// Expecting one: give the spawn a few seconds (first-use texture builds
+		// can hitch the frame that processes the interact press).
+		if (bExpected && GetElapsedSinceFirstTick() < Timeout)
+		{
+			return false;
+		}
+		Test->AddError(FString::Printf(TEXT("FTD_AssertInspectablePickupExists: '%s' exists=%d, expected %d"),
+			*ItemID.ToString(), bExists, bExpected));
+		return true;
+	}
+private:
+	FName ItemID;
+	bool bExpected;
+	double Timeout = 5.0;
+};
+
 class FTD_AssertHasItem : public FTD_Base
 {
 public:

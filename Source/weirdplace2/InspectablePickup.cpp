@@ -1,4 +1,4 @@
-#include "InspectablePickup.h"
+﻿#include "InspectablePickup.h"
 #include "DiegeticTextComponent.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
@@ -79,6 +79,11 @@ bool AInspectablePickup::CanInteract()
 	return !bCollected;
 }
 
+FName AInspectablePickup::GetItemID() const
+{
+	return ItemDef ? ItemDef->ItemID : NAME_None;
+}
+
 void AInspectablePickup::Interact_Implementation()
 {
 	if (bCollected) return;
@@ -118,19 +123,15 @@ void AInspectablePickup::Interact_Implementation()
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AInspectablePickup::RotateInspectedActor);
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AInspectablePickup::RotateInspectedActor);
 
-	// Defer the collect binding one tick so the same E press that opened
-	// inspection doesn't immediately collect.
-	GetWorld()->GetTimerManager().SetTimerForNextTick(
-		FTimerDelegate::CreateWeakLambda(this, [this]()
-		{
-			if (PlayerController && PlayerController->InputComponent)
-			{
-				PlayerController->InputComponent->BindAction(
-					"Collect Inspected Movie", IE_Pressed,
-					this, &AInspectablePickup::CollectInspectedItem);
-			}
-		}));
-	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AInspectablePickup::StopInspection);
+	// Interact (IA_Interact: E, click, gamepad) collects while inspecting.
+	MyCharacter->SetInspectionCollectHandler([Weak = TWeakObjectPtr<AInspectablePickup>(this)]()
+	{
+		if (AInspectablePickup* Pickup = Weak.Get()) { Pickup->CollectInspectedItem(); }
+	});
+	MyCharacter->SetInspectionBackHandler([Weak = TWeakObjectPtr<AInspectablePickup>(this)]()
+	{
+		if (AInspectablePickup* Pickup = Weak.Get()) { Pickup->StopInspection(); }
+	});
 
 	if (PutBackPrompt)
 	{
@@ -204,8 +205,11 @@ void AInspectablePickup::StopInspection()
 			return Binding.AxisName == TEXT("Turn Right / Left Mouse")
 				|| Binding.AxisName == TEXT("Turn Right / Left Gamepad");
 		});
-		PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
-		PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
+	}
+	if (MyCharacter)
+	{
+		MyCharacter->ClearInspectionCollectHandler();
+		MyCharacter->ClearInspectionBackHandler();
 	}
 
 	if (PutBackPrompt) PutBackPrompt->SetVisibility(false);

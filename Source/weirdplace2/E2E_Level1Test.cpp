@@ -1592,7 +1592,7 @@ bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
 
 // =======================================================================
 // MoviePutBackPrompt — while inspecting a movie, a world-space prompt
-// names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
+// names the put-back binding (IA_Back: Backspace / RMB / gamepad B) and keeps
 // facing the player even as the box is rotated. Pressing the prompted key
 // actually puts the movie back.
 // =======================================================================
@@ -1614,17 +1614,17 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
 	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
 
 	// Rotate the box (mouse axis); the prompt must keep facing the camera
 	// and stay keyboard-flavored.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
 
 	// The prompted key really does put the movie back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::Q));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::BackSpace));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -3161,3 +3161,89 @@ bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
 }
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
+
+// =======================================================================
+// MeatTenderizer — the stash exists behind a movie box; using the tenderizer
+// on a gas pump does nothing (clank, inventory stays open); using it on the
+// ice machine breaks it open once and drops Money the player can collect.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MeatTenderizer,
+	"Weirdplace2.E2E.Level1.Regression.MeatTenderizer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MeatTenderizer")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f)); // let the shelf spawner run
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("MeatTenderizer"), true));
+
+	// Skip the hunt: hand the player the tenderizer directly.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("MeatTenderizer"),
+		TEXT("/Game/Meshes/SM_MeatTenderizer.SM_MeatTenderizer"), FVector(1.0f)));
+
+	// Wrong target: a gas pump. Nothing happens, inventory stays open.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -960.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -831.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("Money"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("MeatTenderizer")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_01_PumpClank")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Right target: the ice machine outside the store. Breaks open, Money drops.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3640.0, -1026.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3778.0, -1026.0, 90.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_02_IceMachine")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("Money"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_03_MoneyOut")));
+
+	// Collect it like any dropped pickup.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectInspectedPickup(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("Money")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// CollectByClick — left mouse takes an inspected movie box, same as E.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CollectByClick,
+	"Weirdplace2.E2E.Level1.Regression.CollectByClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CollectByClick::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CollectByClick")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox121")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::LeftMouseButton));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}

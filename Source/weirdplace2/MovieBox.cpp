@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MovieBox.h"
@@ -235,19 +235,15 @@ void AMovieBox::Interact_Implementation()
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Mouse", this, &AMovieBox::RotateInspectedActor);
 	PlayerController->InputComponent->BindAxis("Turn Right / Left Gamepad", this, &AMovieBox::RotateInspectedActor);
 
-	// Defer the collect binding by one tick so the in-flight E IE_Pressed event
-	// that opened inspection doesn't immediately trigger collect.
-	GetWorld()->GetTimerManager().SetTimerForNextTick(
-		FTimerDelegate::CreateWeakLambda(this, [this]()
-		{
-			if (PlayerController && PlayerController->InputComponent)
-			{
-				PlayerController->InputComponent->BindAction(
-					"Collect Inspected Movie", IE_Pressed,
-					this, &AMovieBox::CollectInspectedMovie);
-			}
-		}));
-	PlayerController->InputComponent->BindAction("Exit Interaction", IE_Pressed, this, &AMovieBox::StopInspection);
+	// Interact (IA_Interact: E, click, gamepad) collects while inspecting.
+	MyCharacter->SetInspectionCollectHandler([Weak = TWeakObjectPtr<AMovieBox>(this)]()
+	{
+		if (AMovieBox* Box = Weak.Get()) { Box->CollectInspectedMovie(); }
+	});
+	MyCharacter->SetInspectionBackHandler([Weak = TWeakObjectPtr<AMovieBox>(this)]()
+	{
+		if (AMovieBox* Box = Weak.Get()) { Box->StopInspection(); }
+	});
 
 	// Show the collect prompt for the entire inspection if collection is allowed.
 	// bExemptFromMovieLimit (e.g. BP_BlankVHS) bypasses both the cap and the lock.
@@ -276,36 +272,10 @@ FString AMovieBox::BuildPutBackPromptText() const
 		return FString();
 	}
 
-	auto ShortName = [](const FKey& Key) -> FString
-	{
-		if (Key == EKeys::Gamepad_FaceButton_Bottom) return FString(TEXT("A"));
-		if (Key == EKeys::Gamepad_FaceButton_Right)  return FString(TEXT("B"));
-		if (Key == EKeys::Gamepad_FaceButton_Left)   return FString(TEXT("X"));
-		if (Key == EKeys::Gamepad_FaceButton_Top)    return FString(TEXT("Y"));
-		return Key.GetDisplayName(false).ToString();
-	};
-
-	FString Keyboard, Gamepad;
-	for (const FInputActionKeyMapping& Mapping : PlayerController->PlayerInput->GetKeysForAction(FName("Exit Interaction")))
-	{
-		if (Mapping.Key.IsGamepadKey())
-		{
-			if (Gamepad.IsEmpty()) Gamepad = ShortName(Mapping.Key);
-		}
-		else if (Keyboard.IsEmpty())
-		{
-			Keyboard = Mapping.Key.GetDisplayName(false).ToString();
-		}
-	}
-
-	// Show only the binding for the device the player is actually using.
 	const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
-	const bool bGamepad = FPChar && FPChar->IsUsingGamepad();
-	const FString& Key = bGamepad ? Gamepad : Keyboard;
+	const FString Key = FPChar ? FPChar->GetBackKeyLabel() : FString();
 	if (Key.IsEmpty())
 	{
-		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: 'Exit Interaction' has no %s mapping"),
-			*GetName(), bGamepad ? TEXT("gamepad") : TEXT("keyboard"));
 		return FString();
 	}
 	return FString::Printf(TEXT("[%s]  put back"), *Key);
@@ -387,10 +357,9 @@ void AMovieBox::CollectInspectedMovie()
 		UE_LOG(LogTemp, Error, TEXT("MovieBox %s: player has no InventoryComponent"), *GetName());
 	}
 
-	// Defer StopInspection by one tick. 5.7 fires legacy "Collect Inspected Movie"
-	// (IE_Pressed, this binding) before Enhanced Input IA_Interact (Triggered) on
-	// the same E press; restoring CanInteract synchronously lets the subsequent
-	// IA_Interact path raycast the shelf and re-open inspection.
+	// Defer StopInspection by one tick. Collect runs from inside the IA_Interact handler;
+	// restoring CanInteract synchronously would let that same handler fall through,
+	// raycast the shelf and re-open inspection.
 	GetWorld()->GetTimerManager().SetTimerForNextTick(
 		FTimerDelegate::CreateWeakLambda(this, [this]()
 		{
@@ -428,8 +397,11 @@ void AMovieBox::StopInspection()
 		return Binding.AxisName == TEXT("Turn Right / Left Mouse")
 			|| Binding.AxisName == TEXT("Turn Right / Left Gamepad");
 	});
-	PlayerController->InputComponent->RemoveActionBinding("Exit Interaction", IE_Pressed);
-	PlayerController->InputComponent->RemoveActionBinding("Collect Inspected Movie", IE_Pressed);
+	if (MyCharacter)
+	{
+		MyCharacter->ClearInspectionCollectHandler();
+		MyCharacter->ClearInspectionBackHandler();
+	}
 
 	// Hide the collect and put-back prompts. The put-back prompt also clears
 	// its text and returns to the pivot so it stops contributing stale

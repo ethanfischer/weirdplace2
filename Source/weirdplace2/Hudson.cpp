@@ -1,6 +1,7 @@
-#include "Hudson.h"
+﻿#include "Hudson.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
@@ -118,6 +119,11 @@ bool AHudson::OnMoneyOffered(FName ItemID)
 
 	// Consume + thank the player; ConfirmGiveSelection closes the UI on accept.
 	Inventory->RemoveItem(FName("Money"));
+	if (RewardDef)
+	{
+		Inventory->AddItemWithData(RewardDef->ToInventoryItemData());
+		UE_LOG(LogTemp, Log, TEXT("Hudson - gave %s for the money"), *RewardDef->ItemID.ToString());
+	}
 	CurrentState = EHudsonState::GaveMoney;
 	bLastDialogueWasBeg = false;
 	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Hudson")), ThankYouLines, this);

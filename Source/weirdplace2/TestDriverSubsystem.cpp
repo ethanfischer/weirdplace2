@@ -1286,9 +1286,21 @@ bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 
 // --- Inspectable pickup helpers ---
 
-AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup() const
+AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup(FName ItemID) const
 {
-	return FindFirstActor<AInspectablePickup>(GetWorld());
+	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
+	{
+		AInspectablePickup* Pickup = *It;
+		if (!IsValid(Pickup))
+		{
+			continue;
+		}
+		if (ItemID.IsNone() ? !Pickup->IsStash() : Pickup->GetItemID() == ItemID)
+		{
+			return Pickup;
+		}
+	}
+	return nullptr;
 }
 
 bool UTestDriverSubsystem::TriggerCollectInspectedPickup()

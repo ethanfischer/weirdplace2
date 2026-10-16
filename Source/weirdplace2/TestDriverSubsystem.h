@@ -280,7 +280,10 @@ public:
 	// key-break sequence spawns one of these on the ground instead of
 	// auto-adding the broken key to inventory; tests poll this to know the
 	// pickup has appeared.
-	AInspectablePickup* FindInspectablePickup() const;
+	// ItemID None: the first pickup that appeared mid-story (stash pickups the
+	// level starts with are skipped). Otherwise the first pickup of that item,
+	// stash or not.
+	AInspectablePickup* FindInspectablePickup(FName ItemID = NAME_None) const;
 
 	// Test-only: invoke CollectInspectedItem directly on whichever
 	// AInspectablePickup is currently in inspection. Mirrors

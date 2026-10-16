@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -63,6 +63,11 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
 	FString ThankYouSection = TEXT("HudsonThankYou");
+
+	// What Hudson hands over in return for the money (the meat tenderizer).
+	// None = he just says thanks.
+	UPROPERTY(EditAnywhere, Category = "Hudson")
+	class UItemDefinition* RewardDef = nullptr;
 
 private:
 	TArray<FText> IdleLines;
