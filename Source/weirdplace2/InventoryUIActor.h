@@ -132,8 +132,8 @@ private:
 	// Absolute index of the leftmost visible item; visible slot p shows item (ScrollOffset + p).
 	int32 ScrollOffset = 0;
 
-	// Items currently drawn (<= GetTotalSlots()). The panel and the grid centering
-	// follow this, not the window capacity, so the panel hugs what's actually shown.
+	// Items currently drawn (<= GetTotalSlots()). The pane is sized for the whole
+	// window regardless, so it never resizes as items come and go.
 	int32 VisibleCount = 0;
 
 	float HoverAnimationProgress = 0.0f;
@@ -166,6 +166,6 @@ private:
 	// Center of visible slot Index, with the shown items centered on the panel
 	FVector CalculateSlotPosition(int32 Index) const;
 
-	// Width of the shown items (at least one slot wide)
+	// Width of the full window of slots
 	float GetGridWidth() const;
 };

@@ -369,14 +369,16 @@ FVector AInventoryUIActor::CalculateSlotPosition(int32 Index) const
 {
 	// The actor faces the camera along +X, so local -Y is the viewer's left:
 	// the first shown item sits leftmost.
+	// Slots are laid out for the full window, so the pane keeps one size however
+	// many items are carried and items pack in from the left.
 	const float SlotWidth = ThumbnailSize + ThumbnailSpacing;
-	const float Span = (FMath::Max(1, VisibleCount) - 1) * SlotWidth;
+	const float Span = (GetTotalSlots() - 1) * SlotWidth;
 	return FVector(0.0f, -Span * 0.5f + Index * SlotWidth, 0.0f);
 }
 
 float AInventoryUIActor::GetGridWidth() const
 {
-	const int32 N = FMath::Max(1, VisibleCount);
+	const int32 N = GetTotalSlots();
 	return N * ThumbnailSize + (N - 1) * ThumbnailSpacing;
 }
 
