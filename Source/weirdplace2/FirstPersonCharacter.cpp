@@ -133,6 +133,12 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	ItemNotificationMesh->SetVisibility(false);
 	ItemNotificationMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	SwingMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwingMesh"));
+	SwingMesh->SetupAttachment(FirstPersonCamera);
+	SwingMesh->SetVisibility(false);
+	SwingMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SwingMesh->SetCastShadow(false);
+
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
 
@@ -460,6 +466,7 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	// Slow spin on visible item notification meshes (Zelda-style)
 	const float SpinSpeed = 45.0f; // degrees per second
 	const FRotator SpinDelta(0.0f, SpinSpeed * DeltaTime, 0.0f);
+	TickSwing(DeltaTime);
 	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
 	{
 		ItemNotificationMesh->AddRelativeRotation(SpinDelta);
@@ -864,6 +871,19 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 			ResumeDialogue(HitActor);
 			return;
 		}
+		// Equipped item first: if the target would react to it, swing it.
+		const FName Equipped = GetEquippedItemID();
+		if (!Equipped.IsNone())
+		{
+			if (IInteractable* Target = Cast<IInteractable>(HitActor))
+			{
+				if (Target->WouldReactToItem(Equipped))
+				{
+					UseItemOn(Equipped, HitActor, /*bFromOpenInventory*/ false);
+					return;
+				}
+			}
+		}
 		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			IInteractable::Execute_Interact(HitActor);
@@ -877,29 +897,97 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 	bInteractDoOnceCompleted = false;
 }
 
-void AFirstPersonCharacter::UseSelectedItemOnGazeTarget()
+FName AFirstPersonCharacter::GetEquippedItemID() const
 {
 	UInventoryUIComponent* InvUI = GetInventoryUIComponent();
 	if (!InvUI || !InventoryComponent)
 	{
-		return;
+		return NAME_None;
 	}
 	const TArray<FName> Items = InventoryComponent->GetItems();
-	if (!Items.IsValidIndex(InvUI->GetSelectedIndex()))
+	return Items.IsValidIndex(InvUI->GetSelectedIndex()) ? Items[InvUI->GetSelectedIndex()] : NAME_None;
+}
+
+void AFirstPersonCharacter::UseSelectedItemOnGazeTarget()
+{
+	const FName ItemID = GetEquippedItemID();
+	if (ItemID.IsNone())
 	{
 		return; // empty inventory: nothing to use
 	}
-	const FName ItemID = Items[InvUI->GetSelectedIndex()];
-
 	AActor* HitActor = nullptr;
 	bool bDidHitInteractable = false;
 	RaycastInteractableCheck(HitActor, bDidHitInteractable);
+	UseItemOn(ItemID, bDidHitInteractable ? HitActor : nullptr, /*bFromOpenInventory*/ true);
+}
 
-	IInteractable* Target = (bDidHitInteractable && HitActor) ? Cast<IInteractable>(HitActor) : nullptr;
-	if (Target && Target->UseItem(ItemID))
+void AFirstPersonCharacter::UseItemOn(FName ItemID, AActor* Target, bool bFromOpenInventory)
+{
+	const FInventoryItemData Data = InventoryComponent ? InventoryComponent->GetItemData(ItemID) : FInventoryItemData();
+	if (!Data.Mesh || !SwingMesh || SwingElapsed >= 0.0f)
 	{
-		UE_LOG(LogTemp, Log, TEXT("UseItem: %s reacted to %s"), *HitActor->GetName(), *ItemID.ToString());
-		InvUI->CloseInventoryUI();
+		// No mesh to swing (or a swing already in flight): resolve now.
+		ResolveItemUse(ItemID, Target, bFromOpenInventory);
+		return;
+	}
+
+	SwingMesh->SetStaticMesh(Data.Mesh);
+	for (int32 i = 0; i < Data.Materials.Num(); i++)
+	{
+		SwingMesh->SetMaterial(i, Data.Materials[i]);
+	}
+	const FVector Extents = Data.Mesh->GetBoundingBox().GetExtent();
+	const float MaxExtent = FMath::Max3(Extents.X, Extents.Y, Extents.Z);
+	SwingMesh->SetRelativeScale3D(FVector(MaxExtent > KINDA_SMALL_NUMBER ? 9.0f / MaxExtent : 1.0f));
+	SwingMesh->SetVisibility(true);
+
+	SwingItemID = ItemID;
+	SwingTarget = Target;
+	bSwingFromOpenInventory = bFromOpenInventory;
+	SwingElapsed = 0.0f;
+	bSwingImpactDone = false;
+	TickSwing(0.0f);
+}
+
+void AFirstPersonCharacter::TickSwing(float DeltaTime)
+{
+	if (SwingElapsed < 0.0f)
+	{
+		return;
+	}
+	constexpr float WindUp = 0.12f, Impact = 0.22f, Total = 0.45f;
+	SwingElapsed += DeltaTime;
+
+	// Lower right, handle down: raise over WindUp, slam forward by Impact, settle.
+	float Pitch;
+	if (SwingElapsed < WindUp)       { Pitch = FMath::Lerp(10.0f, 55.0f, SwingElapsed / WindUp); }
+	else if (SwingElapsed < Impact)  { Pitch = FMath::Lerp(55.0f, -45.0f, (SwingElapsed - WindUp) / (Impact - WindUp)); }
+	else                             { Pitch = FMath::Lerp(-45.0f, -30.0f, FMath::Clamp((SwingElapsed - Impact) / (Total - Impact), 0.0f, 1.0f)); }
+	SwingMesh->SetRelativeLocation(FVector(30.0f, 16.0f, -14.0f));
+	SwingMesh->SetRelativeRotation(FRotator(Pitch, -25.0f, 0.0f));
+
+	if (!bSwingImpactDone && SwingElapsed >= Impact)
+	{
+		bSwingImpactDone = true;
+		ResolveItemUse(SwingItemID, SwingTarget.Get(), bSwingFromOpenInventory);
+	}
+	if (SwingElapsed >= Total)
+	{
+		SwingElapsed = -1.0f;
+		SwingMesh->SetVisibility(false);
+	}
+}
+
+void AFirstPersonCharacter::ResolveItemUse(FName ItemID, AActor* Target, bool bFromOpenInventory)
+{
+	IInteractable* Interactable = Target ? Cast<IInteractable>(Target) : nullptr;
+	if (Interactable && Interactable->UseItem(ItemID))
+	{
+		UE_LOG(LogTemp, Log, TEXT("UseItem: %s reacted to %s"), *Target->GetName(), *ItemID.ToString());
+		if (bFromOpenInventory)
+		{
+			if (UInventoryUIComponent* InvUI = GetInventoryUIComponent()) { InvUI->CloseInventoryUI(); }
+		}
 		return;
 	}
 
@@ -908,11 +996,10 @@ void AFirstPersonCharacter::UseSelectedItemOnGazeTarget()
 	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *DefPath);
 	USoundBase* FailSound = Def ? Def->UseFailSound : nullptr;
 	UE_LOG(LogTemp, Log, TEXT("UseItem: %s did nothing on %s (fail sound %s)"),
-		*ItemID.ToString(), HitActor ? *HitActor->GetName() : TEXT("nothing"), FailSound ? TEXT("played") : TEXT("none"));
+		*ItemID.ToString(), Target ? *Target->GetName() : TEXT("nothing"), FailSound ? TEXT("played") : TEXT("none"));
 	if (FailSound)
 	{
-		const FVector At = HitActor ? HitActor->GetActorLocation() : GetActorLocation();
-		UGameplayStatics::PlaySoundAtLocation(this, FailSound, At);
+		UGameplayStatics::PlaySoundAtLocation(this, FailSound, Target ? Target->GetActorLocation() : GetActorLocation());
 	}
 }
 

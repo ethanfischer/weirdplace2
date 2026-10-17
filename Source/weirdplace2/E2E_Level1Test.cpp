@@ -1,4 +1,4 @@
-#include "E2E_Steps.h" // force rebuild
+﻿#include "E2E_Steps.h" // force rebuild
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
@@ -3165,7 +3165,7 @@ bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
 // =======================================================================
 // MeatTenderizer — the stash exists behind a movie box; using the tenderizer
 // on a gas pump does nothing (clank, inventory stays open); using it on the
-// ice machine breaks it open once and drops Money the player can collect.
+// ice machine breaks it open once and hands the player the Money inside.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -3182,7 +3182,7 @@ bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
 
 	// Skip the hunt: hand the player the tenderizer directly.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("MeatTenderizer"),
-		TEXT("/Game/Meshes/SM_MeatTenderizer.SM_MeatTenderizer"), FVector(1.0f)));
+		TEXT("/Game/Import/meattenderizer/SM_MeatTenderizer.SM_MeatTenderizer"), FVector(1.0f)));
 
 	// Wrong target: a gas pump. Nothing happens, inventory stays open.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -960.0, 12.5)));
@@ -3192,30 +3192,26 @@ bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("Money"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("MeatTenderizer")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_01_PumpClank")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
-	// Right target: the ice machine outside the store. Breaks open, Money drops.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3640.0, -1026.0, 12.5)));
+	// Right target: the ice machine outside the store. Breaks open; once the
+	// door has swung clear (~1.2s) the Money is handed over.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3854.0, -1200.0, 12.5))); // in front: the machine faces -Y
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3778.0, -1026.0, 90.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3854.0, -1086.0, 108.0)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_02_IceMachine")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("Money"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_03_MoneyOut")));
-
-	// Collect it like any dropped pickup.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectInspectedPickup(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f)); // padlocks mid-tumble, door still shut, no money yet
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_03_Breaking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.4f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_04_DoorOpenMoneyGiven")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

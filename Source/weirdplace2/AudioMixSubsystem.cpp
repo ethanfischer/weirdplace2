@@ -1,4 +1,4 @@
-#include "AudioMixSubsystem.h"
+﻿#include "AudioMixSubsystem.h"
 #include "Tunable.h"
 #include "Kismet/GameplayStatics.h"
 #include "Sound/SoundClass.h"
@@ -10,7 +10,7 @@
 // SC_SFX * SC_Doors), so Master/Music/Sfx act as group faders.
 // ---------------------------------------------------------------------------
 WP_TUNABLE_FLOAT(GAudioMaster,      "weird.Audio.Master",      1.0f, "SC_Master volume: everything.");
-WP_TUNABLE_FLOAT(GAudioMusic,       "weird.Audio.Music",       1.0f, "SC_Music volume.");
+WP_TUNABLE_FLOAT(GAudioMusic,       "weird.Audio.Music",       0.0f, "SC_Music volume (off by default for now).");
 WP_TUNABLE_FLOAT(GAudioSfx,         "weird.Audio.Sfx",         1.0f, "SC_SFX volume: every non-music sound.");
 WP_TUNABLE_FLOAT(GAudioAmbient,     "weird.Audio.Ambient",     1.0f, "SC_Ambient volume: wind, waterfall, room tones, chord hum.");
 WP_TUNABLE_FLOAT(GAudioFootsteps,   "weird.Audio.Footsteps",   1.0f, "SC_Footsteps volume.");

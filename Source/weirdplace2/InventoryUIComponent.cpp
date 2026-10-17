@@ -155,7 +155,6 @@ void UInventoryUIComponent::OpenInventoryUI()
 	{
 		return;
 	}
-
 	// Play menu open sound
 	if (MenuOpenSound)
 	{
