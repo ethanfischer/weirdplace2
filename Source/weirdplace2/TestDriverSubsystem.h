@@ -117,6 +117,8 @@ public:
 	// True if the AAmbientSound found by editor label has a playing audio
 	// component. False (and logs) if no such ambient-sound actor exists.
 	bool IsAmbientSoundPlaying(const FString& Label) const;
+	// True if any UAudioComponent on the actor with this label is playing.
+	bool IsActorAudioPlaying(const FString& Label) const;
 
 	// Max intensity across all ULightComponents on the actor found by editor label
 	// (the storm-dim test compares this before/after). -1 (and logs) if no such

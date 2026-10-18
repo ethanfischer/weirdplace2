@@ -5,6 +5,7 @@
 #include "FirstPersonCharacter.h"
 #include "GazeUtils.h"
 #include "StormFogComponent.h"
+#include "TeleportTriggerBox.h"
 #include "Tunable.h"
 #include "Components/AudioComponent.h"
 #include "Components/LightComponent.h"
@@ -160,6 +161,7 @@ namespace
 		{ EStoryFlag::UsedPayPhone,            TEXT("PhoneUsed"),      TEXT("phoneused usedpayphone calledphone offhook") },
 		{ EStoryFlag::HungUpPhone,             TEXT("HungUp"),         TEXT("hungupphone hangup hungup") },
 		{ EStoryFlag::StationRelit,            TEXT("Relight"),        TEXT("relight stationrelit relit generator") },
+		{ EStoryFlag::EnteredOasis,            TEXT("Oasis"),          TEXT("oasis enteredoasis stall toilet piano") },
 	};
 }
 
@@ -214,8 +216,8 @@ TArray<FString> UStorySubsystem::GetBeatDisplayNames()
 void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 {
 	// Beats are sequential (KeyBroke -> TornadoWarningDisplayed -> SeenTornadoWarning
-	// -> UsedPayPhone -> HungUpPhone -> StationRelit), so "skip to Target" means
-	// apply every beat up to and including it.
+	// -> UsedPayPhone -> HungUpPhone -> StationRelit -> EnteredOasis), so "skip to
+	// Target" means apply every beat up to and including it.
 	const int32 T = static_cast<int32>(Target);
 
 	if (T >= static_cast<int32>(EStoryFlag::KeyBroke))
@@ -242,6 +244,28 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 	if (T >= static_cast<int32>(EStoryFlag::StationRelit))
 	{
 		SetFlag(EStoryFlag::StationRelit, true);
+	}
+	if (T >= static_cast<int32>(EStoryFlag::EnteredOasis))
+	{
+		// Walk the player through the stall teleporter so the move, the ambient
+		// cross-fade and the EnteredOasis flag all happen exactly as in play.
+		UWorld* World = GetWorld();
+		APawn* Pawn = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
+		ATeleportTriggerBox* Teleporter = nullptr;
+		for (TActorIterator<ATeleportTriggerBox> It(World); It; ++It)
+		{
+			Teleporter = *It;
+			break;
+		}
+		if (!Pawn || !Teleporter)
+		{
+			UE_LOG(LogTemp, Error, TEXT("StorySubsystem: SkipToBeat EnteredOasis - pawn=%s teleporter=%s"),
+				Pawn ? TEXT("ok") : TEXT("null"), Teleporter ? TEXT("ok") : TEXT("null"));
+		}
+		else
+		{
+			Teleporter->TeleportActor(Pawn);
+		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);
 }

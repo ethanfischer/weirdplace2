@@ -318,8 +318,11 @@ namespace E2ESteps
 	void EnterStall(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("ApproachStall")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), false));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("Teleporter"), 2.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
+		// The stall teleport sets EnteredOasis, which wakes the piano's music.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), true));
 	}
 
 	void ExitBathroom(FAutomationTestBase* T)

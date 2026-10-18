@@ -1,6 +1,7 @@
 #include "TeleportTriggerBox.h"
 #include "BladderUrgencyComponent.h"
 #include "Door.h"
+#include "StorySubsystem.h"
 #include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -25,6 +26,11 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
+	TeleportActor(OtherActor);
+}
+
+void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
+{
 	if (!TeleportTarget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set"), *GetName());
@@ -86,6 +92,14 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 			BathroomStallDoorUnlockTime,
 			false);
 	}
+
+	UStorySubsystem* Story = GetWorld()->GetSubsystem<UStorySubsystem>();
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: no UStorySubsystem, EnteredOasis not set"), *GetName());
+		return;
+	}
+	Story->SetFlag(EStoryFlag::EnteredOasis, true);
 }
 
 void ATeleportTriggerBox::UnlockBathroomStallDoor()

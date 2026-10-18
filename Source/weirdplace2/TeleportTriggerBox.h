@@ -19,6 +19,11 @@ public:
 
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 
+	// Move Actor through this teleporter (position, view and velocity carried
+	// across), run the configured side effects, and set EStoryFlag::EnteredOasis.
+	// Called by the overlap and by `SkipTo Oasis`.
+	void TeleportActor(AActor* Actor);
+
 protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();

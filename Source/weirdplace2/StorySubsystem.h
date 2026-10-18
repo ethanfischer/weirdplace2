@@ -28,7 +28,10 @@ enum class EStoryFlag : uint8
 	HungUpPhone,
 	// The gas-station lights flickered back on ("the generator kicked back in"),
 	// giving the lost player a glow to walk toward.
-	StationRelit
+	StationRelit,
+	// Player walked into the bathroom stall and was teleported to the Oasis
+	// (set by ATeleportTriggerBox). Wakes the piano's story-gated music.
+	EnteredOasis
 };
 
 // Broadcast whenever a flag's value changes. APayPhone subscribes to drive its

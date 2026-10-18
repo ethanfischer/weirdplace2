@@ -11,7 +11,7 @@
 
 AGasPump::AGasPump()
 {
-	ErrorText = FText::FromString(TEXT("SYSTEM ERROR\nPlease see clerk\nfor assistance"));
+	ErrorText = FText::FromString(TEXT("Pre pay only\nPlease see attendant\ninside for assistance"));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMesh(TEXT("/Engine/BasicShapes/Plane"));
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PlaneMat(TEXT("/Engine/BasicShapes/BasicShapeMaterial"));

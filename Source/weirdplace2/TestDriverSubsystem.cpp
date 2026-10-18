@@ -151,6 +151,31 @@ bool UTestDriverSubsystem::IsAmbientSoundPlaying(const FString& Label) const
 	return AudioComp && AudioComp->IsPlaying();
 }
 
+bool UTestDriverSubsystem::IsActorAudioPlaying(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorAudioPlaying - no actor '%s'"), *Label);
+		return false;
+	}
+	TArray<UAudioComponent*> AudioComps;
+	Actor->GetComponents<UAudioComponent>(AudioComps);
+	if (AudioComps.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorAudioPlaying - '%s' has no UAudioComponent"), *Label);
+		return false;
+	}
+	for (UAudioComponent* AC : AudioComps)
+	{
+		if (AC->IsPlaying())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) const
 {
 	AActor* Actor = FindActorByLabel(Label);

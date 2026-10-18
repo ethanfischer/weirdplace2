@@ -2602,6 +2602,36 @@ private:
 	bool Expected;
 };
 
+// Assert any UAudioComponent on the actor (by label) is / isn't playing
+// (the Oasis piano wakes on EnteredOasis).
+class FTD_AssertActorAudioPlaying : public FTD_Base
+{
+public:
+	FTD_AssertActorAudioPlaying(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting actor '%s' audio playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorAudioPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsActorAudioPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorAudioPlaying: '%s' playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
 // Capture an actor's max light intensity into a shared float so a later
 // FTD_AssertLightDimmed can compare against it.
 class FTD_CaptureLightIntensity : public FTD_Base
