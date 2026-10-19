@@ -247,8 +247,8 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 	}
 	if (T >= static_cast<int32>(EStoryFlag::EnteredOasis))
 	{
-		// Walk the player through the stall teleporter so the move, the ambient
-		// cross-fade and the EnteredOasis flag all happen exactly as in play.
+		// Run the stall teleporter's side effects (ambient cross-fade finished,
+		// EnteredOasis set) and drop the player at its SkipToTarget.
 		UWorld* World = GetWorld();
 		APawn* Pawn = World ? UGameplayStatics::GetPlayerPawn(World, 0) : nullptr;
 		ATeleportTriggerBox* Teleporter = nullptr;
@@ -264,7 +264,7 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 		}
 		else
 		{
-			Teleporter->TeleportActor(Pawn);
+			Teleporter->SkipTransition(Pawn);
 		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: SkipToBeat -> %d"), T);

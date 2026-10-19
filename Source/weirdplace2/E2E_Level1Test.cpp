@@ -484,6 +484,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
 	E2ESteps::ExitBathroom(this);
+	E2ESteps::WalkOutToPiano(this);
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BrokenKey")));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());

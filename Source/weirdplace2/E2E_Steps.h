@@ -335,6 +335,27 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_21_Done")));
 	}
 
+	// Down the Oasis hallway, out through the end door (a real walk, so the
+	// doorway cut in the hallway mesh is exercised), then across to the piano.
+	void WalkOutToPiano(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("OasisHallwayEnd"), 2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("OasisHallwayEndDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("OasisHallwayEndDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_22_HallwayEndDoorOpen")));
+		// Walk forward through the opening with collision on. Blocked = still
+		// pressed against the door (~1m); through = well past it.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(T, FVector2D(1.f, 0.f), 2.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("OasisHallwayEndDoor"), 500.f, 3000.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_23_OutsideHallway")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("PianoApproach"), 4.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("Piano")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("Piano"), 100.f, 600.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), true));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_24_AtPiano")));
+	}
+
 } // namespace E2ESteps
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
