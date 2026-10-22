@@ -36,6 +36,11 @@ public:
 	// Inventory give-mode callback: accepts Money when offered.
 	bool OnMoneyOffered(FName ItemID);
 
+	// Storm beat: Hudson leaves for good. MetaHuman grooms break if root
+	// visibility is toggled, so this teleports him far below the level and
+	// disables collision instead (same as ARick::StashForStorm).
+	void StashForStorm();
+
 	UPROPERTY(BlueprintReadOnly, Category = "Hudson")
 	UWidgetComponent* DialogueWidgetComponent;
 

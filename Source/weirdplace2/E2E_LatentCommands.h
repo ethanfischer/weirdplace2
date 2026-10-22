@@ -2734,6 +2734,42 @@ private:
 };
 
 // Assert an actor's root visibility (for the gated telephone scene).
+// FTD_AssertActorStashed — NPCs that leave with the storm are teleported far
+// below the level with collision off (MetaHumans can't be hidden). Asserts the
+// labeled actor is (or isn't) in that state.
+class FTD_AssertActorStashed : public FTD_Base
+{
+public:
+	FTD_AssertActorStashed(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' stashed == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorStashed: no driver")); return true; }
+		const AActor* Actor = Driver->FindActorByLabel(Label);
+		if (!Actor) { Test->AddError(FString::Printf(TEXT("FTD_AssertActorStashed: no actor '%s'"), *Label)); return true; }
+		const float Z = Actor->GetActorLocation().Z;
+		const bool bCollision = Actor->GetActorEnableCollision();
+		const bool Actual = !bCollision && Z < -5000.f;
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorStashed: '%s' stashed=%s (Z=%.0f, collision=%s), expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Z, bCollision ? TEXT("on") : TEXT("off"),
+				Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
 class FTD_AssertActorVisible : public FTD_Base
 {
 public:

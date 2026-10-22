@@ -189,3 +189,10 @@ void AHudson::OnDialogueEnded()
 		UE_LOG(LogTemp, Log, TEXT("Hudson - State -> AwaitingDecision"));
 	}
 }
+
+void AHudson::StashForStorm()
+{
+	SetActorEnableCollision(false);
+	SetActorLocation(GetActorLocation() - FVector(0.f, 0.f, 10000.f));
+	UE_LOG(LogTemp, Log, TEXT("Hudson: left with the storm (teleported below level, collision off)"));
+}

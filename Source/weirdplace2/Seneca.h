@@ -25,10 +25,10 @@ class USpawnerActorComponent;
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
 {
-	WaitingForMovies,           // "Buy 3 movies first"
+	WaitingForMovies,           // Czech intro, then the reminder on loop until Rick translates
 	WaitingForMoviePurchase,    // Player must give each movie to Seneca
 	WaitingForMoney,            // Price quoted; player needs to find money
-	WaitingForBlankTape,        // "I need a blank tape too"
+	WaitingForBlankTape,        // "I need a blank tape too"; takes it only after Rick translates
 	AwaitingTapeBurn,           // "find me later"
 	ReadyToGiveCombinedTape,    // External trigger fired; next interact hands tape over
 	ReadyToGiveKey,             // "Nice picks, here's the key"
@@ -105,6 +105,15 @@ public:
 	// Set once the WaitingForMovies basket beat has fully played; prevents replaying on re-enter/re-interact
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
+
+	// Rick has translated the blank-tape request; until then Seneca won't take the tape.
+	UPROPERTY(VisibleAnywhere, Category = "Seneca|Quest")
+	bool bBlankTapeRequestTranslated = false;
+
+	// Rick finished translating Seneca's open request. After the intro he
+	// starts taking movies (WaitingForMovies -> WaitingForMoviePurchase);
+	// after the blank-tape request he'll take the tape.
+	void OnRickTranslated();
 
 	// Test access: returns the pre-placed key prop actor (shown during the key beat).
 	APropActor* GetKeyActor() const { return KeyActor; }
@@ -189,6 +198,10 @@ protected:
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviePurchaseReminderSection = TEXT("WaitingForMoviePurchaseReminder");
+
+	// Appended to Smoking once the player has seen the tornado warning on the TVs.
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString SmokingTornadoTipSection = TEXT("SmokingTornadoTip");
 
 	// --- Blank Tape Beat ---
 
@@ -285,6 +298,7 @@ private:
 	// Reminder lines for re-interactions within a state
 	TArray<FText> WaitingForMoviesReminderLines;
 	TArray<FText> WaitingForMoviePurchaseReminderLines;
+	TArray<FText> SmokingTornadoTipLines;
 
 	// Parsed sectioned dialogue file (DialogueFilePath)
 	FDialogueScript DialogueScript;

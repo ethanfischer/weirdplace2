@@ -77,9 +77,65 @@ namespace E2ESteps
 		}
 	}
 
-	void GetMoneyFromRick(FAutomationTestBase* T)
+	// Seneca's intro has played. Step out to the street, then back in through
+	// the front door (TriggerBox_Outside, then TriggerBox_Inside). Rick moves to
+	// the counter only once neither his car spot nor the counter is in view.
+	void BringRickInside(FAutomationTestBase* T)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickApproach")));
+		// From the street he's still out by the car.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorOutside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 2000.f, 100000.f));
+		// Step in looking at the counter: it's in view, so he waits.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorInside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("RickInsidePosition")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 2000.f, 100000.f));
+		// Look toward the side wall, away from both spots: now he's at the counter.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(T, FVector(4125.f, -600.f, 150.f)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 0.f, 1500.f));
+	}
+
+	// First line of each of Rick's translations (Content/Dialogue/Rick.txt).
+	const TCHAR* const RickIntroTranslation = TEXT("Hey");
+	const TCHAR* const RickBlankTapeTranslation = TEXT("He needs a blank tape to dub your movies onto.");
+	const TCHAR* const RickKeyTranslation = TEXT("He says the dubbing's gonna take a while. Find him later.");
+
+	// Rick at the counter translates Seneca's open request, starting with
+	// FirstLine. Finishing it may unlock Seneca's next step.
+	void HearRickTranslate(FAutomationTestBase* T, const TCHAR* FirstLine, const TCHAR* ScreenshotName)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickInsideApproach")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::InSimpleDialogue));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(T, TEXT("Rick"), FirstLine));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(ScreenshotName));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before the next interaction.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	}
+
+	// Seneca still needs Rick's translation: talking to him (even holding the
+	// item he asked for) only replays his reminder instead of opening the give menu.
+	void SenecaRepeatsReminder(FAutomationTestBase* T, const TCHAR* ScreenshotName)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::InSimpleDialogue));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(ScreenshotName));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	}
+
+	// Rick is already in the store: walk up to him and take the cash.
+	void TakeMoneyFromRickInside(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickInsideApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));

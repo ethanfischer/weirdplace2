@@ -470,10 +470,13 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 	E2ESteps::SenecaIntro(this);
 	E2ESteps::CollectMovies(this);
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
 	E2ESteps::GiveMoviesToSeneca(this);
-	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
 	E2ESteps::GiveMoneyAskForBlank(this);
 	E2ESteps::CollectBlankTape(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_14b_RickTranslatesBlankTape"));
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::WatchTornadoWarningTV(this);
@@ -939,10 +942,13 @@ bool FE2E_Level1_SenecaSmokingAnim::RunTest(const FString& Parameters)
 
 	E2ESteps::SenecaIntro(this);
 	E2ESteps::CollectMovies(this);
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
 	E2ESteps::GiveMoviesToSeneca(this);
-	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
 	E2ESteps::GiveMoneyAskForBlank(this);
 	E2ESteps::CollectBlankTape(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_14b_RickTranslatesBlankTape"));
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::FastForwardSenecaSmoking(this);
@@ -1478,7 +1484,7 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("RickDialoguePrefix")
 
-	// Same approach as HappyPath's GetMoneyFromRick: the RickApproach waypoint
+	// Rick is still out by the car here: the RickApproach waypoint
 	// is placed where the interact trace reliably reaches him.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
@@ -1586,6 +1592,56 @@ bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(3.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_DialogueWalkAway_Resumed")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// RickComesInside — Seneca speaks Czech, and Rick translates. Until Rick has
+// translated the intro, Seneca only repeats his reminder, even when the player
+// holds movies. Walking back in through the front door after the intro brings
+// Rick to the counter, never while either spot is in view. The blank tape is
+// gated the same way; the key hand-off translation gates nothing. With nothing
+// open to translate, Rick idles.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_RickComesInside,
+	"Weirdplace2.E2E.Level1.Regression.RickComesInside",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_RickComesInside::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("RickComesInside")
+
+	E2ESteps::SenecaIntro(this);
+	E2ESteps::CollectMovies(this);
+	E2ESteps::SenecaRepeatsReminder(this, TEXT("E2E_RickInside_SenecaReminder"));
+
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
+	E2ESteps::GiveMoviesToSeneca(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
+
+	// Seneca wants the money Rick just handed over: nothing to translate.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), TEXT("Take your time, man.")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+
+	// Blank tape: Seneca won't take it until Rick has translated the request.
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::SenecaRepeatsReminder(this, TEXT("E2E_RickInside_SenecaTapeReminder"));
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_RickTranslate_BlankTape"));
+	E2ESteps::GiveBlankTapeGetKey(this);
+
+	// Key hand-off: Rick explains it (no gate).
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickKeyTranslation, TEXT("E2E_RickTranslate_Key"));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -1744,14 +1800,16 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	// var — entering her look-at sphere logs a benign error. Same as HappyPath.
 	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
 
-	// Gating: with the flag unset, the shelter tip is absent.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), false));
+	// Gating: with the flag unset, the shelter tip is absent. Seneca speaks
+	// Czech: "kryt" = shelter, "kabink(ou)" = stall. ASCII-only substrings keep
+	// the source free of diacritics.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), false));
 
 	// Set SeenTornadoWarning → the shelter tip appears in the Smoking lines.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), true));
 
 	// Screenshot: drive Seneca into Smoking, open dialogue, advance to the
 	// shelter line, and capture it on the widget.
@@ -1763,9 +1821,10 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	// The Smoking beat is a cued (multi-line) dialogue now — [Fix key] — so it
 	// runs as InDialogue, not InSimpleDialogue.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
-	// No BrokenKey in inventory here, so the SmokingNoKey variant plays ("Spare").
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("Spare")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("shelter")));
+	// No BrokenKey in inventory here, so the SmokingNoKey variant plays
+	// ("Tady. Nahradni." = "Here. Spare.").
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("hradn")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("kryt")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
 
@@ -1899,6 +1958,9 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
+	// Rick and Hudson are still around.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Rick"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Hudson"), false));
 
 	// Fire the beat: key broke, then re-enter the store.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
@@ -1922,6 +1984,10 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 
 	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
+
+	// (RED-defining) Rick and Hudson leave with the storm.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Rick"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Hudson"), true));
 
 	// --- Using the payphone silences the sirens (screens stay up) ---
 	// The phone only answers once the warning's been seen; set that, pick it up,

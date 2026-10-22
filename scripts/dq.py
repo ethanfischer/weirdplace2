@@ -16,7 +16,7 @@ Format (parsed identically by Source/weirdplace2/DialogueScript.cpp):
 
 Blank lines ignored. Optional single-word "Speaker:" prefix (default = the NPC
 owning the file). "[Tag]" lines attach an action to the preceding line.
-MovieComments.txt is a separate keyed table: "KEY: line one|line two".
+MovieComments.txt is a separate keyed table: "KEY: remark" (one line per movie).
 """
 
 import argparse
@@ -183,13 +183,13 @@ def lint_movie_comments(path, findings):
         if not raw.strip():
             continue
         if ": " not in raw:
-            findings.append(("error", f"{rel}:{lineno}: malformed row (expected 'KEY: a|b'): {raw[:60]!r}"))
+            findings.append(("error", f"{rel}:{lineno}: malformed row (expected 'KEY: remark'): {raw[:60]!r}"))
             continue
         key, comment = raw.split(": ", 1)
         if not key.strip() or not comment.strip():
             findings.append(("error", f"{rel}:{lineno}: empty key or comment"))
-        if comment.count("|") > 1:
-            findings.append(("error", f"{rel}:{lineno}: more than one '|' (runtime shows at most 2 lines)"))
+        if "|" in comment:
+            findings.append(("error", f"{rel}:{lineno}: '|' in remark (one line per movie; Seneca no longer reads the title)"))
 
 
 def run_lint(only_file=None):
@@ -421,7 +421,7 @@ function renderComments(filter) {
     if (f && !(k.toLowerCase().includes(f) || c.toLowerCase().includes(f))) continue;
     const tr = document.createElement('tr');
     const td1 = document.createElement('td'); td1.textContent = k;
-    const td2 = document.createElement('td'); td2.textContent = c.replace('|', ' ⏎ ');
+    const td2 = document.createElement('td'); td2.textContent = c;
     tr.appendChild(td1); tr.appendChild(td2); tbody.appendChild(tr);
   }
 }

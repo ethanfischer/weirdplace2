@@ -162,6 +162,7 @@ void ASeneca::BeginPlay()
 	LoadReminderSection(WaitingForMoviesReminderSection, WaitingForMoviesReminderLines);
 	LoadReminderSection(WaitingForMoviePurchaseReminderSection, WaitingForMoviePurchaseReminderLines);
 	LoadReminderSection(WaitingForBlankTapeReminderSection, WaitingForBlankTapeReminderLines);
+	LoadReminderSection(SmokingTornadoTipSection, SmokingTornadoTipLines);
 
 	LoadMovieComments();
 
@@ -198,7 +199,7 @@ void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out
 		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
 		if (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning))
 		{
-			Out.Add(FText::FromString(TEXT("And listen -- that twister's no joke. There's a shelter under the far stall if it comes to that.")));
+			Out.Append(SmokingTornadoTipLines);
 		}
 	}
 }
@@ -236,6 +237,24 @@ void ASeneca::LoadReminderSection(const FString& SectionName, TArray<FText>& Out
 	}
 }
 
+void ASeneca::OnRickTranslated()
+{
+	switch (CurrentState)
+	{
+	case ESenecaState::WaitingForMovies:
+		CurrentState = ESenecaState::WaitingForMoviePurchase;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (Rick translated the intro)"));
+		break;
+	case ESenecaState::WaitingForBlankTape:
+		bBlankTapeRequestTranslated = true;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Rick translated the blank-tape request; will take the tape"));
+		break;
+	default:
+		// Repeat translations and the key hand-off don't unlock anything.
+		break;
+	}
+}
+
 void ASeneca::OnDialogueEnded()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnDialogueEnded - CurrentState: %d"), static_cast<int32>(CurrentState));
@@ -244,9 +263,11 @@ void ASeneca::OnDialogueEnded()
 	{
 	case ESenecaState::WaitingForMovies:
 	{
+		// The intro is Czech, so the player can't act on it yet. Seneca repeats
+		// the reminder and won't take movies until Rick translates
+		// (OnIntroTranslated).
 		bIntroDialoguePlayed = true;
-		CurrentState = ESenecaState::WaitingForMoviePurchase;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (intro dialogue done)"));
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Intro played; waiting for Rick's translation"));
 		break;
 	}
 
@@ -434,8 +455,10 @@ void ASeneca::Interact_Implementation()
 			return;
 		}
 
+		// Holding the tape only matters once Rick has translated the request;
+		// until then Seneca just repeats the reminder.
 		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
-		if (!ChosenID.IsNone() && Inventory->HasItem(ChosenID))
+		if (bBlankTapeRequestTranslated && !ChosenID.IsNone() && Inventory->HasItem(ChosenID))
 		{
 			OpenGiveForOffer(FPCharacter);
 		}
@@ -824,7 +847,7 @@ void ASeneca::ClearCounterMovies()
 void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID)
 {
 	const FText* Found = MovieComments.Find(MovieID);
-	FText Comment = Found ? *Found : FallbackMovieComment;
+	const FText Remark = Found ? *Found : FallbackMovieComment;
 
 	// Capture full item data so we can return the rented movies to the player later.
 	TakenMovies.Add(Inventory->GetItemData(MovieID));
@@ -835,18 +858,10 @@ void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::HandleMovieGive - Received '%s', MoviesGivenCount=%d"), *MovieID.ToString(), MoviesGivenCount);
 
-	TArray<FText> CommentLines;
-	FString Line1, Line2;
-	if (Comment.ToString().Split(TEXT("|"), &Line1, &Line2))
-	{
-		CommentLines.Add(FText::FromString(Line1.TrimStartAndEnd()));
-		CommentLines.Add(FText::FromString(Line2.TrimStartAndEnd()));
-	}
-	else
-	{
-		CommentLines.Add(Comment);
-	}
-	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), CommentLines, this);
+	// Just his remark; he doesn't read the title out.
+	TArray<FText> RemarkLines;
+	RemarkLines.Add(Remark);
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), RemarkLines, this);
 }
 
 void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
@@ -973,7 +988,7 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 		return false;
 
 	case ESenecaState::WaitingForBlankTape:
-		if (CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
+		if (bBlankTapeRequestTranslated && CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
 		{
 			HandleBlankTapeGive(FPChar, Inventory, ItemID);
 			return true;

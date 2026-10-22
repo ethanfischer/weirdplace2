@@ -2,6 +2,7 @@
 
 #include "CRTTV.h"
 #include "Rick.h"
+#include "Hudson.h"
 #include "FirstPersonCharacter.h"
 #include "GazeUtils.h"
 #include "StormFogComponent.h"
@@ -55,6 +56,23 @@ namespace StorySubsystemConst
 	static constexpr float AutoSkipDelaySeconds = 0.5f;
 }
 
+namespace
+{
+	// Doorway trigger lookup: actor tag (works packaged) or editor label (PIE).
+	bool IsDoorwayTrigger(const AActor* Trigger, FName Tag, const TCHAR* EditorLabel)
+	{
+		if (Trigger->ActorHasTag(Tag))
+		{
+			return true;
+		}
+#if WITH_EDITOR
+		return Trigger->GetActorLabel() == EditorLabel;
+#else
+		return false;
+#endif
+	}
+}
+
 void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
@@ -78,26 +96,37 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// previously always healed). Whatever recreates the fog render state
 	// early in a session's first play is the actual culprit; still unsolved.
 
-	// Bind the store-entry trigger so real gameplay (player walking in) drives
-	// the TV switch. E2E goes through HandleStoreEntry directly. There are two
-	// trigger boxes in the level (Inside/Outside) so we disambiguate by the
-	// editor label (available in PIE) or an explicit actor tag for packaged.
+	// Bind the two doorway trigger boxes, matched by actor tag (packaged) or
+	// editor label (PIE). TriggerBox_Inside drives the TV switch (E2E calls
+	// HandleStoreEntry directly); together with TriggerBox_Outside it tells
+	// walking in from walking out (OnPlayerEnteredStore).
+	bool bBoundInside = false;
+	bool bBoundOutside = false;
 	for (TActorIterator<ATriggerBox> It(&InWorld); It; ++It)
 	{
 		AActor* Trigger = *It;
-		bool bMatch = Trigger->ActorHasTag(FName("StoreEntryTrigger"));
-#if WITH_EDITOR
-		bMatch = bMatch || Trigger->GetActorLabel() == TEXT("TriggerBox_Inside");
-#endif
-		if (bMatch)
+		if (IsDoorwayTrigger(Trigger, FName("StoreEntryTrigger"), TEXT("TriggerBox_Inside")))
 		{
 			Trigger->OnActorBeginOverlap.AddDynamic(this, &UStorySubsystem::OnInsideTriggerOverlap);
+			bBoundInside = true;
 			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound store-entry overlap on '%s'"), *Trigger->GetName());
-			return;
+		}
+		else if (IsDoorwayTrigger(Trigger, FName("StoreOutsideTrigger"), TEXT("TriggerBox_Outside")))
+		{
+			Trigger->OnActorBeginOverlap.AddDynamic(this, &UStorySubsystem::OnOutsideTriggerOverlap);
+			bBoundOutside = true;
+			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound street-side doorway overlap on '%s'"), *Trigger->GetName());
 		}
 	}
 
-	UE_LOG(LogTemp, Warning, TEXT("StorySubsystem: TriggerBox_Inside not found; store-entry overlap not bound (TriggerStoreEntry still works)"));
+	if (!bBoundInside)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("StorySubsystem: TriggerBox_Inside not found; store-entry overlap not bound (TriggerStoreEntry still works)"));
+	}
+	if (!bBoundOutside)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: TriggerBox_Outside not found; OnPlayerEnteredStore will never fire (Rick can't come inside)"));
+	}
 }
 
 void UStorySubsystem::SetFlag(EStoryFlag Flag, bool bValue)
@@ -503,11 +532,16 @@ void UStorySubsystem::ApplyStorm()
 		}
 	}
 
-	// Rick leaves with the storm — he only comes back much later in the game.
-	// MetaHuman: teleport-stash, never a visibility toggle (grooms break on re-show).
+	// Rick and Hudson leave with the storm (Rick comes back much later in the
+	// game). MetaHumans: teleport-stash, never a visibility toggle (grooms break
+	// on re-show).
 	for (TActorIterator<ARick> RickIt(World); RickIt; ++RickIt)
 	{
 		RickIt->StashForStorm();
+	}
+	for (TActorIterator<AHudson> HudsonIt(World); HudsonIt; ++HudsonIt)
+	{
+		HudsonIt->StashForStorm();
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: storm applied — dimmed %d light comp(s) x%.2f, hid %d actor(s), silenced %d ambient bed(s)"),
@@ -599,6 +633,21 @@ void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* Ot
 	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (OtherActor && OtherActor == PlayerPawn)
 	{
+		if (bLastDoorwayTriggerWasOutside)
+		{
+			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: player walked into the store"));
+			OnPlayerEnteredStore.Broadcast();
+		}
+		bLastDoorwayTriggerWasOutside = false;
 		HandleStoreEntry();
+	}
+}
+
+void UStorySubsystem::OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)
+{
+	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (OtherActor && OtherActor == PlayerPawn)
+	{
+		bLastDoorwayTriggerWasOutside = true;
 	}
 }
