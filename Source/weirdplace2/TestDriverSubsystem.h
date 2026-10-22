@@ -117,6 +117,12 @@ public:
 	// True if the AAmbientSound found by editor label has a playing audio
 	// component. False (and logs) if no such ambient-sound actor exists.
 	bool IsAmbientSoundPlaying(const FString& Label) const;
+	// What the listener actually hears from the AAmbientSound right now: the max
+	// final wave volume (class, mix, distance, occlusion, audio-volume zones).
+	// Logs the occlusion/interior breakdown and what blocks the occlusion trace.
+	// -1 (and logs) if no such actor. Needs a rendering run: under NullRHI the
+	// viewport never draws, so the audio listener never leaves the origin.
+	float GetAmbientSoundHeardVolume(const FString& Label) const;
 	// True if any UAudioComponent on the actor with this label is playing.
 	bool IsActorAudioPlaying(const FString& Label) const;
 

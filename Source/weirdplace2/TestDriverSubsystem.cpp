@@ -26,6 +26,9 @@
 #include "PayPhone.h"
 #include "Components/LightComponent.h"
 #include "Sound/AmbientSound.h"
+#include "AudioDevice.h"
+#include "AudioThread.h"
+#include "ActiveSound.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -149,6 +152,64 @@ bool UTestDriverSubsystem::IsAmbientSoundPlaying(const FString& Label) const
 	}
 	UAudioComponent* AudioComp = Ambient->GetAudioComponent();
 	return AudioComp && AudioComp->IsPlaying();
+}
+
+float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) const
+{
+	AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label));
+	UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr;
+	FAudioDevice* Device = GetWorld() ? GetWorld()->GetAudioDeviceRaw() : nullptr;
+	if (!AudioComp || !Device)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetAmbientSoundHeardVolume - no AAmbientSound labeled '%s' or no audio device"), *Label);
+		return -1.f;
+	}
+
+	// The final per-wave volume (class + mix + distance + occlusion + audio-volume
+	// interior/exterior) lives on the audio thread — read there and fence back.
+	const uint64 ComponentID = AudioComp->GetAudioComponentID();
+	bool bFound = false;
+	bool bOccluded = false;
+	float OcclusionAttenuation = 1.f;
+	float InteriorVolume = 1.f;
+	float Heard = 0.f;
+	FVector ListenerPos = FVector::ZeroVector;
+	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos]()
+	{
+		Device->GetListenerPosition(0, ListenerPos, /*bAllowOverride*/ false);
+		const FActiveSound* Active = Device->FindActiveSound(ComponentID);
+		if (!Active)
+		{
+			return;
+		}
+		bFound = true;
+		bOccluded = Active->bIsOccluded;
+		OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
+		InteriorVolume = Active->CurrentInteriorVolume;
+		for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
+		{
+			Heard = FMath::Max(Heard, Pair.Value->GetActualVolume());
+		}
+	});
+	FAudioCommandFence Fence;
+	Fence.BeginFence();
+	Fence.Wait();
+
+	// Re-run the engine's occlusion trace (FActiveSound::CheckOcclusion: sound ->
+	// listener, owner ignored) on the game thread to name what blocks it.
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TestDriverOcclusion), AudioComp->AttenuationOverrides.bUseComplexCollisionForOcclusion);
+	Params.AddIgnoredActor(Ambient);
+	FHitResult Hit;
+	const bool bTraceHit = GetWorld()->LineTraceSingleByChannel(Hit, Ambient->GetActorLocation(), ListenerPos,
+		AudioComp->AttenuationOverrides.OcclusionTraceChannel, Params);
+
+	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' heard=%.3f active=%d occluded=%d occlusionAtten=%.2f interior=%.2f listener=%s dist=%.0f blocker=%s/%s startPenetrating=%d"),
+		*Label, Heard, bFound ? 1 : 0, bOccluded ? 1 : 0, OcclusionAttenuation, InteriorVolume,
+		*ListenerPos.ToCompactString(), FVector::Dist(ListenerPos, Ambient->GetActorLocation()),
+		bTraceHit && Hit.GetActor() ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("none"),
+		bTraceHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),
+		bTraceHit && Hit.bStartPenetrating ? 1 : 0);
+	return Heard;
 }
 
 bool UTestDriverSubsystem::IsActorAudioPlaying(const FString& Label) const

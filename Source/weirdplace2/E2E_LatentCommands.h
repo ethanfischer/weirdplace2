@@ -2602,6 +2602,45 @@ private:
 	bool Expected;
 };
 
+// Assert whether the listener, where it stands now, hears the loudest of the
+// given AAmbientSounds (by label) at >= MinVolume. "Heard" is the final wave
+// volume — playing isn't enough: the mixer, occlusion and audio-volume zones can
+// each silence a sound that still reports playing (all three hit the TV song).
+// Headed runs only (see UTestDriverSubsystem::GetAmbientSoundHeardVolume).
+class FTD_AssertAmbientHeard : public FTD_Base
+{
+public:
+	FTD_AssertAmbientHeard(FAutomationTestBase* InTest, TArray<FString> InLabels, bool InExpectHeard, float InMinVolume = 0.05f)
+		: FTD_Base(InTest), Labels(MoveTemp(InLabels)), bExpectHeard(InExpectHeard), MinVolume(InMinVolume) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s heard == %s"), *FString::Join(Labels, TEXT("/")), bExpectHeard ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertAmbientHeard: no driver")); return true; }
+		float Loudest = 0.f;
+		for (const FString& Label : Labels)
+		{
+			Loudest = FMath::Max(Loudest, Driver->GetAmbientSoundHeardVolume(Label));
+		}
+		const bool bHeard = Loudest >= MinVolume;
+		if (bHeard != bExpectHeard)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientHeard: %s loudest heard=%.3f (min %.2f), expected heard=%s (see TestDriver::GetAmbientSoundHeardVolume log)"),
+				*FString::Join(Labels, TEXT("/")), Loudest, MinVolume, bExpectHeard ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	TArray<FString> Labels;
+	bool bExpectHeard;
+	float MinVolume;
+};
+
 // Assert any UAudioComponent on the actor (by label) is / isn't playing
 // (the Oasis piano wakes on EnteredOasis).
 class FTD_AssertActorAudioPlaying : public FTD_Base

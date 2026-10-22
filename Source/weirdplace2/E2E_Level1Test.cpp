@@ -451,6 +451,60 @@ bool FE2E_Level1_WindPropDump::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// TvSongAudible — the store TVs' song (weirdsoundexperimentalsong on
+// Ambient_TV/Ambient_TV2) is heard everywhere inside the store and nowhere
+// outside it. Guards the three ways it went silent while still "playing": the
+// SC_Music fader at 0, Visibility-trace occlusion (movie boxes' floating
+// InteractionText widgets block it, and occlusion attenuated to 0), and the beds
+// sitting above AV_VideoStore so the store's audio zone misread them.
+// Headed only: under NullRHI the audio listener never leaves the world origin.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TvSongAudible,
+	"Weirdplace2.E2E.Level1.Regression.TvSongAudible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TvSongAudible::RunTest(const FString& Parameters)
+{
+	if (!FApp::CanEverRender())
+	{
+		AddError(TEXT("TvSongAudible needs a rendering run (-Headed): under NullRHI the audio listener never leaves the origin"));
+		return false;
+	}
+
+	E2E_TEST_PREAMBLE("TvSongAudible")
+	// Let UAudioMixSubsystem's mix fade in — right after load every class reads 1.0.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	const TArray<FString> TvBeds = { TEXT("Ambient_TV"), TEXT("Ambient_TV2") };
+	const FVector InStore[] = {
+		FVector(3150.f, 1150.f, 0.f),  // beside Ambient_TV
+		FVector(3565.f, 648.f, 0.f),   // north aisle (a movie box sits on the line to the TV)
+		FVector(3863.f, 616.f, 0.f),   // near the counter
+		FVector(4125.f, 194.f, 0.f),   // just inside the door
+		FVector(3400.f, 200.f, 0.f),   // store centre
+		FVector(3150.f, -350.f, 0.f),  // beside Ambient_TV2
+		FVector(3970.f, -485.f, 0.f),  // south end
+	};
+	for (const FVector& Stop : InStore)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, Stop));
+		// Audio zone and occlusion values interpolate over a fraction of a second.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientHeard(this, TvBeds, true));
+	}
+
+	// Just outside the door the store's audio zone confines the song.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(4400.f, 194.f, 0.f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientHeard(this, TvBeds, false));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // Full happy-path test
 // =======================================================================
 
