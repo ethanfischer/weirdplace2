@@ -184,11 +184,6 @@ void AInspectablePickup::CollectInspectedItem()
 		}));
 }
 
-bool AInspectablePickup::IsGlowActive() const
-{
-	return PickupMesh && PickupMesh->GetOverlayMaterial() != nullptr;
-}
-
 void AInspectablePickup::StopInspection()
 {
 	if (!InspectedActor) return;

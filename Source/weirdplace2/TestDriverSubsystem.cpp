@@ -378,16 +378,6 @@ int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
 	return -1;
 }
 
-bool UTestDriverSubsystem::GetBathroomDoorAnimKeyGlowActive() const
-{
-	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
-	{
-		return It->IsAnimKeyGlowActive();
-	}
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorAnimKeyGlowActive - no AOutsideBathroomDoor in level"));
-	return false;
-}
-
 bool UTestDriverSubsystem::IsPlayerReady() const
 {
 	AFirstPersonCharacter* Player = GetPlayer();
@@ -1646,17 +1636,6 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	Forward.Z = 0.f;
 	OutFacingDot = FVector::DotProduct(Forward.GetSafeNormal(), ToCam.GetSafeNormal());
 	return true;
-}
-
-bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
-{
-	AInspectablePickup* Pickup = FindInspectablePickup();
-	if (!Pickup)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetInspectablePickupGlowActive - no AInspectablePickup in level"));
-		return false;
-	}
-	return Pickup->IsGlowActive();
 }
 
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()

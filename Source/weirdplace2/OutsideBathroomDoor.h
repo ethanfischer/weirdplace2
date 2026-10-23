@@ -44,10 +44,6 @@ public:
 	// mid key-break used to fall into this branch and bump the count.
 	int32 GetLockedSoundPlayCount() const { return LockedSoundPlayCount; }
 
-	// Test seam: true while the animated key mesh carries the self-illumination
-	// glow overlay (during the insert/turn/break sequence).
-	bool IsAnimKeyGlowActive() const;
-
 protected:
 	// Tracks whether the key has been dropped
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "OutsideBathroomDoor")

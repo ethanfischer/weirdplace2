@@ -171,14 +171,6 @@ public:
 	// asserts this stays 0 across a mid-key-break re-entrant interact.
 	int32 GetBathroomDoorLockedSoundCount() const;
 
-	// True while the OutsideBathroomDoor's animated key carries the glow overlay
-	// (during the insert sequence). False (and logs) if no such door exists.
-	bool GetBathroomDoorAnimKeyGlowActive() const;
-
-	// True if the level's AInspectablePickup (e.g. the dropped broken key) has
-	// the self-illumination glow overlay. False (and logs) if none exists.
-	bool GetInspectablePickupGlowActive() const;
-
 	// --- Seneca test helpers ---
 
 	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.

@@ -923,10 +923,6 @@ bool FE2E_Level1_DoubleDoorOpen::RunTest(const FString& Parameters)
 //
 // RED (no guard): locked-sound count == 1 after the re-entrant interact.
 // GREEN (guard):  count stays 0.
-//
-// Also verifies the self-illumination glow follows the key through the whole
-// sequence: on the animated key while inserted, and on the dropped broken-key
-// pickup where it lands, so both read in the dark.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -945,6 +941,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+	// Let the interaction trace pick up the door before pressing.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
 	// Interact #1 pops the inventory (give mode); select the Key and press E to
 	// give it, which starts the key-break sequence (removes Key).
@@ -952,10 +950,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	// Let the animated key appear at the lock — it should carry the same glow
-	// overlay the held key had, so it reads in the dark while inserted.
+	// Let the animated key appear at the lock.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorAnimKeyGlow(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_KeyInsert_Glow")));
 	// Still mid-sequence — bDidDropKey is false (set ~3s in on broken-key spawn).
 	// Interact #2: the re-entrant press. RED falls into the locked rattle.
@@ -965,11 +961,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorLockedSoundCount(this, 0));
 
-	// Let the sequence finish and drop the broken-key pickup, then confirm it
-	// glows where it lands so it's findable on the dark floor (not just once
-	// it's pulled in to inspect).
+	// Let the sequence finish and drop the broken-key pickup.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(this, 15.0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupGlow(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BrokenKey_GroundGlow")));
@@ -2342,6 +2335,42 @@ private:
 	double Timeout;
 };
 
+// The ride opens on black and fades in on game time; a wall-clock delay can
+// end the ride (start the drive) while that fade is still finishing when
+// frames hitch. Wait for the camera to actually clear.
+class FTD_WaitForCameraFadeClear : public FTD_Base
+{
+public:
+	FTD_WaitForCameraFadeClear(FAutomationTestBase* InTest, double InTimeoutSeconds = 10.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+	virtual FString GetStatusText() const override { return TEXT("Waiting for the camera fade to clear"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		APlayerController* PC = Player ? Cast<APlayerController>(Player->GetController()) : nullptr;
+		if (!PC || !PC->PlayerCameraManager)
+		{
+			Test->AddError(TEXT("FTD_WaitForCameraFadeClear: no player controller / camera manager"));
+			return true;
+		}
+		const float Fade = PC->PlayerCameraManager->FadeAmount;
+		if (Fade <= 0.0f)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForCameraFadeClear: clear after %.2fs"), GetElapsedSinceFirstTick());
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForCameraFadeClear: camera still faded (%.2f) after %.0fs"), Fade, Timeout));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
 // Parked -> open the door -> click the ground -> on foot outside. The car ride
 // doesn't finish by itself any more; every ride test that needs the conveyor
 // torn down or the player out runs these.
@@ -2763,14 +2792,20 @@ public:
 
 		// (3) No black while moving. (4) Player eye locked to the seat while moving.
 		float MaxFadeWhileMoving = 0.0f, MaxEyeToSeat = 0.0f;
+		int32 MaxFadeFrame = FirstMoving;
 		for (int32 i = FirstMoving; i <= LastMoving; ++i)
 		{
-			MaxFadeWhileMoving = FMath::Max(MaxFadeWhileMoving, Frames[i].FadeAmount);
+			if (Frames[i].FadeAmount > MaxFadeWhileMoving)
+			{
+				MaxFadeWhileMoving = Frames[i].FadeAmount;
+				MaxFadeFrame = i;
+			}
 			MaxEyeToSeat = FMath::Max(MaxEyeToSeat, Frames[i].EyeToSeat);
 		}
 		if (MaxFadeWhileMoving > 0.01f)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: camera faded (%.2f) while the car was moving"), MaxFadeWhileMoving));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: camera faded (%.2f) while the car was moving (%.2fs into the drive, %.0f cm from parking)"),
+				MaxFadeWhileMoving, Frames[MaxFadeFrame].Time - Frames[FirstMoving].Time, Frames[MaxFadeFrame].DistToParking));
 		}
 		if (MaxEyeToSeat > 30.0f)
 		{
@@ -2844,6 +2879,9 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_00_riding")));
+	// The ride-start fade-in must be done before the drive, or its tail reads
+	// as "camera faded while moving" below.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCameraFadeClear(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));

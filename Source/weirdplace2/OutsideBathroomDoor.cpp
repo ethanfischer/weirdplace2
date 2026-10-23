@@ -402,11 +402,6 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
 }
 
-bool AOutsideBathroomDoor::IsAnimKeyGlowActive() const
-{
-	return AnimKeyMesh && AnimKeyMesh->GetOverlayMaterial() != nullptr;
-}
-
 void AOutsideBathroomDoor::PlayKeyInsertSound()
 {
 	if (KeyInsertSound)
