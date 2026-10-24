@@ -174,9 +174,19 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 	float InteriorVolume = 1.f;
 	float Heard = 0.f;
 	FVector ListenerPos = FVector::ZeroVector;
-	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos]()
+	// Why a found sound can still be silent: no wave instance yet (streaming) or
+	// not playing (culled past the voice limit / virtualized).
+	int32 NumWaves = 0;
+	bool bPlayingAudio = false;
+	float PlaybackTime = 0.f;
+	int32 DeviceActiveSounds = 0;
+	int32 DeviceMaxChannels = 0;
+	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos,
+		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels]()
 	{
 		Device->GetListenerPosition(0, ListenerPos, /*bAllowOverride*/ false);
+		DeviceActiveSounds = Device->GetActiveSounds().Num();
+		DeviceMaxChannels = Device->GetMaxChannels();
 		const FActiveSound* Active = Device->FindActiveSound(ComponentID);
 		if (!Active)
 		{
@@ -186,6 +196,9 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 		bOccluded = Active->bIsOccluded;
 		OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
 		InteriorVolume = Active->CurrentInteriorVolume;
+		bPlayingAudio = Active->IsPlayingAudio();
+		PlaybackTime = Active->PlaybackTime;
+		NumWaves = Active->GetWaveInstances().Num();
 		for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
 		{
 			Heard = FMath::Max(Heard, Pair.Value->GetActualVolume());
@@ -203,8 +216,8 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 	const bool bTraceHit = GetWorld()->LineTraceSingleByChannel(Hit, Ambient->GetActorLocation(), ListenerPos,
 		AudioComp->AttenuationOverrides.OcclusionTraceChannel, Params);
 
-	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' heard=%.3f active=%d occluded=%d occlusionAtten=%.2f interior=%.2f listener=%s dist=%.0f blocker=%s/%s startPenetrating=%d"),
-		*Label, Heard, bFound ? 1 : 0, bOccluded ? 1 : 0, OcclusionAttenuation, InteriorVolume,
+	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' heard=%.3f active=%d playing=%d waves=%d t=%.1fs deviceSounds=%d/%d occluded=%d occlusionAtten=%.2f interior=%.2f listener=%s dist=%.0f blocker=%s/%s startPenetrating=%d"),
+		*Label, Heard, bFound ? 1 : 0, bPlayingAudio ? 1 : 0, NumWaves, PlaybackTime, DeviceActiveSounds, DeviceMaxChannels, bOccluded ? 1 : 0, OcclusionAttenuation, InteriorVolume,
 		*ListenerPos.ToCompactString(), FVector::Dist(ListenerPos, Ambient->GetActorLocation()),
 		bTraceHit && Hit.GetActor() ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("none"),
 		bTraceHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),

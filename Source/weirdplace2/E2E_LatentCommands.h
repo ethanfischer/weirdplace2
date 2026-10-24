@@ -2610,8 +2610,10 @@ private:
 class FTD_AssertAmbientHeard : public FTD_Base
 {
 public:
-	FTD_AssertAmbientHeard(FAutomationTestBase* InTest, TArray<FString> InLabels, bool InExpectHeard, float InMinVolume = 0.05f)
-		: FTD_Base(InTest), Labels(MoveTemp(InLabels)), bExpectHeard(InExpectHeard), MinVolume(InMinVolume) {}
+	// Expecting heard: poll up to Timeout for the loudest to reach MinVolume (a
+	// streamed bed can take a moment to start). Expecting silence: one sample.
+	FTD_AssertAmbientHeard(FAutomationTestBase* InTest, TArray<FString> InLabels, bool InExpectHeard, float InMinVolume = 0.05f, double InTimeout = 3.0)
+		: FTD_Base(InTest), Labels(MoveTemp(InLabels)), bExpectHeard(InExpectHeard), MinVolume(InMinVolume), Timeout(InTimeout) {}
 
 	virtual FString GetStatusText() const override
 	{
@@ -2628,17 +2630,23 @@ public:
 			Loudest = FMath::Max(Loudest, Driver->GetAmbientSoundHeardVolume(Label));
 		}
 		const bool bHeard = Loudest >= MinVolume;
-		if (bHeard != bExpectHeard)
+		if (bHeard == bExpectHeard)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientHeard: %s loudest heard=%.3f (min %.2f), expected heard=%s (see TestDriver::GetAmbientSoundHeardVolume log)"),
-				*FString::Join(Labels, TEXT("/")), Loudest, MinVolume, bExpectHeard ? TEXT("true") : TEXT("false")));
+			return true;
 		}
+		if (bExpectHeard && GetElapsedSinceFirstTick() < Timeout)
+		{
+			return false;
+		}
+		Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientHeard: %s loudest heard=%.3f (min %.2f), expected heard=%s (see TestDriver::GetAmbientSoundHeardVolume log)"),
+			*FString::Join(Labels, TEXT("/")), Loudest, MinVolume, bExpectHeard ? TEXT("true") : TEXT("false")));
 		return true;
 	}
 private:
 	TArray<FString> Labels;
 	bool bExpectHeard;
 	float MinVolume;
+	double Timeout;
 };
 
 // Assert any UAudioComponent on the actor (by label) is / isn't playing
