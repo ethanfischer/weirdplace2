@@ -1,4 +1,4 @@
-#include "FirstPersonCharacter.h"
+﻿#include "FirstPersonCharacter.h"
 #include "Scalability.h"
 #include "Components/InputComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -18,10 +18,12 @@
 #include "LookAtPlayerComponent.h"
 #include "DialogueWidgetProvider.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "KeypadUIComponent.h"
 #include "ItemGlow.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputAction.h"
@@ -99,6 +101,11 @@ private:
 WP_TUNABLE_FLOAT(GDialogueWalkAwayDistance, "weird.Dialogue.WalkAwayDistance", 300.f,
 	"Distance (cm) from the NPC at which walking away freezes the dialogue.");
 
+// Applied to CharacterMovement every tick, so it overrides whatever the pawn
+// Blueprint has in Max Walk Speed.
+WP_TUNABLE_FLOAT(GPlayerWalkSpeed, "weird.Player.WalkSpeed", 400.f,
+	"Player max walk speed (cm/s).");
+
 AFirstPersonCharacter::AFirstPersonCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -125,6 +132,12 @@ AFirstPersonCharacter::AFirstPersonCharacter()
 	ItemNotificationMesh->SetRelativeLocation(FVector(30.0f, 0.0f, -8.0f));
 	ItemNotificationMesh->SetVisibility(false);
 	ItemNotificationMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	SwingMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("SwingMesh"));
+	SwingMesh->SetupAttachment(FirstPersonCamera);
+	SwingMesh->SetVisibility(false);
+	SwingMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SwingMesh->SetCastShadow(false);
 
 	// Create bladder urgency reminder component
 	BladderUrgencyComponent = CreateDefaultSubobject<UBladderUrgencyComponent>(TEXT("BladderUrgencyComponent"));
@@ -350,6 +363,8 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	GetCharacterMovement()->MaxWalkSpeed = GPlayerWalkSpeed;
+
 	TickDialogueWalkAway();
 
 	// Diagnostic: trace Slate keyboard focus. On Steam Deck the OS keyboard
@@ -451,6 +466,7 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 	// Slow spin on visible item notification meshes (Zelda-style)
 	const float SpinSpeed = 45.0f; // degrees per second
 	const FRotator SpinDelta(0.0f, SpinSpeed * DeltaTime, 0.0f);
+	TickSwing(DeltaTime);
 	if (ItemNotificationMesh && ItemNotificationMesh->IsVisible())
 	{
 		ItemNotificationMesh->AddRelativeRotation(SpinDelta);
@@ -633,6 +649,11 @@ void AFirstPersonCharacter::HandleBack()
 			return;
 		}
 	}
+	if (InspectionBackHandler)
+	{
+		InspectionBackHandler();
+		return;
+	}
 	if (UInventoryUIComponent* InvUI = FindComponentByClass<UInventoryUIComponent>())
 	{
 		if (InvUI->IsInventoryFullyOpen())
@@ -640,6 +661,44 @@ void AFirstPersonCharacter::HandleBack()
 			InvUI->CloseInventoryUI();
 		}
 	}
+}
+
+FString AFirstPersonCharacter::GetBackKeyLabel() const
+{
+	const APlayerController* PC = Cast<APlayerController>(GetController());
+	const ULocalPlayer* LP = PC ? PC->GetLocalPlayer() : nullptr;
+	const UEnhancedInputLocalPlayerSubsystem* Input = LP ? LP->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>() : nullptr;
+	if (!Input || !BackAction)
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetBackKeyLabel: no Enhanced Input subsystem or BackAction"));
+		return FString();
+	}
+
+	auto ShortName = [](const FKey& Key) -> FString
+	{
+		if (Key == EKeys::Gamepad_FaceButton_Bottom) return FString(TEXT("A"));
+		if (Key == EKeys::Gamepad_FaceButton_Right)  return FString(TEXT("B"));
+		if (Key == EKeys::Gamepad_FaceButton_Left)   return FString(TEXT("X"));
+		if (Key == EKeys::Gamepad_FaceButton_Top)    return FString(TEXT("Y"));
+		if (Key == EKeys::RightMouseButton)          return FString(TEXT("RMB"));
+		if (Key == EKeys::LeftMouseButton)           return FString(TEXT("LMB"));
+		return Key.GetDisplayName(false).ToString();
+	};
+
+	// Keyboard key preferred over a mouse button for the keyboard label.
+	FString Keyboard, Mouse, Gamepad;
+	for (const FKey& Key : Input->QueryKeysMappedToAction(BackAction))
+	{
+		if (Key.IsGamepadKey())       { if (Gamepad.IsEmpty())  Gamepad  = ShortName(Key); }
+		else if (Key.IsMouseButton()) { if (Mouse.IsEmpty())    Mouse    = ShortName(Key); }
+		else                          { if (Keyboard.IsEmpty()) Keyboard = ShortName(Key); }
+	}
+	const FString& Label = IsUsingGamepad() ? Gamepad : (Keyboard.IsEmpty() ? Mouse : Keyboard);
+	if (Label.IsEmpty())
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetBackKeyLabel: IA_Back has no %s mapping"), IsUsingGamepad() ? TEXT("gamepad") : TEXT("keyboard/mouse"));
+	}
+	return Label;
 }
 
 bool AFirstPersonCharacter::IsGamepadLookActive() const
@@ -737,12 +796,20 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 	}
 
 	// While the inventory is open in "give mode" (opened by a gated interaction),
-	// Interact offers the selected item to the requesting door/NPC.
+	// Interact offers the selected item to the requesting door/NPC. Opened
+	// freely (Tab), Interact uses the selected item on whatever is looked at.
 	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
 	{
-		if (InvUI->IsInventoryFullyOpen() && InvUI->IsGiveMode())
+		if (InvUI->IsInventoryFullyOpen())
 		{
-			InvUI->ConfirmGiveSelection();
+			if (InvUI->IsGiveMode())
+			{
+				InvUI->ConfirmGiveSelection();
+			}
+			else
+			{
+				UseSelectedItemOnGazeTarget();
+			}
 			return;
 		}
 	}
@@ -755,6 +822,13 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 			Keypad->PressSelectedDigit();
 			return;
 		}
+	}
+
+	// Holding something up for inspection: Interact takes it.
+	if (InspectionCollectHandler)
+	{
+		InspectionCollectHandler();
+		return;
 	}
 
 	// If in dialogue, advance it instead of raycasting
@@ -797,6 +871,19 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 			ResumeDialogue(HitActor);
 			return;
 		}
+		// Equipped item first: if the target would react to it, swing it.
+		const FName Equipped = GetEquippedItemID();
+		if (!Equipped.IsNone())
+		{
+			if (IInteractable* Target = Cast<IInteractable>(HitActor))
+			{
+				if (Target->WouldReactToItem(Equipped))
+				{
+					UseItemOn(Equipped, HitActor, /*bFromOpenInventory*/ false);
+					return;
+				}
+			}
+		}
 		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
 			IInteractable::Execute_Interact(HitActor);
@@ -808,6 +895,112 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 {
 	// Reset DoOnce
 	bInteractDoOnceCompleted = false;
+}
+
+FName AFirstPersonCharacter::GetEquippedItemID() const
+{
+	UInventoryUIComponent* InvUI = GetInventoryUIComponent();
+	if (!InvUI || !InventoryComponent)
+	{
+		return NAME_None;
+	}
+	const TArray<FName> Items = InventoryComponent->GetItems();
+	return Items.IsValidIndex(InvUI->GetSelectedIndex()) ? Items[InvUI->GetSelectedIndex()] : NAME_None;
+}
+
+void AFirstPersonCharacter::UseSelectedItemOnGazeTarget()
+{
+	const FName ItemID = GetEquippedItemID();
+	if (ItemID.IsNone())
+	{
+		return; // empty inventory: nothing to use
+	}
+	AActor* HitActor = nullptr;
+	bool bDidHitInteractable = false;
+	RaycastInteractableCheck(HitActor, bDidHitInteractable);
+	UseItemOn(ItemID, bDidHitInteractable ? HitActor : nullptr, /*bFromOpenInventory*/ true);
+}
+
+void AFirstPersonCharacter::UseItemOn(FName ItemID, AActor* Target, bool bFromOpenInventory)
+{
+	const FInventoryItemData Data = InventoryComponent ? InventoryComponent->GetItemData(ItemID) : FInventoryItemData();
+	if (!Data.Mesh || !SwingMesh || SwingElapsed >= 0.0f)
+	{
+		// No mesh to swing (or a swing already in flight): resolve now.
+		ResolveItemUse(ItemID, Target, bFromOpenInventory);
+		return;
+	}
+
+	SwingMesh->SetStaticMesh(Data.Mesh);
+	for (int32 i = 0; i < Data.Materials.Num(); i++)
+	{
+		SwingMesh->SetMaterial(i, Data.Materials[i]);
+	}
+	const FVector Extents = Data.Mesh->GetBoundingBox().GetExtent();
+	const float MaxExtent = FMath::Max3(Extents.X, Extents.Y, Extents.Z);
+	SwingMesh->SetRelativeScale3D(FVector(MaxExtent > KINDA_SMALL_NUMBER ? 9.0f / MaxExtent : 1.0f));
+	SwingMesh->SetVisibility(true);
+
+	SwingItemID = ItemID;
+	SwingTarget = Target;
+	bSwingFromOpenInventory = bFromOpenInventory;
+	SwingElapsed = 0.0f;
+	bSwingImpactDone = false;
+	TickSwing(0.0f);
+}
+
+void AFirstPersonCharacter::TickSwing(float DeltaTime)
+{
+	if (SwingElapsed < 0.0f)
+	{
+		return;
+	}
+	constexpr float WindUp = 0.12f, Impact = 0.22f, Total = 0.45f;
+	SwingElapsed += DeltaTime;
+
+	// Lower right, handle down: raise over WindUp, slam forward by Impact, settle.
+	float Pitch;
+	if (SwingElapsed < WindUp)       { Pitch = FMath::Lerp(10.0f, 55.0f, SwingElapsed / WindUp); }
+	else if (SwingElapsed < Impact)  { Pitch = FMath::Lerp(55.0f, -45.0f, (SwingElapsed - WindUp) / (Impact - WindUp)); }
+	else                             { Pitch = FMath::Lerp(-45.0f, -30.0f, FMath::Clamp((SwingElapsed - Impact) / (Total - Impact), 0.0f, 1.0f)); }
+	SwingMesh->SetRelativeLocation(FVector(30.0f, 16.0f, -14.0f));
+	SwingMesh->SetRelativeRotation(FRotator(Pitch, -25.0f, 0.0f));
+
+	if (!bSwingImpactDone && SwingElapsed >= Impact)
+	{
+		bSwingImpactDone = true;
+		ResolveItemUse(SwingItemID, SwingTarget.Get(), bSwingFromOpenInventory);
+	}
+	if (SwingElapsed >= Total)
+	{
+		SwingElapsed = -1.0f;
+		SwingMesh->SetVisibility(false);
+	}
+}
+
+void AFirstPersonCharacter::ResolveItemUse(FName ItemID, AActor* Target, bool bFromOpenInventory)
+{
+	IInteractable* Interactable = Target ? Cast<IInteractable>(Target) : nullptr;
+	if (Interactable && Interactable->UseItem(ItemID))
+	{
+		UE_LOG(LogTemp, Log, TEXT("UseItem: %s reacted to %s"), *Target->GetName(), *ItemID.ToString());
+		if (bFromOpenInventory)
+		{
+			if (UInventoryUIComponent* InvUI = GetInventoryUIComponent()) { InvUI->CloseInventoryUI(); }
+		}
+		return;
+	}
+
+	// Nothing happened: the item's own "that did nothing" sound at the target.
+	const FString DefPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *ItemID.ToString(), *ItemID.ToString());
+	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *DefPath);
+	USoundBase* FailSound = Def ? Def->UseFailSound : nullptr;
+	UE_LOG(LogTemp, Log, TEXT("UseItem: %s did nothing on %s (fail sound %s)"),
+		*ItemID.ToString(), Target ? *Target->GetName() : TEXT("nothing"), FailSound ? TEXT("played") : TEXT("none"));
+	if (FailSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, FailSound, Target ? Target->GetActorLocation() : GetActorLocation());
+	}
 }
 
 void AFirstPersonCharacter::HandleShowInventory()

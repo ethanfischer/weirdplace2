@@ -1,58 +1,75 @@
-# Seneca's dialogue, one section per quest state.
+# Seneca's dialogue, one section per quest state. Seneca speaks Czech; the
+# player can't read it. Rick translates the intro inside the store (Rick.txt).
 # Format: == Section ==, optional "Speaker:" prefix (default speaker: Seneca),
 # [Tag] lines attach an action to the preceding line. Lint: python scripts/dq.py lint
 
 == WaitingForMovies ==
-You need the bathroom?
-You'll have to rent some videos first
+Potřebuješ na záchod?
+Nejdřív si musíš půjčit nějaké filmy.
 
 == WaitingForMoviesReminder ==
-You need to rent 3 movies.
+Musíš si půjčit tři filmy.
 
 == WaitingForMoviePurchase ==
-Just hand me whatever you want to rent
+Prostě mi dej, co si chceš půjčit.
 
 == WaitingForMoviePurchaseReminder ==
-Just hand me whatever you want to rent
+Prostě mi dej, co si chceš půjčit.
 
 == MoviePurchase ==
-Seneca: Alright, let's see what we got here.
-Seneca: That'll be $2.47
+Seneca: Tak jo, podíváme se, co tu máme.
+Seneca: Dělá to $2.47.
 
 == WaitingForMoney ==
-Need that $2.47
+Potřebuju těch $2.47.
 
 == WaitingForBlankTape ==
-There we go.
-Ok one more thing. 
-I need a blank tape to dub these onto.
-There's one somewhere in the collection.
-Can't remember where I put it. Bring it to me.
+Tak.
+Ještě jedna věc.
+Potřebuju prázdnou kazetu, na kterou to nahraju.
+Někde ve sbírce jedna je.
+Nepamatuju si, kam jsem ji dal. Přines mi ji.
 
 == WaitingForBlankTapeReminder ==
-Still need that blank tape.
-It's somewhere in the collection.
+Pořád potřebuju tu prázdnou kazetu.
+Je někde ve sbírce.
 
 == AwaitingTapeBurn ==
-This is gonna take a while.
-Find me later.
+Tohle chvíli potrvá.
+Najdi mě později.
 
 == ReadyToGiveCombinedTape ==
-All set. One tape, your three movies.
+Hotovo. Jedna kazeta, tvoje tři filmy.
 [Give combined tape]
 
 == ReadyToGiveKey ==
-You found it?
-Okay this is gonna take a while.
-Find me later.
-In the mean time, here's the key to the bathroom.
+Tak co, máš ji?
+Dobře, tohle chvíli potrvá.
+Najdi mě později.
+Mezitím, tady je klíč od záchodu.
 [Give key]
 
 == GaveKey ==
-Bathroom's outside around the corner.
+Záchod je venku za rohem.
 
 == Smoking ==
-We meet again.
-I haven't forgotten about the tape
-Like I said
-These things take time
+Zpráva ti asi došla.
+Dej mi ten klíč.
+[Fix key]
+Jako nový. Použij s ním záchod uvnitř.
+Uvidíme se uvnitř.
+Nech mě chvíli o samotě.
+
+# Variant when the player never picked the snapped half up off the ground.
+== SmokingNoKey ==
+Zpráva ti asi došla.
+Ten klíč zůstal tam venku, co?
+Tady. Náhradní.
+[Fix key]
+Použij s ním záchod uvnitř.
+Uvidíme se uvnitř.
+Nech mě chvíli o samotě.
+
+# Appended to Smoking/SmokingNoKey once the player has seen the tornado warning.
+== SmokingTornadoTip ==
+A poslouchej, to tornádo není sranda. Kdyby na to došlo, pod poslední kabinkou je kryt.

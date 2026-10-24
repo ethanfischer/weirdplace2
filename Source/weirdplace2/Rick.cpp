@@ -11,10 +11,39 @@
 #include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
+#include "GazeUtils.h"
+#include "StorySubsystem.h"
+#include "Tunable.h"
+
+// Rick only walks in once both his current spot and the counter spot are this
+// far outside the player's view cone (dot of camera forward vs direction to the
+// spot). 0.3 ~= 72 degrees off-center, past the edge of a 90-degree FOV, so the
+// move is never on screen.
+WP_TUNABLE_FLOAT(GRickTeleportHiddenDot, "weird.Rick.TeleportHiddenDot", 0.3f,
+	"Rick teleports inside once the dot between camera forward and the direction to both his spot and the counter spot drops below this.");
+
+namespace
+{
+	// Each line's text from a Rick.txt section (the plate names the speaker).
+	void LoadSectionText(const FDialogueScript& Script, const FString& SectionName, TArray<FText>& Out)
+	{
+		const TArray<FDialogueLine>* Section = Script.FindSection(SectionName);
+		if (!Section)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Rick - section '%s' missing from the dialogue file"), *SectionName);
+			return;
+		}
+		for (const FDialogueLine& Parsed : *Section)
+		{
+			Out.Add(FText::FromString(Parsed.Text));
+		}
+	}
+}
 
 ARick::ARick()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
 	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 }
@@ -38,6 +67,29 @@ void ARick::BeginPlay()
 	DialogueScript.Load(DialogueFilePath);
 	LoadDialogueFile();
 	LoadOutsideDialogue();
+
+	GetWorld()->GetSubsystem<UStorySubsystem>()->OnPlayerEnteredStore.AddUObject(this, &ARick::OnPlayerEnteredStore);
+}
+
+void ARick::OnPlayerEnteredStore()
+{
+	if (bInside || bPendingTeleportInside || bStashedForStorm)
+	{
+		return;
+	}
+	if (!SenecaRef || !InsidePositionTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::OnPlayerEnteredStore - SenecaRef or InsidePositionTarget not assigned on level instance"));
+		return;
+	}
+	// Only once the player has heard Seneca's (Czech) intro.
+	if (!SenecaRef->bIntroDialoguePlayed)
+	{
+		return;
+	}
+	bPendingTeleportInside = true;
+	SetActorTickEnabled(true);
+	UE_LOG(LogTemp, Log, TEXT("Rick - Player came back inside after Seneca's intro; will teleport inside once unseen"));
 }
 
 void ARick::LoadDialogueFile()
@@ -101,6 +153,41 @@ void ARick::LoadOutsideDialogue()
 		}
 		UE_LOG(LogTemp, Log, TEXT("Rick - Loaded %d money lines, MoneyGiveLineIndex=%d"), GivesMoneyLines.Num(), MoneyGiveLineIndex);
 	}
+
+	LoadSectionText(DialogueScript, IntroTranslationSection, IntroTranslationLines);
+	LoadSectionText(DialogueScript, BlankTapeTranslationSection, BlankTapeTranslationLines);
+	LoadSectionText(DialogueScript, KeyTranslationSection, KeyTranslationLines);
+	LoadSectionText(DialogueScript, InsideIdleSection, InsideIdleLines);
+}
+
+void ARick::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	// Ticks only while a teleport is pending (OnPlayerEnteredStore).
+	UWorld* World = GetWorld();
+	if (UGazeUtils::IsPointInPlayerView(GetActorLocation(), World, GRickTeleportHiddenDot)
+		|| UGazeUtils::IsPointInPlayerView(InsidePositionTarget->GetActorLocation(), World, GRickTeleportHiddenDot))
+	{
+		return;
+	}
+	TeleportInside();
+}
+
+void ARick::TeleportInside()
+{
+	bPendingTeleportInside = false;
+	SetActorTickEnabled(false);
+
+	if (!InsidePositionTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::TeleportInside - InsidePositionTarget not assigned on level instance"));
+		return;
+	}
+	SetActorLocation(InsidePositionTarget->GetActorLocation());
+	SetActorRotation(FRotator(0.f, InsidePositionTarget->GetActorRotation().Yaw, 0.f));
+	bInside = true;
+	UE_LOG(LogTemp, Log, TEXT("Rick - Teleported inside to %s"), *GetActorLocation().ToString());
 }
 
 void ARick::StartDialogue()
@@ -127,6 +214,13 @@ void ARick::OnDialogueEnded()
 	if (AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(PlayerCharacter))
 	{
 		FPChar->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
+	}
+
+	// Seneca may be waiting on this translation before taking the next item.
+	if (bTranslationActive)
+	{
+		bTranslationActive = false;
+		SenecaRef->OnRickTranslated();
 	}
 
 	OnRickDialogueEnded.Broadcast();
@@ -252,20 +346,52 @@ void ARick::Interact_Implementation()
 	AFirstPersonCharacter* FPCharacter = Cast<AFirstPersonCharacter>(PlayerCharacter);
 	if (!FPCharacter) { UE_LOG(LogTemp, Error, TEXT("Rick::Interact - No FPCharacter")); return; }
 
-	bool bSenecaWantsMoney = SenecaRef && SenecaRef->CurrentState == ESenecaState::WaitingForMoney;
-
-	if (!bSenecaWantsMoney || bGaveMoney)
+	// Outside at the car: always "I'll meet you inside". The money beat and the
+	// translation only happen once he's in the store.
+	if (!bInside)
 	{
-		if (OutsideIdleLines.Num() > 0)
-			FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Rick")), OutsideIdleLines, this);
+		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Rick")), OutsideIdleLines, this);
 		return;
 	}
 
-	if (GivesMoneyLines.Num() > 0)
+	const bool bSenecaWantsMoney = SenecaRef && SenecaRef->CurrentState == ESenecaState::WaitingForMoney;
+	if (bSenecaWantsMoney && !bGaveMoney)
 	{
 		// Bind line-shown handler so money is given on the correct line
 		FPCharacter->OnDialogueLineShown.RemoveDynamic(this, &ARick::OnMoneyDialogueLineShown);
 		FPCharacter->OnDialogueLineShown.AddDynamic(this, &ARick::OnMoneyDialogueLineShown);
 		FPCharacter->StartDialogue(GivesMoneyLines, this);
+		return;
+	}
+
+	// Translate Seneca's open (Czech) request, as often as asked.
+	if (const TArray<FText>* Translation = GetSenecaTranslation())
+	{
+		bTranslationActive = true;
+		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Rick")), *Translation, this);
+		return;
+	}
+
+	FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Rick")), InsideIdleLines, this);
+}
+
+const TArray<FText>* ARick::GetSenecaTranslation() const
+{
+	if (!SenecaRef)
+	{
+		return nullptr;
+	}
+	// Rick is only inside once Seneca's intro has played.
+	switch (SenecaRef->CurrentState)
+	{
+	case ESenecaState::WaitingForMovies:
+	case ESenecaState::WaitingForMoviePurchase:
+		return &IntroTranslationLines;
+	case ESenecaState::WaitingForBlankTape:
+		return &BlankTapeTranslationLines;
+	case ESenecaState::GaveKey:
+		return &KeyTranslationLines;
+	default:
+		return nullptr;
 	}
 }

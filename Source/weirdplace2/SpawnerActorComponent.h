@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 class AAmbientSound;
 class AMovieBox;
+class UItemDefinition;
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class WEIRDPLACE2_API USpawnerActorComponent : public UActorComponent {
@@ -44,6 +45,27 @@ public:
 	// Distance (cm) to push the randomly chosen MovieBox along its own forward axis
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings")
 	float ChosenForwardOffset = 10.0f;
+
+	// An item stashed behind one movie box (the meat tenderizer). Spawned as an
+	// AInspectablePickup on the lowest shelf, tucked behind the box at
+	// StashBookcase/StashSlot so the player only finds it by taking that box.
+	// None = no stash.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Stash")
+	UItemDefinition* StashItemDef = nullptr;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Stash")
+	int32 StashBookcase = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Stash")
+	int32 StashSlot = 7;
+
+	// How far behind the box (against its facing) the stash sits, cm.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Stash")
+	float StashBackOffset = 9.0f;
+
+	// Lift off the shelf so the pickup mesh doesn't sink into it, cm.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Stash")
+	float StashLift = 2.0f;
 
 	// Volume multiplier on ChordAmbientSound when player looks directly at the chosen MovieBox
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spawner Settings|Look-At Boost")
@@ -82,6 +104,7 @@ private:
 	FVector LastHitImpactPoint = FVector::ZeroVector;
 
 	void SpawnMovieBoxes();
+	void SpawnStashBehind(AActor* Box);
 
 public:
 	// Swap a random top-shelf MovieBox for BlankVhsBoxClass and start the chord hum.

@@ -339,8 +339,8 @@ void APayPhone::Interact_Implementation()
 	// fully played — the beat the phone exists for can't be skipped.
 	bHangupLocked = !bCodeSpoken;
 
-	// Record that the player has used the phone at least once. Seneca's smoking
-	// appearance outside gates on this flag, so it persists past hang-up.
+	// Record that the player has used the phone at least once. The bathroom
+	// keypad gates on this flag, so it persists past hang-up.
 	Story->SetFlag(EStoryFlag::UsedPayPhone, true);
 
 	// Hold the player at the phone — freeze movement and bind hang-up. Look stays

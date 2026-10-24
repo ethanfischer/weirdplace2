@@ -1,4 +1,4 @@
-#include "InventoryUIComponent.h"
+﻿#include "InventoryUIComponent.h"
 #include "InventoryUIActor.h"
 #include "Components/SceneComponent.h"
 #include "Inventory.h"
@@ -155,7 +155,6 @@ void UInventoryUIComponent::OpenInventoryUI()
 	{
 		return;
 	}
-
 	// Play menu open sound
 	if (MenuOpenSound)
 	{
@@ -191,8 +190,8 @@ void UInventoryUIComponent::OpenInventoryUI()
 		FirstPersonCharacter->SetInventoryFlashlightSize(GridWidth, GridHeight);
 	}
 
-	// Persist the cursor position across opens — including when the previously-
-	// selected item was just given to an NPC, so the player reopens onto the now-empty slot.
+	// Persist the cursor position across opens, clamped: items given away since
+	// the last open compact the list, so the cursor may now land on the next item.
 	ClampSelectedIndex();
 
 	CurrentState = EInventoryUIState::Opening;
@@ -265,10 +264,7 @@ void UInventoryUIComponent::SpawnInventoryUIActor()
 	// Reuse existing cached actor if available
 	if (InventoryUIActor)
 	{
-		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
-		{
-			Root->SetVisibility(true, true);
-		}
+		InventoryUIActor->SetShown(true);
 		InventoryUIActor->SetActorEnableCollision(true);
 		InventoryUIActor->SetActorTickEnabled(true);
 		UE_LOG(LogTemp, Log, TEXT("Reusing cached InventoryUIActor"));
@@ -299,10 +295,7 @@ void UInventoryUIComponent::DestroyInventoryUIActor()
 {
 	if (InventoryUIActor)
 	{
-		if (USceneComponent* Root = InventoryUIActor->GetRootComponent())
-		{
-			Root->SetVisibility(false, true);
-		}
+		InventoryUIActor->SetShown(false);
 		InventoryUIActor->SetActorEnableCollision(false);
 		InventoryUIActor->SetActorTickEnabled(false);
 		UE_LOG(LogTemp, Log, TEXT("Hid InventoryUIActor (cached for reuse)"));
@@ -495,8 +488,7 @@ void UInventoryUIComponent::UpdateSelectedSlot()
 
 	if (InventoryUIActor)
 	{
-		// ItemIndex < 0 -> show the name label but keep the active-item border hidden.
-		InventoryUIActor->SetActiveItem(ItemAtSlot, -1);
+		InventoryUIActor->SetItemName(ItemAtSlot);
 	}
 
 	if (bChanged && !ItemAtSlot.IsNone() && MenuItemSelectedSound)

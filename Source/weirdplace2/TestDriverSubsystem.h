@@ -117,6 +117,14 @@ public:
 	// True if the AAmbientSound found by editor label has a playing audio
 	// component. False (and logs) if no such ambient-sound actor exists.
 	bool IsAmbientSoundPlaying(const FString& Label) const;
+	// What the listener actually hears from the AAmbientSound right now: the max
+	// final wave volume (class, mix, distance, occlusion, audio-volume zones).
+	// Logs the occlusion/interior breakdown and what blocks the occlusion trace.
+	// -1 (and logs) if no such actor. Needs a rendering run: under NullRHI the
+	// viewport never draws, so the audio listener never leaves the origin.
+	float GetAmbientSoundHeardVolume(const FString& Label) const;
+	// True if any UAudioComponent on the actor with this label is playing.
+	bool IsActorAudioPlaying(const FString& Label) const;
 
 	// Max intensity across all ULightComponents on the actor found by editor label
 	// (the storm-dim test compares this before/after). -1 (and logs) if no such
@@ -162,14 +170,6 @@ public:
 	// branch. -1 (and logs) if no such door exists. The re-entrancy guard test
 	// asserts this stays 0 across a mid-key-break re-entrant interact.
 	int32 GetBathroomDoorLockedSoundCount() const;
-
-	// True while the OutsideBathroomDoor's animated key carries the glow overlay
-	// (during the insert sequence). False (and logs) if no such door exists.
-	bool GetBathroomDoorAnimKeyGlowActive() const;
-
-	// True if the level's AInspectablePickup (e.g. the dropped broken key) has
-	// the self-illumination glow overlay. False (and logs) if none exists.
-	bool GetInspectablePickupGlowActive() const;
 
 	// --- Seneca test helpers ---
 
@@ -280,7 +280,10 @@ public:
 	// key-break sequence spawns one of these on the ground instead of
 	// auto-adding the broken key to inventory; tests poll this to know the
 	// pickup has appeared.
-	AInspectablePickup* FindInspectablePickup() const;
+	// ItemID None: the first pickup that appeared mid-story (stash pickups the
+	// level starts with are skipped). Otherwise the first pickup of that item,
+	// stash or not.
+	AInspectablePickup* FindInspectablePickup(FName ItemID = NAME_None) const;
 
 	// Test-only: invoke CollectInspectedItem directly on whichever
 	// AInspectablePickup is currently in inspection. Mirrors
@@ -297,8 +300,8 @@ public:
 	bool HasItem(FName ItemId) const;
 	int32 GetInventoryCount() const;
 
-	// Returns the ItemID at inventory slot SlotIndex, NAME_None if empty or out
-	// of range. Slots are sparse (OoT-style), so a given slot keeps its item.
+	// Returns the ItemID at inventory slot SlotIndex, NAME_None if out of range.
+	// The inventory is compact, so removing an item shifts later ones down.
 	FName GetInventoryItemAt(int32 SlotIndex) const;
 
 	// Fires a single bladder-urgency vignette pulse on the player (no timer

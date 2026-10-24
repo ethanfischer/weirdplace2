@@ -26,6 +26,9 @@
 #include "PayPhone.h"
 #include "Components/LightComponent.h"
 #include "Sound/AmbientSound.h"
+#include "AudioDevice.h"
+#include "AudioThread.h"
+#include "ActiveSound.h"
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
@@ -149,6 +152,102 @@ bool UTestDriverSubsystem::IsAmbientSoundPlaying(const FString& Label) const
 	}
 	UAudioComponent* AudioComp = Ambient->GetAudioComponent();
 	return AudioComp && AudioComp->IsPlaying();
+}
+
+float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) const
+{
+	AAmbientSound* Ambient = Cast<AAmbientSound>(FindActorByLabel(Label));
+	UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr;
+	FAudioDevice* Device = GetWorld() ? GetWorld()->GetAudioDeviceRaw() : nullptr;
+	if (!AudioComp || !Device)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetAmbientSoundHeardVolume - no AAmbientSound labeled '%s' or no audio device"), *Label);
+		return -1.f;
+	}
+
+	// The final per-wave volume (class + mix + distance + occlusion + audio-volume
+	// interior/exterior) lives on the audio thread — read there and fence back.
+	const uint64 ComponentID = AudioComp->GetAudioComponentID();
+	bool bFound = false;
+	bool bOccluded = false;
+	float OcclusionAttenuation = 1.f;
+	float InteriorVolume = 1.f;
+	float Heard = 0.f;
+	FVector ListenerPos = FVector::ZeroVector;
+	// Why a found sound can still be silent: no wave instance yet (streaming) or
+	// not playing (culled past the voice limit / virtualized).
+	int32 NumWaves = 0;
+	bool bPlayingAudio = false;
+	float PlaybackTime = 0.f;
+	int32 DeviceActiveSounds = 0;
+	int32 DeviceMaxChannels = 0;
+	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos,
+		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels]()
+	{
+		Device->GetListenerPosition(0, ListenerPos, /*bAllowOverride*/ false);
+		DeviceActiveSounds = Device->GetActiveSounds().Num();
+		DeviceMaxChannels = Device->GetMaxChannels();
+		const FActiveSound* Active = Device->FindActiveSound(ComponentID);
+		if (!Active)
+		{
+			return;
+		}
+		bFound = true;
+		bOccluded = Active->bIsOccluded;
+		OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
+		InteriorVolume = Active->CurrentInteriorVolume;
+		bPlayingAudio = Active->IsPlayingAudio();
+		PlaybackTime = Active->PlaybackTime;
+		NumWaves = Active->GetWaveInstances().Num();
+		for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
+		{
+			Heard = FMath::Max(Heard, Pair.Value->GetActualVolume());
+		}
+	});
+	FAudioCommandFence Fence;
+	Fence.BeginFence();
+	Fence.Wait();
+
+	// Re-run the engine's occlusion trace (FActiveSound::CheckOcclusion: sound ->
+	// listener, owner ignored) on the game thread to name what blocks it.
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(TestDriverOcclusion), AudioComp->AttenuationOverrides.bUseComplexCollisionForOcclusion);
+	Params.AddIgnoredActor(Ambient);
+	FHitResult Hit;
+	const bool bTraceHit = GetWorld()->LineTraceSingleByChannel(Hit, Ambient->GetActorLocation(), ListenerPos,
+		AudioComp->AttenuationOverrides.OcclusionTraceChannel, Params);
+
+	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' heard=%.3f active=%d playing=%d waves=%d t=%.1fs deviceSounds=%d/%d occluded=%d occlusionAtten=%.2f interior=%.2f listener=%s dist=%.0f blocker=%s/%s startPenetrating=%d"),
+		*Label, Heard, bFound ? 1 : 0, bPlayingAudio ? 1 : 0, NumWaves, PlaybackTime, DeviceActiveSounds, DeviceMaxChannels, bOccluded ? 1 : 0, OcclusionAttenuation, InteriorVolume,
+		*ListenerPos.ToCompactString(), FVector::Dist(ListenerPos, Ambient->GetActorLocation()),
+		bTraceHit && Hit.GetActor() ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("none"),
+		bTraceHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),
+		bTraceHit && Hit.bStartPenetrating ? 1 : 0);
+	return Heard;
+}
+
+bool UTestDriverSubsystem::IsActorAudioPlaying(const FString& Label) const
+{
+	AActor* Actor = FindActorByLabel(Label);
+	if (!Actor)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorAudioPlaying - no actor '%s'"), *Label);
+		return false;
+	}
+	TArray<UAudioComponent*> AudioComps;
+	Actor->GetComponents<UAudioComponent>(AudioComps);
+	if (AudioComps.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TestDriver::IsActorAudioPlaying - '%s' has no UAudioComponent"), *Label);
+		return false;
+	}
+	for (UAudioComponent* AC : AudioComps)
+	{
+		if (AC->IsPlaying())
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 float UTestDriverSubsystem::GetActorMaxLightIntensity(const FString& Label) const
@@ -290,16 +389,6 @@ int32 UTestDriverSubsystem::GetBathroomDoorLockedSoundCount() const
 	}
 	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorLockedSoundCount - no AOutsideBathroomDoor in level"));
 	return -1;
-}
-
-bool UTestDriverSubsystem::GetBathroomDoorAnimKeyGlowActive() const
-{
-	for (TActorIterator<AOutsideBathroomDoor> It(GetWorld()); It; ++It)
-	{
-		return It->IsAnimKeyGlowActive();
-	}
-	UE_LOG(LogTemp, Error, TEXT("TestDriver::GetBathroomDoorAnimKeyGlowActive - no AOutsideBathroomDoor in level"));
-	return false;
 }
 
 bool UTestDriverSubsystem::IsPlayerReady() const
@@ -1286,9 +1375,21 @@ bool UTestDriverSubsystem::TriggerCollectInspectedMovie()
 
 // --- Inspectable pickup helpers ---
 
-AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup() const
+AInspectablePickup* UTestDriverSubsystem::FindInspectablePickup(FName ItemID) const
 {
-	return FindFirstActor<AInspectablePickup>(GetWorld());
+	for (TActorIterator<AInspectablePickup> It(GetWorld()); It; ++It)
+	{
+		AInspectablePickup* Pickup = *It;
+		if (!IsValid(Pickup))
+		{
+			continue;
+		}
+		if (ItemID.IsNone() ? !Pickup->IsStash() : Pickup->GetItemID() == ItemID)
+		{
+			return Pickup;
+		}
+	}
+	return nullptr;
 }
 
 bool UTestDriverSubsystem::TriggerCollectInspectedPickup()
@@ -1548,17 +1649,6 @@ bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFac
 	Forward.Z = 0.f;
 	OutFacingDot = FVector::DotProduct(Forward.GetSafeNormal(), ToCam.GetSafeNormal());
 	return true;
-}
-
-bool UTestDriverSubsystem::GetInspectablePickupGlowActive() const
-{
-	AInspectablePickup* Pickup = FindInspectablePickup();
-	if (!Pickup)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetInspectablePickupGlowActive - no AInspectablePickup in level"));
-		return false;
-	}
-	return Pickup->IsGlowActive();
 }
 
 bool UTestDriverSubsystem::ActivateBlankTapeForTest()

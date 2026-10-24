@@ -23,6 +23,8 @@
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
 #include "Components/PointLightComponent.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Materials/MaterialInstanceDynamic.h"
 
 ASeneca::ASeneca()
 {
@@ -30,7 +32,11 @@ ASeneca::ASeneca()
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
 	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 	PrimaryActorTick.bStartWithTickEnabled = true;
-	// Components are created in Blueprint to preserve MetaHuman setup
+	// Components are created in Blueprint to preserve MetaHuman setup. The cell
+	// phone is spawned at BeginPlay, not here: a C++ default subobject on an
+	// actor whose root lives in the BP becomes the root itself.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	CellPhoneMeshAsset = CubeMesh.Object;
 }
 
 UUI_Dialogue* ASeneca::GetDialogueWidget() const
@@ -76,6 +82,31 @@ void ASeneca::BeginPlay()
 	if (!CachedSkeletalMesh)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found"));
+	}
+
+	if (USkeletalMeshComponent* Body = FindBodyMesh())
+	{
+		if (!Body->DoesSocketExist(CellPhoneSocket))
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - CellPhoneSocket '%s' not on body mesh"), *CellPhoneSocket.ToString());
+		}
+		CellPhoneMesh = NewObject<UStaticMeshComponent>(this, TEXT("CellPhone"));
+		CellPhoneMesh->SetStaticMesh(CellPhoneMeshAsset);
+		CellPhoneMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		CellPhoneMesh->SetVisibility(false);
+		CellPhoneMesh->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, CellPhoneSocket);
+		CellPhoneMesh->SetRelativeTransform(CellPhoneOffset);
+		CellPhoneMesh->RegisterComponent();
+		// Placeholder cube ships with the grey BasicShapeMaterial; tint it to a
+		// near-black handset so it reads as a phone from across the lot.
+		if (UMaterialInstanceDynamic* Mid = CellPhoneMesh->CreateAndSetMaterialInstanceDynamic(0))
+		{
+			Mid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.01f, 0.01f, 0.012f));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - no body mesh to hold the cell phone"));
 	}
 
 	// Smoking-spot point light starts off; toggled by Start/StopSmokingAnim.
@@ -131,6 +162,7 @@ void ASeneca::BeginPlay()
 	LoadReminderSection(WaitingForMoviesReminderSection, WaitingForMoviesReminderLines);
 	LoadReminderSection(WaitingForMoviePurchaseReminderSection, WaitingForMoviePurchaseReminderLines);
 	LoadReminderSection(WaitingForBlankTapeReminderSection, WaitingForBlankTapeReminderLines);
+	LoadReminderSection(SmokingTornadoTipSection, SmokingTornadoTipLines);
 
 	LoadMovieComments();
 
@@ -167,7 +199,7 @@ void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out
 		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
 		if (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning))
 		{
-			Out.Add(FText::FromString(TEXT("And listen -- that twister's no joke. There's a shelter under the far stall if it comes to that.")));
+			Out.Append(SmokingTornadoTipLines);
 		}
 	}
 }
@@ -205,6 +237,24 @@ void ASeneca::LoadReminderSection(const FString& SectionName, TArray<FText>& Out
 	}
 }
 
+void ASeneca::OnRickTranslated()
+{
+	switch (CurrentState)
+	{
+	case ESenecaState::WaitingForMovies:
+		CurrentState = ESenecaState::WaitingForMoviePurchase;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (Rick translated the intro)"));
+		break;
+	case ESenecaState::WaitingForBlankTape:
+		bBlankTapeRequestTranslated = true;
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Rick translated the blank-tape request; will take the tape"));
+		break;
+	default:
+		// Repeat translations and the key hand-off don't unlock anything.
+		break;
+	}
+}
+
 void ASeneca::OnDialogueEnded()
 {
 	UE_LOG(LogTemp, Log, TEXT("Seneca::OnDialogueEnded - CurrentState: %d"), static_cast<int32>(CurrentState));
@@ -213,9 +263,11 @@ void ASeneca::OnDialogueEnded()
 	{
 	case ESenecaState::WaitingForMovies:
 	{
+		// The intro is Czech, so the player can't act on it yet. Seneca repeats
+		// the reminder and won't take movies until Rick translates
+		// (OnIntroTranslated).
 		bIntroDialoguePlayed = true;
-		CurrentState = ESenecaState::WaitingForMoviePurchase;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - State: WaitingForMovies -> WaitingForMoviePurchase (intro dialogue done)"));
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Intro played; waiting for Rick's translation"));
 		break;
 	}
 
@@ -270,12 +322,19 @@ void ASeneca::OnDialogueEnded()
 	}
 
 	case ESenecaState::Smoking:
-		// Smoking dialogue is now purely cosmetic — Seneca stays at the smoking spot
-		// and unlocks nothing. The employee bathroom is opened via the phone-code
-		// keypad on the door, not by Seneca.
+	{
+		// The pole dialogue's only effect is the [Fix key] swap; Seneca stays
+		// put and unlocks nothing (the keypad opens the employee bathroom once
+		// the fixed key snaps in it).
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (AFirstPersonCharacter* FPChar = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr)
+		{
+			FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
+		}
 		CurrentState = ESenecaState::Done;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended (cosmetic), State: Smoking -> Done"));
+		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, State: Smoking -> Done"));
 		break;
+	}
 
 	default:
 		break;
@@ -396,8 +455,10 @@ void ASeneca::Interact_Implementation()
 			return;
 		}
 
+		// Holding the tape only matters once Rick has translated the request;
+		// until then Seneca just repeats the reminder.
 		const FName ChosenID = CachedMovieSpawner->GetChosenItemID();
-		if (!ChosenID.IsNone() && Inventory->HasItem(ChosenID))
+		if (bBlankTapeRequestTranslated && !ChosenID.IsNone() && Inventory->HasItem(ChosenID))
 		{
 			OpenGiveForOffer(FPCharacter);
 		}
@@ -427,6 +488,12 @@ void ASeneca::Interact_Implementation()
 	if (CurrentState == ESenecaState::ReadyToGiveKey)
 	{
 		StartReadyToGiveKeyDialogue(FPCharacter);
+		return;
+	}
+
+	if (CurrentState == ESenecaState::Smoking)
+	{
+		StartSmokingDialogue(FPCharacter);
 		return;
 	}
 
@@ -472,6 +539,28 @@ void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyDef->ItemID.ToString());
 }
 
+void ASeneca::FixKey(AFirstPersonCharacter* FPChar)
+{
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
+	if (!Inventory)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::FixKey - no player inventory"));
+		return;
+	}
+
+	// The broken half is a collectable the player may have left on the ground;
+	// the fix isn't optional, so hand over a fresh key either way.
+	if (Inventory->HasItem(BrokenKeyItemID))
+	{
+		Inventory->RemoveItem(BrokenKeyItemID);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Log, TEXT("Seneca::FixKey - player isn't carrying '%s'; giving a fresh key anyway"), *BrokenKeyItemID.ToString());
+	}
+	GiveKey(FPChar);
+}
+
 // --- Helpers ---
 
 void ASeneca::MoveToTarget(AActor* Target)
@@ -492,30 +581,36 @@ void ASeneca::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 
-	// Waiting to appear at smoking position — teleport when player isn't looking at
-	// that spot, but only once the player has used the payphone at least once.
-	// (Key drop and payphone use can happen in either order; Tick keeps polling
-	// until both conditions hold.)
+	// Waiting to appear at the smoking spot (behind the telephone pole) —
+	// teleport when the player isn't looking at it, but only once they've hung
+	// up the payphone: Seneca is the caller, and must not be seen outside until
+	// that call is over. Tick keeps polling until both conditions hold.
 	if (bWaitingToAppear && SmokingPositionTarget)
 	{
 		const UWorld* World = GetWorld();
 		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
-		if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone))
+		if (!Story || !Story->IsFlagSet(EStoryFlag::HungUpPhone))
 		{
 			return;
 		}
 		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
 		{
-			MoveToTarget(SmokingPositionTarget);
-			SetActorEnableCollision(true);
 			bWaitingToAppear = false;
-			bIsSmoking = true;
-			if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
-			StartSmokingAnim();
-			UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
+			AppearAtSmokingSpot();
 		}
 		return;
 	}
+}
+
+void ASeneca::AppearAtSmokingSpot()
+{
+	MoveToTarget(SmokingPositionTarget);
+	SetActorEnableCollision(true);
+	bIsSmoking = true;
+	if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
+	if (CellPhoneMesh) CellPhoneMesh->SetVisibility(true);
+	StartSmokingAnim();
+	UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
 }
 
 bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
@@ -560,9 +655,32 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartReadyToGiveKeyDialogue - No lines found"));
 		return;
 	}
+	StartCuedDialogue(FPChar, *Lines);
+}
 
+void ASeneca::StartSmokingDialogue(AFirstPersonCharacter* FPChar)
+{
+	// Two scripts for the beat: one if the player brought the snapped half, one
+	// if they left it in the lot. Both carry the [Fix key] cue. (Re)load the
+	// right one under the Smoking state so GetActionForLine lines up.
+	UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
+	const bool bHasBrokenKey = Inventory && Inventory->HasItem(BrokenKeyItemID);
+	LoadDialogueSection(ESenecaState::Smoking, bHasBrokenKey ? SmokingSection : SmokingNoKeySection);
+
+	TArray<FText> Lines;
+	BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
+	if (Lines.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartSmokingDialogue - No lines found"));
+		return;
+	}
+	StartCuedDialogue(FPChar, Lines);
+}
+
+void ASeneca::StartCuedDialogue(AFirstPersonCharacter* FPChar, const TArray<FText>& Lines)
+{
 	TArray<FSimpleDialogueLine> MultiLines;
-	for (const FText& LineText : *Lines)
+	for (const FText& LineText : Lines)
 	{
 		FSimpleDialogueLine Line;
 		Line.Speaker = FText::FromString(TEXT("Seneca"));
@@ -577,7 +695,7 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 
 void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 {
-	const FString Action = GetActionForLine(ESenecaState::ReadyToGiveKey, LineIndex);
+	const FString Action = GetActionForLine(CurrentState, LineIndex);
 	if (Action.IsEmpty())
 	{
 		return;
@@ -611,6 +729,11 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 	if (Action == TEXT("Give key"))
 	{
 		GiveKey(FPChar);
+		return;
+	}
+	if (Action == TEXT("Fix key"))
+	{
+		FixKey(FPChar);
 		return;
 	}
 
@@ -724,7 +847,7 @@ void ASeneca::ClearCounterMovies()
 void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent* Inventory, FName MovieID)
 {
 	const FText* Found = MovieComments.Find(MovieID);
-	FText Comment = Found ? *Found : FallbackMovieComment;
+	const FText Remark = Found ? *Found : FallbackMovieComment;
 
 	// Capture full item data so we can return the rented movies to the player later.
 	TakenMovies.Add(Inventory->GetItemData(MovieID));
@@ -735,18 +858,10 @@ void ASeneca::HandleMovieGive(AFirstPersonCharacter* FPChar, UInventoryComponent
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::HandleMovieGive - Received '%s', MoviesGivenCount=%d"), *MovieID.ToString(), MoviesGivenCount);
 
-	TArray<FText> CommentLines;
-	FString Line1, Line2;
-	if (Comment.ToString().Split(TEXT("|"), &Line1, &Line2))
-	{
-		CommentLines.Add(FText::FromString(Line1.TrimStartAndEnd()));
-		CommentLines.Add(FText::FromString(Line2.TrimStartAndEnd()));
-	}
-	else
-	{
-		CommentLines.Add(Comment);
-	}
-	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), CommentLines, this);
+	// Just his remark; he doesn't read the title out.
+	TArray<FText> RemarkLines;
+	RemarkLines.Add(Remark);
+	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), RemarkLines, this);
 }
 
 void ASeneca::StartMoviePurchaseDialogue(AFirstPersonCharacter* FPChar)
@@ -873,7 +988,7 @@ bool ASeneca::OnInventoryItemOffered(FName ItemID)
 		return false;
 
 	case ESenecaState::WaitingForBlankTape:
-		if (CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
+		if (bBlankTapeRequestTranslated && CachedMovieSpawner && ItemID == CachedMovieSpawner->GetChosenItemID())
 		{
 			HandleBlankTapeGive(FPChar, Inventory, ItemID);
 			return true;
@@ -1036,11 +1151,6 @@ void ASeneca::ForceSmokingAppearance()
 		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
 	}
 	bWaitingToAppear = false;
-	MoveToTarget(SmokingPositionTarget);
-	SetActorEnableCollision(true);
-	bIsSmoking = true;
-	if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
-	StartSmokingAnim();
-	UE_LOG(LogTemp, Log, TEXT("Seneca::ForceSmokingAppearance - teleported + smoking"));
+	AppearAtSmokingSpot();
 }
 

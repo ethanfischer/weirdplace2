@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -263,6 +263,38 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable);
 
+	// Inventory open (not give mode) + Interact: offer the selected item to the
+	// interactable under the crosshair via IInteractable::UseItem. Reacted ->
+	// close the inventory; otherwise play the item's UseFailSound at the target.
+	void UseSelectedItemOnGazeTarget();
+
+	// While an object is held up for inspection (movie box, pickup), Interact
+	// collects it. The inspected object installs its collect here and clears it
+	// when inspection ends, so collection follows IA_Interact's own key bindings.
+	void SetInspectionCollectHandler(TFunction<void()> Handler) { InspectionCollectHandler = MoveTemp(Handler); }
+	void ClearInspectionCollectHandler() { InspectionCollectHandler = nullptr; }
+
+	// Same for Back (IA_Back: put the inspected object down).
+	void SetInspectionBackHandler(TFunction<void()> Handler) { InspectionBackHandler = MoveTemp(Handler); }
+	void ClearInspectionBackHandler() { InspectionBackHandler = nullptr; }
+
+	// Short label for IA_Back's binding on the device in use ("Q", "RMB", "B"),
+	// for diegetic prompts. Empty (and an error log) if IA_Back has no mapping
+	// for that device.
+	FString GetBackKeyLabel() const;
+
+	// --- Equipped item ---
+	// The inventory's selected item counts as "in hand" once the inventory is
+	// closed: Interact offers it to the target (IInteractable::UseItem) before
+	// the ordinary interaction. Nothing is drawn in hand; using it plays a short
+	// swing of the item's mesh (SwingMesh) and the effect lands at the impact.
+	FName GetEquippedItemID() const;
+
+	// Swing ItemID at Target: the mesh arcs in from the lower right, then at
+	// impact Target->UseItem runs (or the item's UseFailSound plays). Items
+	// without a mesh skip the swing and resolve immediately.
+	void UseItemOn(FName ItemID, AActor* Target, bool bFromOpenInventory);
+
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
 
@@ -376,6 +408,19 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* ItemNotificationMesh;
 
+	// Item mesh shown only for the duration of a swing (UseItemOn)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI", meta = (AllowPrivateAccess = "true"))
+	UStaticMeshComponent* SwingMesh;
+
+	float SwingElapsed = -1.0f; // <0 = no swing in flight
+	bool  bSwingImpactDone = false;
+	FName SwingItemID;
+	TWeakObjectPtr<AActor> SwingTarget;
+	bool  bSwingFromOpenInventory = false;
+
+	void TickSwing(float DeltaTime);
+	void ResolveItemUse(FName ItemID, AActor* Target, bool bFromOpenInventory);
+
 	// Dynamically spawned mesh components for stacked item notifications
 	UPROPERTY()
 	TArray<UStaticMeshComponent*> StackNotificationMeshes;
@@ -391,6 +436,9 @@ private:
 	FTimerHandle ItemNotificationTimerHandle;
 
 	// DoOnce state tracking
+	TFunction<void()> InspectionCollectHandler;
+	TFunction<void()> InspectionBackHandler;
+
 	bool bInteractDoOnceCompleted = false;
 	bool bInventoryDoOnceCompleted = false;
 	bool bMenuDoOnceCompleted = false;

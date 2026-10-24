@@ -1,6 +1,7 @@
 #include "TeleportTriggerBox.h"
 #include "BladderUrgencyComponent.h"
 #include "Door.h"
+#include "StorySubsystem.h"
 #include "Engine/TargetPoint.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -25,6 +26,11 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 		return;
 	}
 
+	TeleportActor(OtherActor);
+}
+
+void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
+{
 	if (!TeleportTarget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s has no TeleportTarget set"), *GetName());
@@ -86,6 +92,65 @@ void ATeleportTriggerBox::NotifyActorBeginOverlap(AActor* OtherActor)
 			BathroomStallDoorUnlockTime,
 			false);
 	}
+
+	UStorySubsystem* Story = GetWorld()->GetSubsystem<UStorySubsystem>();
+	if (!Story)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: no UStorySubsystem, EnteredOasis not set"), *GetName());
+		return;
+	}
+	Story->SetFlag(EStoryFlag::EnteredOasis, true);
+}
+
+void ATeleportTriggerBox::SkipTransition(AActor* Actor)
+{
+	if (!SkipToTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: SkipTransition but no SkipToTarget set"), *GetName());
+		return;
+	}
+
+	TeleportActor(Actor);
+
+	Actor->SetActorLocation(SkipToTarget->GetActorLocation());
+	if (ACharacter* Character = Cast<ACharacter>(Actor))
+	{
+		const FRotator Facing(0, SkipToTarget->GetActorRotation().Yaw, 0);
+		Character->SetActorRotation(Facing);
+		if (AController* Controller = Character->GetController())
+		{
+			Controller->SetControlRotation(Facing);
+		}
+		if (UCharacterMovementComponent* MoveComp = Character->GetCharacterMovement())
+		{
+			MoveComp->Velocity = FVector::ZeroVector;
+		}
+	}
+
+	// Finish the ambient cross-fade TeleportActor just started.
+	if (bSilenceGlobalWind)
+	{
+		if (UAudioComponent* Wind = AmbientGlobalWind ? AmbientGlobalWind->GetAudioComponent() : nullptr)
+		{
+			Wind->Stop();
+		}
+		for (AAmbientSound* Ambient : { AmbientWaterfall, AmbientChord })
+		{
+			if (UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr)
+			{
+				AudioComp->AdjustVolume(0.0f, 1.0f);
+			}
+		}
+	}
+
+	if (BathroomStallDoor)
+	{
+		GetWorldTimerManager().ClearTimer(BathroomStallDoorUnlockTimerHandle);
+		UnlockBathroomStallDoor();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: SkipTransition -> %s at %s"),
+		*GetName(), *SkipToTarget->GetActorLabel(), *SkipToTarget->GetActorLocation().ToString());
 }
 
 void ATeleportTriggerBox::UnlockBathroomStallDoor()

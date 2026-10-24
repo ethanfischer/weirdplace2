@@ -1,4 +1,4 @@
-#include "KeypadUIActor.h"
+﻿#include "KeypadUIActor.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/TextRenderComponent.h"
 #include "Materials/MaterialInterface.h"
@@ -20,10 +20,9 @@ AKeypadUIActor::AKeypadUIActor()
 		PlaneMesh = PlaneMeshAsset.Object;
 	}
 
-	// Default solid-color material so the keypad renders without a BP override
-	// (BP_Keypad can still swap this for a nicer translucent panel).
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SolidColorAsset(TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
-	UMaterialInterface* DefaultPanelMat = SolidColorAsset.Succeeded() ? SolidColorAsset.Object : nullptr;
+	// Same translucent pane as the inventory strip and pause menu.
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> PanelAsset(TEXT("/Game/CreatedMaterials/M_ShadowGlass.M_ShadowGlass"));
+	UMaterialInterface* DefaultPanelMat = PanelAsset.Succeeded() ? PanelAsset.Object : nullptr;
 
 	BackgroundPanel = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BackgroundPanel"));
 	BackgroundPanel->SetupAttachment(RootSceneComponent);
@@ -133,6 +132,7 @@ void AKeypadUIActor::CreateCells()
 
 		const float CellPlane = CellSize * 1.05f;
 		CellMesh->SetRelativeScale3D(FVector(CellPlane * 0.01f, CellPlane * 0.01f, 1.0f));
+		CellMesh->SetVisibility(false); // digits only; the box read as a gray slab under eye adaptation
 
 		UMaterialInstanceDynamic* CellMat = BaseMat ? UMaterialInstanceDynamic::Create(BaseMat, this) : nullptr;
 		if (CellMat)
@@ -154,7 +154,7 @@ void AKeypadUIActor::CreateCells()
 		DigitText->SetRelativeLocation(TextPos);
 		DigitText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 		DigitText->SetWorldSize(CellSize * 0.6f);
-		DigitText->SetTextRenderColor(FColor::White);
+		DigitText->SetTextRenderColor(FColor(230, 219, 255));
 		DigitText->SetHorizontalAlignment(EHTA_Center);
 		DigitText->SetVerticalAlignment(EVRTA_TextCenter);
 		DigitText->SetText(FText::AsNumber(i + 1));
@@ -170,8 +170,8 @@ void AKeypadUIActor::CreateCells()
 		SelectionHighlight->RegisterComponent();
 		SelectionHighlight->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-		const float HighlightPlane = CellSize * 1.15f;
-		SelectionHighlight->SetRelativeScale3D(FVector(HighlightPlane * 0.01f, HighlightPlane * 0.01f, 1.0f));
+		// Underline: plane is 100x100, local X (after the pitch) is height, Y is width.
+		SelectionHighlight->SetRelativeScale3D(FVector(0.35f * 0.01f, CellSize * 0.6f * 0.01f, 1.0f));
 		SelectionHighlight->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
 
 		UMaterialInterface* HighlightBase = SelectionHighlightMaterial ? SelectionHighlightMaterial : ResolveSlotMaterial();
@@ -189,7 +189,6 @@ void AKeypadUIActor::CreateCells()
 	}
 
 	HoverAnimationProgress = 0.0f;
-	PulseTime = 0.0f;
 }
 
 void AKeypadUIActor::CreateFillSlots()
@@ -228,6 +227,7 @@ void AKeypadUIActor::CreateFillSlots()
 
 		const float SlotPlane = CellSize * 0.7f;
 		SlotMesh->SetRelativeScale3D(FVector(SlotPlane * 0.01f, SlotPlane * 0.01f, 1.0f));
+		SlotMesh->SetVisibility(false); // empty slots show "_" instead of a box
 
 		if (BaseMat)
 		{
@@ -250,10 +250,10 @@ void AKeypadUIActor::CreateFillSlots()
 		SlotText->SetRelativeLocation(TextPos);
 		SlotText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 		SlotText->SetWorldSize(CellSize * 0.5f);
-		SlotText->SetTextRenderColor(FColor::White);
+		SlotText->SetTextRenderColor(FColor(230, 219, 255));
 		SlotText->SetHorizontalAlignment(EHTA_Center);
 		SlotText->SetVerticalAlignment(EVRTA_TextCenter);
-		SlotText->SetText(FText::GetEmpty());
+		SlotText->SetText(FText::FromString(TEXT("_")));
 		FillSlotTexts.Add(SlotText);
 	}
 }
@@ -311,7 +311,7 @@ void AKeypadUIActor::SetEnteredCode(const FString& Code)
 		const bool bFilled = i < Code.Len();
 		if (UTextRenderComponent* Text = FillSlotTexts[i])
 		{
-			Text->SetText(bFilled ? FText::FromString(Code.Mid(i, 1)) : FText::GetEmpty());
+			Text->SetText(bFilled ? FText::FromString(Code.Mid(i, 1)) : FText::FromString(TEXT("_")));
 		}
 		if (FillSlotMeshes.IsValidIndex(i))
 		{
@@ -337,7 +337,7 @@ void AKeypadUIActor::SetOpacity(float Opacity)
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), AdjustedColor);
 	}
 
-	const FColor TextColor(255, 255, 255, FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255));
+	const FColor TextColor(230, 219, 255, FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255));
 	for (UTextRenderComponent* Text : DigitTexts)
 	{
 		if (Text) { Text->SetTextRenderColor(TextColor); }
@@ -354,8 +354,9 @@ void AKeypadUIActor::UpdateSelectionHighlight()
 	{
 		return;
 	}
+	// Just below the grown digit.
 	FVector Position = CalculateCellPosition(SelectedIndex);
-	Position.X += 0.5f; // Behind the cell
+	Position.Z -= CellSize * 0.6f * 1.12f * 0.5f + 0.6f;
 	SelectionHighlight->SetRelativeLocation(Position);
 	SelectionHighlight->SetVisibility(true);
 }
@@ -424,9 +425,6 @@ float AKeypadUIActor::GetGridHeight() const
 void AKeypadUIActor::UpdateHoverAnimation(float DeltaTime)
 {
 	HoverAnimationProgress = FMath::FInterpTo(HoverAnimationProgress, 1.0f, DeltaTime, HoverAnimationSpeed);
-	PulseTime += DeltaTime * SelectionPulseSpeed;
-
-	const float PulseValue = (FMath::Sin(PulseTime * 2.0f * PI) + 1.0f) * 0.5f;
 	const float CurrentScale = FMath::Lerp(1.0f, HoverScaleMultiplier, HoverAnimationProgress);
 
 	// Scale the selected cell up.
@@ -447,37 +445,8 @@ void AKeypadUIActor::UpdateHoverAnimation(float DeltaTime)
 		PreviousSelectedIndex = -1;
 	}
 
-	// Pulse the highlight (scale + emissive blink).
-	if (SelectionHighlight)
-	{
-		const float HighlightScale = HoverScaleMultiplier + PulseValue * SelectionPulseIntensity;
-		const float HighlightPlane = CellSize * HighlightScale;
-		SelectionHighlight->SetRelativeScale3D(FVector(HighlightPlane * 0.01f, HighlightPlane * 0.01f, 1.0f));
-	}
-	if (SelectionMaterial)
-	{
-		const float Glow = 0.4f + 0.6f * PulseValue;
-		const FLinearColor Pulsed = SelectionColor * Glow;
-		SelectionMaterial->SetVectorParameterValue(FName("Color"), Pulsed);
-		SelectionMaterial->SetVectorParameterValue(FName("BaseColor"), Pulsed);
-		SelectionMaterial->SetVectorParameterValue(FName("EmissiveColor"), Pulsed);
-	}
-
-	// Blink the selected cell itself (works when the slot material is emissive, e.g.
-	// a BP_Keypad override; the digit-text indicator below is the reliable fallback).
-	if (CellMaterials.IsValidIndex(SelectedIndex) && CellMaterials[SelectedIndex])
-	{
-		const float Glow = 0.55f + 0.45f * PulseValue;
-		const FLinearColor Pulsed = SelectionColor * Glow;
-		CellMaterials[SelectedIndex]->SetVectorParameterValue(FName("Color"), Pulsed);
-		CellMaterials[SelectedIndex]->SetVectorParameterValue(FName("BaseColor"), Pulsed);
-		CellMaterials[SelectedIndex]->SetVectorParameterValue(FName("EmissiveColor"), Pulsed);
-	}
-
-	// Primary active indicator: drive the digit text (which renders reliably via the
-	// unlit text material regardless of the panel material). The selected digit is
-	// bright and pulses larger; the others stay dim.
-	const float DigitGlow = 0.7f + 0.3f * PulseValue;
+	// Selected digit: green and a little larger; the others dim lavender. Static,
+	// the underline carries the focus.
 	const float BaseDigitSize = CellSize * 0.6f;
 	for (int32 i = 0; i < DigitTexts.Num(); i++)
 	{
@@ -488,8 +457,8 @@ void AKeypadUIActor::UpdateHoverAnimation(float DeltaTime)
 		}
 		if (i == SelectedIndex)
 		{
-			Text->SetTextRenderColor((SelectionColor * DigitGlow).ToFColor(true));
-			Text->SetWorldSize(BaseDigitSize * (1.12f + 0.18f * PulseValue));
+			Text->SetTextRenderColor(SelectionColor.ToFColor(true));
+			Text->SetWorldSize(BaseDigitSize * 1.12f);
 		}
 		else
 		{

@@ -119,12 +119,11 @@ void AOutsideBathroomDoor::Interact_Implementation()
 
 	if (!Inventory->HasItem(KeyToRemove))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - player does not have the key, playing locked sound"));
+		// No key: behave as the plain door — the locked rattle outside, the
+		// keypad on the inside (keypad-lock) bathroom door.
+		UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor - player does not have the key, falling through to Super"));
 		LockedSoundPlayCount++;
-		if (LockedDoorSound)
-		{
-			UGameplayStatics::PlaySound2D(this, LockedDoorSound);
-		}
+		Super::Interact_Implementation();
 		return;
 	}
 
@@ -395,15 +394,12 @@ void AOutsideBathroomDoor::SpawnBrokenKeyPickup()
 	}
 	else
 	{
-		UE_LOG(LogTemp, Error, TEXT("OutsideBathroomDoor - SenecaRef is NOT SET, cannot notify key drop"));
+		// Expected on the hallway keypad door: the second break has nobody to
+		// notify (Seneca already moved outside on the first one).
+		UE_LOG(LogTemp, Log, TEXT("OutsideBathroomDoor %s - no SenecaRef, key drop not forwarded"), *GetName());
 	}
 
 	UE_LOG(LogTemp, Warning, TEXT("OutsideBathroomDoor: Key break sequence complete"));
-}
-
-bool AOutsideBathroomDoor::IsAnimKeyGlowActive() const
-{
-	return AnimKeyMesh && AnimKeyMesh->GetOverlayMaterial() != nullptr;
 }
 
 void AOutsideBathroomDoor::PlayKeyInsertSound()
