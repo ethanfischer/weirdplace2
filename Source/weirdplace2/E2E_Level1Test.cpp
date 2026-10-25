@@ -3319,8 +3319,6 @@ bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
 	return true;
 }
 
-#endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
-
 // =======================================================================
 // MeatTenderizer — the stash exists behind a movie box; using the tenderizer
 // on a gas pump does nothing (clank, inventory stays open); using it on the
@@ -3402,3 +3400,5 @@ bool FE2E_Level1_CollectByClick::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
 }
+
+#endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
