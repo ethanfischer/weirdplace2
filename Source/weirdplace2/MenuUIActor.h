@@ -203,6 +203,10 @@ private:
 	UPROPERTY()
 	UMaterialInstanceDynamic* BackgroundMaterial;
 
+	// FocusUnderline's material; SetOpacity scales its color so the bar fades with the menu.
+	UPROPERTY()
+	UMaterialInstanceDynamic* FocusUnderlineMaterial;
+
 	// Settings page section headers
 	UPROPERTY()
 	UTextRenderComponent* ControllerHeaderText;

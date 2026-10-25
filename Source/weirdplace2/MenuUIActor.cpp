@@ -294,10 +294,10 @@ void AMenuUIActor::BeginPlay()
 		FocusUnderline->RegisterComponent();
 		FocusUnderline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		FocusUnderline->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
-		UMaterialInstanceDynamic* BarMID = UMaterialInstanceDynamic::Create(BarMat, this);
-		BarMID->SetVectorParameterValue(FName("Color"), FocusedValueColor);
-		BarMID->SetVectorParameterValue(FName("EmissiveColor"), FocusedValueColor);
-		FocusUnderline->SetMaterial(0, BarMID);
+		FocusUnderlineMaterial = UMaterialInstanceDynamic::Create(BarMat, this);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("Color"), FocusedValueColor);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("EmissiveColor"), FocusedValueColor);
+		FocusUnderline->SetMaterial(0, FocusUnderlineMaterial);
 		FocusUnderline->SetVisibility(false);
 	}
 	else
@@ -1140,6 +1140,15 @@ void AMenuUIActor::SetOpacity(float Opacity)
 		FLinearColor Adjusted = BackgroundColor;
 		Adjusted.A *= Opacity;
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), Adjusted);
+	}
+
+	// Scale the bar's color with the fade (the menu root is hidden once the
+	// close fade ends, so it never sits dark on screen).
+	if (FocusUnderlineMaterial)
+	{
+		const FLinearColor Faded = FocusedValueColor * Opacity;
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("Color"), Faded);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("EmissiveColor"), Faded);
 	}
 
 	const uint8 Alpha = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);

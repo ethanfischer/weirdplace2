@@ -150,7 +150,7 @@ void ATeleportTriggerBox::SkipTransition(AActor* Actor)
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: SkipTransition -> %s at %s"),
-		*GetName(), *SkipToTarget->GetActorLabel(), *SkipToTarget->GetActorLocation().ToString());
+		*GetName(), *SkipToTarget->GetActorNameOrLabel(), *SkipToTarget->GetActorLocation().ToString());
 }
 
 void ATeleportTriggerBox::UnlockBathroomStallDoor()
