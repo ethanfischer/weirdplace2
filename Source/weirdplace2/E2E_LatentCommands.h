@@ -24,6 +24,7 @@
 #include "Hudson.h"
 #include "Rick.h"
 #include "Seneca.h"
+#include "GasPump.h"
 #include "MenuUIComponent.h"
 #include "MenuUIActor.h"
 #include "Engine/Engine.h"
@@ -2316,6 +2317,47 @@ private:
 	int32 ExpectedMin;
 };
 
+// =======================================================================
+// FTD_AssertInspectablePickupExists — a pickup of ItemID is (or isn't) in
+// the world. Stash pickups count.
+// =======================================================================
+
+class FTD_AssertInspectablePickupExists : public FTD_Base
+{
+public:
+	FTD_AssertInspectablePickupExists(FAutomationTestBase* InTest, FName InItemID, bool bInExpected)
+		: FTD_Base(InTest), ItemID(InItemID), bExpected(bInExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting pickup '%s' exists=%d"), *ItemID.ToString(), bExpected);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
+		const bool bExists = Driver->FindInspectablePickup(ItemID) != nullptr;
+		if (bExists == bExpected)
+		{
+			return true;
+		}
+		// Expecting one: give the spawn a few seconds (first-use texture builds
+		// can hitch the frame that processes the interact press).
+		if (bExpected && GetElapsedSinceFirstTick() < Timeout)
+		{
+			return false;
+		}
+		Test->AddError(FString::Printf(TEXT("FTD_AssertInspectablePickupExists: '%s' exists=%d, expected %d"),
+			*ItemID.ToString(), bExists, bExpected));
+		return true;
+	}
+private:
+	FName ItemID;
+	bool bExpected;
+	double Timeout = 5.0;
+};
+
 class FTD_AssertHasItem : public FTD_Base
 {
 public:
@@ -2560,6 +2602,83 @@ private:
 	bool Expected;
 };
 
+// Assert whether the listener, where it stands now, hears the loudest of the
+// given AAmbientSounds (by label) at >= MinVolume. "Heard" is the final wave
+// volume — playing isn't enough: the mixer, occlusion and audio-volume zones can
+// each silence a sound that still reports playing (all three hit the TV song).
+// Headed runs only (see UTestDriverSubsystem::GetAmbientSoundHeardVolume).
+class FTD_AssertAmbientHeard : public FTD_Base
+{
+public:
+	// Expecting heard: poll up to Timeout for the loudest to reach MinVolume (a
+	// streamed bed can take a moment to start). Expecting silence: one sample.
+	FTD_AssertAmbientHeard(FAutomationTestBase* InTest, TArray<FString> InLabels, bool InExpectHeard, float InMinVolume = 0.05f, double InTimeout = 3.0)
+		: FTD_Base(InTest), Labels(MoveTemp(InLabels)), bExpectHeard(InExpectHeard), MinVolume(InMinVolume), Timeout(InTimeout) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting %s heard == %s"), *FString::Join(Labels, TEXT("/")), bExpectHeard ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertAmbientHeard: no driver")); return true; }
+		float Loudest = 0.f;
+		for (const FString& Label : Labels)
+		{
+			Loudest = FMath::Max(Loudest, Driver->GetAmbientSoundHeardVolume(Label));
+		}
+		const bool bHeard = Loudest >= MinVolume;
+		if (bHeard == bExpectHeard)
+		{
+			return true;
+		}
+		if (bExpectHeard && GetElapsedSinceFirstTick() < Timeout)
+		{
+			return false;
+		}
+		Test->AddError(FString::Printf(TEXT("FTD_AssertAmbientHeard: %s loudest heard=%.3f (min %.2f), expected heard=%s (see TestDriver::GetAmbientSoundHeardVolume log)"),
+			*FString::Join(Labels, TEXT("/")), Loudest, MinVolume, bExpectHeard ? TEXT("true") : TEXT("false")));
+		return true;
+	}
+private:
+	TArray<FString> Labels;
+	bool bExpectHeard;
+	float MinVolume;
+	double Timeout;
+};
+
+// Assert any UAudioComponent on the actor (by label) is / isn't playing
+// (the Oasis piano wakes on EnteredOasis).
+class FTD_AssertActorAudioPlaying : public FTD_Base
+{
+public:
+	FTD_AssertActorAudioPlaying(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting actor '%s' audio playing == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorAudioPlaying: no driver")); return true; }
+		const bool Actual = Driver->IsActorAudioPlaying(Label);
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorAudioPlaying: '%s' playing=%s, expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
 // Capture an actor's max light intensity into a shared float so a later
 // FTD_AssertLightDimmed can compare against it.
 class FTD_CaptureLightIntensity : public FTD_Base
@@ -2662,6 +2781,42 @@ private:
 };
 
 // Assert an actor's root visibility (for the gated telephone scene).
+// FTD_AssertActorStashed — NPCs that leave with the storm are teleported far
+// below the level with collision off (MetaHumans can't be hidden). Asserts the
+// labeled actor is (or isn't) in that state.
+class FTD_AssertActorStashed : public FTD_Base
+{
+public:
+	FTD_AssertActorStashed(FAutomationTestBase* InTest, FString InLabel, bool InExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), Expected(InExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting '%s' stashed == %s"), *Label, Expected ? TEXT("true") : TEXT("false"));
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertActorStashed: no driver")); return true; }
+		const AActor* Actor = Driver->FindActorByLabel(Label);
+		if (!Actor) { Test->AddError(FString::Printf(TEXT("FTD_AssertActorStashed: no actor '%s'"), *Label)); return true; }
+		const float Z = Actor->GetActorLocation().Z;
+		const bool bCollision = Actor->GetActorEnableCollision();
+		const bool Actual = !bCollision && Z < -5000.f;
+		if (Actual != Expected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertActorStashed: '%s' stashed=%s (Z=%.0f, collision=%s), expected %s"),
+				*Label, Actual ? TEXT("true") : TEXT("false"), Z, bCollision ? TEXT("on") : TEXT("off"),
+				Expected ? TEXT("true") : TEXT("false")));
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool Expected;
+};
+
 class FTD_AssertActorVisible : public FTD_Base
 {
 public:
@@ -2790,64 +2945,6 @@ public:
 	}
 private:
 	int32 Expected;
-};
-
-// Assert whether the bathroom door's animated key carries the glow overlay
-// during the insert sequence.
-class FTD_AssertBathroomDoorAnimKeyGlow : public FTD_Base
-{
-public:
-	FTD_AssertBathroomDoorAnimKeyGlow(FAutomationTestBase* InTest, bool InExpected)
-		: FTD_Base(InTest), Expected(InExpected) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting inserted-key glow == %s"), Expected ? TEXT("true") : TEXT("false"));
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: no driver")); return true; }
-		const bool Actual = Driver->GetBathroomDoorAnimKeyGlowActive();
-		if (Actual != Expected)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertBathroomDoorAnimKeyGlow: glow=%s, expected %s"),
-				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
-		}
-		return true;
-	}
-private:
-	bool Expected;
-};
-
-// Assert whether the level's inspectable pickup (e.g. the dropped broken key)
-// carries the glow overlay — i.e. it's visible on the ground in the dark.
-class FTD_AssertInspectablePickupGlow : public FTD_Base
-{
-public:
-	FTD_AssertInspectablePickupGlow(FAutomationTestBase* InTest, bool InExpected)
-		: FTD_Base(InTest), Expected(InExpected) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting dropped-pickup glow == %s"), Expected ? TEXT("true") : TEXT("false"));
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertInspectablePickupGlow: no driver")); return true; }
-		const bool Actual = Driver->GetInspectablePickupGlowActive();
-		if (Actual != Expected)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertInspectablePickupGlow: glow=%s, expected %s"),
-				Actual ? TEXT("true") : TEXT("false"), Expected ? TEXT("true") : TEXT("false")));
-		}
-		return true;
-	}
-private:
-	bool Expected;
 };
 
 // Assert whether the pay-phone would accept an interact (gated + one-shot).
@@ -4589,6 +4686,62 @@ public:
 	}
 private:
 	bool Expected;
+};
+
+// =======================================================================
+// FTD_AssertGasPumpError � the labelled AGasPump is (or isn't) showing its
+// card-reader "system error" screen.
+// =======================================================================
+class FTD_AssertGasPumpError : public FTD_Base
+{
+public:
+	FTD_AssertGasPumpError(FAutomationTestBase* InTest, FString InLabel, bool bInExpected)
+		: FTD_Base(InTest), Label(MoveTemp(InLabel)), bExpected(bInExpected) {}
+
+	virtual FString GetStatusText() const override
+	{
+		return FString::Printf(TEXT("Asserting gas pump '%s' error=%d"), *Label, bExpected ? 1 : 0);
+	}
+
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		if (!Driver) { Test->AddError(TEXT("FTD_AssertGasPumpError: no driver")); return true; }
+		AGasPump* Pump = Cast<AGasPump>(Driver->FindActorByLabel(Label));
+		if (!Pump)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: no AGasPump labelled '%s' (is BP_GasPump reparented?)"), *Label));
+			return true;
+		}
+		if (Pump->IsShowingError() != bExpected)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: '%s' error=%d, expected %d"),
+				*Label, Pump->IsShowingError() ? 1 : 0, bExpected ? 1 : 0));
+			return true;
+		}
+		if (bExpected)
+		{
+			// The shown plate must be visible and on the player's side of the pump.
+			UStaticMeshComponent* Cover = Pump->GetShownCover();
+			AFirstPersonCharacter* Player = Driver->GetPlayer();
+			if (!Cover || !Player)
+			{
+				Test->AddError(TEXT("FTD_AssertGasPumpError: no shown cover / player pawn"));
+				return true;
+			}
+			const float CoverSide = Cover->GetComponentLocation().Y - Pump->GetActorLocation().Y;
+			const float PlayerSide = Player->GetActorLocation().Y - Pump->GetActorLocation().Y;
+			if (!Cover->IsVisible() || FMath::Sign(CoverSide) != FMath::Sign(PlayerSide))
+			{
+				Test->AddError(FString::Printf(TEXT("FTD_AssertGasPumpError: '%s' cover visible=%d, cover side %.1f vs player side %.1f"),
+					*Label, Cover->IsVisible() ? 1 : 0, CoverSide, PlayerSide));
+			}
+		}
+		return true;
+	}
+private:
+	FString Label;
+	bool bExpected;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

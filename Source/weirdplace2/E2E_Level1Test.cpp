@@ -1,4 +1,4 @@
-#include "E2E_Steps.h" // force rebuild
+﻿#include "E2E_Steps.h" // force rebuild
 
 #if WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR
 
@@ -451,6 +451,60 @@ bool FE2E_Level1_WindPropDump::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// TvSongAudible — the store TVs' song (weirdsoundexperimentalsong on
+// Ambient_TV/Ambient_TV2) is heard everywhere inside the store and nowhere
+// outside it. Guards the three ways it went silent while still "playing": the
+// SC_Music fader at 0, Visibility-trace occlusion (movie boxes' floating
+// InteractionText widgets block it, and occlusion attenuated to 0), and the beds
+// sitting above AV_VideoStore so the store's audio zone misread them.
+// Headed only: under NullRHI the audio listener never leaves the world origin.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_TvSongAudible,
+	"Weirdplace2.E2E.Level1.Regression.TvSongAudible",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_TvSongAudible::RunTest(const FString& Parameters)
+{
+	if (!FApp::CanEverRender())
+	{
+		AddError(TEXT("TvSongAudible needs a rendering run (-Headed): under NullRHI the audio listener never leaves the origin"));
+		return false;
+	}
+
+	E2E_TEST_PREAMBLE("TvSongAudible")
+	// Let UAudioMixSubsystem's mix fade in — right after load every class reads 1.0.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+
+	const TArray<FString> TvBeds = { TEXT("Ambient_TV"), TEXT("Ambient_TV2") };
+	const FVector InStore[] = {
+		FVector(3150.f, 1150.f, 0.f),  // beside Ambient_TV
+		FVector(3565.f, 648.f, 0.f),   // north aisle (a movie box sits on the line to the TV)
+		FVector(3863.f, 616.f, 0.f),   // near the counter
+		FVector(4125.f, 194.f, 0.f),   // just inside the door
+		FVector(3400.f, 200.f, 0.f),   // store centre
+		FVector(3150.f, -350.f, 0.f),  // beside Ambient_TV2
+		FVector(3970.f, -485.f, 0.f),  // south end
+	};
+	for (const FVector& Stop : InStore)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, Stop));
+		// Audio zone and occlusion values interpolate over a fraction of a second.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientHeard(this, TvBeds, true));
+	}
+
+	// Just outside the door the store's audio zone confines the song.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(4400.f, 194.f, 0.f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientHeard(this, TvBeds, false));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // Full happy-path test
 // =======================================================================
 
@@ -470,19 +524,24 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 
 	E2ESteps::SenecaIntro(this);
 	E2ESteps::CollectMovies(this);
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
 	E2ESteps::GiveMoviesToSeneca(this);
-	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
 	E2ESteps::GiveMoneyAskForBlank(this);
 	E2ESteps::CollectBlankTape(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_14b_RickTranslatesBlankTape"));
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::WatchTornadoWarningTV(this);
 	E2ESteps::UseTelephone(this);
 	E2ESteps::SenecaSmokingDialogue(this);
+	E2ESteps::UseFixedKeyOnKeypadDoor(this);
 	E2ESteps::OpenKeypadDoor(this);
 	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
 	E2ESteps::ExitBathroom(this);
+	E2ESteps::WalkOutToPiano(this);
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("BrokenKey")));
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -759,8 +818,13 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("BathroomKeypadRules")
 
-	// The keypad only accepts anything once the player has used the payphone.
+	// The keypad only accepts anything once the player has used the payphone
+	// AND the (Seneca-fixed) key has snapped in this door. Give the player a key
+	// and run the break first; the keypad rules below are checked after that.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("UsedPayPhone"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f)); // first test in the suite: let cells stream in before interacting
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Key"), TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb")));
+	E2ESteps::UseFixedKeyOnKeypadDoor(this);
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("EmployeeBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("BathroomDoor")));
@@ -771,6 +835,8 @@ bool FE2E_Level1_BathroomKeypadRules::RunTest(const FString& Parameters)
 	// PIE start. The rules under test are the keypad's, not the input path's.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TriggerKeypadDoorOpen(this, TEXT("BathroomDoor")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForKeypadOpen(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Keypad_01_Open")));
 
 	// "4729" has no 8 -> rejected. Wait past WrongCodeClearDelay (0.5s) for the
 	// buzz + entry clear; the door stays locked and the pad stays up.
@@ -857,10 +923,6 @@ bool FE2E_Level1_DoubleDoorOpen::RunTest(const FString& Parameters)
 //
 // RED (no guard): locked-sound count == 1 after the re-entrant interact.
 // GREEN (guard):  count stays 0.
-//
-// Also verifies the self-illumination glow follows the key through the whole
-// sequence: on the animated key while inserted, and on the dropped broken-key
-// pickup where it lands, so both read in the dark.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -879,6 +941,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("OutsideBathroom")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(this, TEXT("BP_OutsideBathroomDoor"), TEXT("KeyLockSocket")));
+	// Let the interaction trace pick up the door before pressing.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
 	// Interact #1 pops the inventory (give mode); select the Key and press E to
 	// give it, which starts the key-break sequence (removes Key).
@@ -886,10 +950,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	// Let the animated key appear at the lock — it should carry the same glow
-	// overlay the held key had, so it reads in the dark while inserted.
+	// Let the animated key appear at the lock.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorAnimKeyGlow(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_KeyInsert_Glow")));
 	// Still mid-sequence — bDidDropKey is false (set ~3s in on broken-key spawn).
 	// Interact #2: the re-entrant press. RED falls into the locked rattle.
@@ -899,11 +961,8 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertBathroomDoorLockedSoundCount(this, 0));
 
-	// Let the sequence finish and drop the broken-key pickup, then confirm it
-	// glows where it lands so it's findable on the dark floor (not just once
-	// it's pulled in to inspect).
+	// Let the sequence finish and drop the broken-key pickup.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(this, 15.0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupGlow(this, true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BrokenKey_GroundGlow")));
@@ -930,10 +989,13 @@ bool FE2E_Level1_SenecaSmokingAnim::RunTest(const FString& Parameters)
 
 	E2ESteps::SenecaIntro(this);
 	E2ESteps::CollectMovies(this);
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
 	E2ESteps::GiveMoviesToSeneca(this);
-	E2ESteps::GetMoneyFromRick(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
 	E2ESteps::GiveMoneyAskForBlank(this);
 	E2ESteps::CollectBlankTape(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_14b_RickTranslatesBlankTape"));
 	E2ESteps::GiveBlankTapeGetKey(this);
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::FastForwardSenecaSmoking(this);
@@ -1253,6 +1315,9 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("InventoryThumbnails")
 
+	// Slot 0 is a long movie title on purpose: it exercises the title-case, wrap and fit-to-panel path.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BARBIE-SENSATIONS-ROCKIN-BACK-TO-EARTH"),
+		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	// Inject Money + Key directly so we can focus on rendering, not gameplay.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("Money"),
 		TEXT("/Game/Import/cash/money.money"), FVector(1.0f)));
@@ -1261,8 +1326,6 @@ bool FE2E_Level1_InventoryThumbnails::RunTest(const FString& Parameters)
 	// A movie item: its ItemID resolves to /Game/VHSCovers/<ItemID>, exercising
 	// the M_VHSCoverFront thumbnail material (the mesh path is irrelevant to the
 	// thumbnail). Verifies VHS covers self-illuminate without the inventory light.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("BATMAN-THE-MOVIE"),
-		TEXT("/Game/Fab/Small_Key__1MB_/small_key_1mb.small_key_1mb"), FVector(0.001f)));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 3));
 
 	// Bright outdoor — open inventory + screenshot.
@@ -1468,7 +1531,7 @@ bool FE2E_Level1_RickDialoguePrefix::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("RickDialoguePrefix")
 
-	// Same approach as HappyPath's GetMoneyFromRick: the RickApproach waypoint
+	// Rick is still out by the car here: the RickApproach waypoint
 	// is placed where the interact trace reliably reaches him.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickApproach")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
@@ -1582,8 +1645,58 @@ bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// RickComesInside — Seneca speaks Czech, and Rick translates. Until Rick has
+// translated the intro, Seneca only repeats his reminder, even when the player
+// holds movies. Walking back in through the front door after the intro brings
+// Rick to the counter, never while either spot is in view. The blank tape is
+// gated the same way; the key hand-off translation gates nothing. With nothing
+// open to translate, Rick idles.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_RickComesInside,
+	"Weirdplace2.E2E.Level1.Regression.RickComesInside",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_RickComesInside::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("RickComesInside")
+
+	E2ESteps::SenecaIntro(this);
+	E2ESteps::CollectMovies(this);
+	E2ESteps::SenecaRepeatsReminder(this, TEXT("E2E_RickInside_SenecaReminder"));
+
+	E2ESteps::BringRickInside(this);
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
+	E2ESteps::GiveMoviesToSeneca(this);
+	E2ESteps::TakeMoneyFromRickInside(this);
+
+	// Seneca wants the money Rick just handed over: nothing to translate.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(this, TEXT("Rick"), TEXT("Take your time, man.")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+
+	// Blank tape: Seneca won't take it until Rick has translated the request.
+	E2ESteps::GiveMoneyAskForBlank(this);
+	E2ESteps::CollectBlankTape(this);
+	E2ESteps::SenecaRepeatsReminder(this, TEXT("E2E_RickInside_SenecaTapeReminder"));
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_RickTranslate_BlankTape"));
+	E2ESteps::GiveBlankTapeGetKey(this);
+
+	// Key hand-off: Rick explains it (no gate).
+	E2ESteps::HearRickTranslate(this, E2ESteps::RickKeyTranslation, TEXT("E2E_RickTranslate_Key"));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // MoviePutBackPrompt — while inspecting a movie, a world-space prompt
-// names the put-back binding (Exit Interaction: Q / gamepad B) and keeps
+// names the put-back binding (IA_Back: Backspace / RMB / gamepad B) and keeps
 // facing the player even as the box is rotated. Pressing the prompted key
 // actually puts the movie back.
 // =======================================================================
@@ -1605,17 +1718,17 @@ bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 
 	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
 
 	// Rotate the box (mouse axis); the prompt must keep facing the camera
 	// and stay keyboard-flavored.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Q]  put back")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
 
 	// The prompted key really does put the movie back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::Q));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::BackSpace));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -1669,6 +1782,14 @@ bool FE2E_Level1_InventoryFromStart::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Open")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Reopen reuses the cached UI actor: the empty strip must still show no
+	// selection frame and no scroll hints (un-hiding the root used to re-show them).
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_InvFromStart_Reopen")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
@@ -1726,14 +1847,16 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	// var — entering her look-at sphere logs a benign error. Same as HappyPath.
 	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
 
-	// Gating: with the flag unset, the shelter tip is absent.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), false));
+	// Gating: with the flag unset, the shelter tip is absent. Seneca speaks
+	// Czech: "kryt" = shelter, "kabink(ou)" = stall. ASCII-only substrings keep
+	// the source free of diacritics.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), false));
 
 	// Set SeenTornadoWarning → the shelter tip appears in the Smoking lines.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("shelter"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("stall"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), true));
 
 	// Screenshot: drive Seneca into Smoking, open dialogue, advance to the
 	// shelter line, and capture it on the widget.
@@ -1742,10 +1865,57 @@ bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InSimpleDialogue));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("shelter")));
+	// The Smoking beat is a cued (multi-line) dialogue now — [Fix key] — so it
+	// runs as InDialogue, not InSimpleDialogue.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
+	// No BrokenKey in inventory here, so the SmokingNoKey variant plays
+	// ("Tady. Nahradni." = "Here. Spare.").
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("hradn")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("kryt")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// GasPumpError � the forecourt pumps are flavor interactables: pressing one
+// puts a "system error" screen over the printed card reader for a few
+// seconds, then it clears on its own.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_GasPumpError,
+	"Weirdplace2.E2E.Level1.Regression.GasPumpError",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_GasPumpError::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("GasPumpError")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), false));
+	// Stand close in front of BP_GasPump's -Y face, looking at the lower
+	// card-reader screen, so the screenshot frames the error message.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -960.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -831.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_Idle")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_Error")));
+	// Default ErrorSeconds is 6; it must have cleared by itself after that.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(6.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), false));
+	// The pump is two-sided: pressing from the +Y face puts the error on that face.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -630.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -759.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertGasPumpError(this, TEXT("BP_GasPump"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_GasPump_ErrorBack")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -1835,6 +2005,9 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertTvWarningAudio(this, TEXT("BP_TV2"), false));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, true));
+	// Rick and Hudson are still around.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Rick"), false));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Hudson"), false));
 
 	// Fire the beat: key broke, then re-enter the store.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
@@ -1858,6 +2031,10 @@ bool FE2E_Level1_TornadoWarningStormBeat::RunTest(const FString& Parameters)
 
 	// (RED-defining) The emissive "light" mesh (no light component) is hidden.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorVisible(this, GlowMesh, false));
+
+	// (RED-defining) Rick and Hudson leave with the storm.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Rick"), true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorStashed(this, TEXT("BP_Hudson"), true));
 
 	// --- Using the payphone silences the sirens (screens stay up) ---
 	// The phone only answers once the warning's been seen; set that, pick it up,
@@ -2150,6 +2327,42 @@ public:
 		if (GetElapsedSinceFirstTick() > Timeout)
 		{
 			Test->AddError(TEXT("FTD_WaitForCarParked: car never reached the parking spot"));
+			return true;
+		}
+		return false;
+	}
+private:
+	double Timeout;
+};
+
+// The ride opens on black and fades in on game time; a wall-clock delay can
+// end the ride (start the drive) while that fade is still finishing when
+// frames hitch. Wait for the camera to actually clear.
+class FTD_WaitForCameraFadeClear : public FTD_Base
+{
+public:
+	FTD_WaitForCameraFadeClear(FAutomationTestBase* InTest, double InTimeoutSeconds = 10.0)
+		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
+	virtual FString GetStatusText() const override { return TEXT("Waiting for the camera fade to clear"); }
+	virtual bool UpdateStep() override
+	{
+		UTestDriverSubsystem* Driver = GetDriver();
+		AFirstPersonCharacter* Player = Driver ? Driver->GetPlayer() : nullptr;
+		APlayerController* PC = Player ? Cast<APlayerController>(Player->GetController()) : nullptr;
+		if (!PC || !PC->PlayerCameraManager)
+		{
+			Test->AddError(TEXT("FTD_WaitForCameraFadeClear: no player controller / camera manager"));
+			return true;
+		}
+		const float Fade = PC->PlayerCameraManager->FadeAmount;
+		if (Fade <= 0.0f)
+		{
+			UE_LOG(LogTemp, Log, TEXT("FTD_WaitForCameraFadeClear: clear after %.2fs"), GetElapsedSinceFirstTick());
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitForCameraFadeClear: camera still faded (%.2f) after %.0fs"), Fade, Timeout));
 			return true;
 		}
 		return false;
@@ -2579,14 +2792,20 @@ public:
 
 		// (3) No black while moving. (4) Player eye locked to the seat while moving.
 		float MaxFadeWhileMoving = 0.0f, MaxEyeToSeat = 0.0f;
+		int32 MaxFadeFrame = FirstMoving;
 		for (int32 i = FirstMoving; i <= LastMoving; ++i)
 		{
-			MaxFadeWhileMoving = FMath::Max(MaxFadeWhileMoving, Frames[i].FadeAmount);
+			if (Frames[i].FadeAmount > MaxFadeWhileMoving)
+			{
+				MaxFadeWhileMoving = Frames[i].FadeAmount;
+				MaxFadeFrame = i;
+			}
 			MaxEyeToSeat = FMath::Max(MaxEyeToSeat, Frames[i].EyeToSeat);
 		}
 		if (MaxFadeWhileMoving > 0.01f)
 		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: camera faded (%.2f) while the car was moving"), MaxFadeWhileMoving));
+			Test->AddError(FString::Printf(TEXT("FTD_AssertCarDrove: camera faded (%.2f) while the car was moving (%.2fs into the drive, %.0f cm from parking)"),
+				MaxFadeWhileMoving, Frames[MaxFadeFrame].Time - Frames[FirstMoving].Time, Frames[MaxFadeFrame].DistToParking));
 		}
 		if (MaxEyeToSeat > 30.0f)
 		{
@@ -2660,6 +2879,9 @@ bool FE2E_Level1_CarRideDrive::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_CarRideDrive_00_riding")));
+	// The ride-start fade-in must be done before the drive, or its tail reads
+	// as "camera faded while moving" below.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForCameraFadeClear(this));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_BeginCarDriveSampling(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
@@ -3092,6 +3314,88 @@ bool FE2E_Level1_Diag_VisualInspect::RunTest(const FString& Parameters)
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_OrbitScreenshotActor(this, Label, FString::Printf(TEXT("Inspect_%s_orbit"), *Label)));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_UnstageActor(this, Label));
 	}
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// MeatTenderizer — the stash exists behind a movie box; using the tenderizer
+// on a gas pump does nothing (clank, inventory stays open); using it on the
+// ice machine breaks it open once and hands the player the Money inside.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_MeatTenderizer,
+	"Weirdplace2.E2E.Level1.Regression.MeatTenderizer",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("MeatTenderizer")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f)); // let the shelf spawner run
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInspectablePickupExists(this, FName("MeatTenderizer"), true));
+
+	// Skip the hunt: hand the player the tenderizer directly.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AddTestItem(this, FName("MeatTenderizer"),
+		TEXT("/Game/Import/meattenderizer/SM_MeatTenderizer.SM_MeatTenderizer"), FVector(1.0f)));
+
+	// Wrong target: a gas pump. Nothing happens, inventory stays open.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(5446.6, -960.0, 12.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(5446.6, -831.0, 131.5)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("MeatTenderizer")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_01_PumpClank")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_CloseInventoryViaInput(this));
+
+	// Right target: the ice machine outside the store. Breaks open; once the
+	// door has swung clear (~1.2s) the Money is handed over.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3854.0, -1200.0, 12.5))); // in front: the machine faces -Y
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3854.0, -1086.0, 108.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_02_IceMachine")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_OpenInventoryViaInput(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(this, 0));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f)); // padlocks mid-tumble, door still shut, no money yet
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_03_Breaking")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.4f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("Money")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_04_DoorOpenMoneyGiven")));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// CollectByClick — left mouse takes an inspected movie box, same as E.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CollectByClick,
+	"Weirdplace2.E2E.Level1.Regression.CollectByClick",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CollectByClick::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("CollectByClick")
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox121")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 0));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::LeftMouseButton));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

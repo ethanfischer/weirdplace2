@@ -25,6 +25,7 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
 
 public:
 	// Start the car ride dialogue on the player character
@@ -45,6 +46,14 @@ public:
 
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
+
+	// Move Rick to InsidePositionTarget. Normally deferred via Tick until neither
+	// his current spot nor the counter spot is in view (the move must never be
+	// seen); tests may call directly.
+	void TeleportInside();
+
+	// True once Rick stands at InsidePositionTarget.
+	bool IsInside() const { return bInside; }
 
 	// Where AppearOutside parks the car (OutsidePositionTarget + CarActorOffset,
 	// facing OutsidePositionTarget). Returns false if the target is unassigned.
@@ -118,6 +127,25 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Rick|Outside")
 	FString GivesMoneySection = TEXT("RickGivesMoney");
 
+	// Where Rick stands once he's come into the store (assign on the level instance).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rick|Inside")
+	AActor* InsidePositionTarget;
+
+	// Inside, Rick translates whichever Czech request Seneca has open. Hearing
+	// the intro or blank-tape translation lets Seneca take the movies / tape.
+	UPROPERTY(EditAnywhere, Category = "Rick|Inside")
+	FString IntroTranslationSection = TEXT("RickTranslateIntro");
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Inside")
+	FString BlankTapeTranslationSection = TEXT("RickTranslateBlankTape");
+
+	UPROPERTY(EditAnywhere, Category = "Rick|Inside")
+	FString KeyTranslationSection = TEXT("RickTranslateKey");
+
+	// Inside idle line whenever there's nothing to translate.
+	UPROPERTY(EditAnywhere, Category = "Rick|Inside")
+	FString InsideIdleSection = TEXT("RickInsideIdle");
+
 private:
 	// Parsed sectioned dialogue file (DialogueFilePath)
 	FDialogueScript DialogueScript;
@@ -127,9 +155,28 @@ private:
 
 	TArray<FText> OutsideIdleLines;
 	TArray<FSimpleDialogueLine> GivesMoneyLines;
+	TArray<FText> IntroTranslationLines;
+	TArray<FText> BlankTapeTranslationLines;
+	TArray<FText> KeyTranslationLines;
+	TArray<FText> InsideIdleLines;
 
 	bool bGaveMoney = false;
 	bool bMoneyBeatArmed = false;
+
+	// The player walked back into the store after Seneca's intro -> Rick goes
+	// inside as soon as neither spot is in view (Tick). bInside flips when the
+	// move has happened.
+	bool bPendingTeleportInside = false;
+	bool bInside = false;
+
+	// A translation is the dialogue playing (OnDialogueEnded tells Seneca).
+	bool bTranslationActive = false;
+
+	// Lines translating Seneca's open request, or null when he has none.
+	const TArray<FText>* GetSenecaTranslation() const;
+
+	// UStorySubsystem::OnPlayerEnteredStore handler.
+	void OnPlayerEnteredStore();
 
 	// Storm stash state (StashForStorm / ReturnFromStorm).
 	bool bStashedForStorm = false;

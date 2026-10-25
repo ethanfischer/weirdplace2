@@ -92,7 +92,7 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 		EStoryFlag Target;
 		if (!UStorySubsystem::ResolveBeat(BeatName, Target))
 		{
-			Show(FString::Printf(TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone | Car<Stage>"), *BeatName));
+			Show(FString::Printf(TEXT("SkipTo - unknown beat '%s'. Try: KeyBroke | TornadoWarning | Telephone | Oasis | Car<Stage>"), *BeatName));
 			return;
 		}
 		Canonical = UStorySubsystem::GetBeatDisplayName(Target);

@@ -58,8 +58,8 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
 
 		// Give-mode: interacting with Seneca pops the inventory; select the movie
-		// slot and press E to hand it over. Slots are persistent (OoT-style): movie
-		// i stays at slot i even after earlier movies are given.
+		// slot and press E to hand it over. The inventory compacts, so the next
+		// movie is always at slot 0.
 		for (int32 i = 0; i < 3; ++i)
 		{
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
@@ -68,7 +68,7 @@ namespace E2ESteps
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));                 // wait for open animation
 			if (i == 0)
 				ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_06_InventoryOpenMovie1")));
-			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, i));  // select movie slot
+			ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));  // select movie slot
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E confirms the give
 			ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
 			// Wait out the 1-second dialogue cooldown before the next Seneca interaction.
@@ -77,9 +77,65 @@ namespace E2ESteps
 		}
 	}
 
-	void GetMoneyFromRick(FAutomationTestBase* T)
+	// Seneca's intro has played. Step out to the street, then back in through
+	// the front door (TriggerBox_Outside, then TriggerBox_Inside). Rick moves to
+	// the counter only once neither his car spot nor the counter is in view.
+	void BringRickInside(FAutomationTestBase* T)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickApproach")));
+		// From the street he's still out by the car.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorOutside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 2000.f, 100000.f));
+		// Step in looking at the counter: it's in view, so he waits.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorInside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("RickInsidePosition")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 2000.f, 100000.f));
+		// Look toward the side wall, away from both spots: now he's at the counter.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(T, FVector(4125.f, -600.f, 150.f)));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 0.f, 1500.f));
+	}
+
+	// First line of each of Rick's translations (Content/Dialogue/Rick.txt).
+	const TCHAR* const RickIntroTranslation = TEXT("Hey");
+	const TCHAR* const RickBlankTapeTranslation = TEXT("He needs a blank tape to dub your movies onto.");
+	const TCHAR* const RickKeyTranslation = TEXT("He says the dubbing's gonna take a while. Find him later.");
+
+	// Rick at the counter translates Seneca's open request, starting with
+	// FirstLine. Finishing it may unlock Seneca's next step.
+	void HearRickTranslate(FAutomationTestBase* T, const TCHAR* FirstLine, const TCHAR* ScreenshotName)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickInsideApproach")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::InSimpleDialogue));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDialogueLine(T, TEXT("Rick"), FirstLine));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(ScreenshotName));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		// Wait out the 1-second dialogue cooldown before the next interaction.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	}
+
+	// Seneca still needs Rick's translation: talking to him (even holding the
+	// item he asked for) only replays his reminder instead of opening the give menu.
+	void SenecaRepeatsReminder(FAutomationTestBase* T, const TCHAR* ScreenshotName)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaApproach")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::InSimpleDialogue));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(ScreenshotName));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f));
+	}
+
+	// Rick is already in the store: walk up to him and take the cash.
+	void TakeMoneyFromRickInside(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("RickInsideApproach")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtRick(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
@@ -211,17 +267,47 @@ namespace E2ESteps
 
 	void SenecaSmokingDialogue(FAutomationTestBase* T)
 	{
-		// The broken-key beat hides Seneca and schedules her to reappear at the
-		// smoking spot after a 30s delay. Skip that wait so the test isn't gated
-		// on real time (FTD_WaitForSenecaAppearedAtSmoking only allows a few
-		// seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
+		// The broken-key beat hides Seneca and schedules a reappearance at the
+		// smoking spot behind the telephone pole after a delay, gated on
+		// HungUpPhone (set by UseTelephone above). Skip the delay so the test
+		// isn't gated on real time (FTD_WaitForSenecaAppearedAtSmoking only allows
+		// a few seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		// The [Fix key] cue swaps the carried BrokenKey for a fresh Key (item
+		// notification), then the rest of the lines play out.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilItemNotification(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17b_SenecaFixedKey")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(T, FName("Key")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("BrokenKey")));
+	}
+
+	void UseFixedKeyOnKeypadDoor(FAutomationTestBase* T)
+	{
+		// Seneca's "fixed" key snaps again in the hallway keypad door (a
+		// keypad door that also runs the key-break sequence). Same beat as
+		// UseKeyOnDoor: give the key, wait for the broken half to drop, collect it.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("EmployeeBathroom")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorComponentByName(T, TEXT("BathroomDoor"), TEXT("KeyLockSocket")));
+		// Seneca's dialogue just ended; outlast the 1s post-dialogue interact cooldown.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // door pops the inventory (give mode)
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.6f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SelectAndConfirmSlot(T, 0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));   // E gives the key -> break sequence
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForInspectablePickupSpawned(T, 15.0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("Key")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_18_InsideKeyBroke")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(T, EPlayerActivityState::Interacting));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_CollectInspectedPickup(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForItemAdded(T, FName("BrokenKey"), 5.0));
 	}
 	
 	void UseTelephone(FAutomationTestBase* T)
@@ -288,8 +374,11 @@ namespace E2ESteps
 	void EnterStall(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("ApproachStall")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), false));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("Teleporter"), 2.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
+		// The stall teleport sets EnteredOasis, which wakes the piano's music.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), true));
 	}
 
 	void ExitBathroom(FAutomationTestBase* T)
@@ -300,6 +389,27 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("BathroomDoor2")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWaypoint(T, TEXT("OasisCenter")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_21_Done")));
+	}
+
+	// Down the Oasis hallway, out through the end door (a real walk, so the
+	// doorway cut in the hallway mesh is exercised), then across to the piano.
+	void WalkOutToPiano(FAutomationTestBase* T)
+	{
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("OasisHallwayEnd"), 2.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("OasisHallwayEndDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForDoorOpen(T, TEXT("OasisHallwayEndDoor")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_22_HallwayEndDoorOpen")));
+		// Walk forward through the opening with collision on. Blocked = still
+		// pressed against the door (~1m); through = well past it.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(T, FVector2D(1.f, 0.f), 2.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("OasisHallwayEndDoor"), 500.f, 3000.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_23_OutsideHallway")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("PianoApproach"), 4.0f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(T, TEXT("Piano")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("Piano"), 100.f, 600.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), true));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_24_AtPiano")));
 	}
 
 } // namespace E2ESteps

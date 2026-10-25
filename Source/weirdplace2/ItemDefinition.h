@@ -36,6 +36,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Pose")
 	FRotator InspectionRotation = FRotator::ZeroRotator;
 
+	// Played at the target when this item is used on something that doesn't
+	// react (IInteractable::UseItem returned false). None = silent.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Item|Use")
+	USoundBase* UseFailSound = nullptr;
+
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	FInventoryItemData ToInventoryItemData() const;
 };

@@ -1,6 +1,7 @@
-#include "Hudson.h"
+﻿#include "Hudson.h"
 #include "FirstPersonCharacter.h"
 #include "Inventory.h"
+#include "ItemDefinition.h"
 #include "InventoryUIComponent.h"
 #include "UI_Dialogue.h"
 #include "Components/WidgetComponent.h"
@@ -35,12 +36,17 @@ void AHudson::BeginPlay()
 	DialogueScript.Load(DialogueFilePath);
 	LoadDialogue(IdleSection, IdleLines);
 	LoadDialogue(BegSection, BegLines);
-	LoadDialogue(ThankYouSection, ThankYouLines);
+	LoadDialogue(ThankYouSection, ThankYouLines, &RewardLineIndex);
+	if (RewardDef && RewardLineIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Hudson - section %s has no [cue] line; the reward will be given when the dialogue ends"), *ThankYouSection);
+	}
 }
 
-void AHudson::LoadDialogue(const FString& SectionName, TArray<FText>& OutLines)
+void AHudson::LoadDialogue(const FString& SectionName, TArray<FText>& OutLines, int32* OutCueLine)
 {
 	OutLines.Empty();
+	if (OutCueLine) { *OutCueLine = INDEX_NONE; }
 	const TArray<FDialogueLine>* Section = DialogueScript.FindSection(SectionName);
 	if (!Section)
 	{
@@ -49,6 +55,10 @@ void AHudson::LoadDialogue(const FString& SectionName, TArray<FText>& OutLines)
 	for (const FDialogueLine& Line : *Section)
 	{
 		OutLines.Add(FText::FromString(Line.Text));
+		if (OutCueLine && !Line.Tag.IsEmpty())
+		{
+			*OutCueLine = OutLines.Num() - 1;
+		}
 	}
 	UE_LOG(LogTemp, Log, TEXT("Hudson - Loaded %d lines from section %s"), OutLines.Num(), *SectionName);
 }
@@ -117,19 +127,72 @@ bool AHudson::OnMoneyOffered(FName ItemID)
 	}
 
 	// Consume + thank the player; ConfirmGiveSelection closes the UI on accept.
+	// The reward lands on the thank-you line that carries the [cue].
 	Inventory->RemoveItem(FName("Money"));
 	CurrentState = EHudsonState::GaveMoney;
 	bLastDialogueWasBeg = false;
+	if (RewardDef && RewardLineIndex != INDEX_NONE)
+	{
+		FPChar->OnDialogueLineShown.AddUniqueDynamic(this, &AHudson::OnThankYouLineShown);
+	}
 	FPChar->StartSimpleDialogue(FText::FromString(TEXT("Hudson")), ThankYouLines, this);
 	return true;
 }
 
+void AHudson::OnThankYouLineShown(int32 LineIndex)
+{
+	if (LineIndex != RewardLineIndex || bGaveReward)
+	{
+		return;
+	}
+	AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+	if (!FPChar)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Hudson::OnThankYouLineShown - no FPChar"));
+		return;
+	}
+	FPChar->OnDialogueLineShown.RemoveDynamic(this, &AHudson::OnThankYouLineShown);
+	GiveReward(FPChar);
+}
+
+void AHudson::GiveReward(AFirstPersonCharacter* FPChar)
+{
+	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
+	if (!Inventory || !RewardDef)
+	{
+		return;
+	}
+	const FInventoryItemData ItemData = RewardDef->ToInventoryItemData();
+	Inventory->AddItemWithData(ItemData);
+	FPChar->ShowItemNotification(ItemData, RewardDef->NotificationRotation);
+	bGaveReward = true;
+	UE_LOG(LogTemp, Log, TEXT("Hudson - gave %s for the money"), *RewardDef->ItemID.ToString());
+}
+
 void AHudson::OnDialogueEnded()
 {
+	if (CurrentState == EHudsonState::GaveMoney && RewardDef && !bGaveReward)
+	{
+		// The cue line never showed (no cue in the file, or dialogue cut short):
+		// still pay the player back so the chain can't stall.
+		AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(GetWorld(), 0));
+		if (FPChar)
+		{
+			FPChar->OnDialogueLineShown.RemoveDynamic(this, &AHudson::OnThankYouLineShown);
+		}
+		GiveReward(FPChar);
+	}
 	if (CurrentState == EHudsonState::Idle && bLastDialogueWasBeg)
 	{
 		CurrentState = EHudsonState::AwaitingDecision;
 		bLastDialogueWasBeg = false;
 		UE_LOG(LogTemp, Log, TEXT("Hudson - State -> AwaitingDecision"));
 	}
+}
+
+void AHudson::StashForStorm()
+{
+	SetActorEnableCollision(false);
+	SetActorLocation(GetActorLocation() - FVector(0.f, 0.f, 10000.f));
+	UE_LOG(LogTemp, Log, TEXT("Hudson: left with the storm (teleported below level, collision off)"));
 }

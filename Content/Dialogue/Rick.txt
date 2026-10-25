@@ -1,7 +1,7 @@
 # Rick's dialogue. Default speaker: Rick. Lint: python scripts/dq.py lint
 
 == CarRide ==
-[Pause 85]
+[Pause 25]
 Rick: Hey man, how've you been?
 Rick: ...
 Rick: Nice
@@ -38,3 +38,25 @@ Rick: You need cash?
 Rick: No worries, man. I got you
 [Gives Cash]
 Rick: You can get me back next time
+
+# Inside the store, Rick translates Seneca's open Czech request, as often as
+# asked. Hearing the intro / blank-tape translation lets Seneca take the
+# movies / the tape. The key translation doesn't gate anything.
+== RickTranslateIntro ==
+Rick: Hey
+Rick: He says you need to rent some videos before you can use the bathroom.
+Rick: Three of them.
+
+== RickTranslateBlankTape ==
+Rick: He needs a blank tape to dub your movies onto.
+Rick: Says there's one somewhere in the collection. Can't remember where he put it.
+Rick: Bring it to him.
+
+== RickTranslateKey ==
+Rick: He says the dubbing's gonna take a while. Find him later.
+Rick: That key's for the bathroom.
+Rick: It's outside, around the corner.
+
+# Inside the store when Seneca has nothing open to translate.
+== RickInsideIdle ==
+Rick: Take your time, man.

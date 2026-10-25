@@ -19,6 +19,15 @@ public:
 
 	virtual void NotifyActorBeginOverlap(AActor* OtherActor) override;
 
+	// Move Actor through this teleporter (position, view and velocity carried
+	// across), run the configured side effects, and set EStoryFlag::EnteredOasis.
+	// Called by the overlap.
+	void TeleportActor(AActor* Actor);
+
+	// `SkipTo Oasis`: TeleportActor, then drop Actor at SkipToTarget with the
+	// wind/waterfall/chord cross-fade already finished and the stall door unlocked.
+	void SkipTransition(AActor* Actor);
+
 protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
@@ -37,6 +46,10 @@ protected:
 	// Required target point actor to teleport to (set on the level instance)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	ATargetPoint* TeleportTarget;
+
+	// Where `SkipTo Oasis` puts the player: pawn centre + facing (set on the level instance)
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
+	ATargetPoint* SkipToTarget = nullptr;
 
 	// Whether to destroy Ultra Dynamic Sky actors on teleport
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Teleport")

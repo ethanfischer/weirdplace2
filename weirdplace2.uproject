@@ -99,12 +99,18 @@
 			"TargetAllowList": [
 				"Editor"
 			]
+		},
+		{
+			"Name": "GeometryScripting",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [
 		"Windows"
 	],
 	"AdditionalNonAssetDirectoriesToPackage": [
-		{ "Path": "Content/Dialogue" }
+		{
+			"Path": "Content/Dialogue"
+		}
 	]
 }

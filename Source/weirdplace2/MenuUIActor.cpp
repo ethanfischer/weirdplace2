@@ -1,4 +1,4 @@
-#include "MenuUIActor.h"
+﻿#include "MenuUIActor.h"
 #include "Tunable.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -48,16 +48,17 @@ static constexpr float kGraphicsBackZ   = -22.0f;
 // Tunables page layout (system tab bar + 7-row scrolling window of that
 // system's weird.* cvars)
 // ---------------------------------------------------------------------------
+// Stacked top-down with clearance for each element's text height; the build
+// stamp lives at -28 on the actor root, so Back must stay above about -25.
 static constexpr float kTunablesHeaderZ   =  18.0f;
 static constexpr float kTunablesTabZ      =  13.5f;
-static constexpr float kTunablesMoreUpZ   =  10.8f;
-static constexpr float kTunablesRowTopZ   =   9.0f;
-static constexpr float kTunablesRowStepZ  =   4.0f;
-static constexpr float kTunablesMoreDownZ = -16.5f;
-static constexpr float kTunablesHelpZ     = -19.5f;
-static constexpr float kTunablesResetZ    = -23.0f;
-static constexpr float kTunablesBackZ     = -27.0f;
-static constexpr float kTunablesTabSpan   =  46.0f; // panel width available for tabs
+static constexpr float kTunablesMoreUpZ   =  11.0f;
+static constexpr float kTunablesRowTopZ   =   8.5f;
+static constexpr float kTunablesRowStepZ  =   3.8f;  // 6 rows: 8.5 .. -10.5
+static constexpr float kTunablesMoreDownZ = -13.0f;
+static constexpr float kTunablesHelpZ     = -15.8f;
+static constexpr float kTunablesResetZ    = -19.5f;
+static constexpr float kTunablesBackZ     = -23.5f;
 
 AMenuUIActor::AMenuUIActor()
 {
@@ -99,7 +100,7 @@ AMenuUIActor::AMenuUIActor()
 	PausedHeaderText->SetupAttachment(PausePageRoot);
 	PausedHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	PausedHeaderText->SetWorldSize(3.5f);
-	PausedHeaderText->SetTextRenderColor(FColor::White);
+	PausedHeaderText->SetTextRenderColor(FColor(230, 219, 255));
 	PausedHeaderText->SetHorizontalAlignment(EHTA_Center);
 	PausedHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	PausedHeaderText->SetText(FText::FromString(TEXT("PAUSED")));
@@ -152,7 +153,7 @@ AMenuUIActor::AMenuUIActor()
 	BuildStampText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	BuildStampText->SetRelativeLocation(FVector(0.0f, 0.0f, -28.0f));
 	BuildStampText->SetWorldSize(1.5f);
-	BuildStampText->SetTextRenderColor(FColor(140, 140, 140));
+	BuildStampText->SetTextRenderColor(FColor(115, 108, 140));
 	BuildStampText->SetHorizontalAlignment(EHTA_Center);
 	BuildStampText->SetVerticalAlignment(EVRTA_TextCenter);
 	BuildStampText->SetText(FText::FromString(FString::Printf(TEXT("build %s %s"), TEXT(__DATE__), TEXT(__TIME__))));
@@ -162,7 +163,7 @@ AMenuUIActor::AMenuUIActor()
 	ControllerHeaderText->SetupAttachment(SettingsPageRoot);
 	ControllerHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	ControllerHeaderText->SetWorldSize(3.5f);
-	ControllerHeaderText->SetTextRenderColor(FColor::White);
+	ControllerHeaderText->SetTextRenderColor(FColor(230, 219, 255));
 	ControllerHeaderText->SetHorizontalAlignment(EHTA_Center);
 	ControllerHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	ControllerHeaderText->SetText(FText::FromString(TEXT("CONTROLLER")));
@@ -171,7 +172,7 @@ AMenuUIActor::AMenuUIActor()
 	MouseKBHeaderText->SetupAttachment(SettingsPageRoot);
 	MouseKBHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	MouseKBHeaderText->SetWorldSize(3.5f);
-	MouseKBHeaderText->SetTextRenderColor(FColor::White);
+	MouseKBHeaderText->SetTextRenderColor(FColor(230, 219, 255));
 	MouseKBHeaderText->SetHorizontalAlignment(EHTA_Center);
 	MouseKBHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	MouseKBHeaderText->SetText(FText::FromString(TEXT("MOUSE / KEYBOARD")));
@@ -189,7 +190,7 @@ AMenuUIActor::AMenuUIActor()
 	GraphicsHeaderText->SetupAttachment(GraphicsPageRoot);
 	GraphicsHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	GraphicsHeaderText->SetWorldSize(3.5f);
-	GraphicsHeaderText->SetTextRenderColor(FColor::White);
+	GraphicsHeaderText->SetTextRenderColor(FColor(230, 219, 255));
 	GraphicsHeaderText->SetHorizontalAlignment(EHTA_Center);
 	GraphicsHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	GraphicsHeaderText->SetText(FText::FromString(TEXT("GRAPHICS")));
@@ -215,7 +216,7 @@ AMenuUIActor::AMenuUIActor()
 	TunablesHeaderText->SetupAttachment(TunablesPageRoot);
 	TunablesHeaderText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	TunablesHeaderText->SetWorldSize(3.5f);
-	TunablesHeaderText->SetTextRenderColor(FColor::White);
+	TunablesHeaderText->SetTextRenderColor(FColor(230, 219, 255));
 	TunablesHeaderText->SetHorizontalAlignment(EHTA_Center);
 	TunablesHeaderText->SetVerticalAlignment(EVRTA_TextCenter);
 	TunablesHeaderText->SetText(FText::FromString(TEXT("TUNABLES")));
@@ -240,7 +241,7 @@ AMenuUIActor::AMenuUIActor()
 	TunablesHelpText->SetupAttachment(TunablesPageRoot);
 	TunablesHelpText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	TunablesHelpText->SetWorldSize(1.4f);
-	TunablesHelpText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesHelpText->SetTextRenderColor(FColor(115, 108, 140));
 	TunablesHelpText->SetHorizontalAlignment(EHTA_Center);
 	TunablesHelpText->SetVerticalAlignment(EVRTA_TextCenter);
 
@@ -248,7 +249,7 @@ AMenuUIActor::AMenuUIActor()
 	TunablesMoreUpText->SetupAttachment(TunablesPageRoot);
 	TunablesMoreUpText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	TunablesMoreUpText->SetWorldSize(1.6f);
-	TunablesMoreUpText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesMoreUpText->SetTextRenderColor(FColor(115, 108, 140));
 	TunablesMoreUpText->SetHorizontalAlignment(EHTA_Center);
 	TunablesMoreUpText->SetVerticalAlignment(EVRTA_TextCenter);
 	TunablesMoreUpText->SetText(FText::FromString(TEXT("^ more")));
@@ -257,7 +258,7 @@ AMenuUIActor::AMenuUIActor()
 	TunablesMoreDownText->SetupAttachment(TunablesPageRoot);
 	TunablesMoreDownText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	TunablesMoreDownText->SetWorldSize(1.6f);
-	TunablesMoreDownText->SetTextRenderColor(FColor(150, 150, 150));
+	TunablesMoreDownText->SetTextRenderColor(FColor(115, 108, 140));
 	TunablesMoreDownText->SetHorizontalAlignment(EHTA_Center);
 	TunablesMoreDownText->SetVerticalAlignment(EVRTA_TextCenter);
 	TunablesMoreDownText->SetText(FText::FromString(TEXT("v more")));
@@ -267,10 +268,11 @@ void AMenuUIActor::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SolidColorMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor"));
+	// Same translucent pane as the inventory strip (BaseColor drives tint + alpha).
+	SolidColorMaterial = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/CreatedMaterials/M_ShadowGlass.M_ShadowGlass"));
 	if (!SolidColorMaterial)
 	{
-		UE_LOG(LogTemp, Error, TEXT("AMenuUIActor: /Game/Materials/M_SolidColor not found."));
+		UE_LOG(LogTemp, Error, TEXT("AMenuUIActor: /Game/CreatedMaterials/M_ShadowGlass not found."));
 		return;
 	}
 
@@ -279,11 +281,28 @@ void AMenuUIActor::BeginPlay()
 		BackgroundMaterial = UMaterialInstanceDynamic::Create(SolidColorMaterial, this);
 		if (BackgroundMaterial)
 		{
-			BackgroundMaterial->SetVectorParameterValue(FName("Color"), BackgroundColor);
 			BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), BackgroundColor);
-			BackgroundMaterial->SetVectorParameterValue(FName("EmissiveColor"), BackgroundColor);
 			BackgroundPanel->SetMaterial(0, BackgroundMaterial);
 		}
+	}
+
+	if (UMaterialInterface* BarMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_SolidColor.M_SolidColor")))
+	{
+		FocusUnderline = NewObject<UStaticMeshComponent>(this, TEXT("FocusUnderline"));
+		FocusUnderline->SetStaticMesh(PlaneMesh);
+		FocusUnderline->SetupAttachment(RootSceneComponent);
+		FocusUnderline->RegisterComponent();
+		FocusUnderline->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		FocusUnderline->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
+		FocusUnderlineMaterial = UMaterialInstanceDynamic::Create(BarMat, this);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("Color"), FocusedValueColor);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("EmissiveColor"), FocusedValueColor);
+		FocusUnderline->SetMaterial(0, FocusUnderlineMaterial);
+		FocusUnderline->SetVisibility(false);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("AMenuUIActor: M_SolidColor not found; no focus underline."));
 	}
 
 	BuildPausePage();
@@ -353,7 +372,7 @@ void AMenuUIActor::BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString&
 	R.RowText->RegisterComponent();
 	R.RowText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	R.RowText->SetWorldSize(2.8f);
-	R.RowText->SetTextRenderColor(FColor(200, 200, 200));
+	R.RowText->SetTextRenderColor(FColor(230, 219, 255));
 	R.RowText->SetHorizontalAlignment(EHTA_Center);
 	R.RowText->SetVerticalAlignment(EVRTA_TextCenter);
 	R.RowText->SetRelativeLocation(FVector(0.0f, 0.0f, RowZ));
@@ -381,7 +400,7 @@ void AMenuUIActor::BuildTunablesPage()
 		RowText->RegisterComponent();
 		RowText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 		RowText->SetWorldSize(2.0f);
-		RowText->SetTextRenderColor(FColor(200, 200, 200));
+		RowText->SetTextRenderColor(FColor(230, 219, 255));
 		RowText->SetHorizontalAlignment(EHTA_Center);
 		RowText->SetVerticalAlignment(EVRTA_TextCenter);
 		RowText->SetRelativeLocation(FVector(0.0f, 0.0f, kTunablesRowTopZ - i * kTunablesRowStepZ));
@@ -456,26 +475,54 @@ void AMenuUIActor::RefreshTunablesTabs()
 		TunableTabTexts.Add(TabText);
 	}
 
+	// Carousel: only the previous, active and next systems are shown, with the
+	// active one wearing the arrows. Positions come from measured text widths
+	// so long names ("DialoguePlate") can never overlap their neighbours.
 	const int32 NumTabs = TunableSystems.Num();
-	const float Spacing = NumTabs > 0 ? kTunablesTabSpan / NumTabs : kTunablesTabSpan;
-	for (int32 i = 0; i < TunableTabTexts.Num(); i++)
+	for (UTextRenderComponent* TabText : TunableTabTexts)
 	{
-		UTextRenderComponent* TabText = TunableTabTexts[i];
-		if (!TabText)
-		{
-			continue;
-		}
-		if (i < NumTabs)
-		{
-			const float Y = (i - (NumTabs - 1) * 0.5f) * Spacing;
-			TabText->SetRelativeLocation(FVector(0.0f, Y, kTunablesTabZ));
-			TabText->SetText(FText::FromString(TunableSystems[i]));
-			TabText->SetVisibility(CurrentPage == EMenuPage::Tunables);
-		}
-		else
+		if (TabText)
 		{
 			TabText->SetVisibility(false);
 		}
+	}
+	if (NumTabs == 0)
+	{
+		return;
+	}
+
+	TArray<int32> Shown;
+	if (NumTabs > 2)
+	{
+		Shown.Add((ActiveTunableSystem + NumTabs - 1) % NumTabs);
+	}
+	Shown.Add(ActiveTunableSystem);
+	if (NumTabs > 1)
+	{
+		Shown.Add((ActiveTunableSystem + 1) % NumTabs);
+	}
+
+	constexpr float Gap = 3.0f;
+	TArray<float> Widths;
+	float Total = 0.0f;
+	for (int32 Idx : Shown)
+	{
+		UTextRenderComponent* TabText = TunableTabTexts[Idx];
+		const FString& Name = TunableSystems[Idx];
+		TabText->SetText(FText::FromString(Idx == ActiveTunableSystem ? FString::Printf(TEXT("< %s >"), *Name) : Name));
+		const float W = TabText->GetTextLocalSize().Y;
+		Widths.Add(W);
+		Total += W;
+	}
+	Total += Gap * (Shown.Num() - 1);
+
+	float Cursor = -Total * 0.5f;
+	for (int32 k = 0; k < Shown.Num(); k++)
+	{
+		UTextRenderComponent* TabText = TunableTabTexts[Shown[k]];
+		TabText->SetRelativeLocation(FVector(0.0f, Cursor + Widths[k] * 0.5f, kTunablesTabZ));
+		TabText->SetVisibility(CurrentPage == EMenuPage::Tunables);
+		Cursor += Widths[k] + Gap;
 	}
 }
 
@@ -554,7 +601,34 @@ void AMenuUIActor::RefreshTunablesDisplay()
 				Help.LeftInline(NewlineIdx);
 			}
 		}
-		TunablesHelpText->SetText(FText::FromString(Help));
+		// Word-wrap to the panel (50 wide): ~0.55 units per char at size 1.4 ≈ 80 chars per line.
+		FString Wrapped;
+		int32 LineLen = 0;
+		TArray<FString> Words;
+		Help.ParseIntoArray(Words, TEXT(" "), true);
+		for (const FString& Word : Words)
+		{
+			if (LineLen > 0 && LineLen + 1 + Word.Len() > 80)
+			{
+				Wrapped += TEXT("\n");
+				LineLen = 0;
+			}
+			else if (LineLen > 0)
+			{
+				Wrapped += TEXT(" ");
+				LineLen++;
+			}
+			Wrapped += Word;
+			LineLen += Word.Len();
+		}
+		TunablesHelpText->SetText(FText::FromString(Wrapped));
+		// Shrink if a single long word still overflows.
+		TunablesHelpText->SetWorldSize(1.4f);
+		const float W = TunablesHelpText->GetTextLocalSize().Y;
+		if (W > 48.0f)
+		{
+			TunablesHelpText->SetWorldSize(1.4f * 48.0f / W);
+		}
 	}
 
 	UpdateFocusColors();
@@ -568,6 +642,7 @@ void AMenuUIActor::AdjustTunable(int32 Dir)
 		if (TunableSystems.Num() > 0)
 		{
 			ActiveTunableSystem = (ActiveTunableSystem + Dir + TunableSystems.Num()) % TunableSystems.Num();
+			RefreshTunablesTabs();
 			RefreshTunablesRows();
 		}
 		return;
@@ -635,7 +710,7 @@ void AMenuUIActor::BuildSettingsRow(ESettingsRow Row, float LabelZ, float ValueZ
 	R.LabelText->RegisterComponent();
 	R.LabelText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	R.LabelText->SetWorldSize(2.8f);
-	R.LabelText->SetTextRenderColor(FColor(200, 200, 200));
+	R.LabelText->SetTextRenderColor(FColor(230, 219, 255));
 	R.LabelText->SetHorizontalAlignment(EHTA_Center);
 	R.LabelText->SetVerticalAlignment(EVRTA_TextCenter);
 	R.LabelText->SetRelativeLocation(FVector(0.0f, 0.0f, LabelZ));
@@ -646,7 +721,7 @@ void AMenuUIActor::BuildSettingsRow(ESettingsRow Row, float LabelZ, float ValueZ
 	R.ValueText->RegisterComponent();
 	R.ValueText->SetRelativeRotation(FRotator(0.0f, 180.0f, 0.0f));
 	R.ValueText->SetWorldSize(3.0f);
-	R.ValueText->SetTextRenderColor(FColor(200, 200, 200));
+	R.ValueText->SetTextRenderColor(FColor(230, 219, 255));
 	R.ValueText->SetHorizontalAlignment(EHTA_Center);
 	R.ValueText->SetVerticalAlignment(EVRTA_TextCenter);
 	R.ValueText->SetRelativeLocation(FVector(0.0f, 0.0f, ValueZ));
@@ -708,26 +783,38 @@ void AMenuUIActor::UpdateFocusColors()
 	FColor Unfocused = UnfocusedValueColor.ToFColor(true);
 	Unfocused.A = Alpha;
 
+	// Paint a text focused/unfocused and remember the focused one that is actually
+	// on screen (other pages' texts are hidden) for the underline.
+	UTextRenderComponent* FocusedText = nullptr;
+	auto Paint = [&](UTextRenderComponent* Text, bool bFocused)
+	{
+		Text->SetTextRenderColor(bFocused ? Focused : Unfocused);
+		if (bFocused && Text->IsVisible())
+		{
+			FocusedText = Text;
+		}
+	};
+
 	// Pause page
 	if (PauseResumeText)
 	{
-		PauseResumeText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Resume ? Focused : Unfocused);
+		Paint(PauseResumeText, PauseSelection == EPauseMenuItem::Resume);
 	}
 	if (PauseSettingsText)
 	{
-		PauseSettingsText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Settings ? Focused : Unfocused);
+		Paint(PauseSettingsText, PauseSelection == EPauseMenuItem::Settings);
 	}
 	if (PauseGraphicsText)
 	{
-		PauseGraphicsText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Graphics ? Focused : Unfocused);
+		Paint(PauseGraphicsText, PauseSelection == EPauseMenuItem::Graphics);
 	}
 	if (PauseTunablesText)
 	{
-		PauseTunablesText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Tunables ? Focused : Unfocused);
+		Paint(PauseTunablesText, PauseSelection == EPauseMenuItem::Tunables);
 	}
 	if (PauseQuitText)
 	{
-		PauseQuitText->SetTextRenderColor(PauseSelection == EPauseMenuItem::Quit ? Focused : Unfocused);
+		Paint(PauseQuitText, PauseSelection == EPauseMenuItem::Quit);
 	}
 
 	// Settings page sensitivity rows
@@ -744,13 +831,13 @@ void AMenuUIActor::UpdateFocusColors()
 			continue;
 		}
 		const bool bFocused = (Row == SettingsSelection);
-		R.ValueText->SetTextRenderColor(bFocused ? Focused : Unfocused);
+		Paint(R.ValueText, bFocused);
 	}
 
 	// Settings page Back row
 	if (SettingsBackText)
 	{
-		SettingsBackText->SetTextRenderColor(SettingsSelection == ESettingsRow::Back ? Focused : Unfocused);
+		Paint(SettingsBackText, SettingsSelection == ESettingsRow::Back);
 	}
 
 	// Graphics page rows
@@ -766,45 +853,77 @@ void AMenuUIActor::UpdateFocusColors()
 		{
 			continue;
 		}
-		R.RowText->SetTextRenderColor(Row == GraphicsSelection ? Focused : Unfocused);
+		Paint(R.RowText, Row == GraphicsSelection);
 	}
 	if (GraphicsResetText)
 	{
-		GraphicsResetText->SetTextRenderColor(GraphicsSelection == EGraphicsRow::ResetToDefault ? Focused : Unfocused);
+		Paint(GraphicsResetText, GraphicsSelection == EGraphicsRow::ResetToDefault);
 	}
 	if (GraphicsBackText)
 	{
-		GraphicsBackText->SetTextRenderColor(GraphicsSelection == EGraphicsRow::Back ? Focused : Unfocused);
+		Paint(GraphicsBackText, GraphicsSelection == EGraphicsRow::Back);
 	}
 
 	// Tunables page: tab bar, cvar rows, Back.
 	// Active tab: yellow while the tab bar row is focused, white otherwise;
 	// inactive tabs gray.
-	FColor ActiveTab = FColor::White;
+	FColor ActiveTab(230, 219, 255);
 	ActiveTab.A = Alpha;
 	for (int32 i = 0; i < TunableTabTexts.Num(); i++)
 	{
 		if (UTextRenderComponent* TabText = TunableTabTexts[i])
 		{
 			const bool bActive = (i == ActiveTunableSystem);
-			TabText->SetTextRenderColor(bActive ? (SelectedTunableIndex == 0 ? Focused : ActiveTab) : Unfocused);
+			if (bActive && SelectedTunableIndex != 0)
+			{
+				TabText->SetTextRenderColor(ActiveTab);
+			}
+			else
+			{
+				Paint(TabText, bActive);
+			}
 		}
 	}
 	for (int32 i = 0; i < TunableRowTexts.Num(); i++)
 	{
 		if (UTextRenderComponent* RowText = TunableRowTexts[i])
 		{
-			RowText->SetTextRenderColor(TunableScrollOffset + i == SelectedTunableIndex - 1 ? Focused : Unfocused);
+			Paint(RowText, TunableScrollOffset + i == SelectedTunableIndex - 1);
 		}
 	}
 	if (TunablesResetText)
 	{
-		TunablesResetText->SetTextRenderColor(IsTunablesResetFocused() ? Focused : Unfocused);
+		Paint(TunablesResetText, IsTunablesResetFocused());
 	}
 	if (TunablesBackText)
 	{
-		TunablesBackText->SetTextRenderColor(IsTunablesBackFocused() ? Focused : Unfocused);
+		Paint(TunablesBackText, IsTunablesBackFocused());
 	}
+
+	PlaceFocusUnderline(FocusedText);
+}
+
+void AMenuUIActor::PlaceFocusUnderline(UTextRenderComponent* FocusedText)
+{
+	if (!FocusUnderline)
+	{
+		return;
+	}
+	if (!FocusedText)
+	{
+		FocusUnderline->SetVisibility(false);
+		return;
+	}
+	// Same parent as the text (its page root), so page show/hide carries the bar.
+	FocusUnderline->AttachToComponent(FocusedText->GetAttachParent(), FAttachmentTransformRules::KeepRelativeTransform);
+	const FVector TextSize = FocusedText->GetTextLocalSize(); // Y = width, Z = height
+	FVector Loc = FocusedText->GetRelativeLocation();
+	Loc.Z -= TextSize.Z * 0.5f + UnderlineGap + UnderlineThickness * 0.5f;
+	FocusUnderline->SetRelativeLocation(Loc);
+	FocusUnderline->SetRelativeRotation(FRotator(90.0f, 0.0f, 0.0f));
+	// Plane is 100x100: local X (after the pitch) is height, Y is width.
+	FocusUnderline->SetRelativeScale3D(FVector(UnderlineThickness * 0.01f, TextSize.Y * 0.01f, 1.0f));
+	FocusUnderline->SetVisibility(true);
 }
 
 void AMenuUIActor::ResetActiveTunablesToDefaults()
@@ -1023,9 +1142,18 @@ void AMenuUIActor::SetOpacity(float Opacity)
 		BackgroundMaterial->SetVectorParameterValue(FName("BaseColor"), Adjusted);
 	}
 
+	// Scale the bar's color with the fade (the menu root is hidden once the
+	// close fade ends, so it never sits dark on screen).
+	if (FocusUnderlineMaterial)
+	{
+		const FLinearColor Faded = FocusedValueColor * Opacity;
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("Color"), Faded);
+		FocusUnderlineMaterial->SetVectorParameterValue(FName("EmissiveColor"), Faded);
+	}
+
 	const uint8 Alpha = FMath::Clamp(static_cast<int32>(Opacity * 255), 0, 255);
-	const FColor HeaderColor(255, 255, 255, Alpha);
-	const FColor DimColor(200, 200, 200, Alpha);
+	const FColor HeaderColor(230, 219, 255, Alpha);
+	const FColor DimColor(230, 219, 255, Alpha);
 
 	if (PausedHeaderText)     PausedHeaderText->SetTextRenderColor(HeaderColor);
 	if (ControllerHeaderText) ControllerHeaderText->SetTextRenderColor(HeaderColor);

@@ -208,7 +208,7 @@ private:
 	// Clamp selected index to valid range
 	void ClampSelectedIndex();
 
-	// Number of item slots (including sparse NAME_None holes), i.e. Items.Num().
+	// Number of carried items, i.e. Items.Num().
 	int32 GetItemCount() const;
 
 	// Slide ScrollOffset so AbsoluteSelectedIndex stays inside the visible window

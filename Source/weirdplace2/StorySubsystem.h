@@ -19,20 +19,27 @@ enum class EStoryFlag : uint8
 	TornadoWarningDisplayed,
 	// Player has actually gazed at a warning TV long enough to register it.
 	SeenTornadoWarning,
-	// Player has picked up the payphone at least once (gates Seneca's smoking
-	// appearance outside). Set by APayPhone on the first off-hook.
+	// Player has picked up the payphone at least once (unlocks the bathroom
+	// keypad). Set by APayPhone on the first off-hook.
 	UsedPayPhone,
-	// Player hung the payphone back up — the world is near-black and the
-	// station-relight countdown arms (Relight side effect below).
+	// Player hung the payphone back up — the world is near-black, the
+	// station-relight countdown arms (Relight side effect below), and Seneca
+	// may now appear at the telephone pole.
 	HungUpPhone,
 	// The gas-station lights flickered back on ("the generator kicked back in"),
 	// giving the lost player a glow to walk toward.
-	StationRelit
+	StationRelit,
+	// Player walked into the bathroom stall and was teleported to the Oasis
+	// (set by ATeleportTriggerBox). Wakes the piano's story-gated music.
+	EnteredOasis
 };
 
 // Broadcast whenever a flag's value changes. APayPhone subscribes to drive its
 // reveal; other consumers may bind too.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStoryFlagChanged, EStoryFlag /*Flag*/, bool /*bValue*/);
+
+// Broadcast when the player walks into the store from the street.
+DECLARE_MULTICAST_DELEGATE(FOnPlayerEnteredStore);
 
 UCLASS()
 class WEIRDPLACE2_API UStorySubsystem : public UWorldSubsystem
@@ -50,6 +57,11 @@ public:
 
 	// Fires after SetFlag changes a flag's value.
 	FOnStoryFlagChanged OnStoryFlagChanged;
+
+	// Fires each time the player walks in through the front door: the street-side
+	// TriggerBox_Outside was the last doorway box touched before TriggerBox_Inside.
+	// Walking out doesn't fire it. ARick binds this to come into the store.
+	FOnPlayerEnteredStore OnPlayerEnteredStore;
 
 	// Resolve the test-facing FName ("KeyBroke" etc.) to the enum. False on miss.
 	static bool TryParseStoryFlag(FName Name, EStoryFlag& OutFlag);
@@ -89,6 +101,13 @@ public:
 private:
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
+
+	UFUNCTION()
+	void OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
+
+	// Which doorway box the player touched last. The two boxes sit either side
+	// of the glass door without overlapping, so Outside-then-Inside is an entry.
+	bool bLastDoorwayTriggerWasOutside = false;
 
 	// Reacts to our own flag changes: TornadoWarningDisplayed applies the storm
 	// mood, UsedPayPhone silences the TV sirens (the screens stay up), and

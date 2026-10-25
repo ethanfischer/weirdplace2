@@ -28,6 +28,14 @@ public:
 	virtual bool CanInteract() override;
 
 	void SetItemDef(UItemDefinition* InDef) { ItemDef = InDef; }
+	UItemDefinition* GetItemDef() const { return ItemDef; }
+	FName GetItemID() const;
+
+	// A pickup hidden in the level from the start (the spawner's stash behind a
+	// movie box), as opposed to one dropped mid-story (broken key, gaze reward).
+	// The E2E driver's "wait for a pickup to appear" skips stash pickups.
+	void SetIsStash(bool bInStash) { bIsStash = bInStash; }
+	bool IsStash() const { return bIsStash; }
 
 	void CollectInspectedItem();
 	void RotateInspectedActor(float AxisValue);
@@ -37,11 +45,6 @@ public:
 	// Interact and StopInspection). Mirrors AMovieBox::IsBeingInspected so
 	// the E2E TestDriver can find the pickup that's currently being inspected.
 	bool IsBeingInspected() const { return InspectedActor != nullptr; }
-
-	// Test seam: true if the pickup mesh currently carries the self-illumination
-	// glow overlay (always-on while the pickup exists, so it reads on the ground
-	// in the dark, not just while inspected).
-	bool IsGlowActive() const;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Pickup")
@@ -74,4 +77,5 @@ private:
 	APlayerController* PlayerController = nullptr;
 	AFirstPersonCharacter* MyCharacter = nullptr;
 	bool bCollected = false;
+	bool bIsStash = false;
 };

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
@@ -27,4 +27,15 @@ public:
 	// payphone kiosk, not the telephone pole it shares an actor with).
 	// Default accepts any component.
 	virtual bool IsComponentInteractable(const UPrimitiveComponent* Component) { return true; }
+
+	// The player used an inventory item on this (inventory open, item selected,
+	// Interact while looking at it). Return true if this reacted — the inventory
+	// closes. False means nothing happened; the item's UseFailSound plays at
+	// the hit point instead. Most things react to nothing, so the default is false.
+	virtual bool UseItem(FName ItemID) { return false; }
+
+	// Would UseItem(ItemID) do anything right now? Lets the equipped-item path
+	// decide between swinging the item and the ordinary Interact, without side
+	// effects. Keep in step with UseItem.
+	virtual bool WouldReactToItem(FName ItemID) { return false; }
 };

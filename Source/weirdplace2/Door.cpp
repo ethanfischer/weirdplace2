@@ -149,8 +149,10 @@ bool ADoor::OnKeypadCodeSubmitted(const FString& EnteredCode)
 	// but only after the player has picked up the payphone (where the "code" is
 	// spoken), and only if it passes the digit/blocklist rules.
 	UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr;
-	if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone) || !IsKeypadCodeAccepted(EnteredCode))
+	if (!Story || !Story->IsFlagSet(EStoryFlag::UsedPayPhone) || !IsKeypadArmed() || !IsKeypadCodeAccepted(EnteredCode))
 	{
+		UE_LOG(LogTemp, Log, TEXT("ADoor %s: keypad denied '%s' (phoneUsed=%d armed=%d)"), *GetName(), *EnteredCode,
+			(Story && Story->IsFlagSet(EStoryFlag::UsedPayPhone)) ? 1 : 0, IsKeypadArmed() ? 1 : 0);
 		return false; // keypad buzzes (DenySound) + clears, stays locked
 	}
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -9,6 +9,7 @@
 
 class UWidgetComponent;
 class UUI_Dialogue;
+class AFirstPersonCharacter;
 
 UENUM(BlueprintType)
 enum class EHudsonState : uint8
@@ -27,12 +28,18 @@ public:
 	AHudson();
 
 	virtual void Interact_Implementation() override;
+	virtual bool CanInteract() override { return !bGaveReward; } // done with the player once he's paid him back
 	virtual UUI_Dialogue* GetDialogueWidget() const override;
 
 	void OnDialogueEnded();
 
 	// Inventory give-mode callback: accepts Money when offered.
 	bool OnMoneyOffered(FName ItemID);
+
+	// Storm beat: Hudson leaves for good. MetaHuman grooms break if root
+	// visibility is toggled, so this teleports him far below the level and
+	// disables collision instead (same as ARick::StashForStorm).
+	void StashForStorm();
 
 	UPROPERTY(BlueprintReadOnly, Category = "Hudson")
 	UWidgetComponent* DialogueWidgetComponent;
@@ -64,6 +71,12 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Hudson|Dialogue")
 	FString ThankYouSection = TEXT("HudsonThankYou");
 
+	// What Hudson hands over in return for the money (the meat tenderizer),
+	// on the thank-you line that carries a [cue] in the dialogue file. None =
+	// he just says thanks.
+	UPROPERTY(EditAnywhere, Category = "Hudson")
+	class UItemDefinition* RewardDef = nullptr;
+
 private:
 	TArray<FText> IdleLines;
 	TArray<FText> BegLines;
@@ -75,5 +88,15 @@ private:
 	// Parsed sectioned dialogue file (DialogueFilePath)
 	FDialogueScript DialogueScript;
 
-	void LoadDialogue(const FString& SectionName, TArray<FText>& OutLines);
+	// Thank-you line carrying the [Give ...] cue; INDEX_NONE = give when the
+	// dialogue ends instead.
+	int32 RewardLineIndex = INDEX_NONE;
+	bool bGaveReward = false;
+
+	UFUNCTION()
+	void OnThankYouLineShown(int32 LineIndex);
+	void GiveReward(AFirstPersonCharacter* FPChar);
+
+	// OutCueLine (optional): index of the line that carries a [cue] tag.
+	void LoadDialogue(const FString& SectionName, TArray<FText>& OutLines, int32* OutCueLine = nullptr);
 };

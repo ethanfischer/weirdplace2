@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -115,6 +115,16 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
 	UStaticMeshComponent* BackgroundPanel;
 
+	// Neon-green bar under whichever item has focus on the current page.
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	UStaticMeshComponent* FocusUnderline;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Layout")
+	float UnderlineThickness = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Layout")
+	float UnderlineGap = 0.6f;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Menu UI", meta = (AllowPrivateAccess = "true"))
 	USceneComponent* PausePageRoot;
 
@@ -131,13 +141,13 @@ protected:
 	float BackgroundPadding = 4.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Materials")
-	FLinearColor BackgroundColor = FLinearColor(0.02f, 0.02f, 0.05f, 0.85f);
+	FLinearColor BackgroundColor = FLinearColor(0.05f, 0.02f, 0.11f, 0.55f); // translucent violet pane (M_ShadowGlass), same as the inventory
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Materials")
-	FLinearColor FocusedValueColor = FLinearColor(1.0f, 0.8f, 0.0f, 1.0f);
+	FLinearColor FocusedValueColor = FLinearColor(0.35f, 1.0f, 0.25f, 1.0f); // forecourt neon green
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Menu UI|Materials")
-	FLinearColor UnfocusedValueColor = FLinearColor(0.35f, 0.35f, 0.35f, 1.0f);
+	FLinearColor UnfocusedValueColor = FLinearColor(0.45f, 0.42f, 0.55f, 1.0f); // dim lavender
 
 private:
 	struct FSettingsRowVisuals
@@ -167,7 +177,7 @@ private:
 	static constexpr int32 PauseItemCount = static_cast<int32>(EPauseMenuItem::Count);
 	static constexpr int32 GraphicsRowCount = static_cast<int32>(EGraphicsRow::Count);
 	static constexpr int32 GraphicsQualityLevels = 4; // 0=Low, 1=Medium, 2=High, 3=Epic
-	static constexpr int32 MaxVisibleTunableRows = 7;
+	static constexpr int32 MaxVisibleTunableRows = 6;
 
 	FSettingsRowVisuals SettingsRows[SettingsRowCount];
 	FGraphicsRowVisuals GraphicsRows[GraphicsRowCount];
@@ -192,6 +202,10 @@ private:
 
 	UPROPERTY()
 	UMaterialInstanceDynamic* BackgroundMaterial;
+
+	// FocusUnderline's material; SetOpacity scales its color so the bar fades with the menu.
+	UPROPERTY()
+	UMaterialInstanceDynamic* FocusUnderlineMaterial;
 
 	// Settings page section headers
 	UPROPERTY()
@@ -274,7 +288,7 @@ private:
 	void BuildGraphicsPage();
 	void BuildGraphicsRow(EGraphicsRow Row, float RowZ, const FString& Label);
 	void BuildTunablesPage();
-	void RefreshTunablesTabs();    // recreate tab texts from TunableSystems
+	void RefreshTunablesTabs();    // lay out the prev / < active > / next system carousel
 	void RefreshTunablesRows();    // fill TunableCVars from the active tab
 	void RefreshTunablesDisplay();
 	void AdjustTunable(int32 Dir);
@@ -288,6 +302,7 @@ private:
 	void UpdateBackgroundSize();
 	void ApplyPageVisibility();
 	void UpdateFocusColors();
+	void PlaceFocusUnderline(UTextRenderComponent* FocusedText); // nullptr hides it
 
 	int32 GetSlotCountForRow(ESettingsRow Row) const;
 	int32 ValueToSlotIndex(ESettingsRow Row, float Value) const;
