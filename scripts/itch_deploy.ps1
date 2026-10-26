@@ -48,7 +48,7 @@ $Version = $Head.Substring(0, 8)
 Write-Host "Packaging $Version ($Config)..."
 & $RunUAT BuildCookRun `
     -project="$UProject" `
-    -noP4 -platform=Win64 -clientconfig=$Config `
+    -noP4 -platform=Win64 -clientconfig="$Config" `
     -build -cook -allmaps -stage -pak `
     -nodebuginfo -utf8output -unattended
 if ($LASTEXITCODE -ne 0) { Fail "BuildCookRun exited $LASTEXITCODE" }
