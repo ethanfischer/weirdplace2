@@ -48,7 +48,7 @@ Build commands:
 
 ## Task skills
 
-Mocap retargeting → `/retarget-mocap`. Steam Deck deploy → `/steam-deck-deploy`.
+Mocap retargeting → `/retarget-mocap`. Steam Deck deploy → `/steam-deck-deploy`. itch.io deploy → `/itch-deploy`.
 
 ## Editor Property Assignment
 
