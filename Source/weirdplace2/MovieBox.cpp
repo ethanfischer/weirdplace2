@@ -255,13 +255,13 @@ void AMovieBox::Interact_Implementation()
 
 	// The put-back prompt is a one-time control hint: show it only until the
 	// player's first completed movie interaction (collecting or putting back).
-	if (PutBackPrompt && MyCharacter && !MyCharacter->HasInteractedWithMovie())
-	{
-		const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
-		bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
-		PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
-		PutBackPrompt->SetVisibility(true);
-	}
+	// if (PutBackPrompt && MyCharacter && !MyCharacter->HasInteractedWithMovie())
+	// {
+	// 	const AFirstPersonCharacter* FPChar = Cast<AFirstPersonCharacter>(MyCharacter);
+	// 	bPromptBuiltForGamepad = FPChar && FPChar->IsUsingGamepad();
+	// 	PutBackPrompt->SetText(FText::FromString(BuildPutBackPromptText()));
+	// 	PutBackPrompt->SetVisibility(true);
+	// }
 }
 
 FString AMovieBox::BuildPutBackPromptText() const
