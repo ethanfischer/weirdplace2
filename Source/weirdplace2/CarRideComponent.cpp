@@ -212,9 +212,10 @@ void UCarRideComponent::SilenceWorldAudioForRideStart()
 		{
 			continue;
 		}
-		// Non-auto-activated ambients (e.g. aliensound) are script-triggered
-		// later — leave them untouched: silencing would mute their trigger,
-		// and FadeIn would start a sound that isn't supposed to play yet.
+		// Non-auto-activated ambients (aliensound, the blank-tape chord) are
+		// script-triggered later — leave them untouched: silencing would mute
+		// their trigger, and FadeIn would start a sound that isn't supposed to
+		// play yet.
 		if (!AC->bAutoActivate)
 		{
 			continue;
@@ -224,17 +225,13 @@ void UCarRideComponent::SilenceWorldAudioForRideStart()
 			MusicComponent = AC;
 			MusicOriginalVolume = AC->VolumeMultiplier;
 		}
-		else if (AC->Sound && AC->Sound->IsLooping())
-		{
-			SilencedAmbients.Add(AC);
-			SilencedAmbientVolumes.Add(AC->VolumeMultiplier);
-		}
 		else
 		{
-			// One-shot (e.g. aliensound): silence it but don't restart it at
-			// fade time — re-triggering a finished one-shot mid-ride is wrong,
-			// and pre-fade it was inaudible under the old master audio duck.
-			UE_LOG(LogTemp, Display, TEXT("CarRideComponent: skipping restart of one-shot ambient '%s'"), *It->GetActorNameOrLabel());
+			// Every auto-activated ambient is meant to be playing once the
+			// ride reveals, looping or not — a one-shot restarts from the top
+			// with the reveal fade.
+			SilencedAmbients.Add(AC);
+			SilencedAmbientVolumes.Add(AC->VolumeMultiplier);
 		}
 		AC->SetVolumeMultiplier(0.0f);
 	}
@@ -1380,6 +1377,9 @@ void UCarRideComponent::ForceStartRide()
 	// forced ride runs at the staging spot, not in front of the pumps.
 	bPlayerRiding = false;
 	PlaceCar(InitialCarTransform);
+	// The natural ride path silences world audio at BeginPlay and restores it
+	// in RevealRideStart; do the same so a forced ride exercises that path.
+	SilenceWorldAudioForRideStart();
 	StartRide();
 }
 

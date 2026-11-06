@@ -2583,6 +2583,52 @@ bool FE2E_Level1_CarRideScenery::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
+// CarRideAmbients — the ride silences every auto-activated ambient at its
+// start and restores them as the black lifts. Guards two ways that broke
+// world audio for the rest of the game:
+// - non-looping ambients were skipped at restore; the store TVs' song was
+//   one, so it stayed at volume 0 (TvSongAudible skips the ride and never
+//   saw it);
+// - the blank-tape chord (Ambient_Fifths) was captured and faded back in,
+//   humming before Seneca asks for the tape.
+// Headed only: under NullRHI the audio listener never leaves the origin.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_CarRideAmbients,
+	"Weirdplace2.E2E.Level1.Regression.CarRideAmbients",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_CarRideAmbients::RunTest(const FString& Parameters)
+{
+	if (!FApp::CanEverRender())
+	{
+		AddError(TEXT("CarRideAmbients needs a rendering run (-Headed): under NullRHI the audio listener never leaves the origin"));
+		return false;
+	}
+
+	E2E_TEST_PREAMBLE("CarRideAmbients")
+
+	// Fast ride: 0.1s black hold + 0.5s fade, then the ambients are restored.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_StartCarRideFast(this));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(this, TEXT("Ambient_Fifths"), false));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_EndCarRide(this));
+	E2E_CAR_EXIT_STEPS("E2E_CarRideAmbients")
+
+	// Store centre: the TVs' song must be heard after the ride.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportToWorldPoint(this, FVector(3400.f, 200.f, 0.f)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
+	const TArray<FString> TvBeds = { TEXT("Ambient_TV"), TEXT("Ambient_TV2") };
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertAmbientHeard(this, TvBeds, true));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(this, TEXT("Ambient_Fifths"), false));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
 // CarRideDrive — the ride ends by actually driving to the gas station and
 // pulling over (no black fade). A per-frame sampler (core ticker, so it runs
 // alongside the screenshot commands) records the car's approach, the camera

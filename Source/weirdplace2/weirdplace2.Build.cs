@@ -8,6 +8,11 @@ public class weirdplace2 : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
+		// No unity blobs: Adaptive Unity pulls a file out of its blob on the first
+		// edit after a commit, which recompiles the whole blob (measured +40s per
+		// Live Coding patch). Non-unity keeps every edit a single-file compile.
+		bUseUnity = false;
+
 		// Flat module layout (no Public/Private split): export the module root
 		// so weirdplace2Editor can include gameplay headers.
 		PublicIncludePaths.Add(ModuleDirectory);

@@ -178,12 +178,16 @@ void USpawnerActorComponent::SpawnMovieBoxes()
 
 	SpawnStashBehind(StashBox);
 
-	// Silence the chord hum at level load — ActivateChosenTape() turns it on when Seneca asks for the blank tape.
+	// The chord hum is silent until ActivateChosenTape() (Seneca asks for the
+	// blank tape). It must not auto-activate: the car ride restarts every
+	// auto-activated ambient when its black hold lifts.
 	if (ChordAmbientSound)
 	{
-		if (UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent())
+		UAudioComponent* AudioComp = ChordAmbientSound->GetAudioComponent();
+		if (!AudioComp || AudioComp->bAutoActivate)
 		{
-			AudioComp->Stop();
+			UE_LOG(LogTemp, Error, TEXT("SpawnerActorComponent: ChordAmbientSound '%s' must have an audio component with Auto Activate off, or the chord plays before Seneca asks for the blank tape"),
+				*ChordAmbientSound->GetActorNameOrLabel());
 		}
 	}
 }

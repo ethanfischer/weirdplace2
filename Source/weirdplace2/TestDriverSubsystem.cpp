@@ -181,27 +181,44 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 	float PlaybackTime = 0.f;
 	int32 DeviceActiveSounds = 0;
 	int32 DeviceMaxChannels = 0;
+	// A component can own several active sounds (a restart overlaps the old
+	// one while it stops), so read every one and report the loudest.
+	int32 NumInstances = 0;
+	TArray<FString> InstanceLines;
 	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos,
-		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels]()
+		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels, &NumInstances, &InstanceLines]()
 	{
 		Device->GetListenerPosition(0, ListenerPos, /*bAllowOverride*/ false);
 		DeviceActiveSounds = Device->GetActiveSounds().Num();
 		DeviceMaxChannels = Device->GetMaxChannels();
-		const FActiveSound* Active = Device->FindActiveSound(ComponentID);
-		if (!Active)
+		for (const FActiveSound* Active : Device->GetActiveSounds())
 		{
-			return;
-		}
-		bFound = true;
-		bOccluded = Active->bIsOccluded;
-		OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
-		InteriorVolume = Active->CurrentInteriorVolume;
-		bPlayingAudio = Active->IsPlayingAudio();
-		PlaybackTime = Active->PlaybackTime;
-		NumWaves = Active->GetWaveInstances().Num();
-		for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
-		{
-			Heard = FMath::Max(Heard, Pair.Value->GetActualVolume());
+			if (!Active || Active->GetAudioComponentID() != ComponentID)
+			{
+				continue;
+			}
+			float InstanceHeard = 0.f;
+			for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
+			{
+				InstanceHeard = FMath::Max(InstanceHeard, Pair.Value->GetActualVolume());
+			}
+			// GetVolume() = VolumeMultiplier * component fade * concurrency scale.
+			InstanceLines.Add(FString::Printf(TEXT("#%d heard=%.3f volMult=%.2f volWithFade=%.2f playing=%d waves=%d t=%.1fs tReal=%.1fs"),
+				NumInstances, InstanceHeard, Active->VolumeMultiplier, Active->GetVolume(),
+				Active->IsPlayingAudio() ? 1 : 0, Active->GetWaveInstances().Num(), Active->PlaybackTime, Active->PlaybackTimeNonVirtualized));
+			++NumInstances;
+			if (bFound && InstanceHeard <= Heard)
+			{
+				continue;
+			}
+			bFound = true;
+			Heard = InstanceHeard;
+			bOccluded = Active->bIsOccluded;
+			OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
+			InteriorVolume = Active->CurrentInteriorVolume;
+			bPlayingAudio = Active->IsPlayingAudio();
+			PlaybackTime = Active->PlaybackTime;
+			NumWaves = Active->GetWaveInstances().Num();
 		}
 	});
 	FAudioCommandFence Fence;
@@ -222,6 +239,8 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 		bTraceHit && Hit.GetActor() ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("none"),
 		bTraceHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),
 		bTraceHit && Hit.bStartPenetrating ? 1 : 0);
+	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' %d active sound(s) (virtualized loops aren't listed): %s"),
+		*Label, NumInstances, *FString::Join(InstanceLines, TEXT(" | ")));
 	return Heard;
 }
 

@@ -118,6 +118,10 @@ powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName PauseMenu -Headed
 
 **Headed vs headless:** the default `-NullRHI` mode is fast but produces blank/zero-byte screenshots because nothing is rendered. When the test takes screenshots that you intend to inspect visually, pass `-Headed` to run with rendering enabled.
 
+**E2E skips the car ride.** Automation runs take `SkipRide` at map load, so anything the ride changes (it silences/restores world ambients, places Rick and the car) is untested unless the test forces it with `FTD_StartCarRideFast`. A test that skips the ride can pass while the real game is broken — that's how the TV song "fix" in #57 regressed.
+
+**Heard-volume asserts read 0.000 while the editor is open.** `TvSongAudible` / `CarRideAmbients` (`FTD_AssertAmbientHeard`) failed every run with the editor open and passed every run with it closed (cause unknown; not window focus — `UnfocusedVolumeMultiplier=1` didn't help). Close the editor before running them, and don't read a 0.000 from an editor-open run as a real regression.
+
 Screenshots land in `Saved/Screenshots/Windows/` (or the platform-specific subdir). Read them with the Read tool to verify the feature looks right.
 
 Output is concise: `PASS` or `FAIL` + any errors. Run with `run_in_background` since tests take 2-5 minutes.

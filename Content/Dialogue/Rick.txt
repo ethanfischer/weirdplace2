@@ -26,7 +26,7 @@ Rick: You know how it is
 Rick: *
 [Bladder]
 [Pause 3]
-Rick: You need to pee?
+Rick: You need a bathroom?
 [Pause 4]
 Rick: Alright I'll find a place to stop
 
