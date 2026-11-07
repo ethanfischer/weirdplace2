@@ -4,10 +4,19 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Sound/SoundBase.h"
+#include "Tunable.h"
+
+WP_TUNABLE_FLOAT(GBladderMinInterval, "weird.Bladder.MinInterval", 10.f,
+	"Fastest gap between bladder alerts (seconds), reached right before death. Alerts start StartInterval apart and close in to this.");
+WP_TUNABLE_FLOAT(GBladderStartCoverage, "weird.Bladder.StartCoverage", 3.f,
+	"Yellow vignette spread on the first alert (M_BladderVignette Coverage: 3 = corners/edges only).");
+WP_TUNABLE_FLOAT(GBladderEndCoverage, "weird.Bladder.EndCoverage", 10.f,
+	"Yellow vignette spread right before death — higher reaches further into the screen.");
 
 namespace BladderUrgencyInternal
 {
 	static const FName IntensityParamName(TEXT("Intensity"));
+	static const FName CoverageParamName(TEXT("Coverage"));
 	static const TCHAR* DefaultVignetteMaterialPath = TEXT("/Game/CreatedMaterials/M_BladderVignette.M_BladderVignette");
 
 	static void SetBlendableWeight(FPostProcessSettings& PostProcessSettings, UObject* BlendableObject, float Weight)
@@ -171,17 +180,33 @@ void UBladderUrgencyComponent::FireSinglePulse()
 	PulseElapsed = 0.f;
 	SetComponentTickEnabled(true);
 
+	// Each alert reaches further in from the edges than the last.
+	if (UrgencyVignetteMID)
+	{
+		UrgencyVignetteMID->SetScalarParameterValue(BladderUrgencyInternal::CoverageParamName,
+			FMath::Lerp(GBladderStartCoverage, GBladderEndCoverage, GetUrgencyProgress()));
+	}
+
 	if (UrgencySound)
 	{
 		UGameplayStatics::PlaySound2D(this, UrgencySound);
 	}
 }
 
+float UBladderUrgencyComponent::GetUrgencyProgress() const
+{
+	// Before StartUrgency (the car ride's one-off pulse) there's no countdown yet.
+	if (!GetWorld()->GetTimerManager().IsTimerActive(DeathTimerHandle))
+	{
+		return 0.f;
+	}
+	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;
+	return FMath::Clamp(Elapsed / TimeUntilDeath, 0.f, 1.f);
+}
+
 void UBladderUrgencyComponent::ScheduleNextPulse()
 {
-	const float Elapsed = GetWorld()->GetTimeSeconds() - StartTimeSeconds;
-	const float Progress = FMath::Clamp(Elapsed / TimeUntilDeath, 0.f, 1.f);
-	const float Interval = FMath::Lerp(StartInterval, MinInterval, Progress);
+	const float Interval = FMath::Lerp(StartInterval, GBladderMinInterval, GetUrgencyProgress());
 
 	GetWorld()->GetTimerManager().SetTimer(
 		ReminderTimerHandle,
@@ -233,15 +258,7 @@ void UBladderUrgencyComponent::StopUrgency()
 
 void UBladderUrgencyComponent::StartPulse()
 {
-	bIsPulsing = true;
-	PulseElapsed = 0.f;
-	SetComponentTickEnabled(true);
-
-	if (UrgencySound)
-	{
-		UGameplayStatics::PlaySound2D(this, UrgencySound);
-	}
-
+	FireSinglePulse();
 	ScheduleNextPulse();
 }
 

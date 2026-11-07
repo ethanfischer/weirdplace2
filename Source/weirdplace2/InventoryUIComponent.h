@@ -67,6 +67,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	bool IsInventoryFullyClosed() const { return CurrentState == EInventoryUIState::Closed; }
 
+	// Times a give-mode offer was rejected (tests assert on it).
+	int32 GetDenyCount() const { return DenyCount; }
+
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
 	int32 GetSelectedIndex() const { return AbsoluteSelectedIndex; }
@@ -140,7 +143,15 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
 	USoundBase* MenuItemSelectedSound;
 
+	// Give mode: the requester rejected the offered item (or the slot was
+	// empty); the inventory stays open. Defaults to the locked-door rattle, the
+	// same "no" the keypad gives a wrong code.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Inventory UI|Audio")
+	USoundBase* DenySound = nullptr;
+
 private:
+	int32 DenyCount = 0;
+
 	// Current state
 	UPROPERTY()
 	EInventoryUIState CurrentState = EInventoryUIState::Closed;

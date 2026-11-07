@@ -23,10 +23,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
 	float StartInterval = 60.f;
 
-	/** Fastest interval right before death (seconds). */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
-	float MinInterval = 2.f;
-
 	/** Total seconds until the player dies. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Bladder Urgency")
 	float TimeUntilDeath = 600.f;
@@ -78,6 +74,8 @@ private:
 	void ResetLegacyPostProcessOverrides();
 	void StartPulse();
 	void ScheduleNextPulse();
+	// 0 at StartUrgency (and before it) .. 1 at bladder death.
+	float GetUrgencyProgress() const;
 	void OnBladderDeathFired();
 
 	UPROPERTY()

@@ -19,9 +19,9 @@ Talks to the running editor via Python Remote Execution (scripts/ue_remote_exec.
     python scripts/uq.py mat-params /Game/CreatedMaterials/VHSCoverMaterials/MI_VHSCover_X
     python scripts/uq.py assets /Game/Dialogue --cls SoundWave
     python scripts/uq.py refs /Game/Blueprints/BP_TV --deps
-    python scripts/uq.py cvar wp.CarRideSpeed       # read (prints value + help from log)
-    python scripts/uq.py cvar wp.CarRideSpeed 900   # set
-    python scripts/uq.py cvar --dump                # wp.Tunables: all wp.* + modified markers
+    python scripts/uq.py cvar weird.CarRide.MusicFadeIn       # read (prints value + help from log)
+    python scripts/uq.py cvar weird.CarRide.MusicFadeIn 2.5   # set
+    python scripts/uq.py cvar --dump                          # weird.Tunables: all weird.* + modified markers
     python scripts/uq.py exec "stat fps"
     python scripts/uq.py py "print(unreal.get_default_object(unreal.GameplayStatics))"
     python scripts/uq.py pyfile C:/abs/path/script.py
@@ -417,10 +417,10 @@ def main():
     p = sub.add_parser("refs", help="asset referencers (--deps for dependencies)")
     p.add_argument("path")
     p.add_argument("--deps", action="store_true")
-    p = sub.add_parser("cvar", help="get/set a console variable, or --dump wp.* tunables")
+    p = sub.add_parser("cvar", help="get/set a console variable, or --dump weird.* tunables")
     p.add_argument("name", nargs="?", default=None)
     p.add_argument("value", nargs="?", default=None)
-    p.add_argument("--dump", action="store_true", help="run wp.Tunables and show all wp.* cvars")
+    p.add_argument("--dump", action="store_true", help="run weird.Tunables and show all weird.* cvars")
     p = sub.add_parser("exec", help="run a console command (game world if PIE active)")
     p.add_argument("cmd")
     p = sub.add_parser("py", help="run inline python in the editor")

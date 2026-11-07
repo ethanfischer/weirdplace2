@@ -17,6 +17,10 @@
 #include "Sound/SoundBase.h"
 #include "StorySubsystem.h"
 #include "TimerManager.h"
+#include "Tunable.h"
+
+WP_TUNABLE_FLOAT(GPayPhoneWalkBackShift, "weird.PayPhone.WalkBackShift", 0.5f,
+	"Fraction of the pole->station distance the pole scene and player jump toward the station on the first hang-up (0 = off). 0.5 halves the walk back.");
 
 APayPhone::APayPhone()
 {
@@ -472,16 +476,22 @@ void APayPhone::StartNextCodeLine()
 		}
 	};
 	// The finished line lingers through the pause; the next line's first
-	// character replaces it.
+	// character replaces it. The last line lingers the same pause, then clears.
 	CodeTypewriter.OnFinished = [this]()
 	{
 		++CodeLineIndex;
+		UWorld* World = GetWorld();
+		if (!World)
+		{
+			return;
+		}
 		if (CodeLines.IsValidIndex(CodeLineIndex))
 		{
-			if (UWorld* World = GetWorld())
-			{
-				World->GetTimerManager().SetTimer(CodeLineTimer, this, &APayPhone::StartNextCodeLine, FMath::Max(0.02f, CodeLineDelay), false);
-			}
+			World->GetTimerManager().SetTimer(CodeLineTimer, this, &APayPhone::StartNextCodeLine, FMath::Max(0.02f, CodeLineDelay), false);
+		}
+		else
+		{
+			World->GetTimerManager().SetTimer(CodeLineTimer, this, &APayPhone::ResetCodeText, FMath::Max(0.02f, CodeLineDelay), false);
 		}
 	};
 	CodeTypewriter.Start(this, CodeLines[CodeLineIndex], FMath::Max(0.01f, CodeCharInterval), 0.0f);
@@ -584,6 +594,13 @@ void APayPhone::HangUp()
 
 	bOffHook = false;
 
+	// Before HungUpPhone: Seneca appears at his (carried) smoking marker after it.
+	if (!bWalkBackDone)
+	{
+		bWalkBackDone = true;
+		ShiftSceneTowardStation();
+	}
+
 	// Hanging up arms the station-relight countdown (UStorySubsystem). Hang-up
 	// is locked until the code finishes, so this can't fire before the beat lands.
 	if (UStorySubsystem* Story = GetWorld() ? GetWorld()->GetSubsystem<UStorySubsystem>() : nullptr)
@@ -668,6 +685,11 @@ void APayPhone::UpdateForcedPerspective(float DeltaTime)
 	}
 }
 
+FString APayPhone::GetDisplayedCodeText() const
+{
+	return CodeTextRender ? CodeTextRender->Text.ToString() : FString();
+}
+
 void APayPhone::ResetCodeText()
 {
 	CodeTypewriter.Stop();
@@ -679,6 +701,65 @@ void APayPhone::ResetCodeText()
 	{
 		CodeTextRender->SetText(FText::GetEmpty());
 	}
+}
+
+void APayPhone::ShiftSceneTowardStation()
+{
+	if (GPayPhoneWalkBackShift <= 0.f)
+	{
+		return;
+	}
+	if (!WalkBackTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: WalkBackTarget not set on the level instance; walk back not shortened"), *GetName());
+		return;
+	}
+	UWorld* World = GetWorld();
+	ACharacter* Player = UGameplayStatics::GetPlayerCharacter(this, 0);
+	if (!World || !Player)
+	{
+		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no world/player; walk back not shortened"), *GetName());
+		return;
+	}
+
+	// Horizontal shift; vertical follows the ground so the scene stays planted.
+	const FVector From = GetActorLocation();
+	FVector Offset = (WalkBackTarget->GetActorLocation() - From) * GPayPhoneWalkBackShift;
+	Offset.Z = 0.f;
+
+	FCollisionQueryParams Params(SCENE_QUERY_STAT(PayPhoneWalkBack), /*bTraceComplex*/ true, this);
+	Params.AddIgnoredActor(Player);
+	Params.AddIgnoredActors(WalkBackCarry);
+	auto GroundZ = [&](const FVector& At, float& OutZ)
+	{
+		FHitResult Hit;
+		const bool bHit = World->LineTraceSingleByChannel(Hit, At + FVector(0, 0, 5000.f), At - FVector(0, 0, 5000.f), ECC_Visibility, Params);
+		OutZ = Hit.ImpactPoint.Z;
+		return bHit;
+	};
+	float OldGround = 0.f, NewGround = 0.f;
+	if (!GroundZ(From, OldGround) || !GroundZ(From + Offset, NewGround))
+	{
+		UE_LOG(LogTemp, Error, TEXT("APayPhone %s: no ground under %s or %s; walk back not shortened"),
+			*GetName(), *From.ToString(), *(From + Offset).ToString());
+		return;
+	}
+	Offset.Z = NewGround - OldGround;
+
+	SetActorLocation(GetActorLocation() + Offset, false, nullptr, ETeleportType::TeleportPhysics);
+	for (AActor* Carried : WalkBackCarry)
+	{
+		if (!Carried)
+		{
+			UE_LOG(LogTemp, Error, TEXT("APayPhone %s: null entry in WalkBackCarry"), *GetName());
+			continue;
+		}
+		Carried->SetActorLocation(Carried->GetActorLocation() + Offset, false, nullptr, ETeleportType::TeleportPhysics);
+	}
+	Player->SetActorLocation(Player->GetActorLocation() + Offset, false, nullptr, ETeleportType::TeleportPhysics);
+	WalkBackOffset = Offset;
+	UE_LOG(LogTemp, Log, TEXT("APayPhone %s: walk back shortened — scene + %d carried actor(s) + player shifted by %s toward %s"),
+		*GetName(), WalkBackCarry.Num(), *Offset.ToString(), *WalkBackTarget->GetActorNameOrLabel());
 }
 
 void APayPhone::ReleasePlayer()

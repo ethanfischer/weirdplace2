@@ -42,6 +42,15 @@ void UInventoryUIComponent::BeginPlay()
 	{
 		InventoryUIActorClass = AInventoryUIActor::StaticClass();
 	}
+
+	if (!DenySound)
+	{
+		DenySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/lockeddoor.lockeddoor"));
+		if (!DenySound)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent: default DenySound /Game/Sounds/lockeddoor missing"));
+		}
+	}
 }
 
 void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -142,10 +151,15 @@ void UInventoryUIComponent::ConfirmGiveSelection()
 		// receiver's dialogue/sequence started during Execute still stands.
 		CloseInventoryUI();
 	}
-	else if (MenuCloseSound)
+	else
 	{
 		// Empty slot or rejected offer: deny feedback, stay open to pick again.
-		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+		++DenyCount;
+		UE_LOG(LogTemp, Log, TEXT("InventoryUI: give offer '%s' denied"), *Selected.ToString());
+		if (DenySound)
+		{
+			UGameplayStatics::PlaySound2D(this, DenySound);
+		}
 	}
 }
 

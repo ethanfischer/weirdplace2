@@ -44,7 +44,6 @@ KNOWN_SPEAKERS = {"Seneca", "Rick", "Hudson"}
 TAG_SECTIONS = {
     "Bladder": "CarRide",
     "Give key": "ReadyToGiveKey",
-    "Fix key": ("Smoking", "SmokingNoKey"),
     "Give combined tape": "ReadyToGiveCombinedTape",
     "Gives Cash": "RickGivesMoney",
 }

@@ -1,11 +1,13 @@
 """
-Sends a Python script (or file) to the running UE editor via Python Remote
-Execution and prints the result. Requires Editor Preferences -> Plugins ->
-Python -> Enable Remote Execution to be ON.
+Sends Python to the running UE editor via Python Remote Execution and prints
+the result. Requires Editor Preferences -> Plugins -> Python -> Enable Remote
+Execution to be ON.
 
 Usage:
-    python scripts/ue_remote_exec.py --file path/to/script.py
+    python scripts/ue_remote_exec.py --code C:/abs/path/to/script.py --mode ExecuteFile
     python scripts/ue_remote_exec.py --code 'print(unreal.EditorLevelLibrary.get_editor_world().get_name())'
+
+ExecuteFile resolves --code as a path, so a script file must be passed by ABSOLUTE path.
 
 Also importable: run_code(code, mode, ...) -> (success, output_text).
 """
@@ -71,20 +73,12 @@ def run_code(code, mode="ExecuteFile", discover_timeout=5.0):
 
 def main():
     ap = argparse.ArgumentParser()
-    src = ap.add_mutually_exclusive_group(required=True)
-    src.add_argument("--file", type=str)
-    src.add_argument("--code", type=str)
+    ap.add_argument("--code", type=str, required=True)
     ap.add_argument("--mode", default="ExecuteFile", choices=["ExecuteFile", "ExecuteStatement", "EvaluateStatement"])
-    ap.add_argument("--timeout", type=float, default=30.0)
     args = ap.parse_args()
 
-    if args.file:
-        code = Path(args.file).read_text(encoding="utf-8")
-    else:
-        code = args.code
-
     try:
-        success, text = run_code(code, mode=args.mode)
+        success, text = run_code(args.code, mode=args.mode)
     except EditorNotFound as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(2)

@@ -28,14 +28,20 @@ public:
 	// Default accepts any component.
 	virtual bool IsComponentInteractable(const UPrimitiveComponent* Component) { return true; }
 
-	// The player used an inventory item on this (inventory open, item selected,
-	// Interact while looking at it). Return true if this reacted — the inventory
-	// closes. False means nothing happened; the item's UseFailSound plays at
-	// the hit point instead. Most things react to nothing, so the default is false.
+	// Item prompt: return true and Interact asks for an item instead of
+	// interacting — the inventory opens in give mode and the picked item is
+	// swung at this (UseItem lands at the impact). A pick WouldReactToItem
+	// rejects plays the deny sound and the inventory stays open. With an empty
+	// inventory the ordinary Interact runs instead.
+	virtual bool WantsItemPrompt() { return false; }
+
+	// The player used an inventory item on this (picked from the item prompt).
+	// Return true if this reacted. False means nothing happened; the item's
+	// UseFailSound plays at the hit point instead. Most things react to
+	// nothing, so the default is false.
 	virtual bool UseItem(FName ItemID) { return false; }
 
-	// Would UseItem(ItemID) do anything right now? Lets the equipped-item path
-	// decide between swinging the item and the ordinary Interact, without side
-	// effects. Keep in step with UseItem.
+	// Would UseItem(ItemID) do anything right now? The item prompt accepts or
+	// rejects a pick with this, without side effects. Keep in step with UseItem.
 	virtual bool WouldReactToItem(FName ItemID) { return false; }
 };

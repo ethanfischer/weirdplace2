@@ -43,4 +43,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Item")
 	FInventoryItemData ToInventoryItemData() const;
+
+	// Every quest/tool item (Key, Money, MeatTenderizer, ...) has a definition at
+	// /Game/Inventory/DA_<ItemID>. Movies are captured off a movie box and have
+	// none — that absence is what makes an item a movie (see ASeneca::IsMovieItem).
+	static bool Exists(FName ItemID);
+
+	// The definition for ItemID, or null if it has none (a movie).
+	static UItemDefinition* Find(FName ItemID);
 };

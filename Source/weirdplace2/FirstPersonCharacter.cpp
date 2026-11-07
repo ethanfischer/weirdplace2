@@ -433,10 +433,14 @@ void AFirstPersonCharacter::Tick(float DeltaTime)
 			{
 				if (InventoryUIComp->IsInventoryOpen())
 				{
-					// Selection is now stick-driven, so the interactable crosshair is
-					// shown whenever the currently selected slot holds a real item.
-					// Items is sparse — empty slots are NAME_None and shouldn't show the reticle.
-					if (UInventoryComponent* InventoryComp = GetInventoryComponent())
+					// Give mode: the interactable crosshair shows whenever the selected
+					// slot holds a real item (E offers it). Items is sparse — empty
+					// slots are NAME_None. Browsing (Tab) never shows it: E does nothing.
+					if (!InventoryUIComp->IsGiveMode())
+					{
+						bShouldShowInteractable = false;
+					}
+					else if (UInventoryComponent* InventoryComp = GetInventoryComponent())
 					{
 						const int32 SelectedIndex = InventoryUIComp->GetSelectedIndex();
 						const TArray<FName> Items = InventoryComp->GetItems();
@@ -795,9 +799,9 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 		return;
 	}
 
-	// While the inventory is open in "give mode" (opened by a gated interaction),
-	// Interact offers the selected item to the requesting door/NPC. Opened
-	// freely (Tab), Interact uses the selected item on whatever is looked at.
+	// While the inventory is open in "give mode" (opened by a gated interaction
+	// or an item prompt), Interact offers the selected item to the requester.
+	// Opened freely (Tab) it's for browsing only: Interact does nothing.
 	if (UInventoryUIComponent* InvUI = GetInventoryUIComponent())
 	{
 		if (InvUI->IsInventoryFullyOpen())
@@ -805,10 +809,6 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 			if (InvUI->IsGiveMode())
 			{
 				InvUI->ConfirmGiveSelection();
-			}
-			else
-			{
-				UseSelectedItemOnGazeTarget();
 			}
 			return;
 		}
@@ -871,18 +871,13 @@ void AFirstPersonCharacter::HandleInteractTriggered()
 			ResumeDialogue(HitActor);
 			return;
 		}
-		// Equipped item first: if the target would react to it, swing it.
-		const FName Equipped = GetEquippedItemID();
-		if (!Equipped.IsNone())
+		// Item prompt: the target asks for an item before (instead of) its
+		// ordinary interaction — unless there's nothing to offer.
+		IInteractable* Target = Cast<IInteractable>(HitActor);
+		if (Target && Target->WantsItemPrompt() && InventoryComponent && InventoryComponent->GetItemCount() > 0)
 		{
-			if (IInteractable* Target = Cast<IInteractable>(HitActor))
-			{
-				if (Target->WouldReactToItem(Equipped))
-				{
-					UseItemOn(Equipped, HitActor, /*bFromOpenInventory*/ false);
-					return;
-				}
-			}
+			OpenItemPrompt(HitActor);
+			return;
 		}
 		if (HitActor->GetClass()->ImplementsInterface(UInteractable::StaticClass()))
 		{
@@ -897,37 +892,37 @@ void AFirstPersonCharacter::HandleInteractCompleted()
 	bInteractDoOnceCompleted = false;
 }
 
-FName AFirstPersonCharacter::GetEquippedItemID() const
+void AFirstPersonCharacter::OpenItemPrompt(AActor* Target)
 {
 	UInventoryUIComponent* InvUI = GetInventoryUIComponent();
-	if (!InvUI || !InventoryComponent)
+	if (!InvUI)
 	{
-		return NAME_None;
+		UE_LOG(LogTemp, Error, TEXT("OpenItemPrompt: no InventoryUIComponent; %s can't ask for an item"), *GetNameSafe(Target));
+		return;
 	}
-	const TArray<FName> Items = InventoryComponent->GetItems();
-	return Items.IsValidIndex(InvUI->GetSelectedIndex()) ? Items[InvUI->GetSelectedIndex()] : NAME_None;
+	UE_LOG(LogTemp, Log, TEXT("OpenItemPrompt: %s asks for an item"), *GetNameSafe(Target));
+	TWeakObjectPtr<AActor> WeakTarget(Target);
+	InvUI->OpenForGive(FInventoryGiveDelegate::CreateWeakLambda(this, [this, WeakTarget](FName ItemID)
+	{
+		AActor* PromptTarget = WeakTarget.Get();
+		IInteractable* Interactable = PromptTarget ? Cast<IInteractable>(PromptTarget) : nullptr;
+		if (!Interactable || !Interactable->WouldReactToItem(ItemID))
+		{
+			UE_LOG(LogTemp, Log, TEXT("ItemPrompt: %s rejected %s"), *GetNameSafe(PromptTarget), *ItemID.ToString());
+			return false;
+		}
+		UseItemOn(ItemID, PromptTarget);
+		return true;
+	}));
 }
 
-void AFirstPersonCharacter::UseSelectedItemOnGazeTarget()
-{
-	const FName ItemID = GetEquippedItemID();
-	if (ItemID.IsNone())
-	{
-		return; // empty inventory: nothing to use
-	}
-	AActor* HitActor = nullptr;
-	bool bDidHitInteractable = false;
-	RaycastInteractableCheck(HitActor, bDidHitInteractable);
-	UseItemOn(ItemID, bDidHitInteractable ? HitActor : nullptr, /*bFromOpenInventory*/ true);
-}
-
-void AFirstPersonCharacter::UseItemOn(FName ItemID, AActor* Target, bool bFromOpenInventory)
+void AFirstPersonCharacter::UseItemOn(FName ItemID, AActor* Target)
 {
 	const FInventoryItemData Data = InventoryComponent ? InventoryComponent->GetItemData(ItemID) : FInventoryItemData();
 	if (!Data.Mesh || !SwingMesh || SwingElapsed >= 0.0f)
 	{
 		// No mesh to swing (or a swing already in flight): resolve now.
-		ResolveItemUse(ItemID, Target, bFromOpenInventory);
+		ResolveItemUse(ItemID, Target);
 		return;
 	}
 
@@ -943,7 +938,6 @@ void AFirstPersonCharacter::UseItemOn(FName ItemID, AActor* Target, bool bFromOp
 
 	SwingItemID = ItemID;
 	SwingTarget = Target;
-	bSwingFromOpenInventory = bFromOpenInventory;
 	SwingElapsed = 0.0f;
 	bSwingImpactDone = false;
 	TickSwing(0.0f);
@@ -969,7 +963,7 @@ void AFirstPersonCharacter::TickSwing(float DeltaTime)
 	if (!bSwingImpactDone && SwingElapsed >= Impact)
 	{
 		bSwingImpactDone = true;
-		ResolveItemUse(SwingItemID, SwingTarget.Get(), bSwingFromOpenInventory);
+		ResolveItemUse(SwingItemID, SwingTarget.Get());
 	}
 	if (SwingElapsed >= Total)
 	{
@@ -978,22 +972,18 @@ void AFirstPersonCharacter::TickSwing(float DeltaTime)
 	}
 }
 
-void AFirstPersonCharacter::ResolveItemUse(FName ItemID, AActor* Target, bool bFromOpenInventory)
+void AFirstPersonCharacter::ResolveItemUse(FName ItemID, AActor* Target)
 {
 	IInteractable* Interactable = Target ? Cast<IInteractable>(Target) : nullptr;
 	if (Interactable && Interactable->UseItem(ItemID))
 	{
 		UE_LOG(LogTemp, Log, TEXT("UseItem: %s reacted to %s"), *Target->GetName(), *ItemID.ToString());
-		if (bFromOpenInventory)
-		{
-			if (UInventoryUIComponent* InvUI = GetInventoryUIComponent()) { InvUI->CloseInventoryUI(); }
-		}
 		return;
 	}
 
-	// Nothing happened: the item's own "that did nothing" sound at the target.
-	const FString DefPath = FString::Printf(TEXT("/Game/Inventory/DA_%s.DA_%s"), *ItemID.ToString(), *ItemID.ToString());
-	UItemDefinition* Def = LoadObject<UItemDefinition>(nullptr, *DefPath);
+	// Nothing happened (the target changed its mind mid-swing): the item's own
+	// "that did nothing" sound at the target.
+	UItemDefinition* Def = UItemDefinition::Find(ItemID);
 	USoundBase* FailSound = Def ? Def->UseFailSound : nullptr;
 	UE_LOG(LogTemp, Log, TEXT("UseItem: %s did nothing on %s (fail sound %s)"),
 		*ItemID.ToString(), Target ? *Target->GetName() : TEXT("nothing"), FailSound ? TEXT("played") : TEXT("none"));

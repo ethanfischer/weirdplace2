@@ -46,6 +46,44 @@ AIceMachine::AIceMachine()
 	DoorR    = MakePart(this, Body, TEXT("DoorR"),    TEXT("/Game/Fab/IceMachineParts/SM_IceMachine_DoorR.SM_IceMachine_DoorR"),       FVector( 96.74f, 60.81f, 0.0f));
 	PadlockL = MakePart(this, Body, TEXT("PadlockL"), TEXT("/Game/Fab/IceMachineParts/SM_IceMachine_PadlockL.SM_IceMachine_PadlockL"), FVector(  6.45f, 50.76f, 108.66f));
 	PadlockR = MakePart(this, Body, TEXT("PadlockR"), TEXT("/Game/Fab/IceMachineParts/SM_IceMachine_PadlockR.SM_IceMachine_PadlockR"), FVector( 26.25f, 50.76f, 108.66f));
+
+	// Defaults so the placed instance (which overrides neither) has sound:
+	// the locked-door rattle for the padlocks, a metal clank for knocking them off.
+	ConstructorHelpers::FObjectFinder<USoundBase> Locked(TEXT("/Game/Sounds/lockeddoor.lockeddoor"));
+	if (Locked.Succeeded())
+	{
+		LockedSound = Locked.Object;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("IceMachine: /Game/Sounds/lockeddoor missing"));
+	}
+	ConstructorHelpers::FObjectFinder<USoundBase> Clank(TEXT("/Game/Sounds/SC_Clank.SC_Clank"));
+	if (Clank.Succeeded())
+	{
+		BreakOpenSound = Clank.Object;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("IceMachine: /Game/Sounds/SC_Clank missing"));
+	}
+}
+
+void AIceMachine::OnFlavorInteract()
+{
+	if (bBrokenOpen)
+	{
+		return;
+	}
+	++LockedSoundPlayCount;
+	if (LockedSound)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, LockedSound, GetActorLocation());
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("IceMachine %s: LockedSound not set"), *GetName());
+	}
 }
 
 bool AIceMachine::UseItem(FName ItemID)

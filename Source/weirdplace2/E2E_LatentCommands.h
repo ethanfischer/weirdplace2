@@ -4744,4 +4744,62 @@ private:
 	bool bExpected;
 };
 
+// =======================================================================
+// FTD_Check / FTD_WaitUntil — one-off assertions without a bespoke class.
+// Pred gets the PIE world. Check fails unless Pred holds on its tick;
+// WaitUntil polls until Pred holds or Timeout elapses.
+// =======================================================================
+
+class FTD_WaitUntil : public FTD_Base
+{
+public:
+	FTD_WaitUntil(FAutomationTestBase* InTest, FString InWhat, TFunction<bool(UWorld*)> InPred, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), What(MoveTemp(InWhat)), Pred(MoveTemp(InPred)), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Waiting until %s"), *What); }
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_WaitUntil: no PIE world")); return true; }
+		if (Pred(World))
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitUntil: timed out after %.1fs waiting until %s"), Timeout, *What));
+			return true;
+		}
+		return false;
+	}
+private:
+	FString What;
+	TFunction<bool(UWorld*)> Pred;
+	double Timeout;
+};
+
+class FTD_Check : public FTD_Base
+{
+public:
+	FTD_Check(FAutomationTestBase* InTest, FString InWhat, TFunction<bool(UWorld*)> InPred)
+		: FTD_Base(InTest), What(MoveTemp(InWhat)), Pred(MoveTemp(InPred)) {}
+
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Checking %s"), *What); }
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_Check: no PIE world")); return true; }
+		if (!Pred(World))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_Check failed: %s"), *What));
+		}
+		return true;
+	}
+private:
+	FString What;
+	TFunction<bool(UWorld*)> Pred;
+};
+
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

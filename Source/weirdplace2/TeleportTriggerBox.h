@@ -7,6 +7,7 @@ class ATargetPoint;
 class AAmbientSound;
 class ADoor;
 class UBladderUrgencyComponent;
+class UCameraComponent;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -28,9 +29,20 @@ public:
 	// wind/waterfall/chord cross-fade already finished and the stall door unlocked.
 	void SkipTransition(AActor* Actor);
 
+	// Seconds left in the post-teleport exposure hand-off (0 = none running; tests).
+	float GetExposureHandOffRemaining() const;
+
 protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
+
+	// Ultra Dynamic Sky's post-process owns the exposure (bias, range); destroying
+	// it in the teleport frame snapped the exposure (bias 0 -> the engine's 1:
+	// one stop brighter, instantly). Before it goes, copy its auto-exposure
+	// settings onto the traveller's camera and fade that override out over
+	// weird.Oasis.ExposureBlendSeconds, so the change is gradual.
+	void HandOverSkyExposure(AActor* Traveller);
+	void TickExposureHandOff();
 
 	// Fades out the AmbientGlobalWind AAmbientSound if assigned
 	void SilenceGlobalWindIfRequested();
@@ -71,10 +83,6 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	AAmbientSound* AmbientWaterfall = nullptr;
 
-	// Ambient sound to fade in when bSilenceGlobalWind is set (set on level instance)
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	AAmbientSound* AmbientChord = nullptr;
-
 	// Fade-out duration for AmbientGlobalWind (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WindFadeOutDuration = 10.0f;
@@ -87,14 +95,6 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	EAudioFaderCurve WaterfallFadeCurve = EAudioFaderCurve::Logarithmic;
 
-	// Fade-in duration for Ambient_Chord (only used when bSilenceGlobalWind is true)
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	float ChordFadeInDuration = 10.0f;
-
-	// Fade-in curve for Ambient_Chord
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	EAudioFaderCurve ChordFadeCurve = EAudioFaderCurve::Logarithmic;
-
 	// Door to unlock after BathroomStallDoorUnlockTime seconds (set on level instance)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	ADoor* BathroomStallDoor = nullptr;
@@ -103,4 +103,9 @@ protected:
 	float BathroomStallDoorUnlockTime = 60.0f;
 
 	FTimerHandle BathroomStallDoorUnlockTimerHandle;
+
+	TWeakObjectPtr<UCameraComponent> ExposureCamera;
+	float ExposureCameraOriginalWeight = 1.f;
+	float ExposureHandOffElapsed = 0.f;
+	FTimerHandle ExposureHandOffTimer;
 };

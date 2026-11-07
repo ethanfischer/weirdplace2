@@ -1,6 +1,8 @@
 #include "Seneca.h"
 #include "PropActor.h"
 #include "StorySubsystem.h"
+#include "Piano.h"
+#include "EngineUtils.h"
 #include "FirstPersonCharacter.h"
 #include "InventoryUIComponent.h"
 #include "Inventory.h"
@@ -54,6 +56,14 @@ void ASeneca::BeginPlay()
 	Super::BeginPlay();
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::BeginPlay"));
+
+	UStorySubsystem* Story = GetWorld()->GetSubsystem<UStorySubsystem>();
+	Story->OnStoryFlagChanged.AddUObject(this, &ASeneca::OnStoryFlagChanged);
+	if (Story->IsFlagSet(EStoryFlag::EnteredOasis))
+	{
+		// SkipTo Oasis applied before we bound.
+		GoToPiano();
+	}
 
 	DialogueWidgetComponent = DialoguePlate->GetWidgetComponent();
 
@@ -157,6 +167,7 @@ void ASeneca::BeginPlay()
 	LoadDialogueSection(ESenecaState::ReadyToGiveKey, ReadyToGiveKeySection);
 	LoadDialogueSection(ESenecaState::GaveKey, GaveKeySection);
 	LoadDialogueSection(ESenecaState::Smoking, SmokingSection);
+	LoadDialogueSection(ESenecaState::AtPiano, PianoSection);
 
 	// Reminder lines (not keyed by state)
 	LoadReminderSection(WaitingForMoviesReminderSection, WaitingForMoviesReminderLines);
@@ -266,8 +277,12 @@ void ASeneca::OnDialogueEnded()
 		// The intro is Czech, so the player can't act on it yet. Seneca repeats
 		// the reminder and won't take movies until Rick translates
 		// (OnIntroTranslated).
-		bIntroDialoguePlayed = true;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Intro played; waiting for Rick's translation"));
+		if (!bIntroDialoguePlayed)
+		{
+			bIntroDialoguePlayed = true;
+			UE_LOG(LogTemp, Log, TEXT("Seneca - Intro played; waiting for Rick's translation"));
+			OnIntroDialoguePlayed.Broadcast();
+		}
 		break;
 	}
 
@@ -323,9 +338,8 @@ void ASeneca::OnDialogueEnded()
 
 	case ESenecaState::Smoking:
 	{
-		// The pole dialogue's only effect is the [Fix key] swap; Seneca stays
-		// put and unlocks nothing (the keypad opens the employee bathroom once
-		// the fixed key snaps in it).
+		// The pole dialogue has no effect; Seneca stays put and unlocks nothing
+		// (the keypad opens the employee bathroom once the payphone's been used).
 		APlayerController* PC = GetWorld()->GetFirstPlayerController();
 		if (AFirstPersonCharacter* FPChar = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr)
 		{
@@ -333,6 +347,17 @@ void ASeneca::OnDialogueEnded()
 		}
 		CurrentState = ESenecaState::Done;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, State: Smoking -> Done"));
+		break;
+	}
+
+	case ESenecaState::AtPiano:
+	{
+		// Talking to the pianist counts as interacting with the piano: it starts
+		// the end-of-demo countdown (a no-op if the piano already started it).
+		for (TActorIterator<APiano> It(GetWorld()); It; ++It)
+		{
+			It->ArmEndNotice();
+		}
 		break;
 	}
 
@@ -356,6 +381,51 @@ void ASeneca::OnKeyDropped()
 	// pickup flow it ran before the key existed and logged a spurious error.)
 
 	GetWorldTimerManager().SetTimer(SmokingAppearTimerHandle, this, &ASeneca::OnSmokingDelayComplete, SmokingAppearDelay, false);
+}
+
+void ASeneca::OnStoryFlagChanged(EStoryFlag Flag, bool bValue)
+{
+	if (Flag == EStoryFlag::EnteredOasis && bValue)
+	{
+		GoToPiano();
+	}
+}
+
+void ASeneca::GoToPiano()
+{
+	APiano* Piano = nullptr;
+	for (TActorIterator<APiano> It(GetWorld()); It; ++It)
+	{
+		Piano = *It;
+		break;
+	}
+	if (!Piano)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Seneca::GoToPiano - no APiano in the level (BP_Piano reparented?); Seneca stays where he is"));
+		return;
+	}
+
+	// Whatever the pole beat was doing, it's over.
+	GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
+	bWaitingToAppear = false;
+	bIsSmoking = false;
+	if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
+	if (CellPhoneMesh) CellPhoneMesh->SetVisibility(false);
+	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
+	{
+		Light->SetVisibility(false);
+	}
+	if (USkeletalMeshComponent* Body = FindBodyMesh())
+	{
+		// Back from the single-node smoking clip to the anim blueprint (idle + look-at).
+		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
+	}
+
+	SetActorLocationAndRotation(Piano->PianistSpot->GetComponentLocation(), Piano->PianistSpot->GetComponentRotation());
+	SetActorEnableCollision(true);
+	AtPianoPiano = Piano;
+	CurrentState = ESenecaState::AtPiano;
+	UE_LOG(LogTemp, Log, TEXT("Seneca - at the piano (State -> AtPiano)"));
 }
 
 void ASeneca::OnSmokingDelayComplete()
@@ -384,6 +454,18 @@ void ASeneca::Interact_Implementation()
 	if (!FPCharacter)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::Interact - Player is not AFirstPersonCharacter"));
+		return;
+	}
+
+	if (CurrentState == ESenecaState::AtPiano)
+	{
+		const TArray<FText>* Lines = DialogueLines.Find(ESenecaState::AtPiano);
+		if (!Lines || Lines->Num() == 0)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca::Interact - no '%s' lines in %s"), *PianoSection, *DialogueFilePath);
+			return;
+		}
+		FPCharacter->StartSimpleDialogue(FText::FromString(TEXT("Seneca")), *Lines, this);
 		return;
 	}
 
@@ -539,28 +621,6 @@ void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyDef->ItemID.ToString());
 }
 
-void ASeneca::FixKey(AFirstPersonCharacter* FPChar)
-{
-	UInventoryComponent* Inventory = FPChar ? FPChar->GetInventoryComponent() : nullptr;
-	if (!Inventory)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::FixKey - no player inventory"));
-		return;
-	}
-
-	// The broken half is a collectable the player may have left on the ground;
-	// the fix isn't optional, so hand over a fresh key either way.
-	if (Inventory->HasItem(BrokenKeyItemID))
-	{
-		Inventory->RemoveItem(BrokenKeyItemID);
-	}
-	else
-	{
-		UE_LOG(LogTemp, Log, TEXT("Seneca::FixKey - player isn't carrying '%s'; giving a fresh key anyway"), *BrokenKeyItemID.ToString());
-	}
-	GiveKey(FPChar);
-}
-
 // --- Helpers ---
 
 void ASeneca::MoveToTarget(AActor* Target)
@@ -579,6 +639,24 @@ void ASeneca::MoveToTarget(AActor* Target)
 void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// At the piano: the music stops while the player talks to him — ending the
+	// dialogue or walking away mid-line both count as stopping — and plays on
+	// from where it paused.
+	if (CurrentState == ESenecaState::AtPiano)
+	{
+		if (APiano* Piano = AtPianoPiano.Get())
+		{
+			const AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(UGameplayStatics::GetPlayerCharacter(this, 0));
+			const bool bTalking = Player && Player->IsInAnyDialogue() && Player->GetCurrentDialogueNPC() == this;
+			if (bTalking != bPianoPausedForTalk)
+			{
+				bPianoPausedForTalk = bTalking;
+				Piano->SetMusicPaused(bTalking);
+			}
+		}
+		return;
+	}
 
 
 	// Waiting to appear at the smoking spot (behind the telephone pole) —
@@ -660,13 +738,6 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 
 void ASeneca::StartSmokingDialogue(AFirstPersonCharacter* FPChar)
 {
-	// Two scripts for the beat: one if the player brought the snapped half, one
-	// if they left it in the lot. Both carry the [Fix key] cue. (Re)load the
-	// right one under the Smoking state so GetActionForLine lines up.
-	UInventoryComponent* Inventory = FPChar->GetInventoryComponent();
-	const bool bHasBrokenKey = Inventory && Inventory->HasItem(BrokenKeyItemID);
-	LoadDialogueSection(ESenecaState::Smoking, bHasBrokenKey ? SmokingSection : SmokingNoKeySection);
-
 	TArray<FText> Lines;
 	BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
 	if (Lines.Num() == 0)
@@ -729,11 +800,6 @@ void ASeneca::OnKeyDialogueLineShown(int32 LineIndex)
 	if (Action == TEXT("Give key"))
 	{
 		GiveKey(FPChar);
-		return;
-	}
-	if (Action == TEXT("Fix key"))
-	{
-		FixKey(FPChar);
 		return;
 	}
 
@@ -915,11 +981,9 @@ void ASeneca::HandleBlankTapeGive(AFirstPersonCharacter* FPChar, UInventoryCompo
 
 bool ASeneca::IsMovieItem(FName ItemID)
 {
-	// A "movie" is any inventory item that isn't one of the fixed tool/quest items.
-	static const TSet<FName> ToolItems = {
-		FName("Key"), FName("BrokenKey"), FName("Money"), FName("BlankVHS"), FName("CombinedTape")
-	};
-	return !ItemID.IsNone() && !ToolItems.Contains(ItemID);
+	// Tool/quest items (Key, Money, MeatTenderizer, ...) each have an item
+	// definition; movies, captured off a movie box, don't.
+	return !ItemID.IsNone() && !UItemDefinition::Exists(ItemID);
 }
 
 FName ASeneca::FindFirstMovie(UInventoryComponent* Inventory)

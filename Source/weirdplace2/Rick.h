@@ -163,9 +163,8 @@ private:
 	bool bGaveMoney = false;
 	bool bMoneyBeatArmed = false;
 
-	// The player walked back into the store after Seneca's intro -> Rick goes
-	// inside as soon as neither spot is in view (Tick). bInside flips when the
-	// move has happened.
+	// Seneca's intro has played -> Rick goes inside to translate as soon as
+	// neither spot is in view (Tick). bInside flips when the move has happened.
 	bool bPendingTeleportInside = false;
 	bool bInside = false;
 
@@ -175,8 +174,8 @@ private:
 	// Lines translating Seneca's open request, or null when he has none.
 	const TArray<FText>* GetSenecaTranslation() const;
 
-	// UStorySubsystem::OnPlayerEnteredStore handler.
-	void OnPlayerEnteredStore();
+	// ASeneca::OnIntroDialoguePlayed handler.
+	void OnSenecaIntroPlayed();
 
 	// Storm stash state (StashForStorm / ReturnFromStorm).
 	bool bStashedForStorm = false;

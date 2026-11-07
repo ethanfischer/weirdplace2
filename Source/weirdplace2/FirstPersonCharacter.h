@@ -71,6 +71,8 @@ public:
 	EPlayerActivityState GetActivityState() const { return ActivityState; }
 	bool IsInAnyDialogue() const;
 	bool IsDialogueCooldownActive() const;
+	// The NPC of the dialogue in progress (null when not in dialogue).
+	UObject* GetCurrentDialogueNPC() const { return CurrentDialogueNPC; }
 
 	// Car ride: gate player-initiated dialogue advance behind gaze direction.
 	// While gated, E only advances dialogue when the camera forward is within
@@ -263,10 +265,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Interaction")
 	void RaycastInteractableCheck(AActor*& OutHitActor, bool& bDidHitInteractable);
 
-	// Inventory open (not give mode) + Interact: offer the selected item to the
-	// interactable under the crosshair via IInteractable::UseItem. Reacted ->
-	// close the inventory; otherwise play the item's UseFailSound at the target.
-	void UseSelectedItemOnGazeTarget();
+	// Interact on a target whose WantsItemPrompt() is true (and the inventory
+	// isn't empty): open the inventory in give mode; a pick the target
+	// WouldReactToItem closes it and swings the item at the target.
+	void OpenItemPrompt(AActor* Target);
 
 	// While an object is held up for inspection (movie box, pickup), Interact
 	// collects it. The inspected object installs its collect here and clears it
@@ -283,17 +285,10 @@ public:
 	// for that device.
 	FString GetBackKeyLabel() const;
 
-	// --- Equipped item ---
-	// The inventory's selected item counts as "in hand" once the inventory is
-	// closed: Interact offers it to the target (IInteractable::UseItem) before
-	// the ordinary interaction. Nothing is drawn in hand; using it plays a short
-	// swing of the item's mesh (SwingMesh) and the effect lands at the impact.
-	FName GetEquippedItemID() const;
-
 	// Swing ItemID at Target: the mesh arcs in from the lower right, then at
 	// impact Target->UseItem runs (or the item's UseFailSound plays). Items
 	// without a mesh skip the swing and resolve immediately.
-	void UseItemOn(FName ItemID, AActor* Target, bool bFromOpenInventory);
+	void UseItemOn(FName ItemID, AActor* Target);
 
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Camera")
 	UCameraComponent* GetFirstPersonCamera() const { return FirstPersonCamera; }
@@ -416,10 +411,9 @@ private:
 	bool  bSwingImpactDone = false;
 	FName SwingItemID;
 	TWeakObjectPtr<AActor> SwingTarget;
-	bool  bSwingFromOpenInventory = false;
 
 	void TickSwing(float DeltaTime);
-	void ResolveItemUse(FName ItemID, AActor* Target, bool bFromOpenInventory);
+	void ResolveItemUse(FName ItemID, AActor* Target);
 
 	// Dynamically spawned mesh components for stacked item notifications
 	UPROPERTY()

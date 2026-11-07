@@ -16,10 +16,10 @@ class UItemDefinition;
 
 UCLASS()
 // A locked door that eats the bathroom key: offering the Key runs the
-// insert/turn/snap animation and drops a BrokenKey pickup. Used by both the
-// outside bathroom door (first break; notifies Seneca) and, via
-// BP_HallwayKeypadDoor, the keypad-locked door into the gas hallway (the key
-// Seneca "fixed" breaks again; the keypad then remains the way in).
+// insert/turn/snap animation and drops a BrokenKey pickup. Used by the
+// outside bathroom door (the break; notifies Seneca) and by
+// BP_HallwayKeypadDoor, the keypad-locked door into the gas hallway, whose
+// keypad opens it once the payphone has been used (ADoor's keypad gate).
 class WEIRDPLACE2_API AOutsideBathroomDoor : public ADoor
 {
 	GENERATED_BODY()
@@ -31,9 +31,6 @@ public:
 
 	// Override interact for bathroom-specific behavior
 	virtual void Interact_Implementation() override;
-
-	// Keypad (hallway door) only accepts a code once the key has snapped in this lock.
-	virtual bool IsKeypadArmed() const override { return bDidDropKey; }
 
 	// Inventory give-mode callback: accepts the key when offered, then runs the
 	// break sequence. Returns true if the offered item was the key.

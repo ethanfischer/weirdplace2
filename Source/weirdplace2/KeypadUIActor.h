@@ -37,6 +37,14 @@ public:
 	// Opacity (0..1) for the open/close animation.
 	void SetOpacity(float Opacity);
 
+	// Make the keypad visible again after a close. Root->SetVisibility(true,
+	// true) alone would also show the parts built hidden (cell boxes, fill-slot
+	// boxes) — the grey slabs / lime boxes on a second open.
+	void Show();
+
+	// Cell/fill-slot boxes currently visible — always 0 when correct (tests).
+	int32 GetVisibleBoxCount() const;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;

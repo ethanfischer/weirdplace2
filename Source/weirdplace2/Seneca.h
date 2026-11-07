@@ -20,6 +20,8 @@ class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
 class UInventoryComponent;
+enum class EStoryFlag : uint8;
+class APiano;
 class USpawnerActorComponent;
 
 UENUM(BlueprintType)
@@ -34,6 +36,7 @@ enum class ESenecaState : uint8
 	ReadyToGiveKey,             // "Nice picks, here's the key"
 	GaveKey,                    // "Go use the bathroom outside"
 	Smoking,                    // Cosmetic smoking beat at the telephone pole, after the player hangs up (no story effect)
+	AtPiano,                    // Oasis: standing at the piano (EnteredOasis); "Hey. Where have you been?"
 	Done                        // No more dialogue
 };
 
@@ -105,6 +108,10 @@ public:
 	// Set once the WaitingForMovies basket beat has fully played; prevents replaying on re-enter/re-interact
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
+
+	// Fires once, when the intro has just played (bIntroDialoguePlayed set).
+	// Rick binds it to come in and translate.
+	FSimpleMulticastDelegate OnIntroDialoguePlayed;
 
 	// Rick has translated the blank-tape request; until then Seneca won't take the tape.
 	UPROPERTY(VisibleAnywhere, Category = "Seneca|Quest")
@@ -189,10 +196,6 @@ protected:
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString SmokingSection = TEXT("Smoking");
 
-	// Smoking variant used when the player isn't carrying the broken key.
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString SmokingNoKeySection = TEXT("SmokingNoKey");
-
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviesReminderSection = TEXT("WaitingForMoviesReminder");
 
@@ -202,6 +205,10 @@ protected:
 	// Appended to Smoking once the player has seen the tornado warning on the TVs.
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString SmokingTornadoTipSection = TEXT("SmokingTornadoTip");
+
+	// Oasis: what Seneca says at the piano.
+	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
+	FString PianoSection = TEXT("Piano");
 
 	// --- Blank Tape Beat ---
 
@@ -221,11 +228,6 @@ protected:
 	// Pre-placed key actor in the level — shown on beat, hidden on next E press
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;
-
-	// Inventory ID of the snapped half the player picks up outside. The [Fix key]
-	// cue in the Smoking dialogue swaps it for a fresh KeyDef key.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	FName BrokenKeyItemID = TEXT("BrokenKey");
 
 	// --- Quest Config ---
 
@@ -267,9 +269,6 @@ private:
 	// Gives the key to the player and shows the item notification on success.
 	// Skips the notification (logs + bails) on any failure path.
 	void GiveKey(class AFirstPersonCharacter* FPChar);
-
-	// Smoking beat: take the broken half (if carried) and hand over a fresh key.
-	void FixKey(class AFirstPersonCharacter* FPChar);
 
 	// Teleport Seneca to target actor's location/rotation
 	void MoveToTarget(AActor* Target);
@@ -343,11 +342,23 @@ private:
 
 	void StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar);
 
-	// Smoking dialogue at the telephone pole, with the [Fix key] cue wired up.
+	// Smoking dialogue at the telephone pole (no cues).
 	void StartSmokingDialogue(AFirstPersonCharacter* FPChar);
 
-	// Shared line-cue handler for the ReadyToGiveKey ([Give key]) and Smoking
-	// ([Fix key]) dialogues: arms on the cue line, executes on the next press.
+	// EnteredOasis -> GoToPiano.
+	void OnStoryFlagChanged(EStoryFlag Flag, bool bValue);
+
+	// Drop the pole beat (smoking anim, cigarette, phone) and stand at the oasis
+	// piano's PianistSpot, back on the regular anim blueprint.
+	void GoToPiano();
+
+	// The piano he's at (AtPiano). Its music pauses while the player talks to
+	// him and resumes from the same spot when they stop (Tick).
+	TWeakObjectPtr<APiano> AtPianoPiano;
+	bool bPianoPausedForTalk = false;
+
+	// Line-cue handler for the ReadyToGiveKey ([Give key]) dialogue: arms on
+	// the cue line, executes on the next press.
 	UFUNCTION()
 	void OnKeyDialogueLineShown(int32 LineIndex);
 

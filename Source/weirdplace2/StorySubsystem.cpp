@@ -37,6 +37,10 @@ namespace StorySubsystemConst
 	static const FName StormDimLightTag("StormDimLight");
 	static const FName StormHideActorTag("StormHideActor");
 	static const FName StormSilenceAmbientTag("StormSilenceAmbient");
+	// Level actors riding along with the car (UCarRideComponent::RiderActorTag):
+	// its two headlight beams. The storm switches them off for good — they're
+	// not in HiddenActors, so the relight doesn't bring them back.
+	static const FName CarRiderTag("CarRideAttached");
 
 	// Odd number of flicker toggles so the sequence starts on and ends on.
 	static constexpr int32 FlickerSteps = 7;
@@ -96,12 +100,10 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// previously always healed). Whatever recreates the fog render state
 	// early in a session's first play is the actual culprit; still unsolved.
 
-	// Bind the two doorway trigger boxes, matched by actor tag (packaged) or
-	// editor label (PIE). TriggerBox_Inside drives the TV switch (E2E calls
-	// HandleStoreEntry directly); together with TriggerBox_Outside it tells
-	// walking in from walking out (OnPlayerEnteredStore).
+	// Bind the doorway trigger box, matched by actor tag (packaged) or editor
+	// label (PIE). TriggerBox_Inside drives the store-entry beat (E2E calls
+	// HandleStoreEntry directly).
 	bool bBoundInside = false;
-	bool bBoundOutside = false;
 	for (TActorIterator<ATriggerBox> It(&InWorld); It; ++It)
 	{
 		AActor* Trigger = *It;
@@ -111,21 +113,11 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 			bBoundInside = true;
 			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound store-entry overlap on '%s'"), *Trigger->GetName());
 		}
-		else if (IsDoorwayTrigger(Trigger, FName("StoreOutsideTrigger"), TEXT("TriggerBox_Outside")))
-		{
-			Trigger->OnActorBeginOverlap.AddDynamic(this, &UStorySubsystem::OnOutsideTriggerOverlap);
-			bBoundOutside = true;
-			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound street-side doorway overlap on '%s'"), *Trigger->GetName());
-		}
 	}
 
 	if (!bBoundInside)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("StorySubsystem: TriggerBox_Inside not found; store-entry overlap not bound (TriggerStoreEntry still works)"));
-	}
-	if (!bBoundOutside)
-	{
-		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: TriggerBox_Outside not found; OnPlayerEnteredStore will never fire (Rick can't come inside)"));
 	}
 }
 
@@ -255,7 +247,8 @@ void UStorySubsystem::SkipToBeat(EStoryFlag Target)
 	}
 	if (T >= static_cast<int32>(EStoryFlag::TornadoWarningDisplayed))
 	{
-		// Flips both store TVs + sets TornadoWarningDisplayed (self-guards if already done).
+		// Sets TornadoWarningDisplayed (storm) + starts the TV gaze watch; the
+		// TVs flipped with KeyBroke above. Self-guards if already done.
 		HandleStoreEntry();
 	}
 	if (T >= static_cast<int32>(EStoryFlag::SeenTornadoWarning))
@@ -341,9 +334,27 @@ void UStorySubsystem::ApplyAutoSkip()
 	if (GEngine) { GEngine->AddOnScreenDebugMessage(-1, 8.f, FColor::Cyan, Msg); }
 }
 
+void UStorySubsystem::ShowTornadoWarningOnTVs()
+{
+	UWorld* World = GetWorld();
+	if (!World)
+	{
+		return;
+	}
+	WarningTVs.Reset();
+	for (TActorIterator<ACRTTV> It(World); It; ++It)
+	{
+		ACRTTV* TV = *It;
+		TV->ShowTornadoWarning();
+		WarningTVs.Add(TV);
+	}
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: key broke — switched %d TV(s) to tornado warning"), WarningTVs.Num());
+}
+
 void UStorySubsystem::HandleStoreEntry()
 {
-	// Only the first store entry after the key breaks flips the TVs.
+	// The first store entry after the key breaks (the TVs already warning)
+	// brings the storm.
 	if (!IsFlagSet(EStoryFlag::KeyBroke) || IsFlagSet(EStoryFlag::TornadoWarningDisplayed))
 	{
 		UE_LOG(LogTemp, Log, TEXT("StorySubsystem: HandleStoreEntry no-op (KeyBroke=%d, TornadoWarningDisplayed=%d)"),
@@ -356,15 +367,6 @@ void UStorySubsystem::HandleStoreEntry()
 	{
 		return;
 	}
-
-	WarningTVs.Reset();
-	for (TActorIterator<ACRTTV> It(World); It; ++It)
-	{
-		ACRTTV* TV = *It;
-		TV->ShowTornadoWarning();
-		WarningTVs.Add(TV);
-	}
-	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: store entry switched %d TV(s) to tornado warning"), WarningTVs.Num());
 
 	SetFlag(EStoryFlag::TornadoWarningDisplayed);
 
@@ -427,6 +429,14 @@ void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
 		return;
 	}
 
+	if (Flag == EStoryFlag::KeyBroke)
+	{
+		// The player is out at the bathroom door: flip the TVs now so the warning
+		// is already on (siren confined to the store) when they walk back in.
+		ShowTornadoWarningOnTVs();
+		return;
+	}
+
 	if (Flag == EStoryFlag::TornadoWarningDisplayed)
 	{
 		ApplyStorm();
@@ -459,8 +469,8 @@ void UStorySubsystem::OnStoryFlagSet(EStoryFlag Flag, bool bValue)
 	}
 
 	// Silence every TV directly rather than the cached WarningTVs list — that list
-	// is only populated by HandleStoreEntry, so depending on it here would leave
-	// the siren blaring if UsedPayPhone is ever set without store-entry first.
+	// is only populated by ShowTornadoWarningOnTVs, so depending on it here would
+	// leave the siren blaring if UsedPayPhone is ever set without KeyBroke first.
 	// StopWarningAudio is idempotent and a safe no-op on a TV that never warned.
 	int32 Silenced = 0;
 	for (TActorIterator<ACRTTV> It(World); It; ++It)
@@ -492,6 +502,7 @@ void UStorySubsystem::ApplyStorm()
 	DimmedOriginalIntensities.Reset();
 	HiddenActors.Reset();
 	int32 SilencedBeds = 0;
+	int32 HeadlightsOff = 0;
 	for (TActorIterator<AActor> It(World); It; ++It)
 	{
 		AActor* Actor = *It;
@@ -508,12 +519,18 @@ void UStorySubsystem::ApplyStorm()
 		}
 		if (Actor->ActorHasTag(StorySubsystemConst::StormHideActorTag))
 		{
-			// Per project convention, drive visibility on the root component —
-			// SetActorHiddenInGame is unreliable (the component's bVisible wins).
 			if (USceneComponent* Root = Actor->GetRootComponent())
 			{
 				Root->SetVisibility(false, /*bPropagateToChildren*/ true);
 				HiddenActors.Add(Actor);
+			}
+		}
+		if (Actor->ActorHasTag(StorySubsystemConst::CarRiderTag))
+		{
+			if (USceneComponent* Root = Actor->GetRootComponent())
+			{
+				Root->SetVisibility(false, /*bPropagateToChildren*/ true);
+				++HeadlightsOff;
 			}
 		}
 		if (Actor->ActorHasTag(StorySubsystemConst::StormSilenceAmbientTag))
@@ -544,8 +561,8 @@ void UStorySubsystem::ApplyStorm()
 		HudsonIt->StashForStorm();
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: storm applied — dimmed %d light comp(s) x%.2f, hid %d actor(s), silenced %d ambient bed(s)"),
-		DimmedLights.Num(), GStormDimMultiplier, HiddenActors.Num(), SilencedBeds);
+	UE_LOG(LogTemp, Log, TEXT("StorySubsystem: storm applied — dimmed %d light comp(s) x%.2f, hid %d actor(s), silenced %d ambient bed(s), %d headlight(s) off"),
+		DimmedLights.Num(), GStormDimMultiplier, HiddenActors.Num(), SilencedBeds, HeadlightsOff);
 }
 
 void UStorySubsystem::Relight()
@@ -633,21 +650,6 @@ void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* Ot
 	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (OtherActor && OtherActor == PlayerPawn)
 	{
-		if (bLastDoorwayTriggerWasOutside)
-		{
-			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: player walked into the store"));
-			OnPlayerEnteredStore.Broadcast();
-		}
-		bLastDoorwayTriggerWasOutside = false;
 		HandleStoreEntry();
-	}
-}
-
-void UStorySubsystem::OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)
-{
-	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-	if (OtherActor && OtherActor == PlayerPawn)
-	{
-		bLastDoorwayTriggerWasOutside = true;
 	}
 }

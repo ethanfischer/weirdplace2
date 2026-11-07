@@ -68,28 +68,23 @@ void ARick::BeginPlay()
 	LoadDialogueFile();
 	LoadOutsideDialogue();
 
-	GetWorld()->GetSubsystem<UStorySubsystem>()->OnPlayerEnteredStore.AddUObject(this, &ARick::OnPlayerEnteredStore);
+	if (!SenecaRef || !InsidePositionTarget)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::BeginPlay - SenecaRef or InsidePositionTarget not assigned on level instance; Rick can't come inside"));
+		return;
+	}
+	SenecaRef->OnIntroDialoguePlayed.AddUObject(this, &ARick::OnSenecaIntroPlayed);
 }
 
-void ARick::OnPlayerEnteredStore()
+void ARick::OnSenecaIntroPlayed()
 {
 	if (bInside || bPendingTeleportInside || bStashedForStorm)
 	{
 		return;
 	}
-	if (!SenecaRef || !InsidePositionTarget)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Rick::OnPlayerEnteredStore - SenecaRef or InsidePositionTarget not assigned on level instance"));
-		return;
-	}
-	// Only once the player has heard Seneca's (Czech) intro.
-	if (!SenecaRef->bIntroDialoguePlayed)
-	{
-		return;
-	}
 	bPendingTeleportInside = true;
 	SetActorTickEnabled(true);
-	UE_LOG(LogTemp, Log, TEXT("Rick - Player came back inside after Seneca's intro; will teleport inside once unseen"));
+	UE_LOG(LogTemp, Log, TEXT("Rick - Seneca's intro played; will teleport inside once unseen"));
 }
 
 void ARick::LoadDialogueFile()
@@ -164,7 +159,7 @@ void ARick::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Ticks only while a teleport is pending (OnPlayerEnteredStore).
+	// Ticks only while a teleport is pending (OnSenecaIntroPlayed).
 	UWorld* World = GetWorld();
 	if (UGazeUtils::IsPointInPlayerView(GetActorLocation(), World, GRickTeleportHiddenDot)
 		|| UGazeUtils::IsPointInPlayerView(InsidePositionTarget->GetActorLocation(), World, GRickTeleportHiddenDot))

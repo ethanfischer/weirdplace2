@@ -10,6 +10,18 @@
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
 #include "TimerManager.h"
+#include "Camera/CameraComponent.h"
+#include "Components/PostProcessComponent.h"
+#include "FirstPersonCharacter.h"
+#include "Tunable.h"
+
+WP_TUNABLE_FLOAT(GOasisExposureBlendSeconds, "weird.Oasis.ExposureBlendSeconds", 4.f,
+	"Seconds over which the oasis teleport fades from Ultra Dynamic Sky's exposure to the oasis's own.");
+
+namespace
+{
+	constexpr float ExposureHandOffStep = 1.f / 30.f;
+}
 
 ATeleportTriggerBox::ATeleportTriggerBox()
 {
@@ -37,9 +49,11 @@ void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
 		return;
 	}
 
-	// Optionally destroy Ultra Dynamic Sky actors
+	// Optionally destroy Ultra Dynamic Sky actors (its exposure is handed over
+	// to the camera first so the brightness doesn't snap).
 	if (bDestroyUltraDynamicActors)
 	{
+		HandOverSkyExposure(OtherActor);
 		DestroyUltraDynamicActors();
 	}
 
@@ -72,7 +86,6 @@ void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
 	{
 		SilenceGlobalWindIfRequested();
 		FadeInAmbient(AmbientWaterfall, WaterfallFadeInDuration, WaterfallFadeCurve);
-		FadeInAmbient(AmbientChord, ChordFadeInDuration, ChordFadeCurve);
 	}
 
 	if (bStopBladderUrgency)
@@ -134,12 +147,9 @@ void ATeleportTriggerBox::SkipTransition(AActor* Actor)
 		{
 			Wind->Stop();
 		}
-		for (AAmbientSound* Ambient : { AmbientWaterfall, AmbientChord })
+		if (UAudioComponent* Waterfall = AmbientWaterfall ? AmbientWaterfall->GetAudioComponent() : nullptr)
 		{
-			if (UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr)
-			{
-				AudioComp->AdjustVolume(0.0f, 1.0f);
-			}
+			Waterfall->AdjustVolume(0.0f, 1.0f);
 		}
 	}
 
@@ -190,6 +200,89 @@ void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
 	{
 		AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
 	}
+}
+
+void ATeleportTriggerBox::HandOverSkyExposure(AActor* Traveller)
+{
+	AFirstPersonCharacter* Player = Cast<AFirstPersonCharacter>(Traveller);
+	UCameraComponent* Camera = Player ? Player->GetFirstPersonCamera() : nullptr;
+	if (!Camera)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: %s has no first-person camera; exposure will snap"), *GetName(), *GetNameSafe(Traveller));
+		return;
+	}
+
+	const UPostProcessComponent* SkyPP = nullptr;
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->GetClass()->GetName().Contains(TEXT("Ultra_Dynamic_Sky")))
+		{
+			SkyPP = It->FindComponentByClass<UPostProcessComponent>();
+			break;
+		}
+	}
+	if (!SkyPP)
+	{
+		UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: no Ultra_Dynamic_Sky post-process found; exposure will snap"), *GetName());
+		return;
+	}
+
+	// Copy whichever auto-exposure settings the sky overrides.
+	const FPostProcessSettings& Sky = SkyPP->Settings;
+	FPostProcessSettings& Cam = Camera->PostProcessSettings;
+	Cam.bOverride_AutoExposureMethod = Sky.bOverride_AutoExposureMethod;
+	Cam.AutoExposureMethod = Sky.AutoExposureMethod;
+	Cam.bOverride_AutoExposureBias = Sky.bOverride_AutoExposureBias;
+	Cam.AutoExposureBias = Sky.AutoExposureBias;
+	Cam.bOverride_AutoExposureMinBrightness = Sky.bOverride_AutoExposureMinBrightness;
+	Cam.AutoExposureMinBrightness = Sky.AutoExposureMinBrightness;
+	Cam.bOverride_AutoExposureMaxBrightness = Sky.bOverride_AutoExposureMaxBrightness;
+	Cam.AutoExposureMaxBrightness = Sky.AutoExposureMaxBrightness;
+
+	if (!ExposureCamera.IsValid())
+	{
+		ExposureCameraOriginalWeight = Camera->PostProcessBlendWeight;
+	}
+	ExposureCamera = Camera;
+	Camera->PostProcessBlendWeight = ExposureCameraOriginalWeight;
+	ExposureHandOffElapsed = 0.f;
+	GetWorldTimerManager().SetTimer(ExposureHandOffTimer, this, &ATeleportTriggerBox::TickExposureHandOff, ExposureHandOffStep, true);
+	UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: handing sky exposure to the camera (bias %s%.2f, range %s[%.1f, %.1f]) over %.1fs"),
+		*GetName(), Sky.bOverride_AutoExposureBias ? TEXT("") : TEXT("unset "), Sky.AutoExposureBias,
+		Sky.bOverride_AutoExposureMinBrightness ? TEXT("") : TEXT("unset "), Sky.AutoExposureMinBrightness, Sky.AutoExposureMaxBrightness,
+		GOasisExposureBlendSeconds);
+}
+
+void ATeleportTriggerBox::TickExposureHandOff()
+{
+	UCameraComponent* Camera = ExposureCamera.Get();
+	if (!Camera)
+	{
+		GetWorldTimerManager().ClearTimer(ExposureHandOffTimer);
+		return;
+	}
+	ExposureHandOffElapsed += ExposureHandOffStep;
+	const float Alpha = FMath::Clamp(ExposureHandOffElapsed / FMath::Max(0.01f, GOasisExposureBlendSeconds), 0.f, 1.f);
+	// The camera's settings blend in by PostProcessBlendWeight: fading it fades
+	// the sky's exposure out into whatever the oasis volumes/defaults say.
+	Camera->PostProcessBlendWeight = ExposureCameraOriginalWeight * (1.f - FMath::SmoothStep(0.f, 1.f, Alpha));
+	if (Alpha >= 1.f)
+	{
+		FPostProcessSettings& Cam = Camera->PostProcessSettings;
+		Cam.bOverride_AutoExposureMethod = false;
+		Cam.bOverride_AutoExposureBias = false;
+		Cam.bOverride_AutoExposureMinBrightness = false;
+		Cam.bOverride_AutoExposureMaxBrightness = false;
+		Camera->PostProcessBlendWeight = ExposureCameraOriginalWeight;
+		ExposureCamera.Reset();
+		GetWorldTimerManager().ClearTimer(ExposureHandOffTimer);
+		UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: exposure hand-off complete"), *GetName());
+	}
+}
+
+float ATeleportTriggerBox::GetExposureHandOffRemaining() const
+{
+	return ExposureCamera.IsValid() ? FMath::Max(0.f, GOasisExposureBlendSeconds - ExposureHandOffElapsed) : 0.f;
 }
 
 void ATeleportTriggerBox::DestroyUltraDynamicActors()
