@@ -8,25 +8,18 @@
 #include "Inventory.h"
 #include "ItemDefinition.h"
 #include "Door.h"
-#include "GazeUtils.h"
 #include "SpawnerActorComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "DialoguePlateComponent.h"
 #include "NpcPersonalSpaceComponent.h"
-#include "Components/ChildActorComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Misc/FileHelper.h"
 #include "UI_Dialogue.h"
 #include "FirstPersonCharacter.h"
-#include "Animation/AnimSequence.h"
-#include "Engine/SkeletalMesh.h"
-#include "Components/PointLightComponent.h"
-#include "UObject/ConstructorHelpers.h"
-#include "Materials/MaterialInstanceDynamic.h"
 
 ASeneca::ASeneca()
 {
@@ -34,11 +27,7 @@ ASeneca::ASeneca()
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
 	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 	PrimaryActorTick.bStartWithTickEnabled = true;
-	// Components are created in Blueprint to preserve MetaHuman setup. The cell
-	// phone is spawned at BeginPlay, not here: a C++ default subobject on an
-	// actor whose root lives in the BP becomes the root itself.
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
-	CellPhoneMeshAsset = CubeMesh.Object;
+	// Components are created in Blueprint to preserve MetaHuman setup.
 }
 
 UUI_Dialogue* ASeneca::GetDialogueWidget() const
@@ -71,58 +60,11 @@ void ASeneca::BeginPlay()
 	// UUI_Dialogue widget (a UBorder that auto-hugs the text), so it covers
 	// Seneca, Rick and Hudson at once — no per-actor world-space backing here.
 
-	// Find the Cigarette ChildActorComponent by name
-	TArray<UChildActorComponent*> ChildActorComps;
-	GetComponents<UChildActorComponent>(ChildActorComps);
-	for (UChildActorComponent* ChildActorComp : ChildActorComps)
-	{
-		if (ChildActorComp->GetName().Contains(TEXT("Cigarette")))
-		{
-			CigaretteComp = ChildActorComp;
-			break;
-		}
-	}
-	if (!CigaretteComp)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - Could not find Cigarette ChildActorComponent"));
-	}
-
 	// Cache the skeletal mesh for bounds-based look-at targeting
 	CachedSkeletalMesh = FindComponentByClass<USkeletalMeshComponent>();
 	if (!CachedSkeletalMesh)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Seneca::BeginPlay - No SkeletalMeshComponent found"));
-	}
-
-	if (USkeletalMeshComponent* Body = FindBodyMesh())
-	{
-		if (!Body->DoesSocketExist(CellPhoneSocket))
-		{
-			UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - CellPhoneSocket '%s' not on body mesh"), *CellPhoneSocket.ToString());
-		}
-		CellPhoneMesh = NewObject<UStaticMeshComponent>(this, TEXT("CellPhone"));
-		CellPhoneMesh->SetStaticMesh(CellPhoneMeshAsset);
-		CellPhoneMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		CellPhoneMesh->SetVisibility(false);
-		CellPhoneMesh->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, CellPhoneSocket);
-		CellPhoneMesh->SetRelativeTransform(CellPhoneOffset);
-		CellPhoneMesh->RegisterComponent();
-		// Placeholder cube ships with the grey BasicShapeMaterial; tint it to a
-		// near-black handset so it reads as a phone from across the lot.
-		if (UMaterialInstanceDynamic* Mid = CellPhoneMesh->CreateAndSetMaterialInstanceDynamic(0))
-		{
-			Mid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.01f, 0.01f, 0.012f));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::BeginPlay - no body mesh to hold the cell phone"));
-	}
-
-	// Smoking-spot point light starts off; toggled by Start/StopSmokingAnim.
-	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
-	{
-		Light->SetVisibility(false);
 	}
 
 	if (KeyActor)
@@ -166,14 +108,12 @@ void ASeneca::BeginPlay()
 	LoadDialogueSection(ESenecaState::ReadyToGiveCombinedTape, ReadyToGiveCombinedTapeSection);
 	LoadDialogueSection(ESenecaState::ReadyToGiveKey, ReadyToGiveKeySection);
 	LoadDialogueSection(ESenecaState::GaveKey, GaveKeySection);
-	LoadDialogueSection(ESenecaState::Smoking, SmokingSection);
 	LoadDialogueSection(ESenecaState::AtPiano, PianoSection);
 
 	// Reminder lines (not keyed by state)
 	LoadReminderSection(WaitingForMoviesReminderSection, WaitingForMoviesReminderLines);
 	LoadReminderSection(WaitingForMoviePurchaseReminderSection, WaitingForMoviePurchaseReminderLines);
 	LoadReminderSection(WaitingForBlankTapeReminderSection, WaitingForBlankTapeReminderLines);
-	LoadReminderSection(SmokingTornadoTipSection, SmokingTornadoTipLines);
 
 	LoadMovieComments();
 
@@ -199,19 +139,6 @@ void ASeneca::BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out
 	if (const TArray<FText>* Lines = DialogueLines.Find(State))
 	{
 		Out = *Lines;
-	}
-
-	// Smoking gains a tornado-shelter tip once the player has actually seen the
-	// warning on the store TVs. Gated on SeenTornadoWarning so it never leaks
-	// into a playthrough where the TVs were never watched.
-	if (State == ESenecaState::Smoking)
-	{
-		const UWorld* World = GetWorld();
-		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
-		if (Story && Story->IsFlagSet(EStoryFlag::SeenTornadoWarning))
-		{
-			Out.Append(SmokingTornadoTipLines);
-		}
 	}
 }
 
@@ -335,20 +262,6 @@ void ASeneca::OnDialogueEnded()
 		break;
 	}
 
-	case ESenecaState::Smoking:
-	{
-		// The pole dialogue has no effect; Seneca stays put and unlocks nothing
-		// (the keypad opens the employee bathroom once the payphone's been used).
-		APlayerController* PC = GetWorld()->GetFirstPlayerController();
-		if (AFirstPersonCharacter* FPChar = PC ? Cast<AFirstPersonCharacter>(PC->GetPawn()) : nullptr)
-		{
-			FPChar->OnDialogueLineShown.RemoveDynamic(this, &ASeneca::OnKeyDialogueLineShown);
-		}
-		CurrentState = ESenecaState::Done;
-		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, State: Smoking -> Done"));
-		break;
-	}
-
 	default:
 		break;
 	}
@@ -356,19 +269,13 @@ void ASeneca::OnDialogueEnded()
 
 void ASeneca::OnKeyDropped()
 {
-	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - Hiding, will appear at smoking position in %.0f seconds"), SmokingAppearDelay);
+	UE_LOG(LogTemp, Log, TEXT("Seneca::OnKeyDropped - leaving the store until the oasis (State -> Done)"));
 	// Teleport far below the world instead of toggling visibility — visibility
 	// cycling on a MetaHuman puts the groom hair into a bad state on re-show.
-	SetActorLocation(FVector(0.0, 0.0, -100000.0));
+	// GoToPiano brings him back.
+	SetActorLocation(FVector(0.0, 0.0, GoneZ));
 	SetActorEnableCollision(false);
-	CurrentState = ESenecaState::Smoking;
-
-	// The broken key now enters the inventory via a collectable AInspectablePickup
-	// that carries BrokenKeyDef's own thumbnail, so there's nothing to override
-	// here. (This used to run while the door auto-added the broken key; under the
-	// pickup flow it ran before the key existed and logged a spurious error.)
-
-	GetWorldTimerManager().SetTimer(SmokingAppearTimerHandle, this, &ASeneca::OnSmokingDelayComplete, SmokingAppearDelay, false);
+	CurrentState = ESenecaState::Done;
 }
 
 void ASeneca::OnStoryFlagChanged(EStoryFlag Flag, bool bValue)
@@ -393,44 +300,11 @@ void ASeneca::GoToPiano()
 		return;
 	}
 
-	// Whatever the pole beat was doing, it's over.
-	GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
-	bWaitingToAppear = false;
-	bIsSmoking = false;
-	if (CigaretteComp) CigaretteComp->SetVisibility(false, true);
-	if (CellPhoneMesh) CellPhoneMesh->SetVisibility(false);
-	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
-	{
-		Light->SetVisibility(false);
-	}
-	if (USkeletalMeshComponent* Body = FindBodyMesh())
-	{
-		// Back from the single-node smoking clip to the anim blueprint (idle + look-at).
-		Body->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-	}
-
 	SetActorLocationAndRotation(Piano->PianistSpot->GetComponentLocation(), Piano->PianistSpot->GetComponentRotation());
 	SetActorEnableCollision(true);
 	AtPianoPiano = Piano;
 	CurrentState = ESenecaState::AtPiano;
 	UE_LOG(LogTemp, Log, TEXT("Seneca - at the piano (State -> AtPiano)"));
-}
-
-void ASeneca::OnSmokingDelayComplete()
-{
-	UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking delay complete, waiting for player to look away from smoking spot"));
-	bWaitingToAppear = true;
-	SetActorTickEnabled(true);
-}
-
-void ASeneca::FastForwardSmokingAppear()
-{
-	UE_LOG(LogTemp, Log, TEXT("Seneca::FastForwardSmokingAppear - skipping SmokingAppearDelay"));
-	if (GetWorldTimerManager().IsTimerActive(SmokingAppearTimerHandle))
-	{
-		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
-	}
-	OnSmokingDelayComplete();
 }
 
 // --- Interaction ---
@@ -561,12 +435,6 @@ void ASeneca::Interact_Implementation()
 		return;
 	}
 
-	if (CurrentState == ESenecaState::Smoking)
-	{
-		StartSmokingDialogue(FPCharacter);
-		return;
-	}
-
 	TArray<FText> EffectiveLines;
 	BuildEffectiveDialogueLines(CurrentState, EffectiveLines);
 	if (EffectiveLines.Num() == 0)
@@ -609,21 +477,6 @@ void ASeneca::GiveKey(AFirstPersonCharacter* FPChar)
 	UE_LOG(LogTemp, Log, TEXT("Seneca::GiveKey - Gave key '%s' to player"), *KeyDef->ItemID.ToString());
 }
 
-// --- Helpers ---
-
-void ASeneca::MoveToTarget(AActor* Target)
-{
-	if (!Target)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::MoveToTarget - Target is null"));
-		return;
-	}
-
-	SetActorLocation(Target->GetActorLocation());
-	SetActorRotation(Target->GetActorRotation());
-	UE_LOG(LogTemp, Log, TEXT("Seneca::MoveToTarget - Moved to %s"), *Target->GetName());
-}
-
 void ASeneca::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -643,49 +496,7 @@ void ASeneca::Tick(float DeltaTime)
 				Piano->SetMusicPaused(bTalking);
 			}
 		}
-		return;
 	}
-
-
-	// Waiting to appear at the smoking spot (behind the telephone pole) —
-	// teleport when the player isn't looking at it, but only once they've hung
-	// up the payphone: Seneca is the caller, and must not be seen outside until
-	// that call is over. Tick keeps polling until both conditions hold.
-	if (bWaitingToAppear && SmokingPositionTarget)
-	{
-		const UWorld* World = GetWorld();
-		const UStorySubsystem* Story = World ? World->GetSubsystem<UStorySubsystem>() : nullptr;
-		if (!Story || !Story->IsFlagSet(EStoryFlag::HungUpPhone))
-		{
-			return;
-		}
-		if (!IsPlayerLookingAt(SmokingPositionTarget->GetActorLocation()))
-		{
-			bWaitingToAppear = false;
-			AppearAtSmokingSpot();
-		}
-		return;
-	}
-}
-
-void ASeneca::AppearAtSmokingSpot()
-{
-	MoveToTarget(SmokingPositionTarget);
-	SetActorEnableCollision(true);
-	bIsSmoking = true;
-	if (CigaretteComp) CigaretteComp->SetVisibility(true, true);
-	if (CellPhoneMesh) CellPhoneMesh->SetVisibility(true);
-	StartSmokingAnim();
-	UE_LOG(LogTemp, Log, TEXT("Seneca - Appeared at smoking position"));
-}
-
-bool ASeneca::IsPlayerLookingAt(const FVector& Position) const
-{
-	// Shared cone test (~60 degree half-angle). Seneca deliberately uses the
-	// point/cone variant, not the ray-box IsActorInPlayerGaze: the smoking marker
-	// is a near-zero-bounds actor, so a box test would read as "looking" almost
-	// never and change the look-away teleport feel.
-	return UGazeUtils::IsPointInPlayerView(Position, GetWorld());
 }
 
 // --- Basket Beat ---
@@ -722,18 +533,6 @@ void ASeneca::StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar)
 		return;
 	}
 	StartCuedDialogue(FPChar, *Lines);
-}
-
-void ASeneca::StartSmokingDialogue(AFirstPersonCharacter* FPChar)
-{
-	TArray<FText> Lines;
-	BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
-	if (Lines.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartSmokingDialogue - No lines found"));
-		return;
-	}
-	StartCuedDialogue(FPChar, Lines);
 }
 
 void ASeneca::StartCuedDialogue(AFirstPersonCharacter* FPChar, const TArray<FText>& Lines)
@@ -1155,54 +954,5 @@ void ASeneca::OnCombinedTapeDialogueLineShown(int32 LineIndex)
 	}
 
 	UE_LOG(LogTemp, Error, TEXT("Seneca::OnCombinedTapeDialogueLineShown - Unknown action '%s'"), *Action);
-}
-
-USkeletalMeshComponent* ASeneca::FindBodyMesh() const
-{
-	if (!SmokingAnimation) return nullptr;
-	USkeleton* WantSkeleton = SmokingAnimation->GetSkeleton();
-	TArray<USkeletalMeshComponent*> Meshes;
-	GetComponents<USkeletalMeshComponent>(Meshes);
-	for (USkeletalMeshComponent* M : Meshes)
-	{
-		if (!M || !M->GetSkeletalMeshAsset()) continue;
-		if (M->GetSkeletalMeshAsset()->GetSkeleton() == WantSkeleton) return M;
-	}
-	return nullptr;
-}
-
-void ASeneca::StartSmokingAnim()
-{
-	if (UPointLightComponent* Light = FindComponentByClass<UPointLightComponent>())
-	{
-		Light->SetVisibility(true);
-	}
-	if (!SmokingAnimation)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("Seneca::StartSmokingAnim - SmokingAnimation unset on BP_Seneca"));
-		return;
-	}
-	USkeletalMeshComponent* Body = FindBodyMesh();
-	if (!Body)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::StartSmokingAnim - no body mesh matching SmokingAnimation's skeleton"));
-		return;
-	}
-	Body->PlayAnimation(SmokingAnimation, true);
-}
-
-void ASeneca::ForceSmokingAppearance()
-{
-	if (!SmokingPositionTarget)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Seneca::ForceSmokingAppearance - SmokingPositionTarget unset on level instance"));
-		return;
-	}
-	if (GetWorldTimerManager().IsTimerActive(SmokingAppearTimerHandle))
-	{
-		GetWorldTimerManager().ClearTimer(SmokingAppearTimerHandle);
-	}
-	bWaitingToAppear = false;
-	AppearAtSmokingSpot();
 }
 

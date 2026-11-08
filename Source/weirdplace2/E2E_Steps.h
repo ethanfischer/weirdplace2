@@ -259,30 +259,17 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForStoryFlag(T, FName("SeenTornadoWarning"), true, 8.0));
 	}
 
-	void FastForwardSenecaSmoking(FAutomationTestBase* T)
+	void SenecaGoneUntilOasis(FAutomationTestBase* T)
 	{
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
-	}
-
-	void SenecaSmokingDialogue(FAutomationTestBase* T)
-	{
-		// The broken-key beat hides Seneca and schedules a reappearance at the
-		// smoking spot behind the telephone pole after a delay, gated on
-		// HungUpPhone (set by UseTelephone above). Skip the delay so the test
-		// isn't gated on real time (FTD_WaitForSenecaAppearedAtSmoking only allows
-		// a few seconds) — same fast-forward the SenecaSmokingAnim diagnostic uses.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_FastForwardSenecaSmoking(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("SenecaSmoking")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(T));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_17_SenecaSmoking")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(T));
-		// Just talk — he no longer hands over a key here.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(T, EPlayerActivityState::FreeRoaming));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(T, FName("Key")));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(T, FName("BrokenKey")));
-		// Outlast the 1s post-dialogue interact cooldown before the next step.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
+		// The key broke: Seneca left the store (parked below the world) and
+		// stays gone through the payphone call; WalkOutToPiano finds him at the
+		// oasis piano.
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(T, TEXT("Seneca is gone after the key broke"),
+			[](UWorld* W)
+			{
+				TActorIterator<ASeneca> It(W);
+				return It && It->CurrentState == ESenecaState::Done && It->IsGone();
+			}));
 	}
 	
 	void UseTelephone(FAutomationTestBase* T)

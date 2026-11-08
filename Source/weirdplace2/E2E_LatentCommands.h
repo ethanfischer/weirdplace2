@@ -3040,68 +3040,6 @@ private:
 
 
 // =======================================================================
-// FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
-// must not) contain a substring. Drives the shelter-line gating check.
-// =======================================================================
-
-class FTD_AssertSenecaSmokingLines : public FTD_Base
-{
-public:
-	FTD_AssertSenecaSmokingLines(FAutomationTestBase* InTest, FString InNeedle, bool bInShouldContain)
-		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), bShouldContain(bInShouldContain) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting Seneca smoking lines %s '%s'"),
-			bShouldContain ? TEXT("contain") : TEXT("omit"), *Needle);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no driver")); return true; }
-		FString Joined;
-		if (!Driver->GetSenecaSmokingLinesJoined(Joined))
-		{
-			Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no Seneca"));
-			return true;
-		}
-		const bool bContains = Joined.Contains(Needle, ESearchCase::IgnoreCase);
-		if (bContains != bShouldContain)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertSenecaSmokingLines: lines %s '%s' but expected %s. Lines: \"%s\""),
-				bContains ? TEXT("contain") : TEXT("omit"), *Needle,
-				bShouldContain ? TEXT("contain") : TEXT("omit"), *Joined));
-		}
-		return true;
-	}
-private:
-	FString Needle;
-	bool bShouldContain;
-};
-
-// =======================================================================
-// FTD_ForceSenecaSmoking — jump Seneca into the Smoking beat directly.
-// =======================================================================
-
-class FTD_ForceSenecaSmoking : public FTD_Base
-{
-public:
-	FTD_ForceSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Forcing Seneca into the smoking beat"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_ForceSenecaSmoking: no driver")); return true; }
-		Driver->ForceSenecaToSmoking();
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_AdvanceDialogueUntilLineContains — press E until the displayed
 // dialogue body contains a substring (case-insensitive), then stop.
 // =======================================================================
@@ -3624,27 +3562,6 @@ public:
 };
 
 // =======================================================================
-// FTD_FastForwardSenecaSmoking — skip Seneca's 60s SmokingAppearDelay
-// timer. One-shot.
-// =======================================================================
-
-class FTD_FastForwardSenecaSmoking : public FTD_Base
-{
-public:
-	FTD_FastForwardSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Fast-forwarding Seneca smoking delay"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		Driver->FastForwardSenecaSmoking();
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_SimulatePutBack — press the "put back" binding (keyboard Q / gamepad
 // B) that exits item inspection. One-shot.
 // =======================================================================
@@ -3663,40 +3580,6 @@ public:
 		Driver->SimulatePutBack();
 		return true;
 	}
-};
-
-// =======================================================================
-// FTD_WaitForSenecaAppearedAtSmoking — poll until Seneca has been
-// re-teleported out of the hidden below-world position back to the
-// smoking spot. Depends on the SenecaSmoking waypoint being placed so
-// its default facing does NOT look at SmokingPositionTarget.
-// =======================================================================
-
-class FTD_WaitForSenecaAppearedAtSmoking : public FTD_Base
-{
-public:
-	FTD_WaitForSenecaAppearedAtSmoking(FAutomationTestBase* InTest, double InTimeoutSeconds = 3.0)
-		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Waiting for Seneca to appear at smoking spot"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		if (Driver->HasSenecaAppearedAtSmokingPos())
-		{
-			return true;
-		}
-		if (GetElapsedSinceFirstTick() > Timeout)
-		{
-			Test->AddError(TEXT("FTD_WaitForSenecaAppearedAtSmoking: timed out (check SenecaSmoking waypoint facing)"));
-			return true;
-		}
-		return false;
-	}
-private:
-	double Timeout;
 };
 
 // =======================================================================

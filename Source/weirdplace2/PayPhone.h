@@ -204,8 +204,8 @@ public:
 	UPROPERTY(EditInstanceOnly, Category = "Walk Back")
 	AActor* WalkBackTarget = nullptr;
 
-	// Actors that belong to the pole scene and shift with it (Seneca's smoking
-	// marker, its test waypoint, roadside dressing). Set on the level instance.
+	// Actors that belong to the pole scene and shift with it (the SenecaSmoking
+	// test waypoint, roadside dressing). Set on the level instance.
 	UPROPERTY(EditInstanceOnly, Category = "Walk Back")
 	TArray<AActor*> WalkBackCarry;
 

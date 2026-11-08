@@ -91,6 +91,13 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` — Carpet ×1 (75/25 layered blend of pack Carpet 11+16, 2 kHz lowpass), Tar ×1 (pack MuddyGravel 3: 120 ms attack fade, 3 kHz then 2 kHz lowpass), Tile ×28 (pack Tile), WetDirt ×9 (pack MuddyGravel); RMS loudness-matched. Played by `UFootstepComponent`: floor actors / volumes tagged `Footstep.<Set>` pick the set, untagged floors use the `weird.Footstep.Set` fallback (Tar); per-set pitch/jitter/vol/interval via `weird.Footstep.SetTuning`.
 - **Required attribution:** None required; credited anyway.
 
+### "All In One Bundle" — Free To Use Sounds (Gumroad)
+- **Author:** Free To Use Sounds LLC (https://www.freetousesounds.com)
+- **Source:** All In One Bundle, purchased on Gumroad
+- **License:** All sound effects are copyright and owned by Free To Use Sounds LLC - all rights reserved (licensed for use via bundle purchase)
+- **Used in:**
+  - `/Game/Sounds/S_IceMachineBreak` — "TOOLHand-L,R_Cyprus-Tools, Hand, Hammer, Foley, Percussion, Distance, Birds, Big Room, Hitting, Drum, Metallic, Hammering, Impact, 04_FTUS_WOSB.wav" (RecID 925; one hit cut from 17.85s, 1.3s with fade-out)
+
 ### Audio files with unconfirmed source
 These project files have no obvious match in the user's freesound history. Could be original recordings, from a marketplace pack, or freesound files renamed beyond recognition. Verify and credit if third-party.
 

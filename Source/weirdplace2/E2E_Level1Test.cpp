@@ -30,6 +30,8 @@
 #include "KeypadUIActor.h"
 #include "KeypadUIComponent.h"
 #include "InventoryUIComponent.h"
+#include "FootstepComponent.h"
+#include "Sound/SoundBase.h"
 #include "Kismet/GameplayStatics.h"
 
 // Lookups for FTD_Check / FTD_WaitUntil predicates.
@@ -68,6 +70,12 @@ namespace
 				OutVisible += (Root && Root->IsVisible()) ? 1 : 0;
 			}
 		}
+	}
+
+	UFootstepComponent* E2EFootsteps(UWorld* World)
+	{
+		AFirstPersonCharacter* Player = E2EPlayer(World);
+		return Player ? Player->FindComponentByClass<UFootstepComponent>() : nullptr;
 	}
 
 	APiano* E2EPiano(UWorld* World)
@@ -581,11 +589,6 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("HappyPath")
 
-	// While Seneca is smoking her mesh runs a single-node anim that has no
-	// 'ShouldLookAtPlayer' variable, so entering/leaving her look-at sphere logs
-	// a (benign) error. Unrelated to the quest flow — expect it.
-	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
-
 	E2ESteps::SenecaIntro(this);
 	E2ESteps::CollectMovies(this);
 	E2ESteps::BringRickInside(this);
@@ -599,7 +602,7 @@ bool FE2E_Level1_HappyPath::RunTest(const FString& Parameters)
 	E2ESteps::UseKeyOnDoor(this);
 	E2ESteps::WatchTornadoWarningTV(this);
 	E2ESteps::UseTelephone(this);
-	E2ESteps::SenecaSmokingDialogue(this);
+	E2ESteps::SenecaGoneUntilOasis(this);
 	E2ESteps::OpenKeypadDoor(this);
 	E2ESteps::OpenGasHallwayDoor(this);
 	E2ESteps::EnterStall(this);
@@ -630,9 +633,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
 bool FE2E_Level1_PerfWalkProfile::RunTest(const FString& Parameters)
 {
 	E2E_TEST_PREAMBLE("PerfWalkProfile")
-
-	// Same benign smoking-anim error the HappyPath tolerates.
-	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
 
 	// Settle, then begin capture. Give the level a moment so first-frame load
 	// spikes don't dominate the capture.
@@ -1040,50 +1040,6 @@ bool FE2E_Level1_LockSoundDuringKeyInsert::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportNearInspectablePickupAndAim(this));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_BrokenKey_GroundGlow")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
-// SenecaSmokingAnim — diagnostic for the smoking animation failing to
-// play on the natural quest path (works via SkipToSmoking console cmd).
-// Lingers around Seneca's appear-at-smoking-spot moment and takes
-// screenshots at T+1s/T+3s/T+5s so we can see whether her arms come up.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_SenecaSmokingAnim,
-	"Weirdplace2.E2E.Level1.Diagnostic.SenecaSmokingAnim",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_SenecaSmokingAnim::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("SenecaSmokingAnim")
-
-	E2ESteps::SenecaIntro(this);
-	E2ESteps::CollectMovies(this);
-	E2ESteps::BringRickInside(this);
-	E2ESteps::HearRickTranslate(this, E2ESteps::RickIntroTranslation, TEXT("E2E_RickInside_Translation"));
-	E2ESteps::GiveMoviesToSeneca(this);
-	E2ESteps::TakeMoneyFromRickInside(this);
-	E2ESteps::GiveMoneyAskForBlank(this);
-	E2ESteps::CollectBlankTape(this);
-	E2ESteps::HearRickTranslate(this, E2ESteps::RickBlankTapeTranslation, TEXT("E2E_14b_RickTranslatesBlankTape"));
-	E2ESteps::GiveBlankTapeGetKey(this);
-	E2ESteps::UseKeyOnDoor(this);
-	E2ESteps::FastForwardSenecaSmoking(this);
-
-	// Linger + screenshot around the appear moment
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+1s")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+3s")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(2.0f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("Diag_SenecaSmoking_T+5s")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -1896,54 +1852,6 @@ bool FE2E_Level1_StoryFlags::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("KeyBroke"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("KeyBroke"), true));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertStoryFlag(this, FName("SeenTornadoWarning"), true));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
-// SenecaShelterLine (item 4) — Seneca's Smoking dialogue gains a tornado-
-// shelter tip, but only once the player has seen the tornado warning
-// (SeenTornadoWarning). Hook-asserts presence/absence by flag, then drives
-// her into the Smoking beat to screenshot the line on the dialogue widget.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_SenecaShelterLine,
-	"Weirdplace2.E2E.Level1.Regression.SenecaShelterLine",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_SenecaShelterLine::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("SenecaShelterLine")
-
-	// Seneca's smoking mesh runs a single-node anim with no 'ShouldLookAtPlayer'
-	// var — entering her look-at sphere logs a benign error. Same as HappyPath.
-	AddExpectedError(TEXT("SetShouldLookAtPlayer: 'ShouldLookAtPlayer' not found"), EAutomationExpectedErrorFlags::Contains, 0);
-
-	// Gating: with the flag unset, the shelter tip is absent. Seneca speaks
-	// Czech: "kryt" = shelter, "kabink(ou)" = stall. ASCII-only substrings keep
-	// the source free of diacritics.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), false));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), false));
-
-	// Set SeenTornadoWarning → the shelter tip appears in the Smoking lines.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SetStoryFlag(this, FName("SeenTornadoWarning"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kryt"), true));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertSenecaSmokingLines(this, TEXT("kabink"), true));
-
-	// Screenshot: drive Seneca into Smoking, open dialogue, advance to the
-	// shelter line, and capture it on the widget.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ForceSenecaSmoking(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("SenecaSmoking")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForSenecaAppearedAtSmoking(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtSeneca(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	// The Smoking beat runs as a multi-line dialogue (InDialogue, not InSimpleDialogue).
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::InDialogue));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueUntilLineContains(this, TEXT("kryt")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.2f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaShelterLine_Dialogue")));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;
@@ -3520,6 +3428,9 @@ bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
 	// The break lands at the swing's impact (frame-paced, so wait for it).
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitUntil(this, TEXT("the tenderizer broke the ice machine open"),
 		[](UWorld* W) { const AIceMachine* M = E2EIceMachine(W); return M && M->IsBrokenOpen(); }, 3.0));
+	// One hit, not the old 5s three-knock recording.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("break sound is a single short hit"),
+		[](UWorld* W) { const AIceMachine* M = E2EIceMachine(W); return M && M->BreakOpenSound && M->BreakOpenSound->GetDuration() < 1.5f; }));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertNotHasItem(this, FName("Money"))); // door still swinging
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.4f)); // padlocks mid-tumble
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_Tenderizer_03_Breaking")));
@@ -3667,6 +3578,58 @@ bool FE2E_Level1_CollectByClick::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::LeftMouseButton));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertInventoryCount(this, 1));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
+	return true;
+}
+
+// =======================================================================
+// FootstepsAgainstWall — walking plays footsteps; pushing into a wall
+// doesn't. The push is 15 degrees off head-on, so the player creeps along
+// the store's back wall at about a quarter of walk speed: that creep used
+// to count as walking.
+// =======================================================================
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+	FE2E_Level1_FootstepsAgainstWall,
+	"Weirdplace2.E2E.Level1.Regression.FootstepsAgainstWall",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
+
+bool FE2E_Level1_FootstepsAgainstWall::RunTest(const FString& Parameters)
+{
+	E2E_TEST_PREAMBLE("FootstepsAgainstWall")
+
+	TSharedRef<int32> StepsAtWall = MakeShared<int32>(0);
+
+	// RickInsideApproach is ~540cm from the back wall (y ~1341), with a clear
+	// run along it toward -X. Aim 15 degrees toward -X at eye height.
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("RickInsideApproach")));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(this, FVector(3591.0, 1766.0, 150.0)));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(1.f, 0.f), 3.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("player reached the back wall, with footsteps on the way"),
+		[StepsAtWall](UWorld* W)
+		{
+			const AFirstPersonCharacter* P = E2EPlayer(W);
+			const UFootstepComponent* F = E2EFootsteps(W);
+			if (!P || !F) return false;
+			*StepsAtWall = F->GetStepsPlayed();
+			UE_LOG(LogTemp, Display, TEXT("FootstepsAgainstWall: at %s after %d steps"), *P->GetActorLocation().ToString(), *StepsAtWall);
+			return P->GetActorLocation().Y > 1250.0 && *StepsAtWall >= 2;
+		}));
+
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_WalkForDuration(this, FVector2D(1.f, 0.f), 2.f));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("no footsteps while pushing into the wall"),
+		[StepsAtWall](UWorld* W)
+		{
+			const AFirstPersonCharacter* P = E2EPlayer(W);
+			const UFootstepComponent* F = E2EFootsteps(W);
+			if (!P || !F) return false;
+			UE_LOG(LogTemp, Display, TEXT("FootstepsAgainstWall: pushed to %s, %d steps (had %d at the wall)"),
+				*P->GetActorLocation().ToString(), F->GetStepsPlayed(), *StepsAtWall);
+			return F->GetStepsPlayed() == *StepsAtWall;
+		}));
 
 	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
 	return true;

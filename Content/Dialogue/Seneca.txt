@@ -52,15 +52,6 @@ Mezitím, tady je klíč od záchodu.
 == GaveKey ==
 Záchod je venku za rohem.
 
-== Smoking ==
-Zpráva ti asi došla.
-Uvidíme se uvnitř.
-Nech mě chvíli o samotě.
-
 # Oasis: Seneca at the piano.
 == Piano ==
 Hey. Where have you been?
-
-# Appended to Smoking once the player has seen the tornado warning.
-== SmokingTornadoTip ==
-A poslouchej, to tornádo není sranda. Kdyby na to došlo, pod poslední kabinkou je kryt.
