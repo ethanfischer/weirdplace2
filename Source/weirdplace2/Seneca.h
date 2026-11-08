@@ -109,10 +109,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "State")
 	bool bIntroDialoguePlayed = false;
 
-	// Fires once, when the intro has just played (bIntroDialoguePlayed set).
-	// Rick binds it to come in and translate.
-	FSimpleMulticastDelegate OnIntroDialoguePlayed;
-
 	// Rick has translated the blank-tape request; until then Seneca won't take the tape.
 	UPROPERTY(VisibleAnywhere, Category = "Seneca|Quest")
 	bool bBlankTapeRequestTranslated = false;

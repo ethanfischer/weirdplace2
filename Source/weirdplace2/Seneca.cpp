@@ -281,7 +281,6 @@ void ASeneca::OnDialogueEnded()
 		{
 			bIntroDialoguePlayed = true;
 			UE_LOG(LogTemp, Log, TEXT("Seneca - Intro played; waiting for Rick's translation"));
-			OnIntroDialoguePlayed.Broadcast();
 		}
 		break;
 	}
@@ -347,17 +346,6 @@ void ASeneca::OnDialogueEnded()
 		}
 		CurrentState = ESenecaState::Done;
 		UE_LOG(LogTemp, Log, TEXT("Seneca - Smoking dialogue ended, State: Smoking -> Done"));
-		break;
-	}
-
-	case ESenecaState::AtPiano:
-	{
-		// Talking to the pianist counts as interacting with the piano: it starts
-		// the end-of-demo countdown (a no-op if the piano already started it).
-		for (TActorIterator<APiano> It(GetWorld()); It; ++It)
-		{
-			It->ArmEndNotice();
-		}
 		break;
 	}
 

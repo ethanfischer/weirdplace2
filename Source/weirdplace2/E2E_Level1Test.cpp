@@ -1721,8 +1721,8 @@ bool FE2E_Level1_DialogueWalkAway::RunTest(const FString& Parameters)
 // =======================================================================
 // RickComesInside — Seneca speaks Czech, and Rick translates. Until Rick has
 // translated the intro, Seneca only repeats his reminder, even when the player
-// holds movies. Walking back in through the front door after the intro brings
-// Rick to the counter, never while either spot is in view. The blank tape is
+// holds movies. Walking out of the store after the intro brings Rick to the
+// counter, where he is when the player comes back in. The blank tape is
 // gated the same way; the key hand-off translation gates nothing. With nothing
 // open to translate, Rick idles.
 // =======================================================================
@@ -3580,45 +3580,9 @@ bool FE2E_Level1_SenecaRejectsTenderizer::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// EndOfDemoNotice — interacting with the oasis piano arms the end of the
-// demo: weird.Demo.EndNoticeDelay later (shortened here) the notice types
-// itself out in the world in front of the player.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_EndOfDemoNotice,
-	"Weirdplace2.E2E.Level1.Regression.EndOfDemoNotice",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_EndOfDemoNotice::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("EndOfDemoNotice")
-
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("weird.Demo.EndNoticeDelay 2")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(this, TEXT("PianoApproach")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtActorByLabel(this, TEXT("Piano")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("the oasis piano is an APiano (BP_Piano reparented)"),
-		[](UWorld* W) { return E2EPiano(W) != nullptr; }));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("interacting with the piano armed the end-of-demo notice"),
-		[](UWorld* W) { const APiano* P = E2EPiano(W); return P && P->IsEndNoticeArmed(); }));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("no notice before the delay"),
-		[](UWorld* W) { const APiano* P = E2EPiano(W); return P && P->GetEndNoticeDisplayText().IsEmpty(); }));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitUntil(this, TEXT("the end-of-demo notice has typed out"),
-		[](UWorld* W) { const APiano* P = E2EPiano(W); return P && P->GetEndNoticeDisplayText() == P->EndNoticeText; }, 10.0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_EndOfDemoNotice")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_ExecConsole(this, TEXT("weird.Demo.EndNoticeDelay 60")));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // SenecaAtPiano — reaching the oasis (EnteredOasis) puts Seneca at the
-// piano; talking to him plays "Hey. Where have you been?" and starts the
-// end-of-demo countdown.
+// piano; talking to him plays "Hey. Where have you been?" (his lines also
+// tell the player the demo is over) and pauses the piano music meanwhile.
 // =======================================================================
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -3664,8 +3628,6 @@ bool FE2E_Level1_SenecaAtPiano::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AdvanceDialogueViaInput(this, EPlayerActivityState::FreeRoaming));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitUntil(this, TEXT("piano music resumed after the dialogue"),
 		[](UWorld* W) { const APiano* P = E2EPiano(W); return P && P->IsMusicPlaying(); }, 2.0));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("talking to Seneca at the piano armed the end-of-demo notice"),
-		[](UWorld* W) { const APiano* P = E2EPiano(W); return P && P->IsEndNoticeArmed(); }));
 
 	// Walking away mid-line also lets him play on.
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.5f)); // post-dialogue interact cooldown

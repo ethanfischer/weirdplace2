@@ -7,7 +7,6 @@ class ATargetPoint;
 class AAmbientSound;
 class ADoor;
 class UBladderUrgencyComponent;
-class UCameraComponent;
 #include "TeleportTriggerBox.generated.h"
 
 UCLASS()
@@ -29,20 +28,18 @@ public:
 	// wind/waterfall/chord cross-fade already finished and the stall door unlocked.
 	void SkipTransition(AActor* Actor);
 
-	// Seconds left in the post-teleport exposure hand-off (0 = none running; tests).
-	float GetExposureHandOffRemaining() const;
+	// False while ArrivalLights are dark or flickered off (tests).
+	bool AreArrivalLightsOn() const { return bArrivalLightsOn; }
 
 protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
 
-	// Ultra Dynamic Sky's post-process owns the exposure (bias, range); destroying
-	// it in the teleport frame snapped the exposure (bias 0 -> the engine's 1:
-	// one stop brighter, instantly). Before it goes, copy its auto-exposure
-	// settings onto the traveller's camera and fade that override out over
-	// weird.Oasis.ExposureBlendSeconds, so the change is gradual.
-	void HandOverSkyExposure(AActor* Traveller);
-	void TickExposureHandOff();
+	// ArrivalLights cut out on arrival, stay dark for weird.Oasis.LightsOutSeconds,
+	// then flicker (weird.Oasis.Flicker*) and stay on.
+	void StartArrivalLightsOut();
+	void FlickerArrivalLights();
+	void SetArrivalLightsOn(bool bOn);
 
 	// Fades out the AmbientGlobalWind AAmbientSound if assigned
 	void SilenceGlobalWindIfRequested();
@@ -104,8 +101,15 @@ protected:
 
 	FTimerHandle BathroomStallDoorUnlockTimerHandle;
 
-	TWeakObjectPtr<UCameraComponent> ExposureCamera;
-	float ExposureCameraOriginalWeight = 1.f;
-	float ExposureHandOffElapsed = 0.f;
-	FTimerHandle ExposureHandOffTimer;
+	// Lights at the destination (set on the level instance): light actors and
+	// emissive fixture meshes. They go dark the moment the player arrives, which
+	// hides the jump between the two bathrooms' lighting and exposure (the sky,
+	// which owned the exposure, is destroyed in the same frame), then flicker
+	// back on. Each actor's root and its children are hidden/shown.
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport|Lights")
+	TArray<AActor*> ArrivalLights;
+
+	FTimerHandle ArrivalLightsTimer;
+	float FlickerElapsed = 0.f;
+	bool bArrivalLightsOn = true;
 };

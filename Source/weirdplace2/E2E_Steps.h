@@ -80,15 +80,18 @@ namespace E2ESteps
 		}
 	}
 
-	// Seneca's intro has played, so Rick is on his way in: he moves to the
-	// counter as soon as neither his car spot nor the counter is in view — no
-	// need to leave the store first.
+	// After Seneca's intro, walking out of the store (TriggerBox_Inside, then
+	// TriggerBox_Outside) sends Rick to the counter, so he's there when the
+	// player comes back in. Until then he stays out by his car.
 	void BringRickInside(FAutomationTestBase* T)
 	{
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorInside")));
-		// Look toward the side wall, away from both spots: he's at the counter.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_LookAtWorldPoint(T, FVector(4125.f, -600.f, 150.f)));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 2000.f, 100000.f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorOutside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportTo(T, TEXT("StoreDoorInside")));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertDistanceToActor(T, TEXT("BP_Rick"), 0.f, 1500.f));
 	}
 
@@ -375,17 +378,27 @@ namespace E2ESteps
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_19d_BeforeStallTeleport")));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_LerpTo(T, TEXT("Teleporter"), 2.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20_AtStall")));
-		// The sky's exposure is handed to the camera and faded out — not snapped.
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(T, TEXT("the oasis teleport is fading exposure, not snapping it"),
+		// The oasis bathroom's lights cut out on arrival (hiding the lighting jump)...
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(T, TEXT("the oasis bathroom lights went out on arrival"),
 			[](UWorld* W) -> bool
 			{
 				for (TActorIterator<ATeleportTriggerBox> It(W); It; ++It)
 				{
-					return It->GetExposureHandOffRemaining() > 0.f;
+					return !It->AreArrivalLightsOn();
 				}
 				return false;
 			}));
-		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(5.0f));
+		// ...then flicker back on (weird.Oasis.LightsOutSeconds + FlickerSeconds).
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitUntil(T, TEXT("the oasis bathroom lights flickered back on"),
+			[](UWorld* W) -> bool
+			{
+				for (TActorIterator<ATeleportTriggerBox> It(W); It; ++It)
+				{
+					return It->AreArrivalLightsOn();
+				}
+				return false;
+			}, 6.0));
+		ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(1.0f));
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_20b_AtStallSettled")));
 		// The stall teleport sets EnteredOasis, which wakes the piano's music.
 		ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertActorAudioPlaying(T, TEXT("Piano"), true));
