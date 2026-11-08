@@ -100,10 +100,12 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	// previously always healed). Whatever recreates the fog render state
 	// early in a session's first play is the actual culprit; still unsolved.
 
-	// Bind the doorway trigger box, matched by actor tag (packaged) or editor
-	// label (PIE). TriggerBox_Inside drives the store-entry beat (E2E calls
-	// HandleStoreEntry directly).
+	// Bind the two doorway trigger boxes, matched by actor tag (packaged) or
+	// editor label (PIE). TriggerBox_Inside drives the store-entry beat (E2E
+	// calls HandleStoreEntry directly); together with TriggerBox_Outside it
+	// tells walking out from walking in (OnPlayerLeftStore).
 	bool bBoundInside = false;
+	bool bBoundOutside = false;
 	for (TActorIterator<ATriggerBox> It(&InWorld); It; ++It)
 	{
 		AActor* Trigger = *It;
@@ -113,11 +115,21 @@ void UStorySubsystem::OnWorldBeginPlay(UWorld& InWorld)
 			bBoundInside = true;
 			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound store-entry overlap on '%s'"), *Trigger->GetName());
 		}
+		else if (IsDoorwayTrigger(Trigger, FName("StoreOutsideTrigger"), TEXT("TriggerBox_Outside")))
+		{
+			Trigger->OnActorBeginOverlap.AddDynamic(this, &UStorySubsystem::OnOutsideTriggerOverlap);
+			bBoundOutside = true;
+			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: bound street-side doorway overlap on '%s'"), *Trigger->GetName());
+		}
 	}
 
 	if (!bBoundInside)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("StorySubsystem: TriggerBox_Inside not found; store-entry overlap not bound (TriggerStoreEntry still works)"));
+	}
+	if (!bBoundOutside)
+	{
+		UE_LOG(LogTemp, Error, TEXT("StorySubsystem: TriggerBox_Outside not found; OnPlayerLeftStore will never fire (Rick can't come inside)"));
 	}
 }
 
@@ -650,6 +662,21 @@ void UStorySubsystem::OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* Ot
 	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (OtherActor && OtherActor == PlayerPawn)
 	{
+		bLastDoorwayTriggerWasInside = true;
 		HandleStoreEntry();
+	}
+}
+
+void UStorySubsystem::OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor)
+{
+	const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (OtherActor && OtherActor == PlayerPawn)
+	{
+		if (bLastDoorwayTriggerWasInside)
+		{
+			UE_LOG(LogTemp, Log, TEXT("StorySubsystem: player walked out of the store"));
+			OnPlayerLeftStore.Broadcast();
+		}
+		bLastDoorwayTriggerWasInside = false;
 	}
 }

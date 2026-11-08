@@ -11,16 +11,8 @@
 #include "Components/SceneComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/FileHelper.h"
-#include "GazeUtils.h"
+#include "LookAtPlayerComponent.h"
 #include "StorySubsystem.h"
-#include "Tunable.h"
-
-// Rick only walks in once both his current spot and the counter spot are this
-// far outside the player's view cone (dot of camera forward vs direction to the
-// spot). 0.3 ~= 72 degrees off-center, past the edge of a 90-degree FOV, so the
-// move is never on screen.
-WP_TUNABLE_FLOAT(GRickTeleportHiddenDot, "weird.Rick.TeleportHiddenDot", 0.3f,
-	"Rick teleports inside once the dot between camera forward and the direction to both his spot and the counter spot drops below this.");
 
 namespace
 {
@@ -42,8 +34,6 @@ namespace
 
 ARick::ARick()
 {
-	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.bStartWithTickEnabled = false;
 	DialoguePlate = CreateDefaultSubobject<UDialoguePlateComponent>(TEXT("DialoguePlate"));
 	PersonalSpace = CreateDefaultSubobject<UNpcPersonalSpaceComponent>(TEXT("PersonalSpace"));
 }
@@ -68,23 +58,28 @@ void ARick::BeginPlay()
 	LoadDialogueFile();
 	LoadOutsideDialogue();
 
-	if (!SenecaRef || !InsidePositionTarget)
-	{
-		UE_LOG(LogTemp, Error, TEXT("Rick::BeginPlay - SenecaRef or InsidePositionTarget not assigned on level instance; Rick can't come inside"));
-		return;
-	}
-	SenecaRef->OnIntroDialoguePlayed.AddUObject(this, &ARick::OnSenecaIntroPlayed);
+	GetWorld()->GetSubsystem<UStorySubsystem>()->OnPlayerLeftStore.AddUObject(this, &ARick::OnPlayerLeftStore);
 }
 
-void ARick::OnSenecaIntroPlayed()
+void ARick::OnPlayerLeftStore()
 {
-	if (bInside || bPendingTeleportInside || bStashedForStorm)
+	if (bInside || bStashedForStorm)
 	{
 		return;
 	}
-	bPendingTeleportInside = true;
-	SetActorTickEnabled(true);
-	UE_LOG(LogTemp, Log, TEXT("Rick - Seneca's intro played; will teleport inside once unseen"));
+	if (!SenecaRef)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::OnPlayerLeftStore - SenecaRef not assigned on level instance"));
+		return;
+	}
+	// Only once the player has heard Seneca's (Czech) intro: they've gone out
+	// to fetch Rick, so he's waiting at the counter when they come back.
+	if (!SenecaRef->bIntroDialoguePlayed)
+	{
+		return;
+	}
+	UE_LOG(LogTemp, Log, TEXT("Rick - Player left the store after Seneca's intro; teleporting inside"));
+	TeleportInside();
 }
 
 void ARick::LoadDialogueFile()
@@ -155,25 +150,8 @@ void ARick::LoadOutsideDialogue()
 	LoadSectionText(DialogueScript, InsideIdleSection, InsideIdleLines);
 }
 
-void ARick::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	// Ticks only while a teleport is pending (OnSenecaIntroPlayed).
-	UWorld* World = GetWorld();
-	if (UGazeUtils::IsPointInPlayerView(GetActorLocation(), World, GRickTeleportHiddenDot)
-		|| UGazeUtils::IsPointInPlayerView(InsidePositionTarget->GetActorLocation(), World, GRickTeleportHiddenDot))
-	{
-		return;
-	}
-	TeleportInside();
-}
-
 void ARick::TeleportInside()
 {
-	bPendingTeleportInside = false;
-	SetActorTickEnabled(false);
-
 	if (!InsidePositionTarget)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Rick::TeleportInside - InsidePositionTarget not assigned on level instance"));
@@ -182,6 +160,19 @@ void ARick::TeleportInside()
 	SetActorLocation(InsidePositionTarget->GetActorLocation());
 	SetActorRotation(FRotator(0.f, InsidePositionTarget->GetActorRotation().Yaw, 0.f));
 	bInside = true;
+
+	// Out of the car: the ride left him non-interactable and staring at the road
+	// (CarRideComponent). In the store he talks and looks at the player again.
+	SetInteractionEnabled(true);
+	ULookAtPlayerComponent* LookAt = FindComponentByClass<ULookAtPlayerComponent>();
+	if (!LookAt)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Rick::TeleportInside - no ULookAtPlayerComponent; he won't look at the player"));
+	}
+	else
+	{
+		LookAt->SetSuppressed(false);
+	}
 	UE_LOG(LogTemp, Log, TEXT("Rick - Teleported inside to %s"), *GetActorLocation().ToString());
 }
 

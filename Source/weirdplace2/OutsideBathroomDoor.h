@@ -16,10 +16,9 @@ class UItemDefinition;
 
 UCLASS()
 // A locked door that eats the bathroom key: offering the Key runs the
-// insert/turn/snap animation and drops a BrokenKey pickup. Used by the
-// outside bathroom door (the break; notifies Seneca) and by
-// BP_HallwayKeypadDoor, the keypad-locked door into the gas hallway, whose
-// keypad opens it once the payphone has been used (ADoor's keypad gate).
+// insert/turn/snap animation and drops a BrokenKey pickup, then notifies
+// Seneca. Only the outside bathroom door: BP_HallwayKeypadDoor (the keypad
+// door into the gas hallway) is a plain ADoor and never takes the key.
 class WEIRDPLACE2_API AOutsideBathroomDoor : public ADoor
 {
 	GENERATED_BODY()

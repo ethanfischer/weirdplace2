@@ -38,6 +38,9 @@ enum class EStoryFlag : uint8
 // reveal; other consumers may bind too.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStoryFlagChanged, EStoryFlag /*Flag*/, bool /*bValue*/);
 
+// Broadcast when the player walks out of the store onto the street.
+DECLARE_MULTICAST_DELEGATE(FOnPlayerLeftStore);
+
 UCLASS()
 class WEIRDPLACE2_API UStorySubsystem : public UWorldSubsystem
 {
@@ -54,6 +57,11 @@ public:
 
 	// Fires after SetFlag changes a flag's value.
 	FOnStoryFlagChanged OnStoryFlagChanged;
+
+	// Fires each time the player walks out through the front door: TriggerBox_Inside
+	// was the last doorway box touched before the street-side TriggerBox_Outside.
+	// Walking in doesn't fire it. ARick binds this to come into the store.
+	FOnPlayerLeftStore OnPlayerLeftStore;
 
 	// Resolve the test-facing FName ("KeyBroke" etc.) to the enum. False on miss.
 	static bool TryParseStoryFlag(FName Name, EStoryFlag& OutFlag);
@@ -98,6 +106,13 @@ private:
 
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
+
+	UFUNCTION()
+	void OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
+
+	// Which doorway box the player touched last. The two boxes sit either side
+	// of the glass door without overlapping, so Inside-then-Outside is an exit.
+	bool bLastDoorwayTriggerWasInside = false;
 
 	// Reacts to our own flag changes: TornadoWarningDisplayed applies the storm
 	// mood, UsedPayPhone silences the TV sirens (the screens stay up), and
