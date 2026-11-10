@@ -295,10 +295,7 @@ void UKeypadUIComponent::SpawnKeypadUIActor()
 {
 	if (KeypadUIActor)
 	{
-		if (USceneComponent* Root = KeypadUIActor->GetRootComponent())
-		{
-			Root->SetVisibility(true, true);
-		}
+		KeypadUIActor->Show();
 		KeypadUIActor->SetActorEnableCollision(true);
 		KeypadUIActor->SetActorTickEnabled(true);
 		return;

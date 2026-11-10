@@ -10,17 +10,16 @@ class APropActor;
 #include "Seneca.generated.h"
 
 class UWidgetComponent;
-class UStaticMeshComponent;
-class UStaticMesh;
 class UUI_Dialogue;
 class UItemDefinition;
 class UTexture2D;
-class UChildActorComponent;
-class UAnimSequenceBase;
 class ADoor;
 class AFirstPersonCharacter;
 class UInventoryComponent;
+enum class EStoryFlag : uint8;
+class APiano;
 class USpawnerActorComponent;
+class USoundBase;
 
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
@@ -33,8 +32,8 @@ enum class ESenecaState : uint8
 	ReadyToGiveCombinedTape,    // External trigger fired; next interact hands tape over
 	ReadyToGiveKey,             // "Nice picks, here's the key"
 	GaveKey,                    // "Go use the bathroom outside"
-	Smoking,                    // Cosmetic smoking beat at the telephone pole, after the player hangs up (no story effect)
-	Done                        // No more dialogue
+	AtPiano,                    // Oasis: standing at the piano (EnteredOasis); "Hey. Where have you been?"
+	Done                        // Gone: left the store when the key broke, until the oasis
 };
 
 UCLASS()
@@ -70,16 +69,12 @@ public:
 
 	// --- Quest State ---
 
-	// Called by OutsideBathroomDoor when the key is dropped
+	// Called by OutsideBathroomDoor when the key is dropped: Seneca leaves the
+	// store (hidden below the world) and next appears at the oasis piano.
 	void OnKeyDropped();
 
-	// Test-only: clear the SmokingAppearDelay timer and jump straight to
-	// OnSmokingDelayComplete so E2E tests don't have to wait 60 seconds.
-	void FastForwardSmokingAppear();
-
-	// Dev-only: teleport to SmokingPositionTarget and start the smoking anim NOW,
-	// without touching CurrentState or other quest flags.
-	void ForceSmokingAppearance();
+	// Hidden below the world between the key breaking and the oasis (tests).
+	bool IsGone() const { return GetActorLocation().Z < GoneZ * 0.5; }
 
 	// External trigger: combined-tape compilation finished. Only transitions
 	// AwaitingTapeBurn -> ReadyToGiveCombinedTape; otherwise logs + returns.
@@ -88,10 +83,7 @@ public:
 	// Called by FirstPersonCharacter when dialogue with Seneca ends
 	void OnDialogueEnded();
 
-	// Single source of truth for the lines spoken in a given state: copies the
-	// loaded lines for `State` and, for Smoking once the player has seen the
-	// tornado warning (UStorySubsystem SeenTornadoWarning), appends the
-	// shelter tip. Both Interact_Implementation and the E2E hook call this.
+	// Copies the loaded lines for `State` into Out.
 	void BuildEffectiveDialogueLines(ESenecaState State, TArray<FText>& Out) const;
 
 	// Current quest state (read-only in editor for debugging)
@@ -118,35 +110,16 @@ public:
 	// Test access: returns the pre-placed key prop actor (shown during the key beat).
 	APropActor* GetKeyActor() const { return KeyActor; }
 
-	// --- Animation ---
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Animation")
-	UAnimSequenceBase* SmokingAnimation;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|Animation")
-	bool bIsSmoking = false;
+	// Test access: the sound a rejected offer to Seneca plays.
+	const USoundBase* GetWrongChoiceSound() const { return WrongChoiceSound; }
 
 protected:
-	// --- Components (assigned in Blueprint) ---
+	// --- Audio ---
 
-	UPROPERTY(BlueprintReadOnly, Category = "Seneca")
-	UChildActorComponent* CigaretteComp;
-
-	// Cell phone held during the smoking beat — Seneca is the voice on the
-	// payphone, so he's still holding it when the player finds him at the pole.
-	// Spawned at BeginPlay on CellPhoneSocket of the body mesh; shown with the
-	// cigarette. CellPhoneMeshAsset defaults to a placeholder cube — swap on BP_Seneca.
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Seneca|CellPhone")
-	UStaticMeshComponent* CellPhoneMesh = nullptr;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
-	UStaticMesh* CellPhoneMeshAsset;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
-	FName CellPhoneSocket = TEXT("hand_l");
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|CellPhone")
-	FTransform CellPhoneOffset = FTransform(FRotator::ZeroRotator, FVector(10.0, 2.0, 0.0), FVector(0.06, 0.02, 0.11));
+	// Played instead of the inventory's locked-door rattle when the player
+	// offers Seneca an item he won't take (e.g. the meat tenderizer).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Audio")
+	USoundBase* WrongChoiceSound = nullptr;
 
 	// --- Dialogue (sectioned file parsed by FDialogueScript; see scripts/dq.py) ---
 
@@ -187,21 +160,14 @@ protected:
 	FString GaveKeySection = TEXT("GaveKey");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString SmokingSection = TEXT("Smoking");
-
-	// Smoking variant used when the player isn't carrying the broken key.
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString SmokingNoKeySection = TEXT("SmokingNoKey");
-
-	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviesReminderSection = TEXT("WaitingForMoviesReminder");
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
 	FString WaitingForMoviePurchaseReminderSection = TEXT("WaitingForMoviePurchaseReminder");
 
-	// Appended to Smoking once the player has seen the tornado warning on the TVs.
+	// Oasis: what Seneca says at the piano.
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
-	FString SmokingTornadoTipSection = TEXT("SmokingTornadoTip");
+	FString PianoSection = TEXT("Piano");
 
 	// --- Blank Tape Beat ---
 
@@ -222,26 +188,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
 	APropActor* KeyActor;
 
-	// Inventory ID of the snapped half the player picks up outside. The [Fix key]
-	// cue in the Smoking dialogue swaps it for a fresh KeyDef key.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Key")
-	FName BrokenKeyItemID = TEXT("BrokenKey");
-
 	// --- Quest Config ---
 
 	// Number of movies required before Seneca gives the key
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest", meta = (ClampMin = "1", UIMin = "1"))
 	int32 RequiredMovieCount = 3;
-
-	// Seconds after key drop before Seneca appears at smoking position
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Quest", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float SmokingAppearDelay = 60.0f;
-
-	// --- Position Targets (assign on level instance, these are level actor refs) ---
-
-	// Empty actor placed at the smoking spot outside
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Positions")
-	AActor* SmokingPositionTarget;
 
 	// --- Counter Stack ---
 
@@ -268,11 +219,9 @@ private:
 	// Skips the notification (logs + bails) on any failure path.
 	void GiveKey(class AFirstPersonCharacter* FPChar);
 
-	// Smoking beat: take the broken half (if carried) and hand over a fresh key.
-	void FixKey(class AFirstPersonCharacter* FPChar);
-
-	// Teleport Seneca to target actor's location/rotation
-	void MoveToTarget(AActor* Target);
+	// OnKeyDropped parks Seneca this far below the world (visibility cycling
+	// on a MetaHuman breaks the groom hair on re-show).
+	static constexpr double GoneZ = -100000.0;
 
 	// Loaded dialogue lines per state
 	TMap<ESenecaState, TArray<FText>> DialogueLines;
@@ -298,7 +247,6 @@ private:
 	// Reminder lines for re-interactions within a state
 	TArray<FText> WaitingForMoviesReminderLines;
 	TArray<FText> WaitingForMoviePurchaseReminderLines;
-	TArray<FText> SmokingTornadoTipLines;
 
 	// Parsed sectioned dialogue file (DialogueFilePath)
 	FDialogueScript DialogueScript;
@@ -309,33 +257,9 @@ private:
 	// Copies a section's text into a flat line array (reminder lines)
 	void LoadReminderSection(const FString& SectionName, TArray<FText>& OutLines);
 
-	// Returns true if the player camera is facing the given world position
-	bool IsPlayerLookingAt(const FVector& Position) const;
-
 	// Cached skeletal mesh for computing look-at bounds target
 	UPROPERTY()
 	USkeletalMeshComponent* CachedSkeletalMesh = nullptr;
-
-	// Returns the SkeletalMeshComponent on this actor whose mesh skeleton matches
-	// SmokingAnimation's skeleton (i.e. the MetaHuman body mesh, not face/hair).
-	USkeletalMeshComponent* FindBodyMesh() const;
-
-public:
-	void StartSmokingAnim();
-private:
-
-	// Timer for delayed appearance at smoking position
-	FTimerHandle SmokingAppearTimerHandle;
-
-	// True while waiting for player to look away so Seneca can appear
-	bool bWaitingToAppear = false;
-
-	// Called when the smoking appear delay expires
-	void OnSmokingDelayComplete();
-
-	// Shared by the look-away appear and the forced (dev/test) appear: teleport
-	// to SmokingPositionTarget, show the cigarette + phone, play the anim.
-	void AppearAtSmokingSpot();
 
 	void StartWaitingForMoviesDialogue(AFirstPersonCharacter* FPChar);
 
@@ -343,11 +267,19 @@ private:
 
 	void StartReadyToGiveKeyDialogue(AFirstPersonCharacter* FPChar);
 
-	// Smoking dialogue at the telephone pole, with the [Fix key] cue wired up.
-	void StartSmokingDialogue(AFirstPersonCharacter* FPChar);
+	// EnteredOasis -> GoToPiano.
+	void OnStoryFlagChanged(EStoryFlag Flag, bool bValue);
 
-	// Shared line-cue handler for the ReadyToGiveKey ([Give key]) and Smoking
-	// ([Fix key]) dialogues: arms on the cue line, executes on the next press.
+	// Stand at the oasis piano's PianistSpot.
+	void GoToPiano();
+
+	// The piano he's at (AtPiano). Its music pauses while the player talks to
+	// him and resumes from the same spot when they stop (Tick).
+	TWeakObjectPtr<APiano> AtPianoPiano;
+	bool bPianoPausedForTalk = false;
+
+	// Line-cue handler for the ReadyToGiveKey ([Give key]) dialogue: arms on
+	// the cue line, executes on the next press.
 	UFUNCTION()
 	void OnKeyDialogueLineShown(int32 LineIndex);
 

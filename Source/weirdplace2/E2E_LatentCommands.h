@@ -3040,68 +3040,6 @@ private:
 
 
 // =======================================================================
-// FTD_AssertSenecaSmokingLines — the joined Smoking-state lines must (or
-// must not) contain a substring. Drives the shelter-line gating check.
-// =======================================================================
-
-class FTD_AssertSenecaSmokingLines : public FTD_Base
-{
-public:
-	FTD_AssertSenecaSmokingLines(FAutomationTestBase* InTest, FString InNeedle, bool bInShouldContain)
-		: FTD_Base(InTest), Needle(MoveTemp(InNeedle)), bShouldContain(bInShouldContain) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting Seneca smoking lines %s '%s'"),
-			bShouldContain ? TEXT("contain") : TEXT("omit"), *Needle);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no driver")); return true; }
-		FString Joined;
-		if (!Driver->GetSenecaSmokingLinesJoined(Joined))
-		{
-			Test->AddError(TEXT("FTD_AssertSenecaSmokingLines: no Seneca"));
-			return true;
-		}
-		const bool bContains = Joined.Contains(Needle, ESearchCase::IgnoreCase);
-		if (bContains != bShouldContain)
-		{
-			Test->AddError(FString::Printf(
-				TEXT("FTD_AssertSenecaSmokingLines: lines %s '%s' but expected %s. Lines: \"%s\""),
-				bContains ? TEXT("contain") : TEXT("omit"), *Needle,
-				bShouldContain ? TEXT("contain") : TEXT("omit"), *Joined));
-		}
-		return true;
-	}
-private:
-	FString Needle;
-	bool bShouldContain;
-};
-
-// =======================================================================
-// FTD_ForceSenecaSmoking — jump Seneca into the Smoking beat directly.
-// =======================================================================
-
-class FTD_ForceSenecaSmoking : public FTD_Base
-{
-public:
-	FTD_ForceSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Forcing Seneca into the smoking beat"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_ForceSenecaSmoking: no driver")); return true; }
-		Driver->ForceSenecaToSmoking();
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_AdvanceDialogueUntilLineContains — press E until the displayed
 // dialogue body contains a substring (case-insensitive), then stop.
 // =======================================================================
@@ -3493,58 +3431,6 @@ private:
 };
 
 // =======================================================================
-// FTD_AssertPutBackPrompt — while a movie is inspected, a world-space
-// prompt must be visible, name the put-back binding, and face the camera.
-// =======================================================================
-
-class FTD_AssertPutBackPrompt : public FTD_Base
-{
-public:
-	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedText, float InMinFacingDot = 0.94f)
-		: FTD_Base(InTest), ExpectedText(MoveTemp(InExpectedText)), MinFacingDot(InMinFacingDot) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting put-back prompt reads \"%s\" and faces camera"), *ExpectedText);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertPutBackPrompt: no driver")); return true; }
-
-		FString Text;
-		float FacingDot = 0.f;
-		bool bVisible = false;
-		if (!Driver->GetPutBackPromptState(Text, FacingDot, bVisible))
-		{
-			Test->AddError(TEXT("FTD_AssertPutBackPrompt: no inspected MovieBox with a PutBackPrompt"));
-			return true;
-		}
-		if (!bVisible)
-		{
-			Test->AddError(TEXT("FTD_AssertPutBackPrompt: prompt exists but is not visible"));
-		}
-		// Exact match: catches both a wrong binding and the dual "Q / B" form
-		// when only the active device's key should show.
-		if (Text != ExpectedText)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text is \"%s\", expected \"%s\""),
-				*Text, *ExpectedText));
-		}
-		if (FacingDot < MinFacingDot)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: not facing camera (dot=%.3f, need >=%.2f)"),
-				FacingDot, MinFacingDot));
-		}
-		return true;
-	}
-private:
-	FString ExpectedText;
-	float MinFacingDot;
-};
-
-// =======================================================================
 // FTD_ActivateBlankTape — test bypass: trigger the spawner's chosen-tape
 // swap directly instead of playing through the money beat.
 // =======================================================================
@@ -3624,27 +3510,6 @@ public:
 };
 
 // =======================================================================
-// FTD_FastForwardSenecaSmoking — skip Seneca's 60s SmokingAppearDelay
-// timer. One-shot.
-// =======================================================================
-
-class FTD_FastForwardSenecaSmoking : public FTD_Base
-{
-public:
-	FTD_FastForwardSenecaSmoking(FAutomationTestBase* InTest) : FTD_Base(InTest) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Fast-forwarding Seneca smoking delay"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		Driver->FastForwardSenecaSmoking();
-		return true;
-	}
-};
-
-// =======================================================================
 // FTD_SimulatePutBack — press the "put back" binding (keyboard Q / gamepad
 // B) that exits item inspection. One-shot.
 // =======================================================================
@@ -3663,40 +3528,6 @@ public:
 		Driver->SimulatePutBack();
 		return true;
 	}
-};
-
-// =======================================================================
-// FTD_WaitForSenecaAppearedAtSmoking — poll until Seneca has been
-// re-teleported out of the hidden below-world position back to the
-// smoking spot. Depends on the SenecaSmoking waypoint being placed so
-// its default facing does NOT look at SmokingPositionTarget.
-// =======================================================================
-
-class FTD_WaitForSenecaAppearedAtSmoking : public FTD_Base
-{
-public:
-	FTD_WaitForSenecaAppearedAtSmoking(FAutomationTestBase* InTest, double InTimeoutSeconds = 3.0)
-		: FTD_Base(InTest), Timeout(InTimeoutSeconds) {}
-
-	virtual FString GetStatusText() const override { return TEXT("Waiting for Seneca to appear at smoking spot"); }
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("no driver")); return true; }
-		if (Driver->HasSenecaAppearedAtSmokingPos())
-		{
-			return true;
-		}
-		if (GetElapsedSinceFirstTick() > Timeout)
-		{
-			Test->AddError(TEXT("FTD_WaitForSenecaAppearedAtSmoking: timed out (check SenecaSmoking waypoint facing)"));
-			return true;
-		}
-		return false;
-	}
-private:
-	double Timeout;
 };
 
 // =======================================================================
@@ -4742,6 +4573,64 @@ public:
 private:
 	FString Label;
 	bool bExpected;
+};
+
+// =======================================================================
+// FTD_Check / FTD_WaitUntil — one-off assertions without a bespoke class.
+// Pred gets the PIE world. Check fails unless Pred holds on its tick;
+// WaitUntil polls until Pred holds or Timeout elapses.
+// =======================================================================
+
+class FTD_WaitUntil : public FTD_Base
+{
+public:
+	FTD_WaitUntil(FAutomationTestBase* InTest, FString InWhat, TFunction<bool(UWorld*)> InPred, double InTimeoutSeconds = 5.0)
+		: FTD_Base(InTest), What(MoveTemp(InWhat)), Pred(MoveTemp(InPred)), Timeout(InTimeoutSeconds) {}
+
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Waiting until %s"), *What); }
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_WaitUntil: no PIE world")); return true; }
+		if (Pred(World))
+		{
+			return true;
+		}
+		if (GetElapsedSinceFirstTick() > Timeout)
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_WaitUntil: timed out after %.1fs waiting until %s"), Timeout, *What));
+			return true;
+		}
+		return false;
+	}
+private:
+	FString What;
+	TFunction<bool(UWorld*)> Pred;
+	double Timeout;
+};
+
+class FTD_Check : public FTD_Base
+{
+public:
+	FTD_Check(FAutomationTestBase* InTest, FString InWhat, TFunction<bool(UWorld*)> InPred)
+		: FTD_Base(InTest), What(MoveTemp(InWhat)), Pred(MoveTemp(InPred)) {}
+
+	virtual FString GetStatusText() const override { return FString::Printf(TEXT("Checking %s"), *What); }
+
+	virtual bool UpdateStep() override
+	{
+		UWorld* World = E2ELatent::GetPIEWorld();
+		if (!World) { Test->AddError(TEXT("FTD_Check: no PIE world")); return true; }
+		if (!Pred(World))
+		{
+			Test->AddError(FString::Printf(TEXT("FTD_Check failed: %s"), *What));
+		}
+		return true;
+	}
+private:
+	FString What;
+	TFunction<bool(UWorld*)> Pred;
 };
 
 #endif // WITH_DEV_AUTOMATION_TESTS && WITH_EDITOR

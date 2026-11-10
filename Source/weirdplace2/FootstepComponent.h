@@ -25,7 +25,12 @@ public:
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
+	// Footsteps played so far (tests assert on it).
+	int32 GetStepsPlayed() const { return StepsPlayed; }
+
 private:
+	int32 StepsPlayed = 0;
+
 	struct FFootstepSet
 	{
 		FString Name;

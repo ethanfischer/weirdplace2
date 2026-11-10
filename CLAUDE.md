@@ -41,14 +41,7 @@ Build commands:
 
 # Regenerate project files (if modules/targets change)
 "C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -projectfiles
-
-# Run automation tests
-"C:\Program Files\Epic Games\UE_5.8\Engine\Binaries\Win64\UnrealEditor-Cmd.exe" "C:/Users/ethan/repos/weirdplace2/weirdplace2.uproject" -ExecCmds="Automation RunTests All; Quit" -unattended -nopause -nosplash -NullRHI
 ```
-
-## Task skills
-
-Mocap retargeting → `/retarget-mocap`. Steam Deck deploy → `/steam-deck-deploy`. itch.io deploy → `/itch-deploy`.
 
 ## Editor Property Assignment
 
@@ -66,29 +59,14 @@ When adding `UPROPERTY` references to other actors (e.g., `AActor*`, `ADoor*`, `
 
 ## Dev tooling — read docs/dev-tooling.md before writing a one-off script
 
-- **unreal-mcp** — default for live-editor work (actors, properties, cvars, screenshots, PIE). If it shows as failed to connect, launch the editor then run `/mcp`; don't silently fall back to uq.
+- **unreal-mcp** — default for live-editor work (actors, properties, cvars, screenshots, PIE). If it shows as failed to connect, launch the editor then reconnect it yourself (desktop app: the `reconnect_session_connector` tool; CLI: `/mcp`); don't silently fall back to uq.
 - **TestDriverToolset** (MCP) — drive the game live in PIE: batched input sequences, completion-based waits, teleports, `CapturePlayerView` for a first-person screenshot. Dial a flow in live, then transcribe it to an E2E test.
 - **`scripts/uq.py`** — fallback when the editor/MCP is down; only path for `mat-params`, `refs`, `save`, arbitrary editor Python. Extend uq with a verb rather than adding a `scripts/local/*.py` one-off.
-- **`scripts/ue_remote_exec.py --code <ABSOLUTE path> --mode ExecuteFile`** — arbitrary live-editor Python. Never `--file` (silently no-ops).
+- **`scripts/ue_remote_exec.py --code <ABSOLUTE path> --mode ExecuteFile`** — arbitrary live-editor Python.
 - **`scripts/logq.py`** — log triage (`--e2e` for the test log). Prefer over hand-rolled grep.
 - **`scripts/dq.py lint`** — run after any dialogue edit (`Content/Dialogue/`).
 - **`scripts/sfx.py`** — search here first when asked to add a sound (`/ftus-sfx`).
 - **`scripts/e2e_report.py`** — screenshot goldens diff + gallery; `--bless` to accept.
-
-## Hiding Actors at Runtime
-
-**Do NOT use `SetActorHiddenInGame`** — it sets a flag on the actor but the component's own `bVisible` takes precedence and the mesh stays visible.
-
-Use `SetVisibility` on the root component instead:
-```cpp
-// Requires: #include "Components/SceneComponent.h"
-if (USceneComponent* Root = Actor->GetRootComponent())
-{
-    Root->SetVisibility(false, true); // false=hide, true=propagate to children
-}
-```
-
-Setting "Hidden in Game" in the editor Details panel is also unreliable — always enforce visibility state in C++.
 
 ## Reading Output Logs
 
@@ -118,6 +96,10 @@ powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName PauseMenu -Headed
 
 **Headed vs headless:** the default `-NullRHI` mode is fast but produces blank/zero-byte screenshots because nothing is rendered. When the test takes screenshots that you intend to inspect visually, pass `-Headed` to run with rendering enabled.
 
+**E2E skips the car ride.** Automation runs take `SkipRide` at map load, so anything the ride changes (it silences/restores world ambients, places Rick and the car) is untested unless the test forces it with `FTD_StartCarRideFast`. A test that skips the ride can pass while the real game is broken — that's how the TV song "fix" in #57 regressed.
+
+**Heard-volume asserts read 0.000 while the editor is open.** `TvSongAudible` / `CarRideAmbients` (`FTD_AssertAmbientHeard`) failed every run with the editor open and passed every run with it closed (cause unknown; not window focus — `UnfocusedVolumeMultiplier=1` didn't help). Close the editor before running them, and don't read a 0.000 from an editor-open run as a real regression.
+
 Screenshots land in `Saved/Screenshots/Windows/` (or the platform-specific subdir). Read them with the Read tool to verify the feature looks right.
 
 Output is concise: `PASS` or `FAIL` + any errors. Run with `run_in_background` since tests take 2-5 minutes.
@@ -136,15 +118,15 @@ Tests in `E2E_Level1Test.cpp` live under two subgroups:
 
 `run_e2e.ps1` defaults a bare `-TestName <Name>` to the Regression subgroup, so existing invocations (`-TestName HappyPath`, `-TestName PauseMenu -Headed`) keep working. To target a diagnostic explicitly: `-TestName Diagnostic.BlankVhsGazeSweep`.
 
-**When finishing a feature, run the regression suite to make sure nothing broke:**
+**When user asks you to make a PR, ask them if they want you run the regression suite to make sure nothing broke:**
 ```bash
-powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Headed -TimeoutMinutes 60
+powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Headed
 ```
-Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects. The script auto-bumps the default timeout to 60 min when the full Regression suite is selected.
+Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward) take screenshots and/or rely on rendering for trace/material side effects.
 
 ## Misc
 - **One dev skip command**: `SkipTo <beat>` in `WeirdplaceCheatManager` applies now *and* persists across PIE until `SkipTo clear`; bare `SkipTo` lists beats. A new beat/stage must resolve there, persist, and appear in the listing (story beats via `UStorySubsystem`, car-ride stages via `UCarRideComponent::GetSkipStages`).
-- This is gonna be a VR game. Implement features diegetically (no screenspace UI)
+- This is possibly gonna be a VR game. Implement features diegetically (no screenspace UI)
 - If you add 3rd party assets, credit them in `CREDITS.md`
 - Do not ask me to run python scripts for you. No "Run this in UE's Output Log:". Run them yourself (see Dev tooling).
 

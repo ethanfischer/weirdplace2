@@ -171,25 +171,6 @@ public:
 	// asserts this stays 0 across a mid-key-break re-entrant interact.
 	int32 GetBathroomDoorLockedSoundCount() const;
 
-	// --- Seneca test helpers ---
-
-	// Skip the 60-second SmokingAppearDelay so the E2E test doesn't have to wait.
-	void FastForwardSenecaSmoking();
-
-	// Joins Seneca's effective Smoking-state lines (BuildEffectiveDialogueLines)
-	// into a single string. The shelter tip is included iff SeenTornadoWarning is
-	// set, so the test can assert presence/absence by flag. False if no Seneca.
-	bool GetSenecaSmokingLinesJoined(FString& Out) const;
-
-	// Jump Seneca straight into the Smoking beat (CurrentState=Smoking + teleport
-	// to the smoking spot + anim) so the shelter line can be screenshotted without
-	// replaying the whole quest.
-	void ForceSenecaToSmoking();
-
-	// True once Seneca has been re-teleported out of the hidden "below world"
-	// position back to the smoking spot (i.e., Z > -50000).
-	bool HasSenecaAppearedAtSmokingPos() const;
-
 	// --- Input simulation ---
 
 	// Routes a key event through APlayerController::InputKey, firing both
@@ -369,12 +350,6 @@ public:
 	// Reads the speaker plate and full body line off the dialogue widget the
 	// player is currently in. Returns false if no dialogue widget is active.
 	bool GetDisplayedDialogue(FString& OutSpeaker, FString& OutBody) const;
-
-	// Reads the put-back prompt off the MovieBox currently in inspection:
-	// its text, visibility, and how squarely it faces the camera (dot of the
-	// text forward vector against the to-camera direction). Returns false if
-	// nothing is inspected or the inspected box has no 'PutBackPromptText'.
-	bool GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const;
 
 	// Test-only: inject an item into the inventory by loading a static mesh by
 	// asset path and feeding it through AddItemWithData. Lets focused inventory

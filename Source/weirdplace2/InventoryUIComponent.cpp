@@ -42,6 +42,15 @@ void UInventoryUIComponent::BeginPlay()
 	{
 		InventoryUIActorClass = AInventoryUIActor::StaticClass();
 	}
+
+	if (!DenySound)
+	{
+		DenySound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/lockeddoor.lockeddoor"));
+		if (!DenySound)
+		{
+			UE_LOG(LogTemp, Error, TEXT("InventoryUIComponent: default DenySound /Game/Sounds/lockeddoor missing"));
+		}
+	}
 }
 
 void UInventoryUIComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -112,9 +121,10 @@ void UInventoryUIComponent::ToggleInventoryUI()
 	}
 }
 
-void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate)
+void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate, USoundBase* InDenySound)
 {
 	GiveDelegate = InDelegate;
+	ActiveDenySound = InDenySound ? InDenySound : DenySound;
 	bGiveMode = true;
 	OpenInventoryUI();
 }
@@ -142,10 +152,16 @@ void UInventoryUIComponent::ConfirmGiveSelection()
 		// receiver's dialogue/sequence started during Execute still stands.
 		CloseInventoryUI();
 	}
-	else if (MenuCloseSound)
+	else
 	{
 		// Empty slot or rejected offer: deny feedback, stay open to pick again.
-		UGameplayStatics::PlaySound2D(this, MenuCloseSound);
+		++DenyCount;
+		UE_LOG(LogTemp, Log, TEXT("InventoryUI: give offer '%s' denied (%s)"), *Selected.ToString(), *GetNameSafe(ActiveDenySound));
+		LastDenySound = ActiveDenySound;
+		if (ActiveDenySound)
+		{
+			UGameplayStatics::PlaySound2D(this, ActiveDenySound);
+		}
 	}
 }
 
@@ -245,6 +261,7 @@ void UInventoryUIComponent::CloseInventoryUI()
 	// Closing always returns to a plain browse state — clear any give binding.
 	bGiveMode = false;
 	GiveDelegate.Unbind();
+	ActiveDenySound = nullptr;
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{

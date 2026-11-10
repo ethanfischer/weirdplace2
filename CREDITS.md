@@ -37,7 +37,7 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Author:** sotiris_laskaris
 - **Source:** https://freesound.org/s/620404/
 - **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
-- **Used in:** `Content/Sounds/620404__sotiris_laskaris__passbys-inside-city-tunnel.uasset`
+- **Used in:** `Content/Sounds/Music/620404__sotiris_laskaris__passbys-inside-city-tunnel.uasset`
 - **Required attribution:** `"Passbys inside City Tunnel" by sotiris_laskaris -- https://freesound.org/s/620404/ -- License: Creative Commons Attribution 4.0`
 
 ### "Ambient alien sound 05" — Jagadamba (freesound)
@@ -55,6 +55,12 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Author:** Kodack
 - **License:** Creative Commons 0
 - **Used in:** `Content/Sounds/lockeddoor.uasset`
+
+### "Wrong" — Raclure (freesound #483598)
+- **Author:** Raclure
+- **Source:** https://freesound.org/s/483598/
+- **License:** Creative Commons 0 (public domain — no attribution legally required)
+- **Used in:** `Content/Sounds/S_WrongChoice.uasset` (Seneca's wrong-item "no")
 
 ### "Brazilian_Waterfall_River" — SuperStudioBR (freesound)
 - **Author:** SuperStudioBR
@@ -91,6 +97,13 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Used in:** `Content/Sounds/Footsteps/<Set>/S_Footstep_<Set>_NN.uasset` — Carpet ×1 (75/25 layered blend of pack Carpet 11+16, 2 kHz lowpass), Tar ×1 (pack MuddyGravel 3: 120 ms attack fade, 3 kHz then 2 kHz lowpass), Tile ×28 (pack Tile), WetDirt ×9 (pack MuddyGravel); RMS loudness-matched. Played by `UFootstepComponent`: floor actors / volumes tagged `Footstep.<Set>` pick the set, untagged floors use the `weird.Footstep.Set` fallback (Tar); per-set pitch/jitter/vol/interval via `weird.Footstep.SetTuning`.
 - **Required attribution:** None required; credited anyway.
 
+### "All In One Bundle" — Free To Use Sounds (Gumroad)
+- **Author:** Free To Use Sounds LLC (https://www.freetousesounds.com)
+- **Source:** All In One Bundle, purchased on Gumroad
+- **License:** All sound effects are copyright and owned by Free To Use Sounds LLC - all rights reserved (licensed for use via bundle purchase)
+- **Used in:**
+  - `/Game/Sounds/S_IceMachineBreak` — "TOOLHand-L,R_Cyprus-Tools, Hand, Hammer, Foley, Percussion, Distance, Birds, Big Room, Hitting, Drum, Metallic, Hammering, Impact, 04_FTUS_WOSB.wav" (RecID 925; one hit cut from 17.85s, 1.3s with fade-out)
+
 ### Audio files with unconfirmed source
 These project files have no obvious match in the user's freesound history. Could be original recordings, from a marketplace pack, or freesound files renamed beyond recognition. Verify and credit if third-party.
 
@@ -99,7 +112,8 @@ These project files have no obvious match in the user's freesound history. Could
 - `Content/Sounds/elevatormusic.uasset`
 - `Content/Sounds/lel.uasset`
 - `Content/Sounds/lowvoice.uasset` / `LowVoiceSoundCue.uasset`
-- `Content/Sounds/Passing.uasset`
+- `Content/Sounds/Music/Passing.uasset` (+ `Passing_Intro`, `Passing_Loop`, `SomeNiceChords`)
+- `Content/Sounds/Music/WaitingRoom.uasset`
 - `Content/Sounds/MenuOpen.uasset`, `MenuClose.uasset`, `MenuItemSelected.uasset`
 - `Content/Sounds/ItemCollect/itemCollected_*.uasset` (11 variants)
 - `Content/Sounds/TextBlip/textBlip_01.uasset`

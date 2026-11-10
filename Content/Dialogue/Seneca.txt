@@ -52,24 +52,9 @@ Mezitím, tady je klíč od záchodu.
 == GaveKey ==
 Záchod je venku za rohem.
 
-== Smoking ==
-Zpráva ti asi došla.
-Dej mi ten klíč.
-[Fix key]
-Jako nový. Použij s ním záchod uvnitř.
-Uvidíme se uvnitř.
-Nech mě chvíli o samotě.
-
-# Variant when the player never picked the snapped half up off the ground.
-== SmokingNoKey ==
-Zpráva ti asi došla.
-Ten klíč zůstal tam venku, co?
-Tady. Náhradní.
-[Fix key]
-Použij s ním záchod uvnitř.
-Uvidíme se uvnitř.
-Nech mě chvíli o samotě.
-
-# Appended to Smoking/SmokingNoKey once the player has seen the tornado warning.
-== SmokingTornadoTip ==
-A poslouchej, to tornádo není sranda. Kdyby na to došlo, pod poslední kabinkou je kryt.
+# Oasis: Seneca at the piano.
+== Piano ==
+Hey. Where have you been?
+Anyway, this is the end of the demo.
+Hope you enjoyed it. 
+Leave feedback with Ethan

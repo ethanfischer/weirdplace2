@@ -29,7 +29,7 @@ if ($TestName -match '^(Regression|Diagnostic)(\.|$)') {
     $TestPath = "Weirdplace2.E2E.Level1.Regression.$TestName"
 }
 
-# Default timeout: 90 min when running the full Regression suite (22 tests * ~2-5 min),
+# Default timeout: 90 min when running the full Regression suite,
 # 20 min otherwise.
 if ($TimeoutMinutes -le 0) {
     if ($TestName -eq 'Regression') { $TimeoutMinutes = 90 } else { $TimeoutMinutes = 20 }

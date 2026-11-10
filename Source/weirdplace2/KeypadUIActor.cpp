@@ -326,6 +326,35 @@ void AKeypadUIActor::SetEnteredCode(const FString& Code)
 	}
 }
 
+void AKeypadUIActor::Show()
+{
+	GetRootComponent()->SetVisibility(true, true);
+	// Built hidden on purpose (see BuildKeypad/CreateFillSlots); the propagate
+	// above just turned them on.
+	for (UStaticMeshComponent* Cell : CellMeshes)
+	{
+		Cell->SetVisibility(false);
+	}
+	for (UStaticMeshComponent* Slot : FillSlotMeshes)
+	{
+		Slot->SetVisibility(false);
+	}
+}
+
+int32 AKeypadUIActor::GetVisibleBoxCount() const
+{
+	int32 Count = 0;
+	for (const UStaticMeshComponent* Box : CellMeshes)
+	{
+		Count += Box->IsVisible() ? 1 : 0;
+	}
+	for (const UStaticMeshComponent* Box : FillSlotMeshes)
+	{
+		Count += Box->IsVisible() ? 1 : 0;
+	}
+	return Count;
+}
+
 void AKeypadUIActor::SetOpacity(float Opacity)
 {
 	CurrentOpacity = Opacity;

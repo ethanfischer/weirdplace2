@@ -25,7 +25,6 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 
 public:
 	// Start the car ride dialogue on the player character
@@ -47,9 +46,8 @@ public:
 	// Reveal Rick at his outside-store position (called by CarRideComponent after fade)
 	void AppearOutside();
 
-	// Move Rick to InsidePositionTarget. Normally deferred via Tick until neither
-	// his current spot nor the counter spot is in view (the move must never be
-	// seen); tests may call directly.
+	// Move Rick to InsidePositionTarget. Happens when the player walks out of
+	// the store after Seneca's intro (OnPlayerLeftStore); tests may call directly.
 	void TeleportInside();
 
 	// True once Rick stands at InsidePositionTarget.
@@ -163,10 +161,7 @@ private:
 	bool bGaveMoney = false;
 	bool bMoneyBeatArmed = false;
 
-	// The player walked back into the store after Seneca's intro -> Rick goes
-	// inside as soon as neither spot is in view (Tick). bInside flips when the
-	// move has happened.
-	bool bPendingTeleportInside = false;
+	// Rick is at InsidePositionTarget (TeleportInside).
 	bool bInside = false;
 
 	// A translation is the dialogue playing (OnDialogueEnded tells Seneca).
@@ -175,8 +170,8 @@ private:
 	// Lines translating Seneca's open request, or null when he has none.
 	const TArray<FText>* GetSenecaTranslation() const;
 
-	// UStorySubsystem::OnPlayerEnteredStore handler.
-	void OnPlayerEnteredStore();
+	// UStorySubsystem::OnPlayerLeftStore handler.
+	void OnPlayerLeftStore();
 
 	// Storm stash state (StashForStorm / ReturnFromStorm).
 	bool bStashedForStorm = false;

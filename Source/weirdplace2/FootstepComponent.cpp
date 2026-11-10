@@ -13,6 +13,8 @@ WP_TUNABLE_FLOAT(GFootstepInterval, "weird.Footstep.Interval", 0.6f,
 	"Seconds between footstep sounds while moving (fixed, metronome-like rhythm).");
 WP_TUNABLE_FLOAT(GFootstepVolume, "weird.Footstep.Volume", 3.0f,
 	"Footstep sound volume multiplier.");
+WP_TUNABLE_FLOAT(GFootstepMinSpeedFraction, "weird.Footstep.MinSpeedFraction", 0.3f,
+	"Footsteps play only while ground speed is at least this fraction of MaxWalkSpeed. Pushing into a wall leaves a small creep/jitter velocity that shouldn't count as walking.");
 WP_TUNABLE_FLOAT(GFootstepPitchJitter, "weird.Footstep.PitchJitter", 0.08f,
 	"Random pitch variance (+/-) applied per step for variety (default for sets without a per-surface override).");
 
@@ -123,7 +125,11 @@ void UFootstepComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	}
 
 	const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
-	const bool bWalking = Movement && Movement->IsMovingOnGround() && Movement->Velocity.SizeSquared2D() > 1.f;
+	// Velocity is the actual displacement this frame (PhysWalking rewrites it
+	// after collision), so walking into a wall reads as near zero.
+	const float MinSpeed = Movement ? Movement->MaxWalkSpeed * GFootstepMinSpeedFraction : 0.f;
+	const bool bWalking = Movement && Movement->IsMovingOnGround()
+		&& Movement->Velocity.SizeSquared2D() >= FMath::Square(FMath::Max(MinSpeed, 1.f));
 
 	// Fixed, metronome-like rhythm: a step every interval while moving (the
 	// current surface's set can override the global interval), first step
@@ -222,6 +228,7 @@ void UFootstepComponent::PlayFootstep()
 	GetSetTuning(Set.Name, BasePitch, Jitter, SetVolume);
 	const float Pitch = BasePitch * (1.f + FMath::FRandRange(-Jitter, Jitter));
 	UGameplayStatics::PlaySoundAtLocation(this, Set.Sounds[Index], FootLocation, GFootstepVolume * SetVolume, Pitch);
+	++StepsPlayed;
 	UE_LOG(LogTemp, Display, TEXT("FootstepComponent: played %s/%s (floor: %s)"),
 		*Set.Name, *Set.Sounds[Index]->GetName(), *GetNameSafe(LastFloorActor.Get()));
 }

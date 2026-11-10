@@ -2,9 +2,11 @@
 
 == CarRide ==
 [Pause 25]
-Rick: Hey man, how've you been?
+Rick: Hey
 Rick: ...
-Rick: Nice
+Rick: How've you been?
+Rick: ...
+Rick: Yeah
 Rick: ...
 Rick: Uhuh
 Rick: ...
@@ -26,7 +28,7 @@ Rick: You know how it is
 Rick: *
 [Bladder]
 [Pause 3]
-Rick: You need to pee?
+Rick: You need a bathroom?
 [Pause 4]
 Rick: Alright I'll find a place to stop
 
@@ -51,6 +53,9 @@ Rick: Three of them.
 Rick: He needs a blank tape to dub your movies onto.
 Rick: Says there's one somewhere in the collection. Can't remember where he put it.
 Rick: Bring it to him.
+Rick: Also I think he said something about a Century Massage?
+Rick: I can't get a read on this guy
+
 
 == RickTranslateKey ==
 Rick: He says the dubbing's gonna take a while. Find him later.

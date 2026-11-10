@@ -10,6 +10,16 @@
 #include "Sound/AmbientSound.h"
 #include "Components/AudioComponent.h"
 #include "TimerManager.h"
+#include "Tunable.h"
+
+WP_TUNABLE_FLOAT(GOasisLightsOutSeconds, "weird.Oasis.LightsOutSeconds", 2.f,
+	"Seconds the oasis bathroom stays dark after the stall teleport before its lights flicker back on.");
+WP_TUNABLE_FLOAT(GOasisFlickerSeconds, "weird.Oasis.FlickerSeconds", 1.2f,
+	"How long the oasis bathroom lights flicker before staying on.");
+WP_TUNABLE_FLOAT(GOasisFlickerMinStep, "weird.Oasis.FlickerMinStep", 0.04f,
+	"Shortest on/off step of the oasis bathroom light flicker (seconds).");
+WP_TUNABLE_FLOAT(GOasisFlickerMaxStep, "weird.Oasis.FlickerMaxStep", 0.22f,
+	"Longest on/off step of the oasis bathroom light flicker (seconds).");
 
 ATeleportTriggerBox::ATeleportTriggerBox()
 {
@@ -43,6 +53,11 @@ void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
 		DestroyUltraDynamicActors();
 	}
 
+	if (!ArrivalLights.IsEmpty())
+	{
+		StartArrivalLightsOut();
+	}
+
 	// Compute rotation delta between trigger and target
 	FQuat RotationDelta = FQuat(TeleportTarget->GetActorRotation()) * FQuat(GetActorRotation()).Inverse();
 
@@ -72,7 +87,6 @@ void ATeleportTriggerBox::TeleportActor(AActor* OtherActor)
 	{
 		SilenceGlobalWindIfRequested();
 		FadeInAmbient(AmbientWaterfall, WaterfallFadeInDuration, WaterfallFadeCurve);
-		FadeInAmbient(AmbientChord, ChordFadeInDuration, ChordFadeCurve);
 	}
 
 	if (bStopBladderUrgency)
@@ -134,12 +148,9 @@ void ATeleportTriggerBox::SkipTransition(AActor* Actor)
 		{
 			Wind->Stop();
 		}
-		for (AAmbientSound* Ambient : { AmbientWaterfall, AmbientChord })
+		if (UAudioComponent* Waterfall = AmbientWaterfall ? AmbientWaterfall->GetAudioComponent() : nullptr)
 		{
-			if (UAudioComponent* AudioComp = Ambient ? Ambient->GetAudioComponent() : nullptr)
-			{
-				AudioComp->AdjustVolume(0.0f, 1.0f);
-			}
+			Waterfall->AdjustVolume(0.0f, 1.0f);
 		}
 	}
 
@@ -148,6 +159,10 @@ void ATeleportTriggerBox::SkipTransition(AActor* Actor)
 		GetWorldTimerManager().ClearTimer(BathroomStallDoorUnlockTimerHandle);
 		UnlockBathroomStallDoor();
 	}
+
+	// Lights straight back on (TeleportActor just cut them).
+	GetWorldTimerManager().ClearTimer(ArrivalLightsTimer);
+	SetArrivalLightsOn(true);
 
 	UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: SkipTransition -> %s at %s"),
 		*GetName(), *SkipToTarget->GetActorNameOrLabel(), *SkipToTarget->GetActorLocation().ToString());
@@ -189,6 +204,47 @@ void ATeleportTriggerBox::SilenceGlobalWindIfRequested()
 	if (UAudioComponent* AudioComp = AmbientGlobalWind->GetAudioComponent())
 	{
 		AudioComp->FadeOut(WindFadeOutDuration, 0.0f);
+	}
+}
+
+void ATeleportTriggerBox::StartArrivalLightsOut()
+{
+	SetArrivalLightsOn(false);
+	FlickerElapsed = 0.f;
+	GetWorldTimerManager().SetTimer(ArrivalLightsTimer, this, &ATeleportTriggerBox::FlickerArrivalLights,
+		FMath::Max(0.01f, GOasisLightsOutSeconds), false);
+	UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: arrival lights out for %.1fs"), *GetName(), GOasisLightsOutSeconds);
+}
+
+void ATeleportTriggerBox::FlickerArrivalLights()
+{
+	// Toggle at short random steps until FlickerSeconds is up, then stay on.
+	if (FlickerElapsed >= GOasisFlickerSeconds)
+	{
+		SetArrivalLightsOn(true);
+		UE_LOG(LogTemp, Log, TEXT("TeleportTriggerBox %s: arrival lights back on"), *GetName());
+		return;
+	}
+	SetArrivalLightsOn(!bArrivalLightsOn);
+	const float Step = FMath::Max(0.01f, FMath::FRandRange(GOasisFlickerMinStep, FMath::Max(GOasisFlickerMinStep, GOasisFlickerMaxStep)));
+	FlickerElapsed += Step;
+	GetWorldTimerManager().SetTimer(ArrivalLightsTimer, this, &ATeleportTriggerBox::FlickerArrivalLights, Step, false);
+}
+
+void ATeleportTriggerBox::SetArrivalLightsOn(bool bOn)
+{
+	bArrivalLightsOn = bOn;
+	for (AActor* Light : ArrivalLights)
+	{
+		USceneComponent* Root = Light ? Light->GetRootComponent() : nullptr;
+		if (!Root)
+		{
+			UE_LOG(LogTemp, Error, TEXT("TeleportTriggerBox %s: ArrivalLights has an empty entry or an actor with no root"), *GetName());
+			continue;
+		}
+		// Light components go dark; emissive fixtures vanish (their glow is also
+		// what Lumen lights the room with).
+		Root->SetVisibility(bOn, true);
 	}
 }
 

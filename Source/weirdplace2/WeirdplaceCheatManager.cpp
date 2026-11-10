@@ -7,7 +7,6 @@
 #include "Inventory.h"
 #include "InventoryUIComponent.h"
 #include "ItemDefinition.h"
-#include "Seneca.h"
 #include "Door.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
@@ -101,26 +100,6 @@ void UWeirdplaceCheatManager::SkipTo(const FString& BeatName)
 	}
 
 	Show(FString::Printf(TEXT("SkipTo '%s' done; every play will now skip here (`SkipTo clear` to stop)."), *Canonical), FColor::Cyan);
-}
-
-void UWeirdplaceCheatManager::SkipToSmoking()
-{
-	APlayerController* PC = GetOuterAPlayerController();
-	UWorld* World = PC ? PC->GetWorld() : nullptr;
-	if (!World)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no world"));
-		return;
-	}
-
-	TArray<AActor*> Senecas;
-	UGameplayStatics::GetAllActorsOfClass(World, ASeneca::StaticClass(), Senecas);
-	if (Senecas.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("SkipToSmoking - no ASeneca in world"));
-		return;
-	}
-	Cast<ASeneca>(Senecas[0])->ForceSmokingAppearance();
 }
 
 void UWeirdplaceCheatManager::SkipToKeypad()

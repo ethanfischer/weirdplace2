@@ -28,9 +28,18 @@ public:
 	// wind/waterfall/chord cross-fade already finished and the stall door unlocked.
 	void SkipTransition(AActor* Actor);
 
+	// False while ArrivalLights are dark or flickered off (tests).
+	bool AreArrivalLightsOn() const { return bArrivalLightsOn; }
+
 protected:
 	// Destroys Ultra Dynamic Sky actors if present (avoids hard dependency)
 	void DestroyUltraDynamicActors();
+
+	// ArrivalLights cut out on arrival, stay dark for weird.Oasis.LightsOutSeconds,
+	// then flicker (weird.Oasis.Flicker*) and stay on.
+	void StartArrivalLightsOut();
+	void FlickerArrivalLights();
+	void SetArrivalLightsOn(bool bOn);
 
 	// Fades out the AmbientGlobalWind AAmbientSound if assigned
 	void SilenceGlobalWindIfRequested();
@@ -71,10 +80,6 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	AAmbientSound* AmbientWaterfall = nullptr;
 
-	// Ambient sound to fade in when bSilenceGlobalWind is set (set on level instance)
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	AAmbientSound* AmbientChord = nullptr;
-
 	// Fade-out duration for AmbientGlobalWind (only used when bSilenceGlobalWind is true)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	float WindFadeOutDuration = 10.0f;
@@ -87,14 +92,6 @@ protected:
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
 	EAudioFaderCurve WaterfallFadeCurve = EAudioFaderCurve::Logarithmic;
 
-	// Fade-in duration for Ambient_Chord (only used when bSilenceGlobalWind is true)
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	float ChordFadeInDuration = 10.0f;
-
-	// Fade-in curve for Ambient_Chord
-	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport", meta = (EditCondition = "bSilenceGlobalWind"))
-	EAudioFaderCurve ChordFadeCurve = EAudioFaderCurve::Logarithmic;
-
 	// Door to unlock after BathroomStallDoorUnlockTime seconds (set on level instance)
 	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport")
 	ADoor* BathroomStallDoor = nullptr;
@@ -103,4 +100,16 @@ protected:
 	float BathroomStallDoorUnlockTime = 60.0f;
 
 	FTimerHandle BathroomStallDoorUnlockTimerHandle;
+
+	// Lights at the destination (set on the level instance): light actors and
+	// emissive fixture meshes. They go dark the moment the player arrives, which
+	// hides the jump between the two bathrooms' lighting and exposure (the sky,
+	// which owned the exposure, is destroyed in the same frame), then flicker
+	// back on. Each actor's root and its children are hidden/shown.
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "Teleport|Lights")
+	TArray<AActor*> ArrivalLights;
+
+	FTimerHandle ArrivalLightsTimer;
+	float FlickerElapsed = 0.f;
+	bool bArrivalLightsOn = true;
 };

@@ -38,8 +38,8 @@ enum class EStoryFlag : uint8
 // reveal; other consumers may bind too.
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnStoryFlagChanged, EStoryFlag /*Flag*/, bool /*bValue*/);
 
-// Broadcast when the player walks into the store from the street.
-DECLARE_MULTICAST_DELEGATE(FOnPlayerEnteredStore);
+// Broadcast when the player walks out of the store onto the street.
+DECLARE_MULTICAST_DELEGATE(FOnPlayerLeftStore);
 
 UCLASS()
 class WEIRDPLACE2_API UStorySubsystem : public UWorldSubsystem
@@ -58,10 +58,10 @@ public:
 	// Fires after SetFlag changes a flag's value.
 	FOnStoryFlagChanged OnStoryFlagChanged;
 
-	// Fires each time the player walks in through the front door: the street-side
-	// TriggerBox_Outside was the last doorway box touched before TriggerBox_Inside.
-	// Walking out doesn't fire it. ARick binds this to come into the store.
-	FOnPlayerEnteredStore OnPlayerEnteredStore;
+	// Fires each time the player walks out through the front door: TriggerBox_Inside
+	// was the last doorway box touched before the street-side TriggerBox_Outside.
+	// Walking in doesn't fire it. ARick binds this to come into the store.
+	FOnPlayerLeftStore OnPlayerLeftStore;
 
 	// Resolve the test-facing FName ("KeyBroke" etc.) to the enum. False on miss.
 	static bool TryParseStoryFlag(FName Name, EStoryFlag& OutFlag);
@@ -92,13 +92,18 @@ public:
 	// Save (or clear, when empty) the auto-skip beat name.
 	static void SetAutoSkipBeat(const FString& BeatName);
 
-	// The store-entry beat: player crossed TriggerBox_Inside. If the key has
-	// broken and the warning hasn't shown yet, switches both store TVs to the
-	// tornado-warning screen. Also invoked directly by the TestDriver so E2E
-	// doesn't have to physically walk the player through the trigger.
+	// The store-entry beat: player crossed TriggerBox_Inside. The first entry
+	// after the key broke (the TVs already show the warning) sets
+	// TornadoWarningDisplayed — the storm — and starts watching for the player
+	// to look at a TV. Also invoked directly by the TestDriver so E2E doesn't
+	// have to physically walk the player through the trigger.
 	void HandleStoreEntry();
 
 private:
+	// KeyBroke: switch every store TV to the tornado-warning screen + siren
+	// while the player is out at the bathroom door.
+	void ShowTornadoWarningOnTVs();
+
 	UFUNCTION()
 	void OnInsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
@@ -106,8 +111,8 @@ private:
 	void OnOutsideTriggerOverlap(AActor* OverlappedActor, AActor* OtherActor);
 
 	// Which doorway box the player touched last. The two boxes sit either side
-	// of the glass door without overlapping, so Outside-then-Inside is an entry.
-	bool bLastDoorwayTriggerWasOutside = false;
+	// of the glass door without overlapping, so Inside-then-Outside is an exit.
+	bool bLastDoorwayTriggerWasInside = false;
 
 	// Reacts to our own flag changes: TornadoWarningDisplayed applies the storm
 	// mood, UsedPayPhone silences the TV sirens (the screens stay up), and

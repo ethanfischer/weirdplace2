@@ -32,10 +32,6 @@ public:
 	// and appear in the bare listing.
 	UFUNCTION(Exec) void SkipTo(const FString& BeatName);
 
-	// Dev: teleport Seneca to her smoking spot and start the smoking anim.
-	// Doesn't touch CurrentState or other quest flags. Type `SkipToSmoking` in PIE console.
-	UFUNCTION(Exec) void SkipToSmoking();
-
 	// Dev: teleport the player in front of the keypad-locked door (the employee
 	// bathroom), facing it, so you can immediately test code entry. Type
 	// `SkipToKeypad` in the PIE console. The code is the door's KeypadCode (4729).

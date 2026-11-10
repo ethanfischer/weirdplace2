@@ -6,7 +6,7 @@
 
 // Player controller whose sole job is to install UWeirdplaceCheatManager as the
 // cheat manager class, which is what makes the dev console commands (SkipTo /
-// SkipToSmoking / GiveItem) available. The engine only instantiates the cheat
+// SkipToKeypad / GiveItem) available. The engine only instantiates the cheat
 // manager when cheats are enabled — automatic in PIE standalone, non-shipping —
 // so this carries no cost in shipping builds.
 UCLASS()

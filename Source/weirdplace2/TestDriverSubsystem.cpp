@@ -38,7 +38,6 @@
 #include "Camera/CameraComponent.h"
 #include "Components/AudioComponent.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/TextRenderComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/WidgetComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -181,27 +180,44 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 	float PlaybackTime = 0.f;
 	int32 DeviceActiveSounds = 0;
 	int32 DeviceMaxChannels = 0;
+	// A component can own several active sounds (a restart overlaps the old
+	// one while it stops), so read every one and report the loudest.
+	int32 NumInstances = 0;
+	TArray<FString> InstanceLines;
 	FAudioThread::RunCommandOnAudioThread([Device, ComponentID, &bFound, &bOccluded, &OcclusionAttenuation, &InteriorVolume, &Heard, &ListenerPos,
-		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels]()
+		&NumWaves, &bPlayingAudio, &PlaybackTime, &DeviceActiveSounds, &DeviceMaxChannels, &NumInstances, &InstanceLines]()
 	{
 		Device->GetListenerPosition(0, ListenerPos, /*bAllowOverride*/ false);
 		DeviceActiveSounds = Device->GetActiveSounds().Num();
 		DeviceMaxChannels = Device->GetMaxChannels();
-		const FActiveSound* Active = Device->FindActiveSound(ComponentID);
-		if (!Active)
+		for (const FActiveSound* Active : Device->GetActiveSounds())
 		{
-			return;
-		}
-		bFound = true;
-		bOccluded = Active->bIsOccluded;
-		OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
-		InteriorVolume = Active->CurrentInteriorVolume;
-		bPlayingAudio = Active->IsPlayingAudio();
-		PlaybackTime = Active->PlaybackTime;
-		NumWaves = Active->GetWaveInstances().Num();
-		for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
-		{
-			Heard = FMath::Max(Heard, Pair.Value->GetActualVolume());
+			if (!Active || Active->GetAudioComponentID() != ComponentID)
+			{
+				continue;
+			}
+			float InstanceHeard = 0.f;
+			for (const TPair<UPTRINT, FWaveInstance*>& Pair : Active->GetWaveInstances())
+			{
+				InstanceHeard = FMath::Max(InstanceHeard, Pair.Value->GetActualVolume());
+			}
+			// GetVolume() = VolumeMultiplier * component fade * concurrency scale.
+			InstanceLines.Add(FString::Printf(TEXT("#%d heard=%.3f volMult=%.2f volWithFade=%.2f playing=%d waves=%d t=%.1fs tReal=%.1fs"),
+				NumInstances, InstanceHeard, Active->VolumeMultiplier, Active->GetVolume(),
+				Active->IsPlayingAudio() ? 1 : 0, Active->GetWaveInstances().Num(), Active->PlaybackTime, Active->PlaybackTimeNonVirtualized));
+			++NumInstances;
+			if (bFound && InstanceHeard <= Heard)
+			{
+				continue;
+			}
+			bFound = true;
+			Heard = InstanceHeard;
+			bOccluded = Active->bIsOccluded;
+			OcclusionAttenuation = Active->CurrentOcclusionVolumeAttenuation.GetValue();
+			InteriorVolume = Active->CurrentInteriorVolume;
+			bPlayingAudio = Active->IsPlayingAudio();
+			PlaybackTime = Active->PlaybackTime;
+			NumWaves = Active->GetWaveInstances().Num();
 		}
 	});
 	FAudioCommandFence Fence;
@@ -222,6 +238,8 @@ float UTestDriverSubsystem::GetAmbientSoundHeardVolume(const FString& Label) con
 		bTraceHit && Hit.GetActor() ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("none"),
 		bTraceHit && Hit.GetComponent() ? *Hit.GetComponent()->GetName() : TEXT("none"),
 		bTraceHit && Hit.bStartPenetrating ? 1 : 0);
+	UE_LOG(LogTemp, Display, TEXT("TestDriver::GetAmbientSoundHeardVolume - '%s' %d active sound(s) (virtualized loops aren't listed): %s"),
+		*Label, NumInstances, *FString::Join(InstanceLines, TEXT(" | ")));
 	return Heard;
 }
 
@@ -918,59 +936,6 @@ bool UTestDriverSubsystem::LookAtHudson()
 	return LookAt(Hudson);
 }
 
-// --- Seneca test helpers ---
-
-void UTestDriverSubsystem::FastForwardSenecaSmoking()
-{
-	ASeneca* Seneca = FindSeneca();
-	if (!Seneca)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::FastForwardSenecaSmoking - no Seneca"));
-		return;
-	}
-	Seneca->FastForwardSmokingAppear();
-}
-
-bool UTestDriverSubsystem::GetSenecaSmokingLinesJoined(FString& Out) const
-{
-	ASeneca* Seneca = FindSeneca();
-	if (!Seneca)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetSenecaSmokingLinesJoined - no Seneca"));
-		return false;
-	}
-	TArray<FText> Lines;
-	Seneca->BuildEffectiveDialogueLines(ESenecaState::Smoking, Lines);
-	TArray<FString> Strs;
-	for (const FText& L : Lines)
-	{
-		Strs.Add(L.ToString());
-	}
-	Out = FString::Join(Strs, TEXT(" "));
-	UE_LOG(LogTemp, Log, TEXT("TestDriver::GetSenecaSmokingLinesJoined: '%s'"), *Out);
-	return true;
-}
-
-void UTestDriverSubsystem::ForceSenecaToSmoking()
-{
-	ASeneca* Seneca = FindSeneca();
-	if (!Seneca)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::ForceSenecaToSmoking - no Seneca"));
-		return;
-	}
-	Seneca->CurrentState = ESenecaState::Smoking;
-	Seneca->ForceSmokingAppearance();
-}
-
-bool UTestDriverSubsystem::HasSenecaAppearedAtSmokingPos() const
-{
-	ASeneca* Seneca = FindSeneca();
-	// OnKeyDropped teleports Seneca to Z=-100000; "appeared" means she's been
-	// re-teleported by Tick back to SmokingPositionTarget (above ground).
-	return Seneca && Seneca->GetActorLocation().Z > -50000.0;
-}
-
 // --- Input simulation ---
 
 void UTestDriverSubsystem::SimulateKeyPress(FKey Key)
@@ -1590,64 +1555,6 @@ bool UTestDriverSubsystem::GetDisplayedDialogue(FString& OutSpeaker, FString& Ou
 
 	OutSpeaker = Widget->GetDisplayedSpeaker();
 	OutBody = Widget->GetFullLineText();
-	return true;
-}
-
-bool UTestDriverSubsystem::GetPutBackPromptState(FString& OutText, float& OutFacingDot, bool& bOutVisible) const
-{
-	UWorld* World = GetWorld();
-	if (!World)
-	{
-		return false;
-	}
-
-	AMovieBox* Inspected = nullptr;
-	for (TActorIterator<AMovieBox> It(World); It; ++It)
-	{
-		if (It->IsBeingInspected())
-		{
-			Inspected = *It;
-			break;
-		}
-	}
-	if (!Inspected)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - no MovieBox is being inspected"));
-		return false;
-	}
-
-	UTextRenderComponent* Prompt = nullptr;
-	TArray<UTextRenderComponent*> Texts;
-	Inspected->GetComponents<UTextRenderComponent>(Texts);
-	for (UTextRenderComponent* T : Texts)
-	{
-		if (T->GetFName() == TEXT("PutBackPromptText"))
-		{
-			Prompt = T;
-			break;
-		}
-	}
-	if (!Prompt)
-	{
-		UE_LOG(LogTemp, Error, TEXT("TestDriver::GetPutBackPromptState - inspected MovieBox '%s' has no 'PutBackPromptText' component"),
-			*Inspected->GetName());
-		return false;
-	}
-
-	OutText = Prompt->Text.ToString();
-	bOutVisible = Prompt->IsVisible();
-
-	FVector CamLoc;
-	FRotator CamRot;
-	World->GetFirstPlayerController()->GetPlayerViewPoint(CamLoc, CamRot);
-	// The prompt is yaw-only billboarded (stays upright), so measure facing in
-	// the horizontal plane — a pitch difference to the camera is expected and
-	// shouldn't count against it.
-	FVector ToCam = CamLoc - Prompt->GetComponentLocation();
-	FVector Forward = Prompt->GetForwardVector();
-	ToCam.Z = 0.f;
-	Forward.Z = 0.f;
-	OutFacingDot = FVector::DotProduct(Forward.GetSafeNormal(), ToCam.GetSafeNormal());
 	return true;
 }
 

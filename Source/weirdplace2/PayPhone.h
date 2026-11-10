@@ -60,6 +60,9 @@ public:
 	// (test query).
 	bool IsHangupLocked() const { return bHangupLocked; }
 
+	// What the floating code text currently shows (tests).
+	FString GetDisplayedCodeText() const;
+
 	// Test seam: mark the spoken code as already heard, so the next pickup is a
 	// mundane "dialtone only" call (the persistent looping dialtone, no code).
 	void MarkCodeSpokenForTest() { bCodeSpoken = true; }
@@ -191,6 +194,24 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Forced Perspective")
 	float PerspectiveLightRadiusMultiplier = 1.0f;
 
+	// --- Walk back (surreal shortcut) ---
+	// On the first hang-up the whole pole scene, everything in WalkBackCarry and
+	// the player shift toward WalkBackTarget by weird.PayPhone.WalkBackShift of
+	// the way (keeping their relative layout), so the walk back to the station
+	// takes about half as long as the walk out. It happens at the darkest,
+	// foggiest moment with everything near the player moving with them.
+	// Set on the level instance.
+	UPROPERTY(EditInstanceOnly, Category = "Walk Back")
+	AActor* WalkBackTarget = nullptr;
+
+	// Actors that belong to the pole scene and shift with it (the SenecaSmoking
+	// test waypoint, roadside dressing). Set on the level instance.
+	UPROPERTY(EditInstanceOnly, Category = "Walk Back")
+	TArray<AActor*> WalkBackCarry;
+
+	// World offset the walk-back shift applied (zero until the first hang-up; tests).
+	FVector GetWalkBackOffset() const { return WalkBackOffset; }
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -232,6 +253,12 @@ private:
 
 	// Interp the actor's uniform scale toward the distance-mapped target.
 	void UpdateForcedPerspective(float DeltaTime);
+
+	// First hang-up: move the scene, WalkBackCarry and the player toward
+	// WalkBackTarget (see WalkBackTarget).
+	void ShiftSceneTowardStation();
+	FVector WalkBackOffset = FVector::ZeroVector;
+	bool bWalkBackDone = false;
 
 	// Release the player's movement and remove the "Exit Interaction" binding.
 	// Shared by HangUp and EndPlay (mid-call teardown).

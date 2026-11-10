@@ -29,6 +29,8 @@ public:
 	virtual bool UseItem(FName ItemID) override;
 	virtual bool CanInteract() override { return !bBrokenOpen && Super::CanInteract(); } // nothing left to poke once it's open
 	virtual bool WouldReactToItem(FName ItemID) override { return ItemID == OpenerItemID && !bBrokenOpen && MoneyDef != nullptr; }
+	// Padlocked: Interact asks for an item (the tenderizer breaks it open).
+	virtual bool WantsItemPrompt() override { return !bBrokenOpen; }
 
 	bool IsBrokenOpen() const { return bBrokenOpen; }
 
@@ -55,6 +57,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ice Machine")
 	USoundBase* BreakOpenSound = nullptr;
 
+	// Rattled when poked while padlocked — i.e. Interact with an empty
+	// inventory (with items, Interact opens the item prompt instead).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ice Machine")
+	USoundBase* LockedSound = nullptr;
+
+	// Times LockedSound played (tests assert on it).
+	int32 GetLockedSoundPlayCount() const { return LockedSoundPlayCount; }
+
+protected:
+	virtual void OnFlavorInteract() override;
+
+public:
+
 	// How far the left door swings (degrees about its hinge). The right door
 	// stays shut; only its padlock comes off.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ice Machine|Animation")
@@ -73,6 +88,7 @@ public:
 
 private:
 	bool bBrokenOpen = false;
+	int32 LockedSoundPlayCount = 0;
 	float OpenElapsed = -1.0f; // <0 = not animating
 
 	FVector PadlockLStart, PadlockRStart;

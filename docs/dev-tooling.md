@@ -12,8 +12,9 @@ vs ~780ms interpreter+discovery per CLI call; A/B'd 2026-08-07 with
 properties, cvars, screenshots, PIE control.
 
 **If the server shows as failed to connect**, it's because no editor was running when
-the session started. Launch via `scripts/launch_editor.ps1`, then run `/mcp` to
-reconnect. Don't silently fall back to uq.
+the session started. Launch via `scripts/launch_editor.ps1`, then reconnect it
+yourself (desktop app: the `reconnect_session_connector` tool; CLI: `/mcp`). Don't
+silently fall back to uq.
 
 Discovery: `list_toolsets` → `describe_toolset` → `call_tool` (tool_name WITHOUT the
 toolset prefix, toolset_name separate; schema-"optional" params must still be passed,
@@ -68,9 +69,6 @@ python scripts/ue_remote_exec.py --code "C:/Users/ethan/repos/weirdplace2/Conten
 # Inline
 python scripts/ue_remote_exec.py --code "import unreal; print(unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world().get_name())"
 ```
-
-Do not use `--file <path>`: the wrapper ships file contents, but MODE_EXEC_FILE expects
-a path and the run silently fails with empty output (verified on 5.7; unchanged in 5.8).
 
 **Headless / asset modification** (edit `.uasset` files without the user's session) —
 `UnrealEditor-Cmd.exe -ExecutePythonScript=...`. For bulk asset edits, thumbnails,

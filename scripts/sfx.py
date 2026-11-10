@@ -31,6 +31,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -43,14 +44,21 @@ PROJECT_ROOT = SCRIPTS_DIR.parent
 CREDITS_PATH = PROJECT_ROOT / "CREDITS.md"
 
 BUNDLE_DIR = Path(r"C:\Users\ethan\Music\ALL IN ONE SOUND LIBRARY BUNDLE")
+# Metadata for the 48kHz/24bit zips that `fetch` downloads. (The sibling
+# "1. All In One Bundle Until 2025 Metadata" CSV describes the 192kHz zips:
+# different set grouping, different RecIDs, "LR" where the files say "L,R".)
 CSV_PATH = (
     BUNDLE_DIR
     / "FTUS All In One Bundle Metadata"
     / "FTUS All In One Bundle Metadata"
-    / "1. All In One Bundle Until 2025 Metadata"
-    / "All In One Bundle Metadata Until 2026.csv"
+    / "2. All In One Bundle Metadata in 4824"
+    / "All In One Bundle 4824.csv"
 )
-LIBRARY_DIR = BUNDLE_DIR / "Library"   # extracted wavs, mirrors CSV FilePath
+# The Gumroad page group holding those 48/24 zips. Other groups reuse set names
+# for different recordings (192kHz originals; 2026 update packs), so `fetch`
+# only ever takes files from this one.
+GUMROAD_4824_GROUP = "All In One Bundle Before 2026 In 4824"
+LIBRARY_DIR = BUNDLE_DIR / "Library"   # extracted wavs: Library/<CATEGORY>/<SET>/...
 ZIPS_DIR = BUNDLE_DIR / "Zips"         # downloaded zips are archived here
 CONFIG_PATH = BUNDLE_DIR / ".sfxcli.json"
 
@@ -72,13 +80,28 @@ def load_rows():
 
 
 def set_name(row):
-    """Second segment of FilePath (e.g. AIR/AIR_01/HISS/x.wav -> AIR_01) = Gumroad zip name."""
-    parts = row["FilePath"].split("/")
-    return parts[1] if len(parts) > 1 else "?"
+    """Second segment of FilePath (AIOB 4824/DESIGNED_01/BOOM/x.wav -> DESIGNED_01) = Gumroad zip name."""
+    return row["FilePath"].split("/")[1]
+
+
+def set_dir(set_id):
+    """Library/<CATEGORY>/<SET> — where `fetch` extracts a set's zip."""
+    return LIBRARY_DIR / set_id.rsplit("_", 1)[0] / set_id
+
+
+def win_long(p):
+    """\\\\?\\-prefixed path: many FTUS paths exceed MAX_PATH (260), which plain Windows file APIs reject."""
+    return Path("\\\\?\\" + str(p))
 
 
 def local_path(row):
-    return LIBRARY_DIR / row["FilePath"].replace("/", "\\")
+    """Extracted wav for a row: FilePath is AIOB 4824/<SET>/<SUBCATEGORY>/<file>.wav."""
+    parts = row["FilePath"].split("/")
+    return set_dir(parts[1]).joinpath(*parts[2:])
+
+
+def is_local(row):
+    return win_long(local_path(row)).exists()
 
 
 def match_rows(rows, terms, require_all):
@@ -97,7 +120,7 @@ def match_rows(rows, terms, require_all):
 def cmd_search(args):
     rows = match_rows(load_rows(), args.terms, args.all)
     for row in rows[: args.limit]:
-        loc = " [LOCAL]" if local_path(row).exists() else ""
+        loc = " [LOCAL]" if is_local(row) else ""
         print(f"{row['RecID']:>6}  {row['Duration']:>10}  {set_name(row):<14}{loc}  {row['Filename']}")
     print(f"-- {len(rows)} match(es)" + (f", showing {args.limit}" if len(rows) > args.limit else ""))
 
@@ -108,7 +131,7 @@ def cmd_sets(args):
     for row in rows:
         groups.setdefault(set_name(row), []).append(row)
     for name in sorted(groups):
-        have = LIBRARY_DIR.joinpath(*groups[name][0]["FilePath"].split("/")[:2]).exists()
+        have = set_dir(name).exists()
         print(f"{name:<16} {len(groups[name]):>4} match(es)" + ("  [DOWNLOADED]" if have else ""))
     print(f"-- {len(rows)} match(es) across {len(groups)} set(s)")
 
@@ -127,24 +150,37 @@ def load_config():
 
 
 def gumroad_catalog(cfg):
-    """Scrape the /d/<hash> content page: {file_name: (abs_download_url, file_size)}.
+    """Scrape the /d/<hash> content page: {set_name: (abs_download_url, file_size)} for
+    the zips in the GUMROAD_4824_GROUP group (the sets CSV_PATH describes).
 
     The /d/ link itself is the access token — the page and its download URLs
-    work without login. Each file entry is embedded as HTML-escaped JSON.
+    work without login. The page embeds HTML-escaped JSON: a flat list of file
+    entries, then rich content whose fileEmbedGroups reference files by id.
     """
     req = urllib.request.Request(cfg["gumroad_url"], headers={"User-Agent": "Mozilla/5.0"})
     page = html_mod.unescape(urllib.request.urlopen(req).read().decode("utf-8", "replace"))
-    out = {}
+    files = {}
     for m in re.finditer(
-        r'"file_name":"([^"]+)"[^{}]*?"file_size":(\d+)[^{}]*?"download_url":"([^"]+)"', page
+        r'\{"type":"file","file_name":"([^"]+)"[^{}]*?"file_size":(\d+)[^{}]*?"id":"([^"]+)"[^{}]*?"download_url":"([^"]+)"',
+        page,
     ):
-        name, size, url = m.group(1), int(m.group(2)), m.group(3).replace("\\u0026", "&")
-        # Sets appear twice: full-res 192kHz section first, then the 48kHz/24bit
-        # section. Last-write-wins keeps the 48/24 variant — the right one for
-        # game audio (4x smaller, UE-native rate).
-        out[name] = ("https://gumroad.com" + url, size)
+        name, size, fid, url = m.group(1), int(m.group(2)), m.group(3), m.group(4).replace("\\u0026", "&")
+        files[fid] = (name, "https://gumroad.com" + url, size)
+    group = re.search(
+        r'"type":"fileEmbedGroup","attrs":\{[^{}]*?"name":"' + re.escape(GUMROAD_4824_GROUP), page
+    )
+    if not files or not group:
+        sys.exit(f"ERROR: no file entries / no '{GUMROAD_4824_GROUP}' group on the Gumroad page — layout may have changed")
+    group_end = re.compile(r'"type":"(fileEmbedGroup|heading)"').search(page, group.end())
+    section = page[group.end(): group_end.start() if group_end else len(page)]
+    out = {}
+    for fid in re.findall(r'"type":"fileEmbed","attrs":\{[^{}]*?"id":"([^"]+)"', section):
+        name, url, size = files[fid]
+        if name in out:
+            sys.exit(f"ERROR: '{name}' appears twice in the '{GUMROAD_4824_GROUP}' group")
+        out[name] = (url, size)
     if not out:
-        sys.exit("ERROR: no file entries found on the Gumroad page — layout may have changed")
+        sys.exit(f"ERROR: the '{GUMROAD_4824_GROUP}' group has no files — layout may have changed")
     return out
 
 
@@ -180,21 +216,18 @@ def download(url, dest, expected_size):
 
 
 def extract_zip(zp, set_id):
-    """Extract wavs into Library/<Category>/<SET>/... to mirror the CSV FilePath layout."""
-    category = set_id.rsplit("_", 1)[0]
-    dest_root = LIBRARY_DIR / category / set_id
-    dest_root.mkdir(parents=True, exist_ok=True)
+    """Extract wavs into set_dir(set_id), keeping the zip's layout below its <SET>
+    folder so local_path() (from the CSV FilePath) finds every file."""
+    dest_root = set_dir(set_id)
     count = 0
     with zipfile.ZipFile(zp) as z:
         for info in z.infolist():
             if info.is_dir() or "__MACOSX" in info.filename or not info.filename.lower().endswith(".wav"):
                 continue
-            # Zip internal layout varies; anchor on the path after the SET dir if
-            # present, else after the subcategory dir, else flat.
             parts = Path(info.filename).parts
-            rel = Path(*parts[parts.index(set_id) + 1:]) if set_id in parts else Path(parts[-1])
-            # \\?\ prefix: many FTUS filenames push the full path past MAX_PATH (260).
-            target = Path("\\\\?\\" + str(dest_root / rel))
+            if set_id not in parts:
+                sys.exit(f"ERROR: {zp.name}: '{info.filename}' isn't under a '{set_id}' folder — zip layout changed")
+            target = win_long(dest_root.joinpath(*parts[parts.index(set_id) + 1:]))
             target.parent.mkdir(parents=True, exist_ok=True)
             with z.open(info) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
@@ -202,25 +235,43 @@ def extract_zip(zp, set_id):
     return dest_root, count
 
 
+def verify_set(set_id, rows):
+    """Every CSV row of the set must resolve to an extracted wav."""
+    missing = [r for r in rows if not is_local(r)]
+    if missing:
+        sys.exit(
+            f"ERROR: {set_id}: {len(missing)}/{len(rows)} CSV rows have no extracted wav, e.g.\n"
+            f"  {local_path(missing[0])}"
+        )
+    print(f"{set_id}: all {len(rows)} CSV rows resolve to extracted wavs")
+
+
 def cmd_fetch(args):
     cfg = load_config()
     ZIPS_DIR.mkdir(parents=True, exist_ok=True)
-    catalog = gumroad_catalog(cfg)
+    rows_by_set = {}
+    for row in load_rows():
+        rows_by_set.setdefault(set_name(row), []).append(row)
+    unknown = [s for s in args.sets if s not in rows_by_set]
+    if unknown:
+        sys.exit(f"ERROR: not a set in the metadata CSV: {', '.join(unknown)}. Known sets: {', '.join(sorted(rows_by_set))}")
+    catalog = None
     for set_id in args.sets:
-        category = set_id.rsplit("_", 1)[0]
-        if (LIBRARY_DIR / category / set_id).exists():
-            print(f"{set_id}: already extracted, skipping")
-            continue
-        if set_id not in catalog:
-            sys.exit(f"ERROR: '{set_id}' not on the Gumroad page. Known sets: {', '.join(sorted(catalog))}")
-        url, size = catalog[set_id]
-        zp = ZIPS_DIR / f"{set_id}.zip"
-        if not zp.exists():
-            print(f"{set_id}: downloading {size // (1 << 20)} MB...")
-            download(url, zp, size)
-        print(f"{set_id}: extracting {zp.name}...")
-        dest, count = extract_zip(zp, set_id)
-        print(f"{set_id}: {count} wav(s) -> {dest}")
+        if set_dir(set_id).exists():
+            print(f"{set_id}: already extracted")
+        else:
+            catalog = catalog or gumroad_catalog(cfg)
+            if set_id not in catalog:
+                sys.exit(f"ERROR: '{set_id}' is in the CSV but not in the Gumroad '{GUMROAD_4824_GROUP}' group")
+            url, size = catalog[set_id]
+            zp = ZIPS_DIR / f"{set_id}.zip"
+            if not zp.exists():
+                print(f"{set_id}: downloading {size // (1 << 20)} MB...")
+                download(url, zp, size)
+            print(f"{set_id}: extracting {zp.name}...")
+            dest, count = extract_zip(zp, set_id)
+            print(f"{set_id}: {count} wav(s) -> {dest}")
+        verify_set(set_id, rows_by_set[set_id])
 
 
 def cmd_catalog(args):
@@ -244,10 +295,9 @@ def find_row(rows, key):
 
 def cmd_locate(args):
     row = find_row(load_rows(), args.key)
-    p = local_path(row)
-    if not p.exists():
+    if not is_local(row):
         sys.exit(f"ERROR: not downloaded. Set '{set_name(row)}' — run: python scripts/sfx.py fetch {set_name(row)}")
-    print(p)
+    print(local_path(row))
 
 
 def default_asset_name(row):
@@ -258,33 +308,46 @@ def default_asset_name(row):
 
 
 def cmd_import(args):
+    if not re.fullmatch(r"/Game(/[A-Za-z0-9_]+)*", args.dest):
+        sys.exit(
+            f"ERROR: --dest must be a /Game/... content path, got '{args.dest}'.\n"
+            "Git Bash rewrites /Game/... arguments into Windows paths — prefix the command with MSYS_NO_PATHCONV=1."
+        )
     rows = load_rows()
     row = find_row(rows, args.key)
-    wav = local_path(row)
-    if not wav.exists():
+    if not is_local(row):
         sys.exit(f"ERROR: wav not downloaded. Run: python scripts/sfx.py fetch {set_name(row)}")
+    wav = local_path(row)
     asset_name = args.name or default_asset_name(row)
+    # Import from a short staging copy: library paths often exceed MAX_PATH.
+    stage = Path(tempfile.gettempdir()) / "sfx_import" / f"{asset_name}.wav"
+    stage.parent.mkdir(exist_ok=True)
+    shutil.copyfile(win_long(wav), stage)
     code = (
         "import unreal\n"
-        f"task = unreal.AssetImportTask()\n"
-        f"task.filename = r'{wav}'\n"
-        f"task.destination_path = '{args.dest}'\n"
-        f"task.destination_name = '{asset_name}'\n"
+        "task = unreal.AssetImportTask()\n"
+        f"task.filename = {str(stage)!r}\n"
+        f"task.destination_path = {args.dest!r}\n"
+        f"task.destination_name = {asset_name!r}\n"
         "task.automated = True\n"
         "task.save = True\n"
         "unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])\n"
-        f"print('IMPORTED:' + '{args.dest}/{asset_name}')\n"
+        "paths = list(task.imported_object_paths)\n"
+        "print(('IMPORTED:' + paths[0]) if paths else 'IMPORT_FAILED: nothing imported')\n"
     )
     result = subprocess.run(
         [sys.executable, str(SCRIPTS_DIR / "ue_remote_exec.py"), "--code", code],
         capture_output=True, text=True,
     )
     out = (result.stdout or "") + (result.stderr or "")
-    if "IMPORTED:" not in out:
+    imported = re.search(r"IMPORTED:(\S+)", out)
+    if not imported:
         sys.exit(
-            f"ERROR: UE import failed (is the editor running? scripts/launch_editor.ps1).\nOutput:\n{out}"
+            "ERROR: UE import failed (is the editor running? scripts/launch_editor.ps1; "
+            "see Saved/Logs/weirdplace2.log for LogAssetTools/LogAudio errors).\n"
+            f"Output:\n{out}"
         )
-    print(f"Imported {wav.name}\n  -> {args.dest}/{asset_name}")
+    print(f"Imported {wav.name}\n  -> {imported.group(1)}")
     update_credits(row, f"{args.dest}/{asset_name}")
 
 
