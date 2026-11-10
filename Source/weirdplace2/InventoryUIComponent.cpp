@@ -121,9 +121,10 @@ void UInventoryUIComponent::ToggleInventoryUI()
 	}
 }
 
-void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate)
+void UInventoryUIComponent::OpenForGive(const FInventoryGiveDelegate& InDelegate, USoundBase* InDenySound)
 {
 	GiveDelegate = InDelegate;
+	ActiveDenySound = InDenySound ? InDenySound : DenySound;
 	bGiveMode = true;
 	OpenInventoryUI();
 }
@@ -155,10 +156,11 @@ void UInventoryUIComponent::ConfirmGiveSelection()
 	{
 		// Empty slot or rejected offer: deny feedback, stay open to pick again.
 		++DenyCount;
-		UE_LOG(LogTemp, Log, TEXT("InventoryUI: give offer '%s' denied"), *Selected.ToString());
-		if (DenySound)
+		UE_LOG(LogTemp, Log, TEXT("InventoryUI: give offer '%s' denied (%s)"), *Selected.ToString(), *GetNameSafe(ActiveDenySound));
+		LastDenySound = ActiveDenySound;
+		if (ActiveDenySound)
 		{
-			UGameplayStatics::PlaySound2D(this, DenySound);
+			UGameplayStatics::PlaySound2D(this, ActiveDenySound);
 		}
 	}
 }
@@ -259,6 +261,7 @@ void UInventoryUIComponent::CloseInventoryUI()
 	// Closing always returns to a plain browse state — clear any give binding.
 	bGiveMode = false;
 	GiveDelegate.Unbind();
+	ActiveDenySound = nullptr;
 
 	if (AFirstPersonCharacter* FirstPersonCharacter = Cast<AFirstPersonCharacter>(GetOwner()))
 	{

@@ -46,6 +46,15 @@ void ASeneca::BeginPlay()
 
 	UE_LOG(LogTemp, Log, TEXT("Seneca::BeginPlay"));
 
+	if (!WrongChoiceSound)
+	{
+		WrongChoiceSound = LoadObject<USoundBase>(nullptr, TEXT("/Game/Sounds/S_WrongChoice.S_WrongChoice"));
+		if (!WrongChoiceSound)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Seneca: default WrongChoiceSound /Game/Sounds/S_WrongChoice missing"));
+		}
+	}
+
 	UStorySubsystem* Story = GetWorld()->GetSubsystem<UStorySubsystem>();
 	Story->OnStoryFlagChanged.AddUObject(this, &ASeneca::OnStoryFlagChanged);
 	if (Story->IsFlagSet(EStoryFlag::EnteredOasis))
@@ -797,7 +806,7 @@ void ASeneca::OpenGiveForOffer(AFirstPersonCharacter* MyCharacter)
 	}
 	if (UInventoryUIComponent* InvUI = MyCharacter->GetInventoryUIComponent())
 	{
-		InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &ASeneca::OnInventoryItemOffered));
+		InvUI->OpenForGive(FInventoryGiveDelegate::CreateUObject(this, &ASeneca::OnInventoryItemOffered), WrongChoiceSound);
 	}
 }
 

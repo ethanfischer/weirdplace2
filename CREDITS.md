@@ -37,7 +37,7 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Author:** sotiris_laskaris
 - **Source:** https://freesound.org/s/620404/
 - **License:** Creative Commons Attribution 4.0 (CC BY 4.0) — attribution required
-- **Used in:** `Content/Sounds/620404__sotiris_laskaris__passbys-inside-city-tunnel.uasset`
+- **Used in:** `Content/Sounds/Music/620404__sotiris_laskaris__passbys-inside-city-tunnel.uasset`
 - **Required attribution:** `"Passbys inside City Tunnel" by sotiris_laskaris -- https://freesound.org/s/620404/ -- License: Creative Commons Attribution 4.0`
 
 ### "Ambient alien sound 05" — Jagadamba (freesound)
@@ -55,6 +55,12 @@ This file tracks third-party assets used in weirdplace2 and the attribution / li
 - **Author:** Kodack
 - **License:** Creative Commons 0
 - **Used in:** `Content/Sounds/lockeddoor.uasset`
+
+### "Wrong" — Raclure (freesound #483598)
+- **Author:** Raclure
+- **Source:** https://freesound.org/s/483598/
+- **License:** Creative Commons 0 (public domain — no attribution legally required)
+- **Used in:** `Content/Sounds/S_WrongChoice.uasset` (Seneca's wrong-item "no")
 
 ### "Brazilian_Waterfall_River" — SuperStudioBR (freesound)
 - **Author:** SuperStudioBR
@@ -106,7 +112,8 @@ These project files have no obvious match in the user's freesound history. Could
 - `Content/Sounds/elevatormusic.uasset`
 - `Content/Sounds/lel.uasset`
 - `Content/Sounds/lowvoice.uasset` / `LowVoiceSoundCue.uasset`
-- `Content/Sounds/Passing.uasset`
+- `Content/Sounds/Music/Passing.uasset` (+ `Passing_Intro`, `Passing_Loop`, `SomeNiceChords`)
+- `Content/Sounds/Music/WaitingRoom.uasset`
 - `Content/Sounds/MenuOpen.uasset`, `MenuClose.uasset`, `MenuItemSelected.uasset`
 - `Content/Sounds/ItemCollect/itemCollected_*.uasset` (11 variants)
 - `Content/Sounds/TextBlip/textBlip_01.uasset`

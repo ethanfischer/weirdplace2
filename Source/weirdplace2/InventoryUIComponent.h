@@ -45,7 +45,9 @@ public:
 
 	// Open the inventory in "give mode": the player navigates and presses E to
 	// offer the selected item to InDelegate. Used by gated interactions (door/NPC).
-	void OpenForGive(const FInventoryGiveDelegate& InDelegate);
+	// InDenySound replaces DenySound for this prompt's rejections — a receiver
+	// with its own "no" (Seneca's wrong-choice chime); nullptr keeps DenySound.
+	void OpenForGive(const FInventoryGiveDelegate& InDelegate, USoundBase* InDenySound = nullptr);
 
 	// True while the inventory is open as a give prompt (E confirms a give).
 	bool IsGiveMode() const { return bGiveMode; }
@@ -69,6 +71,9 @@ public:
 
 	// Times a give-mode offer was rejected (tests assert on it).
 	int32 GetDenyCount() const { return DenyCount; }
+
+	// For tests: the sound the most recent rejected offer played.
+	const USoundBase* GetLastDenySoundForTest() const { return LastDenySound; }
 
 	// Get currently selected index
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Inventory UI")
@@ -151,6 +156,13 @@ protected:
 
 private:
 	int32 DenyCount = 0;
+
+	// This give prompt's deny sound (DenySound or OpenForGive's override).
+	UPROPERTY()
+	TObjectPtr<USoundBase> ActiveDenySound = nullptr;
+
+	UPROPERTY()
+	TObjectPtr<USoundBase> LastDenySound = nullptr;
 
 	// Current state
 	UPROPERTY()

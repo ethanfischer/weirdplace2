@@ -26,6 +26,7 @@
 #include "Sound/AmbientSound.h"
 #include "UObject/UnrealType.h"
 #include "IceMachine.h"
+#include "Seneca.h"
 #include "Piano.h"
 #include "KeypadUIActor.h"
 #include "KeypadUIComponent.h"
@@ -3377,6 +3378,8 @@ bool FE2E_Level1_MeatTenderizer::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("movie offered to the ice machine was denied"),
 		[](UWorld* W) { const UInventoryUIComponent* UI = E2EInvUI(W); return UI && UI->GetDenyCount() == 1 && UI->IsInventoryFullyOpen(); }));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("ice machine deny kept the locked-door rattle"),
+		[](UWorld* W) { const UInventoryUIComponent* UI = E2EInvUI(W); return UI && GetNameSafe(UI->GetLastDenySoundForTest()) == TEXT("lockeddoor"); }));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("wrong item left the ice machine locked"),
 		[](UWorld* W) { const AIceMachine* M = E2EIceMachine(W); return M && !M->IsBrokenOpen(); }));
 
@@ -3436,6 +3439,12 @@ bool FE2E_Level1_SenecaRejectsTenderizer::RunTest(const FString& Parameters)
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.5f));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("tenderizer offered to Seneca was denied, prompt still open"),
 		[](UWorld* W) { const UInventoryUIComponent* UI = E2EInvUI(W); return UI && UI->GetDenyCount() == 1 && UI->IsInventoryFullyOpen(); }));
+	ADD_LATENT_AUTOMATION_COMMAND(FTD_Check(this, TEXT("Seneca's deny played his wrong-choice sound, not the rattle"),
+		[](UWorld* W) {
+			const UInventoryUIComponent* UI = E2EInvUI(W);
+			TActorIterator<ASeneca> It(W);
+			return UI && It && It->GetWrongChoiceSound() && UI->GetLastDenySoundForTest() == It->GetWrongChoiceSound();
+		}));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertHasItem(this, FName("MeatTenderizer")));
 	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_SenecaRejectsTenderizer_01_Denied")));
 

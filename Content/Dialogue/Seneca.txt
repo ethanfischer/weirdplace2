@@ -55,3 +55,6 @@ Záchod je venku za rohem.
 # Oasis: Seneca at the piano.
 == Piano ==
 Hey. Where have you been?
+Anyway, this is the end of the demo.
+Hope you enjoyed it. 
+Leave feedback with Ethan

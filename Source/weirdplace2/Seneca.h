@@ -19,6 +19,7 @@ class UInventoryComponent;
 enum class EStoryFlag : uint8;
 class APiano;
 class USpawnerActorComponent;
+class USoundBase;
 
 UENUM(BlueprintType)
 enum class ESenecaState : uint8
@@ -109,7 +110,17 @@ public:
 	// Test access: returns the pre-placed key prop actor (shown during the key beat).
 	APropActor* GetKeyActor() const { return KeyActor; }
 
+	// Test access: the sound a rejected offer to Seneca plays.
+	const USoundBase* GetWrongChoiceSound() const { return WrongChoiceSound; }
+
 protected:
+	// --- Audio ---
+
+	// Played instead of the inventory's locked-door rattle when the player
+	// offers Seneca an item he won't take (e.g. the meat tenderizer).
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Seneca|Audio")
+	USoundBase* WrongChoiceSound = nullptr;
+
 	// --- Dialogue (sectioned file parsed by FDialogueScript; see scripts/dq.py) ---
 
 	UPROPERTY(EditAnywhere, Category = "Seneca|Dialogue")
