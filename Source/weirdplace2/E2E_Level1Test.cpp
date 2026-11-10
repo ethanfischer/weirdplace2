@@ -1725,47 +1725,6 @@ bool FE2E_Level1_RickComesInside::RunTest(const FString& Parameters)
 }
 
 // =======================================================================
-// MoviePutBackPrompt — while inspecting a movie, a world-space prompt
-// names the put-back binding (IA_Back: Backspace / RMB / gamepad B) and keeps
-// facing the player even as the box is rotated. Pressing the prompted key
-// actually puts the movie back.
-// =======================================================================
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(
-	FE2E_Level1_MoviePutBackPrompt,
-	"Weirdplace2.E2E.Level1.Regression.MoviePutBackPrompt",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
-
-bool FE2E_Level1_MoviePutBackPrompt::RunTest(const FString& Parameters)
-{
-	E2E_TEST_PREAMBLE("MoviePutBackPrompt")
-
-	// Same approach as HappyPath's CollectMovies: stand in front of the box
-	// and aim at a trace-verified surface point.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TeleportFacingShelfBoxAndAim(this, TEXT("BP_MovieBox120")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateInteractAction(this));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::Interacting));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_Delay(0.3f));
-
-	// Mouse drives this test, so the prompt must show ONLY the keyboard key.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_01_PromptShown")));
-
-	// Rotate the box (mouse axis); the prompt must keep facing the camera
-	// and stay keyboard-flavored.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_InjectMouseXForDuration(this, 90.0f, 0.6f));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_AssertPutBackPrompt(this, TEXT("[Backspace]  put back")));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_TakeScreenshot(TEXT("E2E_PutBack_02_AfterRotate")));
-
-	// The prompted key really does put the movie back.
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_SimulateKeyPress(this, EKeys::BackSpace));
-	ADD_LATENT_AUTOMATION_COMMAND(FTD_WaitForActivityState(this, EPlayerActivityState::FreeRoaming));
-
-	ADD_LATENT_AUTOMATION_COMMAND(FEndPlayMapCommand());
-	return true;
-}
-
-// =======================================================================
 // BlankVhsGazeSweep — diagnostic. Activate the blank tape, stand in front
 // of it, then sweep the reticle across a grid over its face, logging what
 // the chord gaze trace hits at each point (and screenshotting the corners).

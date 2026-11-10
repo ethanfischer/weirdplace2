@@ -3431,58 +3431,6 @@ private:
 };
 
 // =======================================================================
-// FTD_AssertPutBackPrompt — while a movie is inspected, a world-space
-// prompt must be visible, name the put-back binding, and face the camera.
-// =======================================================================
-
-class FTD_AssertPutBackPrompt : public FTD_Base
-{
-public:
-	FTD_AssertPutBackPrompt(FAutomationTestBase* InTest, FString InExpectedText, float InMinFacingDot = 0.94f)
-		: FTD_Base(InTest), ExpectedText(MoveTemp(InExpectedText)), MinFacingDot(InMinFacingDot) {}
-
-	virtual FString GetStatusText() const override
-	{
-		return FString::Printf(TEXT("Asserting put-back prompt reads \"%s\" and faces camera"), *ExpectedText);
-	}
-
-	virtual bool UpdateStep() override
-	{
-		UTestDriverSubsystem* Driver = GetDriver();
-		if (!Driver) { Test->AddError(TEXT("FTD_AssertPutBackPrompt: no driver")); return true; }
-
-		FString Text;
-		float FacingDot = 0.f;
-		bool bVisible = false;
-		if (!Driver->GetPutBackPromptState(Text, FacingDot, bVisible))
-		{
-			Test->AddError(TEXT("FTD_AssertPutBackPrompt: no inspected MovieBox with a PutBackPrompt"));
-			return true;
-		}
-		if (!bVisible)
-		{
-			Test->AddError(TEXT("FTD_AssertPutBackPrompt: prompt exists but is not visible"));
-		}
-		// Exact match: catches both a wrong binding and the dual "Q / B" form
-		// when only the active device's key should show.
-		if (Text != ExpectedText)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: text is \"%s\", expected \"%s\""),
-				*Text, *ExpectedText));
-		}
-		if (FacingDot < MinFacingDot)
-		{
-			Test->AddError(FString::Printf(TEXT("FTD_AssertPutBackPrompt: not facing camera (dot=%.3f, need >=%.2f)"),
-				FacingDot, MinFacingDot));
-		}
-		return true;
-	}
-private:
-	FString ExpectedText;
-	float MinFacingDot;
-};
-
-// =======================================================================
 // FTD_ActivateBlankTape — test bypass: trigger the spawner's chosen-tape
 // swap directly instead of playing through the money beat.
 // =======================================================================

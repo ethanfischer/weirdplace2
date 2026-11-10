@@ -122,7 +122,7 @@ Tests in `E2E_Level1Test.cpp` live under two subgroups:
 ```bash
 powershell -ExecutionPolicy Bypass -File run_e2e.ps1 -TestName Regression -Headed
 ```
-Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward, MoviePutBackPrompt) take screenshots and/or rely on rendering for trace/material side effects.
+Headed because several regression tests (PauseMenu, InventoryThumbnails, GazeReward) take screenshots and/or rely on rendering for trace/material side effects.
 
 ## Misc
 - **One dev skip command**: `SkipTo <beat>` in `WeirdplaceCheatManager` applies now *and* persists across PIE until `SkipTo clear`; bare `SkipTo` lists beats. A new beat/stage must resolve there, persist, and appear in the listing (story beats via `UStorySubsystem`, car-ride stages via `UCarRideComponent::GetSkipStages`).
